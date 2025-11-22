@@ -168,4 +168,4 @@ ExcaliDash/
 - Example designs from:
   - https://github.com/Prakash-sa/system-design-ultimatum/tree/main
   - https://github.com/kitsteam/excalidraw-examples/tree/main
-- [Excalidraw](https://github.com/ZimengXiong/ExcaliDash)
+- [The Amazing work of Excalidraw developers](https://www.npmjs.com/package/@excalidraw/excalidraw)
