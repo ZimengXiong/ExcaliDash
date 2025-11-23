@@ -1,6 +1,6 @@
 <img src="logoExcaliDash.png" alt="ExcaliDash Logo" width="80" height="88">
 
-# ExcaliDash v0.1.3
+# ExcaliDash v0.1.5
 
 ![License](https://img.shields.io/github/license/zimengxiong/ExcaliDash)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com)

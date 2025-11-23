@@ -1,34 +1,30 @@
-# ExcaliDash v0.1.4
+# ExcaliDash v0.1.5
 
-**Type:** Security Release  
-**Date:** 2025-11-23  
-**Compatibility:** v0.1.x (Backward Compatible)
+Date: 2025-11-23
 
-## Security Fixes
+Compatibility: v0.1.x (Backward Compatible)
 
-**Input Sanitization & XSS Prevention**
+# Security
 
-- Implemented basic sanitization using `dompurify` and `jsdom`. All drawing data, text inputs, and SVG content are now stripped of non-geometric elements and malicious attributes before persistence. URL validation now explicitly blocks `javascript:`, `data:`, and `vbscript:` schemes.
+- RCE: implemented strict Zod schema validation and input sanitization on file uploads; added path traversal guards to file handling logic
 
-**Network & Headers**
+- XSS: used DOMPurify for HTML sanitization; blocked execution-capable SVG attributes and enforces CSP headers.
 
-- Enforced Content Security Policy (CSP) with strict source restrictions. Added standard hardening headers: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and strict Referrer Policy. Rate limiting added (1,000 req/15min).
-  **Validation Logic**
+- DoS: moved CPU-intensive operations to worker threads to prevent event loop blocking; request rate limiting (1,000 req/15 min per IP) and streaming for large files
 
-- Adopted `zod` schemas for strict runtime type checking on all API inputs. Requests exceeding length limits or failing schema validation are rejected prior to processing.
+# Infras & Deployment
 
-## Infra
+- non-root execution (uid 1001) in containers
+- migrated to multi-stage Docker builds
 
-**Docker Architecture**
+# Database
 
-- Containers now execute as a non-root user (uid 1001) to minimize privilege escalation risks. Refactored into a multi-stage build to reduce image size and enforce proper file ownership/permissions on startup.
+- migrated to better-sqlite3, converted all DB interactions to non-blocking async operations and offloaded integrity checks to worker threads.
 
-**Async Operations & Database**
+- implemented SQLite magic header validation; added automatic backup triggers preceding data import
 
-- Moved blocking file I/O and SQLite integrity checks to worker threads (`src/workers/db-verify.js`) to prevent event loop stalling. Switched to `better-sqlite3`. Database imports now trigger automatic backups and validate SQLite file headers before execution.
+- input validation logic
 
-## Developer & Migration Notes
+# Frontend
 
-- **New Env Var**: `FRONTEND_URL` must be defined for CORS (e.g., `http://localhost:6767`).
-- **Testing**: Added `npm run security-test` suite covering XSS payloads, SVG boundaries, and upload limits.
-- **Migration**: No database schema changes. Existing volumes are compatible; the container will automatically fix permissions on startup.
+- updated Settings UI to show version
