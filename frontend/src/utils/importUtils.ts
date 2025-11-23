@@ -56,7 +56,10 @@ export const importDrawings = async (
 
         const res = await fetch(`${API_URL}/drawings`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "X-Imported-File": "true", // Mark as imported file for additional validation
+          },
           body: JSON.stringify(payload),
         });
 

@@ -25,8 +25,10 @@ RUN npx tsc
 # Production stage
 FROM node:20-alpine
 
-# Install OpenSSL for Prisma
-RUN apk add --no-cache openssl
+# Install OpenSSL for Prisma and create non-root user
+RUN apk add --no-cache openssl && \
+    addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
 
 WORKDIR /app
 
@@ -49,9 +51,17 @@ COPY --from=builder /app/src/generated ./dist/generated
 # Generate Prisma Client in production (updates node_modules)
 RUN npx prisma generate
 
-# Run migrations and start server
+# Create necessary directories and set proper ownership
+RUN mkdir -p /app/uploads /app/prisma && \
+    chown -R nodejs:nodejs /app
+
+# Copy and set permissions for entrypoint script
 COPY docker-entrypoint.sh ./
-RUN chmod +x docker-entrypoint.sh
+RUN chmod +x docker-entrypoint.sh && \
+    chown nodejs:nodejs docker-entrypoint.sh
+
+# Switch to non-root user
+USER nodejs
 
 EXPOSE 8000
 
