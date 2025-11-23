@@ -36,8 +36,9 @@ COPY package*.json ./
 # Install production dependencies only
 RUN npm ci --only=production
 
-# Copy prisma schema and migrations
+# Copy prisma schema and migrations for runtime and hydration template
 COPY prisma ./prisma/
+COPY prisma ./prisma_template/
 
 # Copy built application from builder
 COPY --from=builder /app/dist ./dist
