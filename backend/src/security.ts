@@ -3,50 +3,166 @@
  */
 
 import { z } from "zod";
+import DOMPurify from "dompurify";
+import { JSDOM } from "jsdom";
+
+// Create a DOM environment for DOMPurify (Node.js compatibility)
+const window = new JSDOM("").window;
+const purify = DOMPurify(window);
 
 /**
- * Sanitize HTML/JS content by removing dangerous patterns
+ * Sanitize HTML/JS content using DOMPurify (battle-tested library)
  */
 export const sanitizeHtml = (input: string): string => {
   if (typeof input !== "string") return "";
 
-  return input
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "") // Remove script tags
-    .replace(/javascript:/gi, "") // Remove javascript: URIs
-    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, "") // Remove event handlers
-    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "") // Remove iframes
-    .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, "") // Remove objects
-    .replace(/<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>/gi, "") // Remove embeds
-    .replace(/<link\b[^>]*>/gi, "") // Remove link tags
-    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "") // Remove style tags
+  return purify
+    .sanitize(input, {
+      ALLOWED_TAGS: [
+        // Allow basic text formatting that might be in drawings
+        "b",
+        "i",
+        "u",
+        "em",
+        "strong",
+        "p",
+        "br",
+        "span",
+        "div",
+      ],
+      ALLOWED_ATTR: [], // No attributes allowed by default for security
+      FORBID_TAGS: [
+        // Explicitly forbid dangerous tags
+        "script",
+        "iframe",
+        "object",
+        "embed",
+        "link",
+        "style",
+        "form",
+        "input",
+        "button",
+        "select",
+        "textarea",
+        "svg",
+        "foreignObject",
+      ],
+      FORBID_ATTR: [
+        // Explicitly forbid dangerous attributes
+        "onload",
+        "onclick",
+        "onerror",
+        "onmouseover",
+        "onfocus",
+        "onblur",
+        "onchange",
+        "onsubmit",
+        "onreset",
+        "onkeydown",
+        "onkeyup",
+        "onkeypress",
+        "href",
+        "src",
+        "action",
+        "formaction",
+      ],
+      KEEP_CONTENT: true, // Keep content even if tags are removed
+    })
     .trim();
 };
 
 /**
- * Sanitize SVG content specifically
+ * Sanitize SVG content using DOMPurify with strict SVG restrictions
  */
 export const sanitizeSvg = (svgContent: string): string => {
   if (typeof svgContent !== "string") return "";
 
-  // Remove potentially dangerous SVG elements and attributes
-  return svgContent
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-    .replace(/javascript:/gi, "")
-    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, "")
-    .replace(
-      /<foreignObject\b[^<]*(?:(?!<\/foreignObject>)<[^<]*)*<\/foreignObject>/gi,
-      ""
-    )
-    .replace(/\shref\s*=\s*["'][^"']*(?:javascript:)[^"']*["']/gi, ' href="#"')
-    .replace(
-      /\sxlink:href\s*=\s*["'][^"']*(?:javascript:)[^"']*["']/gi,
-      ' xlink:href="#"'
-    )
+  // For SVG content, we'll be very restrictive since SVG can execute JavaScript
+  // We only allow basic geometric shapes without any scripts or external references
+  return purify
+    .sanitize(svgContent, {
+      ALLOWED_TAGS: [
+        // Allow only safe SVG geometric elements
+        "svg",
+        "g",
+        "rect",
+        "circle",
+        "ellipse",
+        "line",
+        "polyline",
+        "polygon",
+        "path",
+        "text",
+        "tspan",
+      ],
+      ALLOWED_ATTR: [
+        // Allow only safe geometric attributes
+        "x",
+        "y",
+        "width",
+        "height",
+        "cx",
+        "cy",
+        "r",
+        "rx",
+        "ry",
+        "x1",
+        "y1",
+        "x2",
+        "y2",
+        "points",
+        "d",
+        "fill",
+        "stroke",
+        "stroke-width",
+        "opacity",
+        "transform",
+        "font-size",
+        "font-family",
+        "text-anchor",
+        "dominant-baseline",
+      ],
+      FORBID_TAGS: [
+        // Completely forbid any script-related or external content
+        "script",
+        "foreignObject",
+        "iframe",
+        "object",
+        "embed",
+        "use",
+        "image",
+        "style",
+        "link",
+        "defs",
+        "symbol",
+        "marker",
+        "clipPath",
+        "mask",
+        "filter",
+      ],
+      FORBID_ATTR: [
+        // Forbid any attributes that could execute code or load external content
+        "onload",
+        "onclick",
+        "onerror",
+        "onmouseover",
+        "onfocus",
+        "onblur",
+        "href",
+        "xlink:href",
+        "src",
+        "action",
+        "style",
+        "class",
+        "id",
+      ],
+      KEEP_CONTENT: true,
+    })
     .trim();
 };
 
 /**
- * Validate and sanitize text content
+ * Validate and sanitize text content using DOMPurify
  */
 export const sanitizeText = (
   input: unknown,
@@ -60,8 +176,59 @@ export const sanitizeText = (
   // Truncate if too long
   const truncated = cleaned.slice(0, maxLength);
 
-  // Final HTML sanitization
-  return sanitizeHtml(truncated);
+  // Use DOMPurify for text content - more permissive than HTML but still safe
+  return purify
+    .sanitize(truncated, {
+      ALLOWED_TAGS: [
+        // Allow basic text formatting that might be in drawing text
+        "b",
+        "i",
+        "u",
+        "em",
+        "strong",
+        "br",
+        "span",
+      ],
+      ALLOWED_ATTR: [], // No attributes allowed for text content
+      FORBID_TAGS: [
+        // Block potentially dangerous tags
+        "script",
+        "iframe",
+        "object",
+        "embed",
+        "link",
+        "style",
+        "form",
+        "input",
+        "button",
+        "select",
+        "textarea",
+        "svg",
+        "foreignObject",
+      ],
+      FORBID_ATTR: [
+        // Block all event handlers and dangerous attributes
+        "onload",
+        "onclick",
+        "onerror",
+        "onmouseover",
+        "onfocus",
+        "onblur",
+        "onchange",
+        "onsubmit",
+        "onreset",
+        "onkeydown",
+        "onkeyup",
+        "onkeypress",
+        "href",
+        "src",
+        "action",
+        "formaction",
+        "style",
+      ],
+      KEEP_CONTENT: true,
+    })
+    .trim();
 };
 
 /**
