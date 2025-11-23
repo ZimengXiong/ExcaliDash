@@ -265,13 +265,14 @@ export const Editor: React.FC = () => {
     if (!id) return;
     
     try {
+      // Ensure we always have valid data structure
       const persistableAppState = {
-        viewBackgroundColor: appState.viewBackgroundColor,
-        gridSize: appState.gridSize,
+        viewBackgroundColor: appState?.viewBackgroundColor || '#ffffff',
+        gridSize: appState?.gridSize || null,
       };
 
-      const snapshot = latestElementsRef.current ?? elements;
-      const persistableElements = Array.from(snapshot);
+      const snapshot = latestElementsRef.current ?? elements ?? [];
+      const persistableElements = Array.isArray(snapshot) ? snapshot : [];
 
       console.log("[Editor] Saving drawing", {
         drawingId: id,

@@ -234,9 +234,12 @@ const drawingUpdateSchema = drawingBaseSchema
         const sanitizedData = { ...data };
         if (data.elements !== undefined || data.appState !== undefined) {
           const fullData = {
-            elements: data.elements || [],
-            appState: data.appState || {},
-            files: data.files,
+            elements: Array.isArray(data.elements) ? data.elements : [],
+            appState:
+              typeof data.appState === "object" && data.appState !== null
+                ? data.appState
+                : {},
+            files: data.files || {},
             preview: data.preview,
             name: data.name,
             collectionId: data.collectionId,
@@ -252,6 +255,17 @@ const drawingUpdateSchema = drawingBaseSchema
         return true;
       } catch (error) {
         console.error("Sanitization failed:", error);
+        // For updates, if sanitization fails but we have minimal data, allow it to pass
+        // This prevents legitimate empty drawings from failing
+        if (
+          data.elements === undefined &&
+          data.appState === undefined &&
+          (data.name !== undefined ||
+            data.preview !== undefined ||
+            data.collectionId !== undefined)
+        ) {
+          return true;
+        }
         return false;
       }
     },
@@ -566,8 +580,32 @@ app.post("/drawings", async (req, res) => {
 app.put("/drawings/:id", async (req, res) => {
   try {
     const { id } = req.params;
+
+    console.log("[API] Update request received", {
+      id,
+      bodyKeys: Object.keys(req.body || {}),
+      hasElements: req.body?.elements !== undefined,
+      elementCount: Array.isArray(req.body?.elements)
+        ? req.body.elements.length
+        : undefined,
+      hasAppState: req.body?.appState !== undefined,
+      appStateKeys: req.body?.appState ? Object.keys(req.body.appState) : [],
+      hasFiles: req.body?.files !== undefined,
+      hasPreview: req.body?.preview !== undefined,
+    });
+
     const parsed = drawingUpdateSchema.safeParse(req.body);
     if (!parsed.success) {
+      console.error("[API] Validation failed", {
+        id,
+        errorCount: parsed.error.issues.length,
+        errors: parsed.error.issues.map((issue) => ({
+          path: issue.path,
+          message: issue.message,
+          received:
+            issue.path.length > 0 ? req.body?.[issue.path.join(".")] : "root",
+        })),
+      });
       return respondWithValidationErrors(res, parsed.error.issues);
     }
 
@@ -622,6 +660,7 @@ app.put("/drawings/:id", async (req, res) => {
       files: JSON.parse(updatedDrawing.files || "{}"),
     });
   } catch (error) {
+    console.error("[CRITICAL] Update failed:", error);
     res.status(500).json({ error: "Failed to update drawing" });
   }
 });

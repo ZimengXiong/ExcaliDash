@@ -257,133 +257,160 @@ export const sanitizeUrl = (url: unknown): string => {
 };
 
 /**
- * Strict Zod schema for Excalidraw elements with validation
+ * Very flexible Zod schema for Excalidraw elements
  */
 export const elementSchema = z
   .object({
-    id: z.string().min(1).max(100),
-    type: z.enum([
-      "rectangle",
-      "ellipse",
-      "diamond",
-      "arrow",
-      "line",
-      "text",
-      "image",
-      "frame",
-      "embed",
-      "selection",
-      "text-container",
-    ]),
-    x: z.number().finite().min(-100000).max(100000),
-    y: z.number().finite().min(-100000).max(100000),
-    width: z.number().finite().min(0).max(100000),
-    height: z.number().finite().min(0).max(100000),
-    angle: z
-      .number()
-      .finite()
-      .min(-2 * Math.PI)
-      .max(2 * Math.PI),
-    strokeColor: z.string().optional(),
-    backgroundColor: z.string().optional(),
-    fillStyle: z.enum(["solid", "hachure", "cross-hatch", "dots"]).optional(),
-    strokeWidth: z.number().finite().min(0).max(10).optional(),
-    strokeStyle: z.enum(["solid", "dashed", "dotted"]).optional(),
-    roundness: z
-      .object({
-        type: z.enum(["round", "sharp"]),
-        value: z.number().finite().min(0).max(1),
-      })
-      .optional(),
-    boundElements: z
-      .array(
-        z.object({
-          id: z.string(),
-          type: z.string(),
-        })
-      )
-      .optional(),
-    groupIds: z.array(z.string()).optional(),
-    frameId: z.string().optional(),
-    seed: z.number().finite().optional(),
-    version: z.number().finite().min(0).max(100000),
-    versionNonce: z.number().finite().min(0).max(100000),
-    isDeleted: z.boolean().optional(),
-    opacity: z.number().finite().min(0).max(1).optional(),
-    link: z.string().optional().transform(sanitizeUrl),
-    locked: z.boolean().optional(),
-    // Text-specific properties
-    text: z
-      .string()
-      .optional()
-      .transform((val) => sanitizeText(val, 5000)),
-    fontSize: z.number().finite().min(1).max(200).optional(),
-    fontFamily: z.number().finite().min(1).max(5).optional(),
-    textAlign: z.enum(["left", "center", "right"]).optional(),
-    verticalAlign: z.enum(["top", "middle", "bottom"]).optional(),
-    // Custom properties - whitelist only known safe properties
-    customData: z.record(z.string(), z.any()).optional(),
+    id: z.string().min(1).max(200).optional().nullable(),
+    type: z.string().optional().nullable(),
+    x: z.number().optional().nullable(),
+    y: z.number().optional().nullable(),
+    width: z.number().optional().nullable(),
+    height: z.number().optional().nullable(),
+    angle: z.number().optional().nullable(),
+    strokeColor: z.string().optional().nullable(),
+    backgroundColor: z.string().optional().nullable(),
+    fillStyle: z.string().optional().nullable(),
+    strokeWidth: z.number().optional().nullable(),
+    strokeStyle: z.string().optional().nullable(),
+    roundness: z.any().optional().nullable(),
+    boundElements: z.array(z.any()).optional().nullable(),
+    groupIds: z.array(z.string()).optional().nullable(),
+    frameId: z.string().optional().nullable(),
+    seed: z.number().optional().nullable(),
+    version: z.number().optional().nullable(),
+    versionNonce: z.number().optional().nullable(),
+    isDeleted: z.boolean().optional().nullable(),
+    opacity: z.number().optional().nullable(),
+    link: z.string().optional().nullable(),
+    locked: z.boolean().optional().nullable(),
+    text: z.string().optional().nullable(),
+    fontSize: z.number().optional().nullable(),
+    fontFamily: z.number().optional().nullable(),
+    textAlign: z.string().optional().nullable(),
+    verticalAlign: z.string().optional().nullable(),
+    customData: z.record(z.string(), z.any()).optional().nullable(),
   })
-  .strict();
+  .passthrough()
+  .transform((element) => {
+    // Apply basic sanitization to string values only
+    const sanitized = { ...element };
+
+    if (typeof sanitized.text === "string") {
+      sanitized.text = sanitizeText(sanitized.text, 5000);
+    }
+
+    if (typeof sanitized.link === "string") {
+      sanitized.link = sanitizeUrl(sanitized.link);
+    }
+
+    return sanitized;
+  });
 
 /**
- * Strict Zod schema for Excalidraw app state with validation
+ * Flexible Zod schema for Excalidraw app state with validation
  */
 export const appStateSchema = z
   .object({
-    gridSize: z.number().finite().min(0).max(100).optional(),
-    gridStep: z.number().finite().min(1).max(100).optional(),
-    viewBackgroundColor: z.string().optional(),
-    currentItemStrokeColor: z.string().optional(),
-    currentItemBackgroundColor: z.string().optional(),
+    gridSize: z.number().finite().min(0).max(1000).optional().nullable(),
+    gridStep: z.number().finite().min(1).max(1000).optional().nullable(),
+    viewBackgroundColor: z.string().optional().nullable(),
+    currentItemStrokeColor: z.string().optional().nullable(),
+    currentItemBackgroundColor: z.string().optional().nullable(),
     currentItemFillStyle: z
       .enum(["solid", "hachure", "cross-hatch", "dots"])
-      .optional(),
-    currentItemStrokeWidth: z.number().finite().min(0).max(10).optional(),
-    currentItemStrokeStyle: z.enum(["solid", "dashed", "dotted"]).optional(),
+      .optional()
+      .nullable(),
+    currentItemStrokeWidth: z
+      .number()
+      .finite()
+      .min(0)
+      .max(50)
+      .optional()
+      .nullable(),
+    currentItemStrokeStyle: z
+      .enum(["solid", "dashed", "dotted"])
+      .optional()
+      .nullable(),
     currentItemRoundness: z
       .object({
         type: z.enum(["round", "sharp"]),
         value: z.number().finite().min(0).max(1),
       })
-      .optional(),
-    currentItemFontSize: z.number().finite().min(1).max(200).optional(),
-    currentItemFontFamily: z.number().finite().min(1).max(5).optional(),
-    currentItemTextAlign: z.enum(["left", "center", "right"]).optional(),
-    currentItemVerticalAlign: z.enum(["top", "middle", "bottom"]).optional(),
-    scrollX: z.number().finite().min(-1000000).max(1000000).optional(),
-    scrollY: z.number().finite().min(-1000000).max(1000000).optional(),
+      .optional()
+      .nullable(),
+    currentItemFontSize: z
+      .number()
+      .finite()
+      .min(1)
+      .max(500)
+      .optional()
+      .nullable(),
+    currentItemFontFamily: z
+      .number()
+      .finite()
+      .min(1)
+      .max(10)
+      .optional()
+      .nullable(),
+    currentItemTextAlign: z
+      .enum(["left", "center", "right"])
+      .optional()
+      .nullable(),
+    currentItemVerticalAlign: z
+      .enum(["top", "middle", "bottom"])
+      .optional()
+      .nullable(),
+    scrollX: z
+      .number()
+      .finite()
+      .min(-10000000)
+      .max(10000000)
+      .optional()
+      .nullable(),
+    scrollY: z
+      .number()
+      .finite()
+      .min(-10000000)
+      .max(10000000)
+      .optional()
+      .nullable(),
     zoom: z
       .object({
-        value: z.number().finite().min(0.1).max(10),
+        value: z.number().finite().min(0.01).max(100),
       })
-      .optional(),
-    selection: z.array(z.string()).optional(),
-    selectedElementIds: z.record(z.string(), z.boolean()).optional(),
-    selectedGroupIds: z.record(z.string(), z.boolean()).optional(),
+      .optional()
+      .nullable(),
+    selection: z.array(z.string()).optional().nullable(),
+    selectedElementIds: z.record(z.string(), z.boolean()).optional().nullable(),
+    selectedGroupIds: z.record(z.string(), z.boolean()).optional().nullable(),
     activeEmbeddable: z
       .object({
         elementId: z.string(),
         state: z.string(),
       })
-      .optional(),
+      .optional()
+      .nullable(),
     activeTool: z
       .object({
         type: z.string(),
-        customType: z.string().optional(),
+        customType: z.string().optional().nullable(),
       })
-      .optional(),
-    cursorX: z.number().finite().optional(),
-    cursorY: z.number().finite().optional(),
-    // Sanitize any string values in appState
+      .optional()
+      .nullable(),
+    cursorX: z.number().finite().optional().nullable(),
+    cursorY: z.number().finite().optional().nullable(),
+    // Add common Excalidraw app state properties
+    collaborators: z.record(z.string(), z.any()).optional().nullable(),
   })
-  .strict()
+  // Allow any additional properties
   .catchall(
     z.any().refine((val) => {
-      // Recursively sanitize any string values found in the object
+      // Sanitize string values, but be more permissive for other types
       if (typeof val === "string") {
         return sanitizeText(val, 1000);
       }
+      // Allow numbers, booleans, objects, arrays, null, undefined
       return true;
     })
   );
