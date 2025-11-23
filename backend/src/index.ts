@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import { Worker } from "worker_threads";
 import multer from "multer";
 import archiver from "archiver";
 import Database from "better-sqlite3";
@@ -125,21 +126,31 @@ const respondWithValidationErrors = (
   });
 };
 
-const runIntegrityCheck = (filePath: string): boolean => {
-  let dbInstance: Database.Database | undefined;
-  try {
-    dbInstance = new Database(filePath, {
-      readonly: true,
-      fileMustExist: true,
+// Non-blocking CPU check using worker threads
+const verifyDatabaseIntegrityAsync = (filePath: string): Promise<boolean> => {
+  return new Promise((resolve) => {
+    const worker = new Worker(
+      path.resolve(__dirname, "./workers/db-verify.js"),
+      {
+        workerData: { filePath },
+      }
+    );
+
+    worker.on("message", (isValid: boolean) => resolve(isValid));
+    worker.on("error", (err) => {
+      console.error("Worker error:", err);
+      resolve(false);
     });
-    const result = dbInstance.prepare("PRAGMA integrity_check;").get();
-    return result?.integrity_check === "ok";
-  } catch (error) {
-    console.error("Integrity check failed:", error);
-    return false;
-  } finally {
-    dbInstance?.close();
-  }
+    worker.on("exit", (code) => {
+      if (code !== 0) resolve(false);
+    });
+
+    // Kill worker if it takes too long (DoS protection)
+    setTimeout(() => {
+      worker.terminate();
+      resolve(false);
+    }, 10000); // 10 second timeout
+  });
 };
 
 const removeFileIfExists = (filePath?: string) => {
@@ -645,7 +656,7 @@ app.post("/import/sqlite/verify", upload.single("db"), async (req, res) => {
     }
 
     const stagedPath = req.file.path;
-    const isValid = runIntegrityCheck(stagedPath);
+    const isValid = await verifyDatabaseIntegrityAsync(stagedPath);
     removeFileIfExists(stagedPath);
 
     if (!isValid) {
@@ -684,7 +695,7 @@ app.post("/import/sqlite", upload.single("db"), async (req, res) => {
       return res.status(500).json({ error: "Failed to stage uploaded file" });
     }
 
-    const isValid = runIntegrityCheck(stagedPath);
+    const isValid = await verifyDatabaseIntegrityAsync(stagedPath);
     if (!isValid) {
       removeFileIfExists(stagedPath);
       return res
