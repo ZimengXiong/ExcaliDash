@@ -11,6 +11,14 @@ import Database from "better-sqlite3";
 import { z } from "zod";
 // @ts-ignore
 import { PrismaClient } from "./generated/client";
+import {
+  sanitizeDrawingData,
+  validateImportedDrawing,
+  sanitizeText,
+  sanitizeSvg,
+  elementSchema,
+  appStateSchema,
+} from "./security";
 
 dotenv.config();
 
@@ -88,9 +96,57 @@ app.use(
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
-const elementsSchema = z.array(z.object({}).passthrough());
+// Security middleware - Add security headers
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader(
+    "Permissions-Policy",
+    "geolocation=(), microphone=(), camera=()"
+  );
 
-const appStateSchema = z.object({}).passthrough();
+  // Content Security Policy - restrict sources
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; " +
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com; " +
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+      "font-src 'self' https://fonts.gstatic.com; " +
+      "img-src 'self' data: blob: https:; " +
+      "connect-src 'self' ws: wss:; " +
+      "frame-ancestors 'none';"
+  );
+
+  next();
+});
+
+// Rate limiting middleware (basic implementation)
+const requestCounts = new Map<string, { count: number; resetTime: number }>();
+const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
+const RATE_LIMIT_MAX_REQUESTS = 1000; // Max requests per window
+
+app.use((req, res, next) => {
+  const ip = req.ip || req.connection.remoteAddress || "unknown";
+  const now = Date.now();
+  const clientData = requestCounts.get(ip);
+
+  if (!clientData || now > clientData.resetTime) {
+    requestCounts.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return next();
+  }
+
+  if (clientData.count >= RATE_LIMIT_MAX_REQUESTS) {
+    return res.status(429).json({
+      error: "Rate limit exceeded",
+      message: "Too many requests, please try again later",
+    });
+  }
+
+  clientData.count++;
+  next();
+});
 
 const filesFieldSchema = z
   .union([z.record(z.string(), z.any()), z.null()])
@@ -103,17 +159,70 @@ const drawingBaseSchema = z.object({
   preview: z.string().nullable().optional(),
 });
 
-const drawingCreateSchema = drawingBaseSchema.extend({
-  elements: elementsSchema.default([]),
-  appState: appStateSchema.default({}),
-  files: filesFieldSchema,
-});
+// Use strict schemas from security module with sanitization
+const drawingCreateSchema = drawingBaseSchema
+  .extend({
+    elements: elementSchema.array().default([]),
+    appState: appStateSchema.default({}),
+    files: filesFieldSchema,
+  })
+  .refine(
+    (data) => {
+      // Apply sanitization before database persistence
+      try {
+        const sanitized = sanitizeDrawingData(data);
+        // Merge sanitized data back with original properties
+        Object.assign(data, sanitized);
+        return true;
+      } catch (error) {
+        console.error("Sanitization failed:", error);
+        return false;
+      }
+    },
+    {
+      message: "Invalid or malicious drawing data detected",
+    }
+  );
 
-const drawingUpdateSchema = drawingBaseSchema.extend({
-  elements: elementsSchema.optional(),
-  appState: appStateSchema.optional(),
-  files: filesFieldSchema,
-});
+const drawingUpdateSchema = drawingBaseSchema
+  .extend({
+    elements: elementSchema.array().optional(),
+    appState: appStateSchema.optional(),
+    files: filesFieldSchema,
+  })
+  .refine(
+    (data) => {
+      // Apply sanitization before database persistence
+      try {
+        // Only sanitize provided fields
+        const sanitizedData = { ...data };
+        if (data.elements !== undefined || data.appState !== undefined) {
+          const fullData = {
+            elements: data.elements || [],
+            appState: data.appState || {},
+            files: data.files,
+            preview: data.preview,
+            name: data.name,
+            collectionId: data.collectionId,
+          };
+          const sanitized = sanitizeDrawingData(fullData);
+          sanitizedData.elements = sanitized.elements;
+          sanitizedData.appState = sanitized.appState;
+          if (data.files !== undefined) sanitizedData.files = sanitized.files;
+          if (data.preview !== undefined)
+            sanitizedData.preview = sanitized.preview;
+          Object.assign(data, sanitizedData);
+        }
+        return true;
+      } catch (error) {
+        console.error("Sanitization failed:", error);
+        return false;
+      }
+    },
+    {
+      message: "Invalid or malicious drawing data detected",
+    }
+  );
 
 const respondWithValidationErrors = (
   res: express.Response,
@@ -312,6 +421,17 @@ app.get("/drawings/:id", async (req, res) => {
 // POST /drawings
 app.post("/drawings", async (req, res) => {
   try {
+    // Additional security validation for imported data
+    const isImportedDrawing = req.headers["x-imported-file"] === "true";
+
+    if (isImportedDrawing && !validateImportedDrawing(req.body)) {
+      return res.status(400).json({
+        error: "Invalid imported drawing file",
+        message:
+          "The imported file contains potentially malicious content or invalid structure",
+      });
+    }
+
     const parsed = drawingCreateSchema.safeParse(req.body);
     if (!parsed.success) {
       return respondWithValidationErrors(res, parsed.error.issues);
@@ -340,6 +460,7 @@ app.post("/drawings", async (req, res) => {
       files: JSON.parse(newDrawing.files || "{}"),
     });
   } catch (error) {
+    console.error("Failed to create drawing:", error);
     res.status(500).json({ error: "Failed to create drawing" });
   }
 });
