@@ -38,7 +38,26 @@ const resolveDatabaseUrl = (rawUrl?: string) => {
 process.env.DATABASE_URL = resolveDatabaseUrl(process.env.DATABASE_URL);
 console.log("Resolved DATABASE_URL:", process.env.DATABASE_URL);
 
-const allowedOrigin = process.env.FRONTEND_URL || "http://localhost:6767";
+const normalizeOrigins = (rawOrigins?: string | null): string[] => {
+  const fallback = "http://localhost:6767";
+  if (!rawOrigins || rawOrigins.trim().length === 0) {
+    return [fallback];
+  }
+
+  const ensureProtocol = (origin: string) =>
+    /^https?:\/\//i.test(origin) ? origin : `http://${origin}`;
+
+  const parsed = rawOrigins
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0)
+    .map(ensureProtocol);
+
+  return parsed.length > 0 ? parsed : [fallback];
+};
+
+const allowedOrigins = normalizeOrigins(process.env.FRONTEND_URL);
+console.log("Allowed origins:", allowedOrigins);
 
 const uploadDir = path.resolve(__dirname, "../uploads");
 if (!fs.existsSync(uploadDir)) {
@@ -49,7 +68,7 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: allowedOrigin,
+    origin: allowedOrigins,
     credentials: true,
   },
   maxHttpBufferSize: 1e8, // 100 MB
@@ -62,7 +81,7 @@ const upload = multer({ dest: uploadDir });
 
 app.use(
   cors({
-    origin: allowedOrigin,
+    origin: allowedOrigins,
     credentials: true,
   })
 );
