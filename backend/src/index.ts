@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
 import fs from "fs";
+import { promises as fsPromises } from "fs";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import multer from "multer";
@@ -60,9 +61,15 @@ const allowedOrigins = normalizeOrigins(process.env.FRONTEND_URL);
 console.log("Allowed origins:", allowedOrigins);
 
 const uploadDir = path.resolve(__dirname, "../uploads");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+
+// Initialize upload directory asynchronously
+const initializeUploadDir = async () => {
+  try {
+    await fsPromises.mkdir(uploadDir, { recursive: true });
+  } catch (error) {
+    console.error("Failed to create upload directory:", error);
+  }
+};
 
 const app = express();
 const httpServer = createServer(app);
@@ -76,8 +83,20 @@ const io = new Server(httpServer, {
 const prisma = new PrismaClient();
 const PORT = process.env.PORT || 8000;
 
-// Multer setup for file uploads
-const upload = multer({ dest: uploadDir });
+// Multer setup for file uploads with streaming support
+const upload = multer({
+  dest: uploadDir,
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Only allow .db files for SQLite imports
+    if (file.fieldname === "db" && !file.originalname.endsWith(".db")) {
+      return cb(new Error("Only .db files are allowed"));
+    }
+    cb(null, true);
+  },
+});
 
 app.use(
   cors({
@@ -128,26 +147,42 @@ const respondWithValidationErrors = (
 const runIntegrityCheck = (filePath: string): boolean => {
   let dbInstance: Database.Database | undefined;
   try {
+    // Use readonly mode and file locking to be more conservative with system resources
     dbInstance = new Database(filePath, {
       readonly: true,
       fileMustExist: true,
+      timeout: 5000, // 5 second timeout for integrity check
     });
+
+    // Run integrity check with timeout
     const result = dbInstance.prepare("PRAGMA integrity_check;").get();
     return result?.integrity_check === "ok";
   } catch (error) {
     console.error("Integrity check failed:", error);
     return false;
   } finally {
-    dbInstance?.close();
+    // Always close database connection to free resources
+    if (dbInstance) {
+      try {
+        dbInstance.close();
+      } catch (closeError) {
+        console.warn(
+          "Failed to close database after integrity check:",
+          closeError
+        );
+      }
+    }
   }
 };
 
-const removeFileIfExists = (filePath?: string) => {
+const removeFileIfExists = async (filePath?: string) => {
   if (!filePath) return;
   try {
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
+    await fsPromises.access(filePath).catch(() => {
+      // File doesn't exist, nothing to remove
+      return;
+    });
+    await fsPromises.unlink(filePath);
   } catch (error) {
     console.error("Failed to remove file", { filePath, error });
   }
@@ -523,7 +558,9 @@ app.get("/export", async (req, res) => {
   try {
     const dbPath = path.resolve(__dirname, "../prisma/dev.db");
 
-    if (!fs.existsSync(dbPath)) {
+    try {
+      await fsPromises.access(dbPath);
+    } catch {
       return res.status(404).json({ error: "Database file not found" });
     }
 
@@ -646,7 +683,7 @@ app.post("/import/sqlite/verify", upload.single("db"), async (req, res) => {
 
     const stagedPath = req.file.path;
     const isValid = runIntegrityCheck(stagedPath);
-    removeFileIfExists(stagedPath);
+    await removeFileIfExists(stagedPath);
 
     if (!isValid) {
       return res.status(400).json({ error: "Invalid SQLite file" });
@@ -656,7 +693,7 @@ app.post("/import/sqlite/verify", upload.single("db"), async (req, res) => {
   } catch (error) {
     console.error(error);
     if (req.file) {
-      removeFileIfExists(req.file.path);
+      await removeFileIfExists(req.file.path);
     }
     res.status(500).json({ error: "Failed to verify database file" });
   }
@@ -676,17 +713,18 @@ app.post("/import/sqlite", upload.single("db"), async (req, res) => {
     );
 
     try {
-      fs.renameSync(originalPath, stagedPath);
+      // Use async rename instead of blocking renameSync
+      await fsPromises.rename(originalPath, stagedPath);
     } catch (error) {
       console.error("Failed to stage uploaded database", error);
-      removeFileIfExists(originalPath);
-      removeFileIfExists(stagedPath);
+      await removeFileIfExists(originalPath);
+      await removeFileIfExists(stagedPath);
       return res.status(500).json({ error: "Failed to stage uploaded file" });
     }
 
     const isValid = runIntegrityCheck(stagedPath);
     if (!isValid) {
-      removeFileIfExists(stagedPath);
+      await removeFileIfExists(stagedPath);
       return res
         .status(400)
         .json({ error: "Uploaded database failed integrity check" });
@@ -696,13 +734,20 @@ app.post("/import/sqlite", upload.single("db"), async (req, res) => {
     const backupPath = path.resolve(__dirname, "../prisma/dev.db.backup");
 
     try {
-      if (fs.existsSync(dbPath)) {
-        fs.copyFileSync(dbPath, backupPath);
+      // Use async file operations instead of blocking ones
+      try {
+        await fsPromises.access(dbPath);
+        // Database exists, create backup
+        await fsPromises.copyFile(dbPath, backupPath);
+      } catch {
+        // Database doesn't exist, skip backup
       }
-      fs.renameSync(stagedPath, dbPath);
+
+      // Move staged file to final location
+      await fsPromises.rename(stagedPath, dbPath);
     } catch (error) {
       console.error("Failed to replace database", error);
-      removeFileIfExists(stagedPath);
+      await removeFileIfExists(stagedPath);
       return res.status(500).json({ error: "Failed to replace database" });
     }
 
@@ -713,7 +758,7 @@ app.post("/import/sqlite", upload.single("db"), async (req, res) => {
   } catch (error) {
     console.error(error);
     if (req.file) {
-      removeFileIfExists(req.file.path);
+      await removeFileIfExists(req.file.path);
     }
     res.status(500).json({ error: "Failed to import database" });
   }
@@ -737,6 +782,8 @@ const ensureTrashCollection = async () => {
 };
 
 httpServer.listen(PORT, async () => {
+  // Initialize upload directory asynchronously to avoid blocking startup
+  await initializeUploadDir();
   await ensureTrashCollection();
   console.log(`Server running on port ${PORT}`);
 });
