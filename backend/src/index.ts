@@ -125,7 +125,47 @@ const respondWithValidationErrors = (
   });
 };
 
+const validateSqliteHeader = (filePath: string): boolean => {
+  try {
+    const buffer = Buffer.alloc(16);
+    const fd = fs.openSync(filePath, "r");
+    const bytesRead = fs.readSync(fd, buffer, 0, 16, 0);
+    fs.closeSync(fd);
+
+    if (bytesRead < 16) {
+      console.warn("File too small to be a valid SQLite database");
+      return false;
+    }
+
+    // SQLite format 3 header: "SQLite format 3\0" (16 bytes)
+    // Hex: 53 51 4c 69 74 65 20 66 6f 72 6d 61 74 20 33 00
+    const expectedHeader = Buffer.from([
+      0x53, 0x51, 0x4c, 0x69, 0x74, 0x65, 0x20, 0x66, 0x6f, 0x72, 0x6d, 0x61,
+      0x74, 0x20, 0x33, 0x00,
+    ]);
+
+    const isValid = buffer.equals(expectedHeader);
+    if (!isValid) {
+      console.warn("Invalid SQLite file header detected", {
+        filePath,
+        header: buffer.toString("hex"),
+        expected: expectedHeader.toString("hex"),
+      });
+    }
+
+    return isValid;
+  } catch (error) {
+    console.error("Failed to validate SQLite header:", error);
+    return false;
+  }
+};
+
 const runIntegrityCheck = (filePath: string): boolean => {
+  // First validate the file header to prevent RCE attacks
+  if (!validateSqliteHeader(filePath)) {
+    return false;
+  }
+
   let dbInstance: Database.Database | undefined;
   try {
     dbInstance = new Database(filePath, {
