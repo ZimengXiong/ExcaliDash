@@ -148,6 +148,10 @@ const config = {
       {
         "fromEnvVar": null,
         "value": "linux-musl-arm64-openssl-3.0.x"
+      },
+      {
+        "fromEnvVar": null,
+        "value": "linux-musl-openssl-3.0.x"
       }
     ],
     "previewFeatures": [],
@@ -165,6 +169,7 @@ const config = {
     "db"
   ],
   "activeProvider": "sqlite",
+  "postinstall": false,
   "inlineDatasources": {
     "db": {
       "url": {
@@ -173,8 +178,8 @@ const config = {
       }
     }
   },
-  "inlineSchema": "// This is your Prisma schema file,\n// learn more about it in the docs: https://pris.ly/d/prisma-schema\n\ngenerator client {\n  provider      = \"prisma-client-js\"\n  output        = \"../src/generated/client\"\n  binaryTargets = [\"native\", \"linux-musl-arm64-openssl-3.0.x\"]\n}\n\ndatasource db {\n  provider = \"sqlite\"\n  url      = env(\"DATABASE_URL\")\n}\n\nmodel Collection {\n  id        String    @id @default(uuid())\n  name      String\n  drawings  Drawing[]\n  createdAt DateTime  @default(now())\n  updatedAt DateTime  @updatedAt\n}\n\nmodel Drawing {\n  id           String      @id @default(uuid())\n  name         String\n  elements     String // Stored as JSON string\n  appState     String // Stored as JSON string\n  files        String      @default(\"{}\") // Stored as JSON string\n  preview      String? // SVG string for thumbnail\n  version      Int         @default(1)\n  collectionId String?\n  collection   Collection? @relation(fields: [collectionId], references: [id])\n  createdAt    DateTime    @default(now())\n  updatedAt    DateTime    @updatedAt\n}\n",
-  "inlineSchemaHash": "9864a039193c73ddda01fd51751788fa5729bb0a603a9379a3fa314a4aced64f",
+  "inlineSchema": "// This is your Prisma schema file,\n// learn more about it in the docs: https://pris.ly/d/prisma-schema\n\ngenerator client {\n  provider      = \"prisma-client-js\"\n  output        = \"../src/generated/client\"\n  binaryTargets = [\"native\", \"linux-musl-arm64-openssl-3.0.x\", \"linux-musl-openssl-3.0.x\"]\n}\n\ndatasource db {\n  provider = \"sqlite\"\n  url      = env(\"DATABASE_URL\")\n}\n\nmodel Collection {\n  id        String    @id @default(uuid())\n  name      String\n  drawings  Drawing[]\n  createdAt DateTime  @default(now())\n  updatedAt DateTime  @updatedAt\n}\n\nmodel Drawing {\n  id           String      @id @default(uuid())\n  name         String\n  elements     String // Stored as JSON string\n  appState     String // Stored as JSON string\n  files        String      @default(\"{}\") // Stored as JSON string\n  preview      String? // SVG string for thumbnail\n  version      Int         @default(1)\n  collectionId String?\n  collection   Collection? @relation(fields: [collectionId], references: [id])\n  createdAt    DateTime    @default(now())\n  updatedAt    DateTime    @updatedAt\n}\n",
+  "inlineSchemaHash": "30da526c2a5efdf3e5097c3736a52d47246ca4da8e5bd0401a3f28dd46ab5c3e",
   "copyEngine": true
 }
 config.dirname = '/'
