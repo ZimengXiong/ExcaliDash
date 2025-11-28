@@ -1,5 +1,10 @@
 import axios from "axios";
-import type { Drawing, Collection } from "../types";
+import type {
+  Drawing,
+  Collection,
+  VaultStatus,
+  VaultVerifyResult,
+} from "../types";
 
 export const API_URL = import.meta.env.VITE_API_URL || "/api";
 
@@ -95,4 +100,92 @@ export const getLibrary = async () => {
 export const updateLibrary = async (items: any[]) => {
   const response = await api.put<{ items: any[] }>("/library", { items });
   return response.data.items;
+};
+
+// --- Private Vault ---
+
+export const getVaultStatus = async (): Promise<VaultStatus> => {
+  const response = await api.get<VaultStatus>("/vault/status");
+  return response.data;
+};
+
+export const setupVault = async (
+  passwordHash: string,
+  salt: string,
+  hint?: string
+): Promise<void> => {
+  await api.post("/vault/setup", { passwordHash, salt, hint });
+};
+
+export const verifyVaultPassword = async (
+  password: string
+): Promise<VaultVerifyResult> => {
+  const response = await api.post<VaultVerifyResult>("/vault/verify", {
+    password,
+  });
+  return response.data;
+};
+
+export const updateVaultHint = async (hint: string): Promise<void> => {
+  await api.put("/vault/hint", { hint });
+};
+
+export const getVaultHint = async (): Promise<string | null> => {
+  const response = await api.get<{ hint: string | null }>("/vault/hint");
+  return response.data.hint;
+};
+
+export const changeVaultPassword = async (
+  newPasswordHash: string,
+  newSalt: string,
+  _oldKey: CryptoKey,
+  _newKey: CryptoKey
+): Promise<void> => {
+  // Note: The actual re-encryption of drawings happens client-side
+  // This endpoint just updates the password hash and salt
+  await api.put("/vault/password", {
+    passwordHash: newPasswordHash,
+    salt: newSalt,
+  });
+};
+
+// --- Private Drawings ---
+
+export const getPrivateDrawings = async (): Promise<Drawing[]> => {
+  const response = await api.get<Drawing[]>("/drawings/private");
+  return response.data.map(deserializeDrawing);
+};
+
+export const lockDrawing = async (
+  id: string,
+  encryptedData: string,
+  iv: string
+): Promise<void> => {
+  await api.put(`/drawings/${id}/lock`, { encryptedData, iv });
+};
+
+export const lockDrawingWithPreview = async (
+  id: string,
+  encryptedData: string,
+  iv: string,
+  preview?: string
+): Promise<void> => {
+  const body: any = { encryptedData, iv };
+  if (preview !== undefined) body.preview = preview;
+  await api.put(`/drawings/${id}/lock`, body);
+};
+
+export const unlockDrawing = async (
+  id: string,
+  elements: any[],
+  appState: any,
+  files: any,
+  preview?: string
+): Promise<void> => {
+  await api.put(`/drawings/${id}/unlock`, {
+    elements,
+    appState,
+    files,
+    preview,
+  });
 };

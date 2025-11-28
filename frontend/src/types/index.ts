@@ -8,10 +8,27 @@ export interface Drawing {
   updatedAt: number;
   createdAt: number;
   preview?: string;
+  // Privacy/Encryption fields
+  isPrivate?: boolean;
+  encryptedData?: string | null;
+  iv?: string | null;
 }
 
 export interface Collection {
   id: string;
   name: string;
   createdAt: number;
+}
+
+// Vault types
+export interface VaultStatus {
+  isSetup: boolean;
+  salt?: string;
+  hint?: string | null;
+  privateDrawingsCount?: number;
+}
+
+export interface VaultVerifyResult {
+  success: boolean;
+  salt: string;
 }

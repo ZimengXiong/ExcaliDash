@@ -8,7 +8,10 @@ COPY package*.json ./
 COPY tsconfig.json ./
 
 # Install dependencies
-RUN npm ci
+# Install build deps required for compiling native modules like better-sqlite3
+RUN apk add --no-cache python3 make g++ build-base sqlite-dev && \
+    npm ci
+ENV PYTHON=/usr/bin/python3
 
 # Copy prisma schema
 COPY prisma ./prisma/
@@ -26,7 +29,7 @@ RUN npx tsc
 FROM node:20-alpine
 
 # Install OpenSSL for Prisma and su-exec, create non-root user
-RUN apk add --no-cache openssl su-exec && \
+RUN apk add --no-cache openssl su-exec sqlite-libs && \
     addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
 

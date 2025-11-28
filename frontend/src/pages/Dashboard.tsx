@@ -10,6 +10,9 @@ import { useDebounce } from '../hooks/useDebounce';
 import clsx from 'clsx';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { importDrawings } from '../utils/importUtils';
+import { useVault } from '../context/VaultContext';
+import { encryptDrawing, generateLockedPreview } from '../utils/crypto';
+import { UnlockVaultModal } from '../components/UnlockVaultModal';
 
 type Point = { x: number; y: number };
 
@@ -102,6 +105,11 @@ export const Dashboard: React.FC = () => {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Vault state
+  const vault = useVault();
+  const [drawingToMoveToVault, setDrawingToMoveToVault] = useState<string | null>(null);
+  const [showVaultUnlockModal, setShowVaultUnlockModal] = useState(false);
   // navigate is already declared at the top
 
   const refreshData = useCallback(async () => {
@@ -472,6 +480,106 @@ export const Dashboard: React.FC = () => {
     }
   };
 
+  // Move drawing to private vault
+  const handleMoveToVault = useCallback(async (id: string) => {
+    // If vault isn't set up, redirect to settings
+    if (!vault.isSetup) {
+      navigate('/settings');
+      return;
+    }
+
+    // If vault isn't unlocked, show unlock modal
+    if (!vault.isUnlocked || !vault.sessionKey) {
+      setDrawingToMoveToVault(id);
+      setShowVaultUnlockModal(true);
+      return;
+    }
+
+    // Proceed with encryption
+    await encryptAndMoveToVault(id);
+  }, [vault.isSetup, vault.isUnlocked, vault.sessionKey, navigate]);
+
+  const encryptAndMoveToVault = useCallback(async (id: string) => {
+    if (!vault.sessionKey) return;
+
+    const drawing = drawings.find(d => d.id === id);
+    if (!drawing) return;
+
+    try {
+      // Encrypt the drawing data
+      const dataToEncrypt = {
+        elements: drawing.elements || [],
+        appState: drawing.appState || {},
+        files: drawing.files || {},
+      };
+
+      const { encryptedData, iv } = await encryptDrawing(dataToEncrypt, vault.sessionKey);
+      const lockedPreview = generateLockedPreview();
+
+      // Update drawing to be private with encrypted data (include locked preview)
+      await api.lockDrawingWithPreview(id, encryptedData, iv, lockedPreview);
+
+      // Remove from current view
+      setDrawings(prev => prev.filter(d => d.id !== id));
+      vault.checkVaultStatus(); // Refresh vault status to update count
+    } catch (err) {
+      console.error("Failed to move to vault:", err);
+    }
+  }, [vault.sessionKey, drawings, vault]);
+
+  const handleVaultUnlockForMove = useCallback(async (password: string) => {
+    const success = await vault.unlock(password);
+    if (success && drawingToMoveToVault) {
+      setShowVaultUnlockModal(false);
+      await encryptAndMoveToVault(drawingToMoveToVault);
+      setDrawingToMoveToVault(null);
+    }
+    return success;
+  }, [vault, drawingToMoveToVault, encryptAndMoveToVault]);
+
+  // Handle dropping drawings to the vault
+  const handleDropToVault = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const draggedDrawingId = e.dataTransfer.getData('drawingId');
+    if (!draggedDrawingId) return;
+
+    // Collect IDs to move - if dragged item is selected, move all selected
+    let idsToMove: string[] = [];
+    if (selectedIds.has(draggedDrawingId)) {
+      idsToMove = Array.from(selectedIds);
+    } else {
+      idsToMove = [draggedDrawingId];
+    }
+
+    // If vault isn't set up, redirect to settings
+    if (!vault.isSetup) {
+      navigate('/settings');
+      return;
+    }
+
+    // If vault isn't unlocked, show unlock modal for the first drawing
+    if (!vault.isUnlocked || !vault.sessionKey) {
+      // Store first ID and show unlock modal
+      setDrawingToMoveToVault(idsToMove[0]);
+      setShowVaultUnlockModal(true);
+      // Note: For bulk moves when vault is locked, we only move the first one after unlock
+      // A more sophisticated approach would store all IDs, but this keeps it simple
+      return;
+    }
+
+    // Move all drawings to vault
+    for (const id of idsToMove) {
+      await encryptAndMoveToVault(id);
+    }
+
+    // Clear selection if we moved selected items
+    if (selectedIds.has(draggedDrawingId)) {
+      setSelectedIds(new Set());
+    }
+  }, [selectedIds, vault.isSetup, vault.isUnlocked, vault.sessionKey, navigate, encryptAndMoveToVault]);
+
   const handleBulkDuplicate = async () => {
     if (selectedIds.size === 0) return;
 
@@ -635,6 +743,7 @@ export const Dashboard: React.FC = () => {
       onEditCollection={handleEditCollection}
       onDeleteCollection={handleDeleteCollection}
       onDrop={handleDrop}
+      onDropToVault={handleDropToVault}
     >
       {/* Drag Preview */}
       <div
@@ -912,6 +1021,7 @@ export const Dashboard: React.FC = () => {
                   drawing={drawing}
                   collections={collections}
                   isSelected={selectedIds.has(drawing.id)}
+                  isTrash={isTrashView}
                   onToggleSelection={(e) => handleToggleSelection(drawing.id, e)}
                   onRename={handleRenameDrawing}
                   onDelete={handleDeleteDrawing}
@@ -927,6 +1037,8 @@ export const Dashboard: React.FC = () => {
                   onMouseDown={handleCardMouseDown}
                   onDragStart={handleCardDragStart}
                   onPreviewGenerated={handlePreviewGenerated}
+                  onMoveToVault={!isTrashView ? handleMoveToVault : undefined}
+                  isVaultSetup={vault.isSetup}
                 />
               ))
             )}
@@ -974,6 +1086,17 @@ export const Dashboard: React.FC = () => {
         variant="success"
         onConfirm={() => setShowImportSuccess(false)}
         onCancel={() => setShowImportSuccess(false)}
+      />
+
+      {/* Vault Unlock Modal for Move to Vault */}
+      <UnlockVaultModal
+        isOpen={showVaultUnlockModal}
+        onClose={() => {
+          setShowVaultUnlockModal(false);
+          setDrawingToMoveToVault(null);
+        }}
+        onUnlock={handleVaultUnlockForMove}
+        passwordHint={vault.passwordHint}
       />
     </Layout>
   );

@@ -11,6 +11,7 @@ interface LayoutProps {
   onEditCollection: (id: string, name: string) => void;
   onDeleteCollection: (id: string) => void;
   onDrop?: (e: React.DragEvent, collectionId: string | null) => void;
+  onDropToVault?: (e: React.DragEvent) => void;
 }
 
 export const Layout: React.FC<LayoutProps> = ({
@@ -21,7 +22,8 @@ export const Layout: React.FC<LayoutProps> = ({
   onCreateCollection,
   onEditCollection,
   onDeleteCollection,
-  onDrop
+  onDrop,
+  onDropToVault
 }) => {
   const [sidebarWidth, setSidebarWidth] = useState(260);
   const [isResizing, setIsResizing] = useState(false);
@@ -76,6 +78,7 @@ export const Layout: React.FC<LayoutProps> = ({
             onEditCollection={onEditCollection}
             onDeleteCollection={onDeleteCollection}
             onDrop={onDrop}
+            onDropToVault={onDropToVault}
           />
           
           {/* Resize Handle */}

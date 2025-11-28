@@ -32,6 +32,21 @@ model Drawing {
   collection   Collection? @relation(fields: [collectionId], references: [id])
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
+
+  // Privacy/Encryption fields
+  isPrivate     Boolean @default(false)
+  encryptedData String? // Encrypted blob containing elements, appState, files when isPrivate=true
+  iv            String? // Initialization vector for AES-GCM decryption
+}
+
+// Singleton model for storing vault password hash and settings
+model PrivateVault {
+  id           String   @id @default("vault") // Singleton pattern
+  passwordHash String // bcrypt hash for password verification
+  salt         String // Salt for client-side key derivation (hex encoded)
+  hint         String? // Optional password hint
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model Library {

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { PenTool, Trash2, FolderInput, ArrowRight, Check, Clock, Copy, Download } from 'lucide-react';
+import { PenTool, Trash2, FolderInput, ArrowRight, Check, Clock, Copy, Download, Lock } from 'lucide-react';
 import type { Drawing, Collection } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import clsx from 'clsx';
@@ -24,6 +24,8 @@ interface DrawingCardProps {
   onDragStart?: (e: React.DragEvent, id: string) => void;
   onMouseDown?: (e: React.MouseEvent, id: string) => void;
   onPreviewGenerated?: (id: string, preview: string) => void;
+  onMoveToVault?: (id: string) => void;
+  isVaultSetup?: boolean;
 }
 
 const ContextMenuPortal: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -44,6 +46,8 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
   onDragStart,
   onMouseDown,
   onPreviewGenerated,
+  onMoveToVault,
+  isVaultSetup = false,
 }) => {
   const [isRenaming, setIsRenaming] = useState(false);
   const [showMoveSubmenu, setShowMoveSubmenu] = useState(false);
@@ -335,6 +339,18 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
               >
                 <Download size={14} /> Export
               </button>
+
+              {isVaultSetup && onMoveToVault && (
+                <button
+                  onClick={() => {
+                    onMoveToVault(drawing.id);
+                    setContextMenu(null);
+                  }}
+                  className="w-full px-3 py-2 text-sm text-left text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 flex items-center gap-2"
+                >
+                  <Lock size={14} /> Move to Private Vault
+                </button>
+              )}
 
               <div className="border-t border-slate-50 dark:border-slate-700 my-1"></div>
 

@@ -136,6 +136,18 @@ exports.Prisma.DrawingScalarFieldEnum = {
   version: 'version',
   collectionId: 'collectionId',
   createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  isPrivate: 'isPrivate',
+  encryptedData: 'encryptedData',
+  iv: 'iv'
+};
+
+exports.Prisma.PrivateVaultScalarFieldEnum = {
+  id: 'id',
+  passwordHash: 'passwordHash',
+  salt: 'salt',
+  hint: 'hint',
+  createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
 
@@ -160,6 +172,7 @@ exports.Prisma.NullsOrder = {
 exports.Prisma.ModelName = {
   Collection: 'Collection',
   Drawing: 'Drawing',
+  PrivateVault: 'PrivateVault',
   Library: 'Library'
 };
 

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutGrid, Folder, Plus, Trash2, Edit2, Archive, FolderOpen, Settings as SettingsIcon } from 'lucide-react';
+import { LayoutGrid, Folder, Plus, Trash2, Edit2, Archive, FolderOpen, Settings as SettingsIcon, Lock, Unlock } from 'lucide-react';
 import type { Collection } from '../types';
 import clsx from 'clsx';
 import { ConfirmModal } from './ConfirmModal';
 import { Logo } from './Logo';
+import { useVault } from '../context/VaultContext';
 
 interface SidebarProps {
   collections: Collection[];
@@ -14,6 +15,7 @@ interface SidebarProps {
   onEditCollection: (id: string, name: string) => void;
   onDeleteCollection: (id: string) => void;
   onDrop?: (e: React.DragEvent, collectionId: string | null) => void;
+  onDropToVault?: (e: React.DragEvent) => void;
 }
 
 interface SidebarItemProps {
@@ -109,6 +111,98 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
   );
 };
 
+// Private Folder Item Component
+const PrivateFolderItem: React.FC<{
+  isActive: boolean;
+  onSelectCollection: (id: string | null | undefined) => void;
+  onDropToVault?: (e: React.DragEvent) => void;
+}> = ({ isActive, onSelectCollection, onDropToVault }) => {
+  const vault = useVault();
+  const navigate = useNavigate();
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  // Don't show if still loading
+  if (vault.isLoading) {
+    return null;
+  }
+
+  const handleClick = () => {
+    // Always navigate to /private - that page handles setup/unlock flow
+    onSelectCollection('private');
+    navigate('/private');
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Show drag over state for any drag (the actual check happens on drop)
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    onDropToVault?.(e);
+  };
+
+  // Show different badge based on vault state
+  const getBadge = () => {
+    if (isDragOver) {
+      return (
+        <span className="text-xs bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded-md font-bold animate-pulse">
+          Drop
+        </span>
+      );
+    }
+    if (!vault.isSetup) {
+      return (
+        <span className="text-xs bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded-md font-bold">
+          Setup
+        </span>
+      );
+    }
+    if (vault.privateDrawingsCount > 0) {
+      return (
+        <span className="text-xs bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded-md font-bold">
+          {vault.privateDrawingsCount}
+        </span>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <div className="pl-3 pr-2">
+      <button
+        onClick={handleClick}
+        onDragOver={vault.isSetup ? handleDragOver : undefined}
+        onDragLeave={vault.isSetup ? handleDragLeave : undefined}
+        onDrop={vault.isSetup ? handleDrop : undefined}
+        className={clsx(
+          "w-full flex items-center gap-3 px-3 py-2.5 text-sm font-bold rounded-lg transition-all duration-200 border-2",
+          isActive || isDragOver
+            ? "bg-amber-50 dark:bg-amber-900/30 text-amber-900 dark:text-amber-300 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] -translate-y-0.5"
+            : "text-slate-600 dark:text-neutral-400 border-transparent hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-900 dark:hover:text-amber-300 hover:border-black dark:hover:border-neutral-700 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-0.5"
+        )}
+      >
+        {vault.isSetup && vault.isUnlocked ? (
+          <Unlock size={18} className={clsx(isActive || isDragOver ? "text-amber-900 dark:text-amber-300" : "text-amber-500 dark:text-amber-400")} />
+        ) : (
+          <Lock size={18} className={clsx(isActive || isDragOver ? "text-amber-900 dark:text-amber-300" : "text-amber-500 dark:text-amber-400")} />
+        )}
+        <span className="min-w-0 flex-1 text-left">Private</span>
+        {getBadge()}
+      </button>
+    </div>
+  );
+};
 
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -118,7 +212,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onCreateCollection,
   onEditCollection,
   onDeleteCollection,
-  onDrop
+  onDrop,
+  onDropToVault
 }) => {
   const [isCreating, setIsCreating] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState('');
@@ -205,6 +300,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               isActive={selectedCollectionId === null}
               onClick={() => onSelectCollection(null)}
               onDrop={onDrop}
+            />
+
+            <PrivateFolderItem 
+              isActive={selectedCollectionId === 'private'} 
+              onSelectCollection={onSelectCollection}
+              onDropToVault={onDropToVault}
             />
           </div>
 

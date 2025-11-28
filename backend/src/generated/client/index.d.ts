@@ -24,6 +24,11 @@ export type Collection = $Result.DefaultSelection<Prisma.$CollectionPayload>
  */
 export type Drawing = $Result.DefaultSelection<Prisma.$DrawingPayload>
 /**
+ * Model PrivateVault
+ * 
+ */
+export type PrivateVault = $Result.DefaultSelection<Prisma.$PrivateVaultPayload>
+/**
  * Model Library
  * 
  */
@@ -171,6 +176,16 @@ export class PrismaClient<
     * ```
     */
   get drawing(): Prisma.DrawingDelegate<ExtArgs>;
+
+  /**
+   * `prisma.privateVault`: Exposes CRUD operations for the **PrivateVault** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more PrivateVaults
+    * const privateVaults = await prisma.privateVault.findMany()
+    * ```
+    */
+  get privateVault(): Prisma.PrivateVaultDelegate<ExtArgs>;
 
   /**
    * `prisma.library`: Exposes CRUD operations for the **Library** model.
@@ -624,6 +639,7 @@ export namespace Prisma {
   export const ModelName: {
     Collection: 'Collection',
     Drawing: 'Drawing',
+    PrivateVault: 'PrivateVault',
     Library: 'Library'
   };
 
@@ -640,7 +656,7 @@ export namespace Prisma {
 
   export type TypeMap<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, ClientOptions = {}> = {
     meta: {
-      modelProps: "collection" | "drawing" | "library"
+      modelProps: "collection" | "drawing" | "privateVault" | "library"
       txIsolationLevel: Prisma.TransactionIsolationLevel
     }
     model: {
@@ -781,6 +797,76 @@ export namespace Prisma {
           count: {
             args: Prisma.DrawingCountArgs<ExtArgs>
             result: $Utils.Optional<DrawingCountAggregateOutputType> | number
+          }
+        }
+      }
+      PrivateVault: {
+        payload: Prisma.$PrivateVaultPayload<ExtArgs>
+        fields: Prisma.PrivateVaultFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.PrivateVaultFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$PrivateVaultPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.PrivateVaultFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$PrivateVaultPayload>
+          }
+          findFirst: {
+            args: Prisma.PrivateVaultFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$PrivateVaultPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.PrivateVaultFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$PrivateVaultPayload>
+          }
+          findMany: {
+            args: Prisma.PrivateVaultFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$PrivateVaultPayload>[]
+          }
+          create: {
+            args: Prisma.PrivateVaultCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$PrivateVaultPayload>
+          }
+          createMany: {
+            args: Prisma.PrivateVaultCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.PrivateVaultCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$PrivateVaultPayload>[]
+          }
+          delete: {
+            args: Prisma.PrivateVaultDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$PrivateVaultPayload>
+          }
+          update: {
+            args: Prisma.PrivateVaultUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$PrivateVaultPayload>
+          }
+          deleteMany: {
+            args: Prisma.PrivateVaultDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.PrivateVaultUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          upsert: {
+            args: Prisma.PrivateVaultUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$PrivateVaultPayload>
+          }
+          aggregate: {
+            args: Prisma.PrivateVaultAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregatePrivateVault>
+          }
+          groupBy: {
+            args: Prisma.PrivateVaultGroupByArgs<ExtArgs>
+            result: $Utils.Optional<PrivateVaultGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.PrivateVaultCountArgs<ExtArgs>
+            result: $Utils.Optional<PrivateVaultCountAggregateOutputType> | number
           }
         }
       }
@@ -2010,6 +2096,9 @@ export namespace Prisma {
     collectionId: string | null
     createdAt: Date | null
     updatedAt: Date | null
+    isPrivate: boolean | null
+    encryptedData: string | null
+    iv: string | null
   }
 
   export type DrawingMaxAggregateOutputType = {
@@ -2023,6 +2112,9 @@ export namespace Prisma {
     collectionId: string | null
     createdAt: Date | null
     updatedAt: Date | null
+    isPrivate: boolean | null
+    encryptedData: string | null
+    iv: string | null
   }
 
   export type DrawingCountAggregateOutputType = {
@@ -2036,6 +2128,9 @@ export namespace Prisma {
     collectionId: number
     createdAt: number
     updatedAt: number
+    isPrivate: number
+    encryptedData: number
+    iv: number
     _all: number
   }
 
@@ -2059,6 +2154,9 @@ export namespace Prisma {
     collectionId?: true
     createdAt?: true
     updatedAt?: true
+    isPrivate?: true
+    encryptedData?: true
+    iv?: true
   }
 
   export type DrawingMaxAggregateInputType = {
@@ -2072,6 +2170,9 @@ export namespace Prisma {
     collectionId?: true
     createdAt?: true
     updatedAt?: true
+    isPrivate?: true
+    encryptedData?: true
+    iv?: true
   }
 
   export type DrawingCountAggregateInputType = {
@@ -2085,6 +2186,9 @@ export namespace Prisma {
     collectionId?: true
     createdAt?: true
     updatedAt?: true
+    isPrivate?: true
+    encryptedData?: true
+    iv?: true
     _all?: true
   }
 
@@ -2185,6 +2289,9 @@ export namespace Prisma {
     collectionId: string | null
     createdAt: Date
     updatedAt: Date
+    isPrivate: boolean
+    encryptedData: string | null
+    iv: string | null
     _count: DrawingCountAggregateOutputType | null
     _avg: DrawingAvgAggregateOutputType | null
     _sum: DrawingSumAggregateOutputType | null
@@ -2217,6 +2324,9 @@ export namespace Prisma {
     collectionId?: boolean
     createdAt?: boolean
     updatedAt?: boolean
+    isPrivate?: boolean
+    encryptedData?: boolean
+    iv?: boolean
     collection?: boolean | Drawing$collectionArgs<ExtArgs>
   }, ExtArgs["result"]["drawing"]>
 
@@ -2231,6 +2341,9 @@ export namespace Prisma {
     collectionId?: boolean
     createdAt?: boolean
     updatedAt?: boolean
+    isPrivate?: boolean
+    encryptedData?: boolean
+    iv?: boolean
     collection?: boolean | Drawing$collectionArgs<ExtArgs>
   }, ExtArgs["result"]["drawing"]>
 
@@ -2245,6 +2358,9 @@ export namespace Prisma {
     collectionId?: boolean
     createdAt?: boolean
     updatedAt?: boolean
+    isPrivate?: boolean
+    encryptedData?: boolean
+    iv?: boolean
   }
 
   export type DrawingInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
@@ -2270,6 +2386,9 @@ export namespace Prisma {
       collectionId: string | null
       createdAt: Date
       updatedAt: Date
+      isPrivate: boolean
+      encryptedData: string | null
+      iv: string | null
     }, ExtArgs["result"]["drawing"]>
     composites: {}
   }
@@ -2674,6 +2793,9 @@ export namespace Prisma {
     readonly collectionId: FieldRef<"Drawing", 'String'>
     readonly createdAt: FieldRef<"Drawing", 'DateTime'>
     readonly updatedAt: FieldRef<"Drawing", 'DateTime'>
+    readonly isPrivate: FieldRef<"Drawing", 'Boolean'>
+    readonly encryptedData: FieldRef<"Drawing", 'String'>
+    readonly iv: FieldRef<"Drawing", 'String'>
   }
     
 
@@ -3016,6 +3138,894 @@ export namespace Prisma {
      * Choose, which related nodes to fetch as well
      */
     include?: DrawingInclude<ExtArgs> | null
+  }
+
+
+  /**
+   * Model PrivateVault
+   */
+
+  export type AggregatePrivateVault = {
+    _count: PrivateVaultCountAggregateOutputType | null
+    _min: PrivateVaultMinAggregateOutputType | null
+    _max: PrivateVaultMaxAggregateOutputType | null
+  }
+
+  export type PrivateVaultMinAggregateOutputType = {
+    id: string | null
+    passwordHash: string | null
+    salt: string | null
+    hint: string | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type PrivateVaultMaxAggregateOutputType = {
+    id: string | null
+    passwordHash: string | null
+    salt: string | null
+    hint: string | null
+    createdAt: Date | null
+    updatedAt: Date | null
+  }
+
+  export type PrivateVaultCountAggregateOutputType = {
+    id: number
+    passwordHash: number
+    salt: number
+    hint: number
+    createdAt: number
+    updatedAt: number
+    _all: number
+  }
+
+
+  export type PrivateVaultMinAggregateInputType = {
+    id?: true
+    passwordHash?: true
+    salt?: true
+    hint?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type PrivateVaultMaxAggregateInputType = {
+    id?: true
+    passwordHash?: true
+    salt?: true
+    hint?: true
+    createdAt?: true
+    updatedAt?: true
+  }
+
+  export type PrivateVaultCountAggregateInputType = {
+    id?: true
+    passwordHash?: true
+    salt?: true
+    hint?: true
+    createdAt?: true
+    updatedAt?: true
+    _all?: true
+  }
+
+  export type PrivateVaultAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which PrivateVault to aggregate.
+     */
+    where?: PrivateVaultWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of PrivateVaults to fetch.
+     */
+    orderBy?: PrivateVaultOrderByWithRelationInput | PrivateVaultOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: PrivateVaultWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` PrivateVaults from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` PrivateVaults.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned PrivateVaults
+    **/
+    _count?: true | PrivateVaultCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: PrivateVaultMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: PrivateVaultMaxAggregateInputType
+  }
+
+  export type GetPrivateVaultAggregateType<T extends PrivateVaultAggregateArgs> = {
+        [P in keyof T & keyof AggregatePrivateVault]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregatePrivateVault[P]>
+      : GetScalarType<T[P], AggregatePrivateVault[P]>
+  }
+
+
+
+
+  export type PrivateVaultGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: PrivateVaultWhereInput
+    orderBy?: PrivateVaultOrderByWithAggregationInput | PrivateVaultOrderByWithAggregationInput[]
+    by: PrivateVaultScalarFieldEnum[] | PrivateVaultScalarFieldEnum
+    having?: PrivateVaultScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: PrivateVaultCountAggregateInputType | true
+    _min?: PrivateVaultMinAggregateInputType
+    _max?: PrivateVaultMaxAggregateInputType
+  }
+
+  export type PrivateVaultGroupByOutputType = {
+    id: string
+    passwordHash: string
+    salt: string
+    hint: string | null
+    createdAt: Date
+    updatedAt: Date
+    _count: PrivateVaultCountAggregateOutputType | null
+    _min: PrivateVaultMinAggregateOutputType | null
+    _max: PrivateVaultMaxAggregateOutputType | null
+  }
+
+  type GetPrivateVaultGroupByPayload<T extends PrivateVaultGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<PrivateVaultGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof PrivateVaultGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], PrivateVaultGroupByOutputType[P]>
+            : GetScalarType<T[P], PrivateVaultGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type PrivateVaultSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    passwordHash?: boolean
+    salt?: boolean
+    hint?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }, ExtArgs["result"]["privateVault"]>
+
+  export type PrivateVaultSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    passwordHash?: boolean
+    salt?: boolean
+    hint?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }, ExtArgs["result"]["privateVault"]>
+
+  export type PrivateVaultSelectScalar = {
+    id?: boolean
+    passwordHash?: boolean
+    salt?: boolean
+    hint?: boolean
+    createdAt?: boolean
+    updatedAt?: boolean
+  }
+
+
+  export type $PrivateVaultPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "PrivateVault"
+    objects: {}
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      passwordHash: string
+      salt: string
+      hint: string | null
+      createdAt: Date
+      updatedAt: Date
+    }, ExtArgs["result"]["privateVault"]>
+    composites: {}
+  }
+
+  type PrivateVaultGetPayload<S extends boolean | null | undefined | PrivateVaultDefaultArgs> = $Result.GetResult<Prisma.$PrivateVaultPayload, S>
+
+  type PrivateVaultCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = 
+    Omit<PrivateVaultFindManyArgs, 'select' | 'include' | 'distinct'> & {
+      select?: PrivateVaultCountAggregateInputType | true
+    }
+
+  export interface PrivateVaultDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['PrivateVault'], meta: { name: 'PrivateVault' } }
+    /**
+     * Find zero or one PrivateVault that matches the filter.
+     * @param {PrivateVaultFindUniqueArgs} args - Arguments to find a PrivateVault
+     * @example
+     * // Get one PrivateVault
+     * const privateVault = await prisma.privateVault.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends PrivateVaultFindUniqueArgs>(args: SelectSubset<T, PrivateVaultFindUniqueArgs<ExtArgs>>): Prisma__PrivateVaultClient<$Result.GetResult<Prisma.$PrivateVaultPayload<ExtArgs>, T, "findUnique"> | null, null, ExtArgs>
+
+    /**
+     * Find one PrivateVault that matches the filter or throw an error with `error.code='P2025'` 
+     * if no matches were found.
+     * @param {PrivateVaultFindUniqueOrThrowArgs} args - Arguments to find a PrivateVault
+     * @example
+     * // Get one PrivateVault
+     * const privateVault = await prisma.privateVault.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends PrivateVaultFindUniqueOrThrowArgs>(args: SelectSubset<T, PrivateVaultFindUniqueOrThrowArgs<ExtArgs>>): Prisma__PrivateVaultClient<$Result.GetResult<Prisma.$PrivateVaultPayload<ExtArgs>, T, "findUniqueOrThrow">, never, ExtArgs>
+
+    /**
+     * Find the first PrivateVault that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {PrivateVaultFindFirstArgs} args - Arguments to find a PrivateVault
+     * @example
+     * // Get one PrivateVault
+     * const privateVault = await prisma.privateVault.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends PrivateVaultFindFirstArgs>(args?: SelectSubset<T, PrivateVaultFindFirstArgs<ExtArgs>>): Prisma__PrivateVaultClient<$Result.GetResult<Prisma.$PrivateVaultPayload<ExtArgs>, T, "findFirst"> | null, null, ExtArgs>
+
+    /**
+     * Find the first PrivateVault that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {PrivateVaultFindFirstOrThrowArgs} args - Arguments to find a PrivateVault
+     * @example
+     * // Get one PrivateVault
+     * const privateVault = await prisma.privateVault.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends PrivateVaultFindFirstOrThrowArgs>(args?: SelectSubset<T, PrivateVaultFindFirstOrThrowArgs<ExtArgs>>): Prisma__PrivateVaultClient<$Result.GetResult<Prisma.$PrivateVaultPayload<ExtArgs>, T, "findFirstOrThrow">, never, ExtArgs>
+
+    /**
+     * Find zero or more PrivateVaults that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {PrivateVaultFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all PrivateVaults
+     * const privateVaults = await prisma.privateVault.findMany()
+     * 
+     * // Get first 10 PrivateVaults
+     * const privateVaults = await prisma.privateVault.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const privateVaultWithIdOnly = await prisma.privateVault.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends PrivateVaultFindManyArgs>(args?: SelectSubset<T, PrivateVaultFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$PrivateVaultPayload<ExtArgs>, T, "findMany">>
+
+    /**
+     * Create a PrivateVault.
+     * @param {PrivateVaultCreateArgs} args - Arguments to create a PrivateVault.
+     * @example
+     * // Create one PrivateVault
+     * const PrivateVault = await prisma.privateVault.create({
+     *   data: {
+     *     // ... data to create a PrivateVault
+     *   }
+     * })
+     * 
+     */
+    create<T extends PrivateVaultCreateArgs>(args: SelectSubset<T, PrivateVaultCreateArgs<ExtArgs>>): Prisma__PrivateVaultClient<$Result.GetResult<Prisma.$PrivateVaultPayload<ExtArgs>, T, "create">, never, ExtArgs>
+
+    /**
+     * Create many PrivateVaults.
+     * @param {PrivateVaultCreateManyArgs} args - Arguments to create many PrivateVaults.
+     * @example
+     * // Create many PrivateVaults
+     * const privateVault = await prisma.privateVault.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends PrivateVaultCreateManyArgs>(args?: SelectSubset<T, PrivateVaultCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many PrivateVaults and returns the data saved in the database.
+     * @param {PrivateVaultCreateManyAndReturnArgs} args - Arguments to create many PrivateVaults.
+     * @example
+     * // Create many PrivateVaults
+     * const privateVault = await prisma.privateVault.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many PrivateVaults and only return the `id`
+     * const privateVaultWithIdOnly = await prisma.privateVault.createManyAndReturn({ 
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends PrivateVaultCreateManyAndReturnArgs>(args?: SelectSubset<T, PrivateVaultCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$PrivateVaultPayload<ExtArgs>, T, "createManyAndReturn">>
+
+    /**
+     * Delete a PrivateVault.
+     * @param {PrivateVaultDeleteArgs} args - Arguments to delete one PrivateVault.
+     * @example
+     * // Delete one PrivateVault
+     * const PrivateVault = await prisma.privateVault.delete({
+     *   where: {
+     *     // ... filter to delete one PrivateVault
+     *   }
+     * })
+     * 
+     */
+    delete<T extends PrivateVaultDeleteArgs>(args: SelectSubset<T, PrivateVaultDeleteArgs<ExtArgs>>): Prisma__PrivateVaultClient<$Result.GetResult<Prisma.$PrivateVaultPayload<ExtArgs>, T, "delete">, never, ExtArgs>
+
+    /**
+     * Update one PrivateVault.
+     * @param {PrivateVaultUpdateArgs} args - Arguments to update one PrivateVault.
+     * @example
+     * // Update one PrivateVault
+     * const privateVault = await prisma.privateVault.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends PrivateVaultUpdateArgs>(args: SelectSubset<T, PrivateVaultUpdateArgs<ExtArgs>>): Prisma__PrivateVaultClient<$Result.GetResult<Prisma.$PrivateVaultPayload<ExtArgs>, T, "update">, never, ExtArgs>
+
+    /**
+     * Delete zero or more PrivateVaults.
+     * @param {PrivateVaultDeleteManyArgs} args - Arguments to filter PrivateVaults to delete.
+     * @example
+     * // Delete a few PrivateVaults
+     * const { count } = await prisma.privateVault.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends PrivateVaultDeleteManyArgs>(args?: SelectSubset<T, PrivateVaultDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more PrivateVaults.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {PrivateVaultUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many PrivateVaults
+     * const privateVault = await prisma.privateVault.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends PrivateVaultUpdateManyArgs>(args: SelectSubset<T, PrivateVaultUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create or update one PrivateVault.
+     * @param {PrivateVaultUpsertArgs} args - Arguments to update or create a PrivateVault.
+     * @example
+     * // Update or create a PrivateVault
+     * const privateVault = await prisma.privateVault.upsert({
+     *   create: {
+     *     // ... data to create a PrivateVault
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the PrivateVault we want to update
+     *   }
+     * })
+     */
+    upsert<T extends PrivateVaultUpsertArgs>(args: SelectSubset<T, PrivateVaultUpsertArgs<ExtArgs>>): Prisma__PrivateVaultClient<$Result.GetResult<Prisma.$PrivateVaultPayload<ExtArgs>, T, "upsert">, never, ExtArgs>
+
+
+    /**
+     * Count the number of PrivateVaults.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {PrivateVaultCountArgs} args - Arguments to filter PrivateVaults to count.
+     * @example
+     * // Count the number of PrivateVaults
+     * const count = await prisma.privateVault.count({
+     *   where: {
+     *     // ... the filter for the PrivateVaults we want to count
+     *   }
+     * })
+    **/
+    count<T extends PrivateVaultCountArgs>(
+      args?: Subset<T, PrivateVaultCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], PrivateVaultCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a PrivateVault.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {PrivateVaultAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends PrivateVaultAggregateArgs>(args: Subset<T, PrivateVaultAggregateArgs>): Prisma.PrismaPromise<GetPrivateVaultAggregateType<T>>
+
+    /**
+     * Group by PrivateVault.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {PrivateVaultGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends PrivateVaultGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: PrivateVaultGroupByArgs['orderBy'] }
+        : { orderBy?: PrivateVaultGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, PrivateVaultGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetPrivateVaultGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the PrivateVault model
+   */
+  readonly fields: PrivateVaultFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for PrivateVault.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__PrivateVaultClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the PrivateVault model
+   */ 
+  interface PrivateVaultFieldRefs {
+    readonly id: FieldRef<"PrivateVault", 'String'>
+    readonly passwordHash: FieldRef<"PrivateVault", 'String'>
+    readonly salt: FieldRef<"PrivateVault", 'String'>
+    readonly hint: FieldRef<"PrivateVault", 'String'>
+    readonly createdAt: FieldRef<"PrivateVault", 'DateTime'>
+    readonly updatedAt: FieldRef<"PrivateVault", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * PrivateVault findUnique
+   */
+  export type PrivateVaultFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the PrivateVault
+     */
+    select?: PrivateVaultSelect<ExtArgs> | null
+    /**
+     * Filter, which PrivateVault to fetch.
+     */
+    where: PrivateVaultWhereUniqueInput
+  }
+
+  /**
+   * PrivateVault findUniqueOrThrow
+   */
+  export type PrivateVaultFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the PrivateVault
+     */
+    select?: PrivateVaultSelect<ExtArgs> | null
+    /**
+     * Filter, which PrivateVault to fetch.
+     */
+    where: PrivateVaultWhereUniqueInput
+  }
+
+  /**
+   * PrivateVault findFirst
+   */
+  export type PrivateVaultFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the PrivateVault
+     */
+    select?: PrivateVaultSelect<ExtArgs> | null
+    /**
+     * Filter, which PrivateVault to fetch.
+     */
+    where?: PrivateVaultWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of PrivateVaults to fetch.
+     */
+    orderBy?: PrivateVaultOrderByWithRelationInput | PrivateVaultOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for PrivateVaults.
+     */
+    cursor?: PrivateVaultWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` PrivateVaults from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` PrivateVaults.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of PrivateVaults.
+     */
+    distinct?: PrivateVaultScalarFieldEnum | PrivateVaultScalarFieldEnum[]
+  }
+
+  /**
+   * PrivateVault findFirstOrThrow
+   */
+  export type PrivateVaultFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the PrivateVault
+     */
+    select?: PrivateVaultSelect<ExtArgs> | null
+    /**
+     * Filter, which PrivateVault to fetch.
+     */
+    where?: PrivateVaultWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of PrivateVaults to fetch.
+     */
+    orderBy?: PrivateVaultOrderByWithRelationInput | PrivateVaultOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for PrivateVaults.
+     */
+    cursor?: PrivateVaultWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` PrivateVaults from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` PrivateVaults.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of PrivateVaults.
+     */
+    distinct?: PrivateVaultScalarFieldEnum | PrivateVaultScalarFieldEnum[]
+  }
+
+  /**
+   * PrivateVault findMany
+   */
+  export type PrivateVaultFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the PrivateVault
+     */
+    select?: PrivateVaultSelect<ExtArgs> | null
+    /**
+     * Filter, which PrivateVaults to fetch.
+     */
+    where?: PrivateVaultWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of PrivateVaults to fetch.
+     */
+    orderBy?: PrivateVaultOrderByWithRelationInput | PrivateVaultOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing PrivateVaults.
+     */
+    cursor?: PrivateVaultWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` PrivateVaults from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` PrivateVaults.
+     */
+    skip?: number
+    distinct?: PrivateVaultScalarFieldEnum | PrivateVaultScalarFieldEnum[]
+  }
+
+  /**
+   * PrivateVault create
+   */
+  export type PrivateVaultCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the PrivateVault
+     */
+    select?: PrivateVaultSelect<ExtArgs> | null
+    /**
+     * The data needed to create a PrivateVault.
+     */
+    data: XOR<PrivateVaultCreateInput, PrivateVaultUncheckedCreateInput>
+  }
+
+  /**
+   * PrivateVault createMany
+   */
+  export type PrivateVaultCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many PrivateVaults.
+     */
+    data: PrivateVaultCreateManyInput | PrivateVaultCreateManyInput[]
+  }
+
+  /**
+   * PrivateVault createManyAndReturn
+   */
+  export type PrivateVaultCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the PrivateVault
+     */
+    select?: PrivateVaultSelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * The data used to create many PrivateVaults.
+     */
+    data: PrivateVaultCreateManyInput | PrivateVaultCreateManyInput[]
+  }
+
+  /**
+   * PrivateVault update
+   */
+  export type PrivateVaultUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the PrivateVault
+     */
+    select?: PrivateVaultSelect<ExtArgs> | null
+    /**
+     * The data needed to update a PrivateVault.
+     */
+    data: XOR<PrivateVaultUpdateInput, PrivateVaultUncheckedUpdateInput>
+    /**
+     * Choose, which PrivateVault to update.
+     */
+    where: PrivateVaultWhereUniqueInput
+  }
+
+  /**
+   * PrivateVault updateMany
+   */
+  export type PrivateVaultUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update PrivateVaults.
+     */
+    data: XOR<PrivateVaultUpdateManyMutationInput, PrivateVaultUncheckedUpdateManyInput>
+    /**
+     * Filter which PrivateVaults to update
+     */
+    where?: PrivateVaultWhereInput
+  }
+
+  /**
+   * PrivateVault upsert
+   */
+  export type PrivateVaultUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the PrivateVault
+     */
+    select?: PrivateVaultSelect<ExtArgs> | null
+    /**
+     * The filter to search for the PrivateVault to update in case it exists.
+     */
+    where: PrivateVaultWhereUniqueInput
+    /**
+     * In case the PrivateVault found by the `where` argument doesn't exist, create a new PrivateVault with this data.
+     */
+    create: XOR<PrivateVaultCreateInput, PrivateVaultUncheckedCreateInput>
+    /**
+     * In case the PrivateVault was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<PrivateVaultUpdateInput, PrivateVaultUncheckedUpdateInput>
+  }
+
+  /**
+   * PrivateVault delete
+   */
+  export type PrivateVaultDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the PrivateVault
+     */
+    select?: PrivateVaultSelect<ExtArgs> | null
+    /**
+     * Filter which PrivateVault to delete.
+     */
+    where: PrivateVaultWhereUniqueInput
+  }
+
+  /**
+   * PrivateVault deleteMany
+   */
+  export type PrivateVaultDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which PrivateVaults to delete
+     */
+    where?: PrivateVaultWhereInput
+  }
+
+  /**
+   * PrivateVault without action
+   */
+  export type PrivateVaultDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the PrivateVault
+     */
+    select?: PrivateVaultSelect<ExtArgs> | null
   }
 
 
@@ -3914,10 +4924,25 @@ export namespace Prisma {
     version: 'version',
     collectionId: 'collectionId',
     createdAt: 'createdAt',
-    updatedAt: 'updatedAt'
+    updatedAt: 'updatedAt',
+    isPrivate: 'isPrivate',
+    encryptedData: 'encryptedData',
+    iv: 'iv'
   };
 
   export type DrawingScalarFieldEnum = (typeof DrawingScalarFieldEnum)[keyof typeof DrawingScalarFieldEnum]
+
+
+  export const PrivateVaultScalarFieldEnum: {
+    id: 'id',
+    passwordHash: 'passwordHash',
+    salt: 'salt',
+    hint: 'hint',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+  };
+
+  export type PrivateVaultScalarFieldEnum = (typeof PrivateVaultScalarFieldEnum)[keyof typeof PrivateVaultScalarFieldEnum]
 
 
   export const LibraryScalarFieldEnum: {
@@ -3969,6 +4994,13 @@ export namespace Prisma {
    * Reference to a field of type 'Int'
    */
   export type IntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Int'>
+    
+
+
+  /**
+   * Reference to a field of type 'Boolean'
+   */
+  export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
     
 
 
@@ -4046,6 +5078,9 @@ export namespace Prisma {
     collectionId?: StringNullableFilter<"Drawing"> | string | null
     createdAt?: DateTimeFilter<"Drawing"> | Date | string
     updatedAt?: DateTimeFilter<"Drawing"> | Date | string
+    isPrivate?: BoolFilter<"Drawing"> | boolean
+    encryptedData?: StringNullableFilter<"Drawing"> | string | null
+    iv?: StringNullableFilter<"Drawing"> | string | null
     collection?: XOR<CollectionNullableRelationFilter, CollectionWhereInput> | null
   }
 
@@ -4060,6 +5095,9 @@ export namespace Prisma {
     collectionId?: SortOrderInput | SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
+    isPrivate?: SortOrder
+    encryptedData?: SortOrderInput | SortOrder
+    iv?: SortOrderInput | SortOrder
     collection?: CollectionOrderByWithRelationInput
   }
 
@@ -4077,6 +5115,9 @@ export namespace Prisma {
     collectionId?: StringNullableFilter<"Drawing"> | string | null
     createdAt?: DateTimeFilter<"Drawing"> | Date | string
     updatedAt?: DateTimeFilter<"Drawing"> | Date | string
+    isPrivate?: BoolFilter<"Drawing"> | boolean
+    encryptedData?: StringNullableFilter<"Drawing"> | string | null
+    iv?: StringNullableFilter<"Drawing"> | string | null
     collection?: XOR<CollectionNullableRelationFilter, CollectionWhereInput> | null
   }, "id">
 
@@ -4091,6 +5132,9 @@ export namespace Prisma {
     collectionId?: SortOrderInput | SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
+    isPrivate?: SortOrder
+    encryptedData?: SortOrderInput | SortOrder
+    iv?: SortOrderInput | SortOrder
     _count?: DrawingCountOrderByAggregateInput
     _avg?: DrawingAvgOrderByAggregateInput
     _max?: DrawingMaxOrderByAggregateInput
@@ -4112,6 +5156,66 @@ export namespace Prisma {
     collectionId?: StringNullableWithAggregatesFilter<"Drawing"> | string | null
     createdAt?: DateTimeWithAggregatesFilter<"Drawing"> | Date | string
     updatedAt?: DateTimeWithAggregatesFilter<"Drawing"> | Date | string
+    isPrivate?: BoolWithAggregatesFilter<"Drawing"> | boolean
+    encryptedData?: StringNullableWithAggregatesFilter<"Drawing"> | string | null
+    iv?: StringNullableWithAggregatesFilter<"Drawing"> | string | null
+  }
+
+  export type PrivateVaultWhereInput = {
+    AND?: PrivateVaultWhereInput | PrivateVaultWhereInput[]
+    OR?: PrivateVaultWhereInput[]
+    NOT?: PrivateVaultWhereInput | PrivateVaultWhereInput[]
+    id?: StringFilter<"PrivateVault"> | string
+    passwordHash?: StringFilter<"PrivateVault"> | string
+    salt?: StringFilter<"PrivateVault"> | string
+    hint?: StringNullableFilter<"PrivateVault"> | string | null
+    createdAt?: DateTimeFilter<"PrivateVault"> | Date | string
+    updatedAt?: DateTimeFilter<"PrivateVault"> | Date | string
+  }
+
+  export type PrivateVaultOrderByWithRelationInput = {
+    id?: SortOrder
+    passwordHash?: SortOrder
+    salt?: SortOrder
+    hint?: SortOrderInput | SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type PrivateVaultWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    AND?: PrivateVaultWhereInput | PrivateVaultWhereInput[]
+    OR?: PrivateVaultWhereInput[]
+    NOT?: PrivateVaultWhereInput | PrivateVaultWhereInput[]
+    passwordHash?: StringFilter<"PrivateVault"> | string
+    salt?: StringFilter<"PrivateVault"> | string
+    hint?: StringNullableFilter<"PrivateVault"> | string | null
+    createdAt?: DateTimeFilter<"PrivateVault"> | Date | string
+    updatedAt?: DateTimeFilter<"PrivateVault"> | Date | string
+  }, "id">
+
+  export type PrivateVaultOrderByWithAggregationInput = {
+    id?: SortOrder
+    passwordHash?: SortOrder
+    salt?: SortOrder
+    hint?: SortOrderInput | SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+    _count?: PrivateVaultCountOrderByAggregateInput
+    _max?: PrivateVaultMaxOrderByAggregateInput
+    _min?: PrivateVaultMinOrderByAggregateInput
+  }
+
+  export type PrivateVaultScalarWhereWithAggregatesInput = {
+    AND?: PrivateVaultScalarWhereWithAggregatesInput | PrivateVaultScalarWhereWithAggregatesInput[]
+    OR?: PrivateVaultScalarWhereWithAggregatesInput[]
+    NOT?: PrivateVaultScalarWhereWithAggregatesInput | PrivateVaultScalarWhereWithAggregatesInput[]
+    id?: StringWithAggregatesFilter<"PrivateVault"> | string
+    passwordHash?: StringWithAggregatesFilter<"PrivateVault"> | string
+    salt?: StringWithAggregatesFilter<"PrivateVault"> | string
+    hint?: StringNullableWithAggregatesFilter<"PrivateVault"> | string | null
+    createdAt?: DateTimeWithAggregatesFilter<"PrivateVault"> | Date | string
+    updatedAt?: DateTimeWithAggregatesFilter<"PrivateVault"> | Date | string
   }
 
   export type LibraryWhereInput = {
@@ -4224,6 +5328,9 @@ export namespace Prisma {
     version?: number
     createdAt?: Date | string
     updatedAt?: Date | string
+    isPrivate?: boolean
+    encryptedData?: string | null
+    iv?: string | null
     collection?: CollectionCreateNestedOneWithoutDrawingsInput
   }
 
@@ -4238,6 +5345,9 @@ export namespace Prisma {
     collectionId?: string | null
     createdAt?: Date | string
     updatedAt?: Date | string
+    isPrivate?: boolean
+    encryptedData?: string | null
+    iv?: string | null
   }
 
   export type DrawingUpdateInput = {
@@ -4250,6 +5360,9 @@ export namespace Prisma {
     version?: IntFieldUpdateOperationsInput | number
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isPrivate?: BoolFieldUpdateOperationsInput | boolean
+    encryptedData?: NullableStringFieldUpdateOperationsInput | string | null
+    iv?: NullableStringFieldUpdateOperationsInput | string | null
     collection?: CollectionUpdateOneWithoutDrawingsNestedInput
   }
 
@@ -4264,6 +5377,9 @@ export namespace Prisma {
     collectionId?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isPrivate?: BoolFieldUpdateOperationsInput | boolean
+    encryptedData?: NullableStringFieldUpdateOperationsInput | string | null
+    iv?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type DrawingCreateManyInput = {
@@ -4277,6 +5393,9 @@ export namespace Prisma {
     collectionId?: string | null
     createdAt?: Date | string
     updatedAt?: Date | string
+    isPrivate?: boolean
+    encryptedData?: string | null
+    iv?: string | null
   }
 
   export type DrawingUpdateManyMutationInput = {
@@ -4289,6 +5408,9 @@ export namespace Prisma {
     version?: IntFieldUpdateOperationsInput | number
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isPrivate?: BoolFieldUpdateOperationsInput | boolean
+    encryptedData?: NullableStringFieldUpdateOperationsInput | string | null
+    iv?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type DrawingUncheckedUpdateManyInput = {
@@ -4300,6 +5422,72 @@ export namespace Prisma {
     preview?: NullableStringFieldUpdateOperationsInput | string | null
     version?: IntFieldUpdateOperationsInput | number
     collectionId?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isPrivate?: BoolFieldUpdateOperationsInput | boolean
+    encryptedData?: NullableStringFieldUpdateOperationsInput | string | null
+    iv?: NullableStringFieldUpdateOperationsInput | string | null
+  }
+
+  export type PrivateVaultCreateInput = {
+    id?: string
+    passwordHash: string
+    salt: string
+    hint?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type PrivateVaultUncheckedCreateInput = {
+    id?: string
+    passwordHash: string
+    salt: string
+    hint?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type PrivateVaultUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    passwordHash?: StringFieldUpdateOperationsInput | string
+    salt?: StringFieldUpdateOperationsInput | string
+    hint?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type PrivateVaultUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    passwordHash?: StringFieldUpdateOperationsInput | string
+    salt?: StringFieldUpdateOperationsInput | string
+    hint?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type PrivateVaultCreateManyInput = {
+    id?: string
+    passwordHash: string
+    salt: string
+    hint?: string | null
+    createdAt?: Date | string
+    updatedAt?: Date | string
+  }
+
+  export type PrivateVaultUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    passwordHash?: StringFieldUpdateOperationsInput | string
+    salt?: StringFieldUpdateOperationsInput | string
+    hint?: NullableStringFieldUpdateOperationsInput | string | null
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type PrivateVaultUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    passwordHash?: StringFieldUpdateOperationsInput | string
+    salt?: StringFieldUpdateOperationsInput | string
+    hint?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
@@ -4465,6 +5653,11 @@ export namespace Prisma {
     not?: NestedIntFilter<$PrismaModel> | number
   }
 
+  export type BoolFilter<$PrismaModel = never> = {
+    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
+    not?: NestedBoolFilter<$PrismaModel> | boolean
+  }
+
   export type CollectionNullableRelationFilter = {
     is?: CollectionWhereInput | null
     isNot?: CollectionWhereInput | null
@@ -4486,6 +5679,9 @@ export namespace Prisma {
     collectionId?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
+    isPrivate?: SortOrder
+    encryptedData?: SortOrder
+    iv?: SortOrder
   }
 
   export type DrawingAvgOrderByAggregateInput = {
@@ -4503,6 +5699,9 @@ export namespace Prisma {
     collectionId?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
+    isPrivate?: SortOrder
+    encryptedData?: SortOrder
+    iv?: SortOrder
   }
 
   export type DrawingMinOrderByAggregateInput = {
@@ -4516,6 +5715,9 @@ export namespace Prisma {
     collectionId?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
+    isPrivate?: SortOrder
+    encryptedData?: SortOrder
+    iv?: SortOrder
   }
 
   export type DrawingSumOrderByAggregateInput = {
@@ -4553,6 +5755,41 @@ export namespace Prisma {
     _sum?: NestedIntFilter<$PrismaModel>
     _min?: NestedIntFilter<$PrismaModel>
     _max?: NestedIntFilter<$PrismaModel>
+  }
+
+  export type BoolWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
+    not?: NestedBoolWithAggregatesFilter<$PrismaModel> | boolean
+    _count?: NestedIntFilter<$PrismaModel>
+    _min?: NestedBoolFilter<$PrismaModel>
+    _max?: NestedBoolFilter<$PrismaModel>
+  }
+
+  export type PrivateVaultCountOrderByAggregateInput = {
+    id?: SortOrder
+    passwordHash?: SortOrder
+    salt?: SortOrder
+    hint?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type PrivateVaultMaxOrderByAggregateInput = {
+    id?: SortOrder
+    passwordHash?: SortOrder
+    salt?: SortOrder
+    hint?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
+  }
+
+  export type PrivateVaultMinOrderByAggregateInput = {
+    id?: SortOrder
+    passwordHash?: SortOrder
+    salt?: SortOrder
+    hint?: SortOrder
+    createdAt?: SortOrder
+    updatedAt?: SortOrder
   }
 
   export type LibraryCountOrderByAggregateInput = {
@@ -4642,6 +5879,10 @@ export namespace Prisma {
     decrement?: number
     multiply?: number
     divide?: number
+  }
+
+  export type BoolFieldUpdateOperationsInput = {
+    set?: boolean
   }
 
   export type CollectionUpdateOneWithoutDrawingsNestedInput = {
@@ -4735,6 +5976,11 @@ export namespace Prisma {
     not?: NestedStringNullableFilter<$PrismaModel> | string | null
   }
 
+  export type NestedBoolFilter<$PrismaModel = never> = {
+    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
+    not?: NestedBoolFilter<$PrismaModel> | boolean
+  }
+
   export type NestedStringNullableWithAggregatesFilter<$PrismaModel = never> = {
     equals?: string | StringFieldRefInput<$PrismaModel> | null
     in?: string[] | null
@@ -4790,6 +6036,14 @@ export namespace Prisma {
     not?: NestedFloatFilter<$PrismaModel> | number
   }
 
+  export type NestedBoolWithAggregatesFilter<$PrismaModel = never> = {
+    equals?: boolean | BooleanFieldRefInput<$PrismaModel>
+    not?: NestedBoolWithAggregatesFilter<$PrismaModel> | boolean
+    _count?: NestedIntFilter<$PrismaModel>
+    _min?: NestedBoolFilter<$PrismaModel>
+    _max?: NestedBoolFilter<$PrismaModel>
+  }
+
   export type DrawingCreateWithoutCollectionInput = {
     id?: string
     name: string
@@ -4800,6 +6054,9 @@ export namespace Prisma {
     version?: number
     createdAt?: Date | string
     updatedAt?: Date | string
+    isPrivate?: boolean
+    encryptedData?: string | null
+    iv?: string | null
   }
 
   export type DrawingUncheckedCreateWithoutCollectionInput = {
@@ -4812,6 +6069,9 @@ export namespace Prisma {
     version?: number
     createdAt?: Date | string
     updatedAt?: Date | string
+    isPrivate?: boolean
+    encryptedData?: string | null
+    iv?: string | null
   }
 
   export type DrawingCreateOrConnectWithoutCollectionInput = {
@@ -4853,6 +6113,9 @@ export namespace Prisma {
     collectionId?: StringNullableFilter<"Drawing"> | string | null
     createdAt?: DateTimeFilter<"Drawing"> | Date | string
     updatedAt?: DateTimeFilter<"Drawing"> | Date | string
+    isPrivate?: BoolFilter<"Drawing"> | boolean
+    encryptedData?: StringNullableFilter<"Drawing"> | string | null
+    iv?: StringNullableFilter<"Drawing"> | string | null
   }
 
   export type CollectionCreateWithoutDrawingsInput = {
@@ -4909,6 +6172,9 @@ export namespace Prisma {
     version?: number
     createdAt?: Date | string
     updatedAt?: Date | string
+    isPrivate?: boolean
+    encryptedData?: string | null
+    iv?: string | null
   }
 
   export type DrawingUpdateWithoutCollectionInput = {
@@ -4921,6 +6187,9 @@ export namespace Prisma {
     version?: IntFieldUpdateOperationsInput | number
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isPrivate?: BoolFieldUpdateOperationsInput | boolean
+    encryptedData?: NullableStringFieldUpdateOperationsInput | string | null
+    iv?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type DrawingUncheckedUpdateWithoutCollectionInput = {
@@ -4933,6 +6202,9 @@ export namespace Prisma {
     version?: IntFieldUpdateOperationsInput | number
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isPrivate?: BoolFieldUpdateOperationsInput | boolean
+    encryptedData?: NullableStringFieldUpdateOperationsInput | string | null
+    iv?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
   export type DrawingUncheckedUpdateManyWithoutCollectionInput = {
@@ -4945,6 +6217,9 @@ export namespace Prisma {
     version?: IntFieldUpdateOperationsInput | number
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isPrivate?: BoolFieldUpdateOperationsInput | boolean
+    encryptedData?: NullableStringFieldUpdateOperationsInput | string | null
+    iv?: NullableStringFieldUpdateOperationsInput | string | null
   }
 
 
@@ -4964,6 +6239,10 @@ export namespace Prisma {
      * @deprecated Use DrawingDefaultArgs instead
      */
     export type DrawingArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = DrawingDefaultArgs<ExtArgs>
+    /**
+     * @deprecated Use PrivateVaultDefaultArgs instead
+     */
+    export type PrivateVaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = PrivateVaultDefaultArgs<ExtArgs>
     /**
      * @deprecated Use LibraryDefaultArgs instead
      */

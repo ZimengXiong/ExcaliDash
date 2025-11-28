@@ -10,6 +10,7 @@ import { Worker } from "worker_threads";
 import multer from "multer";
 import archiver from "archiver";
 import { z } from "zod";
+import * as crypto from "crypto";
 // @ts-ignore
 import { PrismaClient } from "./generated/client";
 import {
@@ -481,13 +482,350 @@ app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });
 });
 
+// --- Private Vault ---
+
+// Hash password using scrypt (similar to bcrypt but built-in to Node.js)
+const hashPasswordServer = (
+  password: string,
+  salt?: string
+): Promise<{ hash: string; salt: string }> => {
+  return new Promise((resolve, reject) => {
+    const useSalt = salt || crypto.randomBytes(16).toString("hex");
+    crypto.scrypt(password, useSalt, 64, (err, derivedKey) => {
+      if (err) reject(err);
+      resolve({ hash: derivedKey.toString("hex"), salt: useSalt });
+    });
+  });
+};
+
+const verifyPasswordServer = (
+  password: string,
+  hash: string,
+  salt: string
+): Promise<boolean> => {
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(password, salt, 64, (err, derivedKey) => {
+      if (err) reject(err);
+      resolve(derivedKey.toString("hex") === hash);
+    });
+  });
+};
+
+// GET /vault/status - Check if vault is set up
+app.get("/vault/status", async (req, res) => {
+  try {
+    const vault = await prisma.privateVault.findUnique({
+      where: { id: "vault" },
+    });
+
+    const privateDrawingsCount = await prisma.drawing.count({
+      where: { isPrivate: true },
+    });
+
+    if (!vault) {
+      return res.json({
+        isSetup: false,
+        privateDrawingsCount,
+      });
+    }
+
+    res.json({
+      isSetup: true,
+      salt: vault.salt,
+      hint: vault.hint,
+      privateDrawingsCount,
+    });
+  } catch (error) {
+    console.error("Failed to get vault status:", error);
+    res.status(500).json({ error: "Failed to get vault status" });
+  }
+});
+
+// POST /vault/setup - Create vault with password
+app.post("/vault/setup", async (req, res) => {
+  try {
+    const { passwordHash, salt, hint } = req.body;
+
+    if (!passwordHash || !salt) {
+      return res
+        .status(400)
+        .json({ error: "Password hash and salt are required" });
+    }
+
+    // Check if vault already exists
+    const existing = await prisma.privateVault.findUnique({
+      where: { id: "vault" },
+    });
+
+    if (existing) {
+      return res.status(400).json({ error: "Vault already exists" });
+    }
+
+    // Hash the client-side hash again for extra security
+    const { hash: serverHash, salt: serverSalt } = await hashPasswordServer(
+      passwordHash
+    );
+
+    await prisma.privateVault.create({
+      data: {
+        id: "vault",
+        passwordHash: `${serverHash}:${serverSalt}`, // Store both server hash and server salt
+        salt, // Client-side salt for key derivation
+        hint: hint || null,
+      },
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Failed to setup vault:", error);
+    res.status(500).json({ error: "Failed to setup vault" });
+  }
+});
+
+// POST /vault/verify - Verify password and return salt for decryption
+app.post("/vault/verify", async (req, res) => {
+  try {
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ error: "Password is required" });
+    }
+
+    const vault = await prisma.privateVault.findUnique({
+      where: { id: "vault" },
+    });
+
+    if (!vault) {
+      return res.status(404).json({ error: "Vault not set up" });
+    }
+
+    // Parse stored hash format: "serverHash:serverSalt"
+    const [storedHash, serverSalt] = vault.passwordHash.split(":");
+
+    // Client sends SHA-256 hash of password, we verify against our scrypt hash
+    const isValid = await verifyPasswordServer(
+      password,
+      storedHash,
+      serverSalt
+    );
+
+    if (!isValid) {
+      return res
+        .status(401)
+        .json({ success: false, error: "Invalid password" });
+    }
+
+    res.json({
+      success: true,
+      salt: vault.salt, // Return client-side salt for key derivation
+    });
+  } catch (error) {
+    console.error("Failed to verify password:", error);
+    res.status(500).json({ error: "Failed to verify password" });
+  }
+});
+
+// PUT /vault/password - Change vault password
+app.put("/vault/password", async (req, res) => {
+  try {
+    const { passwordHash, salt } = req.body;
+
+    if (!passwordHash || !salt) {
+      return res
+        .status(400)
+        .json({ error: "Password hash and salt are required" });
+    }
+
+    const vault = await prisma.privateVault.findUnique({
+      where: { id: "vault" },
+    });
+
+    if (!vault) {
+      return res.status(404).json({ error: "Vault not set up" });
+    }
+
+    // Hash the new client-side hash
+    const { hash: serverHash, salt: serverSalt } = await hashPasswordServer(
+      passwordHash
+    );
+
+    await prisma.privateVault.update({
+      where: { id: "vault" },
+      data: {
+        passwordHash: `${serverHash}:${serverSalt}`,
+        salt,
+      },
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Failed to change password:", error);
+    res.status(500).json({ error: "Failed to change password" });
+  }
+});
+
+// GET /vault/hint - Get password hint
+app.get("/vault/hint", async (req, res) => {
+  try {
+    const vault = await prisma.privateVault.findUnique({
+      where: { id: "vault" },
+    });
+
+    if (!vault) {
+      return res.status(404).json({ error: "Vault not set up" });
+    }
+
+    res.json({ hint: vault.hint });
+  } catch (error) {
+    console.error("Failed to get hint:", error);
+    res.status(500).json({ error: "Failed to get hint" });
+  }
+});
+
+// PUT /vault/hint - Update password hint
+app.put("/vault/hint", async (req, res) => {
+  try {
+    const { hint } = req.body;
+
+    const vault = await prisma.privateVault.findUnique({
+      where: { id: "vault" },
+    });
+
+    if (!vault) {
+      return res.status(404).json({ error: "Vault not set up" });
+    }
+
+    await prisma.privateVault.update({
+      where: { id: "vault" },
+      data: { hint },
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Failed to update hint:", error);
+    res.status(500).json({ error: "Failed to update hint" });
+  }
+});
+
+// GET /drawings/private - Get all private drawings
+app.get("/drawings/private", async (req, res) => {
+  try {
+    const drawings = await prisma.drawing.findMany({
+      where: { isPrivate: true },
+      orderBy: { updatedAt: "desc" },
+    });
+
+    res.json(drawings);
+  } catch (error) {
+    console.error("Failed to get private drawings:", error);
+    res.status(500).json({ error: "Failed to get private drawings" });
+  }
+});
+
+// PUT /drawings/:id/lock - Move drawing to private vault
+app.put("/drawings/:id/lock", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { encryptedData, iv } = req.body;
+
+    if (!encryptedData || !iv) {
+      return res
+        .status(400)
+        .json({ error: "Encrypted data and IV are required" });
+    }
+
+    const drawing = await prisma.drawing.findUnique({
+      where: { id },
+    });
+
+    if (!drawing) {
+      return res.status(404).json({ error: "Drawing not found" });
+    }
+
+    // Generate a locked preview
+    const lockedPreview = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150" viewBox="0 0 200 150">
+      <rect width="200" height="150" fill="#f1f5f9"/>
+      <rect x="75" y="45" width="50" height="40" rx="4" fill="#94a3b8"/>
+      <rect x="85" y="30" width="30" height="25" rx="15" fill="none" stroke="#94a3b8" stroke-width="6"/>
+      <circle cx="100" cy="65" r="4" fill="#f1f5f9"/>
+      <rect x="98" y="65" width="4" height="10" fill="#f1f5f9"/>
+      <text x="100" y="110" font-family="system-ui" font-size="12" fill="#64748b" text-anchor="middle">Private Drawing</text>
+    </svg>`;
+
+    await prisma.drawing.update({
+      where: { id },
+      data: {
+        isPrivate: true,
+        encryptedData,
+        iv,
+        elements: "[]", // Clear plaintext data
+        appState: "{}",
+        files: "{}",
+        preview: lockedPreview,
+        collectionId: null, // Remove from any collection
+      },
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Failed to lock drawing:", error);
+    res.status(500).json({ error: "Failed to lock drawing" });
+  }
+});
+
+// PUT /drawings/:id/unlock - Remove drawing from private vault
+app.put("/drawings/:id/unlock", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { elements, appState, files, preview } = req.body;
+
+    if (!elements || !appState) {
+      return res
+        .status(400)
+        .json({ error: "Elements and appState are required" });
+    }
+
+    const drawing = await prisma.drawing.findUnique({
+      where: { id },
+    });
+
+    if (!drawing) {
+      return res.status(404).json({ error: "Drawing not found" });
+    }
+
+    if (!drawing.isPrivate) {
+      return res.status(400).json({ error: "Drawing is not private" });
+    }
+
+    await prisma.drawing.update({
+      where: { id },
+      data: {
+        isPrivate: false,
+        encryptedData: null,
+        iv: null,
+        elements: JSON.stringify(elements),
+        appState: JSON.stringify(appState),
+        files: JSON.stringify(files || {}),
+        preview: preview || null,
+      },
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Failed to unlock drawing:", error);
+    res.status(500).json({ error: "Failed to unlock drawing" });
+  }
+});
+
 // --- Drawings ---
 
 // GET /drawings
 app.get("/drawings", async (req, res) => {
   try {
     const { search, collectionId } = req.query;
-    const where: any = {};
+    const where: any = {
+      isPrivate: false, // Exclude private drawings from regular listings
+    };
 
     if (search) {
       where.name = { contains: String(search) };
@@ -532,6 +870,18 @@ app.get("/drawings/:id", async (req, res) => {
     if (!drawing) {
       console.warn("[API] Drawing not found", { id });
       return res.status(404).json({ error: "Drawing not found" });
+    }
+
+    // For private drawings, return encrypted data instead of parsed content
+    if (drawing.isPrivate) {
+      console.log("[API] Returning private drawing", { id });
+      return res.json({
+        ...drawing,
+        elements: [], // Empty for private drawings
+        appState: {},
+        files: {},
+        // encryptedData, iv, and isPrivate are already included
+      });
     }
 
     console.log("[API] Returning drawing", {

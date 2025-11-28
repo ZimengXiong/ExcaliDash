@@ -3,20 +3,30 @@ import { Layout } from '../components/Layout';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../api';
 import type { Collection } from '../types';
-import { Database, FileJson, Upload, Moon, Sun, Info, HardDrive } from 'lucide-react';
+import { Database, FileJson, Upload, Moon, Sun, Info, HardDrive, Lock, Key, ShieldCheck, Unlock } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { importDrawings } from '../utils/importUtils';
 import { useTheme } from '../context/ThemeContext';
+import { useVault } from '../context/VaultContext';
+import { PrivateVaultSetup } from '../components/PrivateVaultSetup';
+import { UnlockVaultModal } from '../components/UnlockVaultModal';
+import { ChangeVaultPassword } from '../components/ChangeVaultPassword';
 
 export const Settings: React.FC = () => {
     const [collections, setCollections] = useState<Collection[]>([]);
     const navigate = useNavigate();
     const { theme, toggleTheme } = useTheme();
+    const vault = useVault();
 
     // Import state
     const [importConfirmation, setImportConfirmation] = useState<{ isOpen: boolean; file: File | null }>({ isOpen: false, file: null });
     const [importError, setImportError] = useState<{ isOpen: boolean; message: string }>({ isOpen: false, message: '' });
     const [importSuccess, setImportSuccess] = useState(false);
+
+    // Vault modal state
+    const [showVaultSetup, setShowVaultSetup] = useState(false);
+    const [showUnlockModal, setShowUnlockModal] = useState(false);
+    const [showChangePassword, setShowChangePassword] = useState(false);
 
     const appVersion = import.meta.env.VITE_APP_VERSION || 'Unknown version';
     const buildLabel = import.meta.env.VITE_APP_BUILD_LABEL;
@@ -71,6 +81,114 @@ export const Settings: React.FC = () => {
                 Settings
             </h1>
 
+            {/* Private Vault Section */}
+            <div className="mb-8">
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-4 pl-1">Private Vault</h2>
+                <div className="bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] p-6">
+                    {vault.isLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                        </div>
+                    ) : !vault.isSetup ? (
+                        <div className="flex flex-col items-center text-center py-6">
+                            <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-2xl flex items-center justify-center mb-4">
+                                <Lock size={32} className="text-indigo-600 dark:text-indigo-400" />
+                            </div>
+                            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+                                Set Up Private Vault
+                            </h3>
+                            <p className="text-slate-500 dark:text-neutral-400 mb-4 max-w-md">
+                                Protect sensitive drawings with end-to-end encryption. 
+                                Only you can access them with your password.
+                            </p>
+                            <button
+                                onClick={() => setShowVaultSetup(true)}
+                                className="px-6 py-3 bg-indigo-500 border-2 border-black dark:border-indigo-600 rounded-lg font-bold text-white hover:bg-indigo-600 transition-colors shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(79,70,229,0.5)]"
+                            >
+                                Set Up Vault
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {/* Vault Status */}
+                            <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-neutral-800 rounded-xl border-2 border-slate-200 dark:border-neutral-700">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                                        vault.isUnlocked 
+                                            ? 'bg-green-100 dark:bg-green-900/30' 
+                                            : 'bg-amber-100 dark:bg-amber-900/30'
+                                    }`}>
+                                        {vault.isUnlocked ? (
+                                            <Unlock size={20} className="text-green-600 dark:text-green-400" />
+                                        ) : (
+                                            <Lock size={20} className="text-amber-600 dark:text-amber-400" />
+                                        )}
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-slate-900 dark:text-white">
+                                            {vault.isUnlocked ? 'Vault Unlocked' : 'Vault Locked'}
+                                        </p>
+                                        <p className="text-sm text-slate-500 dark:text-neutral-400">
+                                            {vault.privateDrawingsCount} private drawing{vault.privateDrawingsCount !== 1 ? 's' : ''}
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => vault.isUnlocked ? vault.lock() : setShowUnlockModal(true)}
+                                    className={`px-4 py-2 border-2 border-black dark:border-neutral-600 rounded-lg font-bold transition-colors shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] ${
+                                        vault.isUnlocked 
+                                            ? 'bg-slate-100 dark:bg-neutral-700 text-slate-700 dark:text-neutral-300 hover:bg-slate-200 dark:hover:bg-neutral-600' 
+                                            : 'bg-amber-500 text-white hover:bg-amber-600'
+                                    }`}
+                                >
+                                    {vault.isUnlocked ? 'Lock' : 'Unlock'}
+                                </button>
+                            </div>
+
+                            {/* Vault Actions */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {/* View Private Drawings */}
+                                <button
+                                    onClick={() => navigate('/private')}
+                                    className="flex items-center gap-3 p-4 bg-white dark:bg-neutral-800 border-2 border-black dark:border-neutral-700 rounded-xl hover:bg-slate-50 dark:hover:bg-neutral-750 transition-colors shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)]"
+                                >
+                                    <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center">
+                                        <ShieldCheck size={20} className="text-indigo-600 dark:text-indigo-400" />
+                                    </div>
+                                    <div className="text-left">
+                                        <p className="font-bold text-slate-900 dark:text-white">View Private Drawings</p>
+                                        <p className="text-sm text-slate-500 dark:text-neutral-400">Access encrypted drawings</p>
+                                    </div>
+                                </button>
+
+                                {/* Change Password */}
+                                <button
+                                    onClick={() => setShowChangePassword(true)}
+                                    className="flex items-center gap-3 p-4 bg-white dark:bg-neutral-800 border-2 border-black dark:border-neutral-700 rounded-xl hover:bg-slate-50 dark:hover:bg-neutral-750 transition-colors shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)]"
+                                >
+                                    <div className="w-10 h-10 bg-slate-100 dark:bg-neutral-700 rounded-lg flex items-center justify-center">
+                                        <Key size={20} className="text-slate-600 dark:text-neutral-400" />
+                                    </div>
+                                    <div className="text-left">
+                                        <p className="font-bold text-slate-900 dark:text-white">Change Password</p>
+                                        <p className="text-sm text-slate-500 dark:text-neutral-400">Update vault password</p>
+                                    </div>
+                                </button>
+                            </div>
+
+                            {/* Password Hint */}
+                            {vault.passwordHint && (
+                                <div className="p-3 bg-slate-50 dark:bg-neutral-800 border-2 border-slate-200 dark:border-neutral-700 rounded-lg">
+                                    <p className="text-xs text-slate-500 dark:text-neutral-400 mb-1">Password Hint</p>
+                                    <p className="text-sm text-slate-700 dark:text-neutral-300">{vault.passwordHint}</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-4 pl-1">General</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {/* Theme Toggle */}
                 <button
@@ -297,6 +415,26 @@ export const Settings: React.FC = () => {
                 variant="success"
                 onConfirm={() => setImportSuccess(false)}
                 onCancel={() => setImportSuccess(false)}
+            />
+
+            {/* Vault Modals */}
+            <PrivateVaultSetup
+                isOpen={showVaultSetup}
+                onClose={() => setShowVaultSetup(false)}
+                onSetup={vault.setupVault}
+            />
+
+            <UnlockVaultModal
+                isOpen={showUnlockModal}
+                onClose={() => setShowUnlockModal(false)}
+                onUnlock={vault.unlock}
+                passwordHint={vault.passwordHint}
+            />
+
+            <ChangeVaultPassword
+                isOpen={showChangePassword}
+                onClose={() => setShowChangePassword(false)}
+                onChangePassword={vault.changePassword}
             />
         </Layout >
     );

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Download } from 'lucide-react';
+import { ArrowLeft, Download, Lock } from 'lucide-react';
 import { Excalidraw, exportToSvg } from '@excalidraw/excalidraw';
 import '@excalidraw/excalidraw/index.css';
 import debounce from 'lodash/debounce';
@@ -10,9 +10,12 @@ import { io, Socket } from 'socket.io-client';
 import { getUserIdentity } from '../utils/identity';
 import { reconcileElements } from '../utils/sync';
 import { exportFromEditor } from '../utils/exportUtils';
+import { encryptDrawing, decryptDrawing, generateLockedPreview } from '../utils/crypto';
 import type { UserIdentity } from '../utils/identity';
 import * as api from '../api';
 import { useTheme } from '../context/ThemeContext';
+import { useVault } from '../context/VaultContext';
+import { UnlockVaultModal } from '../components/UnlockVaultModal';
 
 interface Peer extends UserIdentity {
   isActive: boolean;
@@ -51,12 +54,16 @@ export const Editor: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { theme } = useTheme();
+  const vault = useVault();
   
   const [drawingName, setDrawingName] = useState('Drawing Editor');
   const [isRenaming, setIsRenaming] = useState(false);
   const [newName, setNewName] = useState('');
   const [initialData, setInitialData] = useState<any>(null);
   const [isSceneLoading, setIsSceneLoading] = useState(true);
+  const [isPrivateDrawing, setIsPrivateDrawing] = useState(false);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [pendingPrivateData, setPendingPrivateData] = useState<any>(null);
 
   useEffect(() => {
     document.title = `${drawingName} - ExcaliDash`;
@@ -334,13 +341,35 @@ export const Editor: React.FC = () => {
         elementCount: persistableElements.length,
         hasRenderableElements: persistableElements.some((el: any) => !el?.isDeleted),
         appState: persistableAppState,
+        isPrivate: isPrivateDrawing,
       });
 
-      await api.updateDrawing(id, {
-        elements: persistableElements,
-        appState: persistableAppState,
-        files: latestFilesRef.current || {},
-      });
+      // Handle private drawings - encrypt before saving
+      if (isPrivateDrawing && vault.sessionKey) {
+        const dataToEncrypt = {
+          elements: persistableElements,
+          appState: persistableAppState,
+          files: latestFilesRef.current || {},
+        };
+        
+        const { encryptedData, iv } = await encryptDrawing(dataToEncrypt, vault.sessionKey);
+        
+        await api.updateDrawing(id, {
+          encryptedData,
+          iv,
+          // Don't save plaintext data for private drawings
+          elements: [],
+          appState: {},
+          files: {},
+        });
+      } else {
+        // Normal drawing - save plaintext
+        await api.updateDrawing(id, {
+          elements: persistableElements,
+          appState: persistableAppState,
+          files: latestFilesRef.current || {},
+        });
+      }
 
       console.log("[Editor] Save complete", { drawingId: id });
     } catch (err) {
@@ -355,6 +384,14 @@ export const Editor: React.FC = () => {
     try {
       const currentSnapshot = latestElementsRef.current ?? elements;
       const currentFiles = latestFilesRef.current ?? files;
+
+      // For private drawings, generate a locked preview instead
+      if (isPrivateDrawing) {
+        const lockedPreview = generateLockedPreview();
+        await api.updateDrawing(id, { preview: lockedPreview });
+        console.log("[Editor] Locked preview saved", { drawingId: id });
+        return;
+      }
 
       // Generate preview
       const svg = await exportToSvg({
@@ -448,6 +485,50 @@ export const Editor: React.FC = () => {
   // ------------------------------------------------------------------
   // 2. DATA LOADING
   // ------------------------------------------------------------------
+  
+  // Helper to decrypt and load private drawing data
+  const loadDecryptedDrawing = useCallback(async (data: any, libraryItems: any[]) => {
+    if (!vault.sessionKey || !data.encryptedData || !data.iv) {
+      toast.error("Cannot decrypt drawing - vault not unlocked");
+      navigate('/');
+      return;
+    }
+
+    try {
+      const decrypted = await decryptDrawing(data.encryptedData, data.iv, vault.sessionKey);
+      
+      const elements = decrypted.elements || [];
+      const files = decrypted.files || {};
+      latestElementsRef.current = elements;
+      latestFilesRef.current = files;
+      
+      elements.forEach((el: any) => {
+        recordElementVersion(el);
+      });
+
+      const persistedAppState = decrypted.appState || {};
+      const hydratedAppState = {
+        ...persistedAppState,
+        viewBackgroundColor: persistedAppState.viewBackgroundColor ?? '#ffffff',
+        gridSize: persistedAppState.gridSize ?? null,
+        collaborators: new Map(),
+      };
+
+      setInitialData({
+        elements,
+        appState: hydratedAppState,
+        files,
+        scrollToContent: true,
+        libraryItems,
+      });
+      setIsSceneLoading(false);
+    } catch (err) {
+      console.error('Failed to decrypt drawing', err);
+      toast.error("Failed to decrypt drawing");
+      navigate('/private');
+    }
+  }, [vault.sessionKey, navigate, recordElementVersion]);
+
   useEffect(() => {
     isBootstrappingScene.current = true;
     hasHydratedInitialScene.current = false;
@@ -458,6 +539,8 @@ export const Editor: React.FC = () => {
     setIsReady(false);
     setIsSceneLoading(true);
     setInitialData(null);
+    setIsPrivateDrawing(false);
+    setPendingPrivateData(null);
 
     const loadData = async () => {
       if (!id) {
@@ -476,7 +559,23 @@ export const Editor: React.FC = () => {
         ]);
         setDrawingName(data.name);
         
-        // Use elements directly without converting - they're already normalized during import
+        // Check if this is a private drawing
+        if (data.isPrivate) {
+          setIsPrivateDrawing(true);
+          
+          // If vault is not unlocked, show unlock modal
+          if (!vault.isUnlocked || !vault.sessionKey) {
+            setPendingPrivateData({ data, libraryItems });
+            setShowUnlockModal(true);
+            return;
+          }
+          
+          // Decrypt and load the drawing
+          await loadDecryptedDrawing(data, libraryItems);
+          return;
+        }
+        
+        // Normal (non-private) drawing loading
         const elements = data.elements || [];
         const files = data.files || {};
         latestElementsRef.current = elements;
@@ -508,11 +607,24 @@ export const Editor: React.FC = () => {
         latestFilesRef.current = {};
         setInitialData(buildEmptyScene());
       } finally {
-        setIsSceneLoading(false);
+        if (!isPrivateDrawing) {
+          setIsSceneLoading(false);
+        }
       }
     };
     loadData();
-  }, [id, recordElementVersion, buildEmptyScene]);
+  }, [id, recordElementVersion, buildEmptyScene, vault.isUnlocked, vault.sessionKey, loadDecryptedDrawing]);
+
+  // Handle vault unlock for pending private drawing
+  const handleVaultUnlock = useCallback(async (password: string) => {
+    const success = await vault.unlock(password);
+    if (success && pendingPrivateData) {
+      setShowUnlockModal(false);
+      await loadDecryptedDrawing(pendingPrivateData.data, pendingPrivateData.libraryItems);
+      setPendingPrivateData(null);
+    }
+    return success;
+  }, [vault, pendingPrivateData, loadDecryptedDrawing]);
 
   // ------------------------------------------------------------------
   // 3. HANDLERS
@@ -660,6 +772,14 @@ export const Editor: React.FC = () => {
             <ArrowLeft size={20} />
           </button>
 
+          {/* Private indicator */}
+          {isPrivateDrawing && (
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-lg text-sm font-medium">
+              <Lock size={14} />
+              <span>Private</span>
+            </div>
+          )}
+
           {isRenaming ? (
             <form onSubmit={handleRenameSubmit}>
               <input
@@ -760,6 +880,17 @@ export const Editor: React.FC = () => {
         )}
         <Toaster position="bottom-center" />
       </div>
+
+      {/* Unlock Modal for Private Drawings */}
+      <UnlockVaultModal
+        isOpen={showUnlockModal}
+        onClose={() => {
+          setShowUnlockModal(false);
+          navigate('/');
+        }}
+        onUnlock={handleVaultUnlock}
+        passwordHint={vault.passwordHint}
+      />
     </div>
   );
 };
