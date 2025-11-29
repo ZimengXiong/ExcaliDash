@@ -3,20 +3,32 @@ import { Layout } from '../components/Layout';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../api';
 import type { Collection } from '../types';
-import { Database, FileJson, Upload, Moon, Sun, Info, HardDrive } from 'lucide-react';
+import { Database, FileJson, Upload, Moon, Sun, Info, HardDrive, Users, LogOut, User, KeyRound } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { importDrawings } from '../utils/importUtils';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 
 export const Settings: React.FC = () => {
     const [collections, setCollections] = useState<Collection[]>([]);
     const navigate = useNavigate();
     const { theme, toggleTheme } = useTheme();
+    const { user, logout } = useAuth();
 
     // Import state
     const [importConfirmation, setImportConfirmation] = useState<{ isOpen: boolean; file: File | null }>({ isOpen: false, file: null });
     const [importError, setImportError] = useState<{ isOpen: boolean; message: string }>({ isOpen: false, message: '' });
     const [importSuccess, setImportSuccess] = useState(false);
+
+    // Account state
+    const [logoutConfirm, setLogoutConfirm] = useState(false);
+    const [changePasswordModal, setChangePasswordModal] = useState(false);
+    const [currentPassword, setCurrentPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [passwordError, setPasswordError] = useState('');
+    const [passwordSuccess, setPasswordSuccess] = useState(false);
+    const [passwordLoading, setPasswordLoading] = useState(false);
 
     const appVersion = import.meta.env.VITE_APP_VERSION || 'Unknown version';
     const buildLabel = import.meta.env.VITE_APP_BUILD_LABEL;
@@ -56,6 +68,41 @@ export const Settings: React.FC = () => {
         else navigate(`/collections?id=${id}`);
     };
 
+    const handleLogout = async () => {
+        await logout();
+        navigate('/login');
+    };
+
+    const handleChangePassword = async () => {
+        setPasswordError('');
+        
+        if (newPassword !== confirmPassword) {
+            setPasswordError('Passwords do not match');
+            return;
+        }
+        
+        if (newPassword.length < 8) {
+            setPasswordError('Password must be at least 8 characters');
+            return;
+        }
+
+        setPasswordLoading(true);
+        try {
+            await api.api.put('/auth/me', {
+                currentPassword,
+                newPassword
+            });
+            setPasswordSuccess(true);
+            setChangePasswordModal(false);
+            setCurrentPassword('');
+            setNewPassword('');
+            setConfirmPassword('');
+        } catch (err: any) {
+            setPasswordError(err.response?.data?.error || 'Failed to change password');
+        } finally {
+            setPasswordLoading(false);
+        }
+    };
 
 
     return (
@@ -93,6 +140,66 @@ export const Settings: React.FC = () => {
                         </p>
                     </div>
                 </button>
+
+                {/* Account Info */}
+                <div className="flex flex-col items-center justify-center gap-4 p-8 bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)]">
+                    <div className="w-16 h-16 bg-violet-50 dark:bg-neutral-800 rounded-2xl flex items-center justify-center border-2 border-violet-100 dark:border-neutral-700">
+                        <User size={32} className="text-violet-600 dark:text-violet-400" />
+                    </div>
+                    <div className="text-center">
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Account</h3>
+                        <p className="text-sm text-slate-500 dark:text-neutral-400 font-medium">
+                            {user?.displayName || user?.username || 'User'}
+                        </p>
+                        <p className="text-xs text-slate-400 dark:text-neutral-500">
+                            {user?.email}
+                        </p>
+                    </div>
+                </div>
+
+                {/* Change Password */}
+                <button
+                    onClick={() => setChangePasswordModal(true)}
+                    className="flex flex-col items-center justify-center gap-4 p-8 bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[6px_6px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-1 transition-all duration-200 group"
+                >
+                    <div className="w-16 h-16 bg-cyan-50 dark:bg-neutral-800 rounded-2xl flex items-center justify-center border-2 border-cyan-100 dark:border-neutral-700 group-hover:border-cyan-200 dark:group-hover:border-neutral-600 transition-colors">
+                        <KeyRound size={32} className="text-cyan-600 dark:text-cyan-400" />
+                    </div>
+                    <div className="text-center">
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Change Password</h3>
+                        <p className="text-sm text-slate-500 dark:text-neutral-400 font-medium">Update your password</p>
+                    </div>
+                </button>
+
+                {/* Log Out */}
+                <button
+                    onClick={() => setLogoutConfirm(true)}
+                    className="flex flex-col items-center justify-center gap-4 p-8 bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[6px_6px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-1 transition-all duration-200 group"
+                >
+                    <div className="w-16 h-16 bg-rose-50 dark:bg-neutral-800 rounded-2xl flex items-center justify-center border-2 border-rose-100 dark:border-neutral-700 group-hover:border-rose-200 dark:group-hover:border-neutral-600 transition-colors">
+                        <LogOut size={32} className="text-rose-600 dark:text-rose-400" />
+                    </div>
+                    <div className="text-center">
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Log Out</h3>
+                        <p className="text-sm text-slate-500 dark:text-neutral-400 font-medium">Sign out of your account</p>
+                    </div>
+                </button>
+
+                {/* Manage Users - Admin Only */}
+                {user?.role === 'ADMIN' && (
+                    <button
+                        onClick={() => navigate('/admin')}
+                        className="flex flex-col items-center justify-center gap-4 p-8 bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[6px_6px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-1 transition-all duration-200 group"
+                    >
+                        <div className="w-16 h-16 bg-orange-50 dark:bg-neutral-800 rounded-2xl flex items-center justify-center border-2 border-orange-100 dark:border-neutral-700 group-hover:border-orange-200 dark:group-hover:border-neutral-600 transition-colors">
+                            <Users size={32} className="text-orange-600 dark:text-orange-400" />
+                        </div>
+                        <div className="text-center">
+                            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Manage Users</h3>
+                            <p className="text-sm text-slate-500 dark:text-neutral-400 font-medium">Admin user management</p>
+                        </div>
+                    </button>
+                )}
 
                 {/* Export SQLite (.sqlite) */}
                 <button
@@ -298,6 +405,102 @@ export const Settings: React.FC = () => {
                 onConfirm={() => setImportSuccess(false)}
                 onCancel={() => setImportSuccess(false)}
             />
+
+            {/* Logout Confirmation */}
+            <ConfirmModal
+                isOpen={logoutConfirm}
+                title="Log Out"
+                message="Are you sure you want to log out?"
+                confirmText="Log Out"
+                onConfirm={handleLogout}
+                onCancel={() => setLogoutConfirm(false)}
+            />
+
+            {/* Password Change Success */}
+            <ConfirmModal
+                isOpen={passwordSuccess}
+                title="Password Changed"
+                message="Your password has been updated successfully."
+                confirmText="OK"
+                showCancel={false}
+                isDangerous={false}
+                variant="success"
+                onConfirm={() => setPasswordSuccess(false)}
+                onCancel={() => setPasswordSuccess(false)}
+            />
+
+            {/* Change Password Modal */}
+            {changePasswordModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="bg-white dark:bg-neutral-900 rounded-2xl border-2 border-black dark:border-neutral-700 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] p-6 max-w-md w-full mx-4">
+                        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">Change Password</h2>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-1">
+                                    Current Password
+                                </label>
+                                <input
+                                    type="password"
+                                    value={currentPassword}
+                                    onChange={(e) => setCurrentPassword(e.target.value)}
+                                    className="w-full px-4 py-2 border-2 border-black dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-1">
+                                    New Password
+                                </label>
+                                <input
+                                    type="password"
+                                    value={newPassword}
+                                    onChange={(e) => setNewPassword(e.target.value)}
+                                    className="w-full px-4 py-2 border-2 border-black dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-1">
+                                    Confirm New Password
+                                </label>
+                                <input
+                                    type="password"
+                                    value={confirmPassword}
+                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                    className="w-full px-4 py-2 border-2 border-black dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                            </div>
+
+                            {passwordError && (
+                                <p className="text-sm text-rose-600 dark:text-rose-400">{passwordError}</p>
+                            )}
+                        </div>
+
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={() => {
+                                    setChangePasswordModal(false);
+                                    setCurrentPassword('');
+                                    setNewPassword('');
+                                    setConfirmPassword('');
+                                    setPasswordError('');
+                                }}
+                                className="flex-1 px-4 py-2 border-2 border-black dark:border-neutral-700 rounded-lg font-bold text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-neutral-800 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleChangePassword}
+                                disabled={passwordLoading}
+                                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                            >
+                                {passwordLoading ? 'Updating...' : 'Update Password'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </Layout >
     );
 };

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutGrid, Folder, Plus, Trash2, Edit2, Archive, FolderOpen, Settings as SettingsIcon } from 'lucide-react';
+import { LayoutGrid, Folder, Plus, Trash2, Edit2, Archive, FolderOpen, Settings as SettingsIcon, LogOut, User, Shield } from 'lucide-react';
 import type { Collection } from '../types';
 import clsx from 'clsx';
 import { ConfirmModal } from './ConfirmModal';
 import { Logo } from './Logo';
+import { useAuth } from '../context/AuthContext';
 
 interface SidebarProps {
   collections: Collection[];
@@ -109,7 +110,59 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
   );
 };
 
+// User Account Section Component
+const UserAccountSection: React.FC = () => {
+  const { user, logout, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
+  if (!isAuthenticated || !user) return null;
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
+
+  return (
+    <>
+      <div className="px-3 pt-3 pb-4 border-t border-slate-200/50 dark:border-slate-700/50">
+        <div className="flex items-center gap-3 px-3 py-2.5 bg-slate-50 dark:bg-neutral-800 rounded-xl border-2 border-slate-200 dark:border-neutral-700">
+          <div className="w-9 h-9 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center flex-shrink-0">
+            {user.role === 'ADMIN' ? (
+              <Shield size={18} className="text-indigo-600 dark:text-indigo-400" />
+            ) : (
+              <User size={18} className="text-indigo-600 dark:text-indigo-400" />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+              {user.displayName || user.username}
+            </p>
+            <p className="text-xs text-slate-500 dark:text-neutral-400 truncate">
+              {user.role === 'ADMIN' ? 'Administrator' : 'User'}
+            </p>
+          </div>
+          <button
+            onClick={() => setShowLogoutConfirm(true)}
+            className="p-2 text-slate-400 hover:text-rose-600 dark:text-neutral-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-all"
+            title="Log out"
+          >
+            <LogOut size={18} />
+          </button>
+        </div>
+      </div>
+
+      <ConfirmModal
+        isOpen={showLogoutConfirm}
+        title="Log Out"
+        message="Are you sure you want to log out?"
+        confirmText="Log Out"
+        onConfirm={handleLogout}
+        onCancel={() => setShowLogoutConfirm(false)}
+      />
+    </>
+  );
+};
 
 export const Sidebar: React.FC<SidebarProps> = ({
   collections,
@@ -297,6 +350,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span className="min-w-0 flex-1 text-left">Settings</span>
           </button>
         </div>
+
+        {/* User Account Section */}
+        <UserAccountSection />
       </div>
 
       {/* Context Menu */}
