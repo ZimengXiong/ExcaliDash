@@ -12,12 +12,51 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id           String       @id @default(uuid())
+  email        String       @unique
+  username     String       @unique
+  passwordHash String
+  displayName  String?
+  role         String       @default("USER") // "ADMIN" or "USER"
+  isActive     Boolean      @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  sessions     Session[]
+  drawings     Drawing[]
+  collections  Collection[]
+  library      Library?
+
+  @@index([email])
+  @@index([username])
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userAgent String?
+  ipAddress String?
+
+  @@index([token])
+  @@index([userId])
+}
+
 model Collection {
   id        String    @id @default(uuid())
   name      String
+  userId    String?
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isPublic  Boolean   @default(false)
   drawings  Drawing[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+
+  @@index([userId])
 }
 
 model Drawing {
@@ -28,14 +67,23 @@ model Drawing {
   files        String      @default("{}") // Stored as JSON string
   preview      String? // SVG string for thumbnail
   version      Int         @default(1)
+  userId       String?
+  user         User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
   collectionId String?
-  collection   Collection? @relation(fields: [collectionId], references: [id])
+  collection   Collection? @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  isPublic     Boolean     @default(false)
+  isLocked     Boolean     @default(false)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([collectionId])
 }
 
 model Library {
-  id        String   @id @default("default") // Singleton pattern - use "default" ID
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   items     String   @default("[]") // Stored as JSON string array of library items
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
