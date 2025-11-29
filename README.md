@@ -114,6 +114,22 @@ docker compose up -d
 # Access the frontend at localhost:6767
 ```
 
+### Reverse proxy / Traefik setups
+
+When ExcaliDash runs behind Traefik, Nginx, or another reverse proxy, configure both containers so that API + WebSocket calls resolve correctly:
+
+- `FRONTEND_URL` (backend) must match the public URL that users hit (e.g. `https://excalidraw.example.com`). This controls CORS and Socket.IO origin checks.
+- `BACKEND_URL` (frontend) tells the Nginx container how to reach the backend from inside Docker/Kubernetes. Override it if your reverse proxy exposes the backend under a different hostname.
+
+```yaml
+frontend:
+  environment:
+    - BACKEND_URL=excalidash-backend.default.svc.cluster.local:8000
+backend:
+  environment:
+    - FRONTEND_URL=https://excalidraw.example.com
+```
+
 # Development
 
 ## Clone the Repository
