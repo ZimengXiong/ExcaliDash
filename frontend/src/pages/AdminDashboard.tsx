@@ -19,7 +19,8 @@ import {
   AlertTriangle,
   CheckCircle,
   Home,
-  Settings
+  Settings,
+  Pencil
 } from 'lucide-react';
 import { Logo } from '../components/Logo';
 
@@ -37,10 +38,14 @@ export const AdminDashboard: React.FC = () => {
   
   // Modal state
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
-  const [modalAction, setModalAction] = useState<'delete' | 'deactivate' | 'activate' | 'promote' | 'demote' | 'resetPassword' | null>(null);
+  const [modalAction, setModalAction] = useState<'delete' | 'deactivate' | 'activate' | 'promote' | 'demote' | 'resetPassword' | 'editProfile' | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  
+  // Edit profile state
+  const [editDisplayName, setEditDisplayName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
 
   const fetchStats = useCallback(async () => {
     try {
@@ -112,12 +117,21 @@ export const AdminDashboard: React.FC = () => {
           await api.post(`/admin/users/${selectedUser.id}/reset-password`, { password: newPassword });
           setActionMessage({ type: 'success', text: 'Password reset successfully' });
           break;
+        case 'editProfile':
+          await api.put(`/admin/users/${selectedUser.id}`, { 
+            displayName: editDisplayName.trim() || null,
+            email: editEmail.trim(),
+          });
+          setActionMessage({ type: 'success', text: 'Profile updated successfully' });
+          break;
       }
       
       await Promise.all([fetchStats(), fetchUsers()]);
       setSelectedUser(null);
       setModalAction(null);
       setNewPassword('');
+      setEditDisplayName('');
+      setEditEmail('');
     } catch (error: any) {
       setActionMessage({ 
         type: 'error', 
@@ -307,8 +321,8 @@ export const AdminDashboard: React.FC = () => {
                   <tr key={u.id} className="border-b border-slate-200 dark:border-neutral-800">
                     <td className="py-3 px-4">
                       <div>
-                        <p className="font-medium text-slate-900 dark:text-neutral-100">{u.displayName || u.username}</p>
-                        <p className="text-sm text-slate-500 dark:text-neutral-500">@{u.username} · {u.email}</p>
+                        <p className="font-medium text-slate-900 dark:text-neutral-100">{u.displayName || 'User'}</p>
+                        <p className="text-sm text-slate-500 dark:text-neutral-500">{u.email}</p>
                       </div>
                     </td>
                     <td className="py-3 px-4">
@@ -334,6 +348,19 @@ export const AdminDashboard: React.FC = () => {
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex justify-end gap-2">
+                        {/* Edit Profile - available for all users */}
+                        <button
+                          onClick={() => { 
+                            setSelectedUser(u); 
+                            setModalAction('editProfile');
+                            setEditDisplayName(u.displayName || '');
+                            setEditEmail(u.email);
+                          }}
+                          className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-neutral-800 text-slate-600 dark:text-neutral-400"
+                          title="Edit Profile"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
                         {u.id !== user?.id && (
                           <>
                             {u.isActive ? (
@@ -409,8 +436,8 @@ export const AdminDashboard: React.FC = () => {
               {stats.recentUsers.map((u) => (
                 <div key={u.id} className="flex items-center justify-between py-2 border-b border-slate-200 dark:border-neutral-800 last:border-0">
                   <div>
-                    <p className="font-medium text-slate-900 dark:text-neutral-100">{u.displayName || u.username}</p>
-                    <p className="text-sm text-slate-500 dark:text-neutral-500">@{u.username}</p>
+                    <p className="font-medium text-slate-900 dark:text-neutral-100">{u.displayName || 'User'}</p>
+                    <p className="text-sm text-slate-500 dark:text-neutral-500">{u.email}</p>
                   </div>
                   <p className="text-xs text-slate-400 dark:text-neutral-600">
                     {new Date(u.createdAt).toLocaleDateString()}
@@ -500,6 +527,62 @@ export const AdminDashboard: React.FC = () => {
               >
                 {actionLoading && <Loader2 className="w-4 h-4 animate-spin" />}
                 Reset Password
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Profile Modal */}
+      {selectedUser && modalAction === 'editProfile' && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-neutral-900 rounded-xl border-2 border-black dark:border-neutral-700 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.1)] p-6 max-w-md w-full">
+            <h2 className="text-xl font-bold text-slate-900 dark:text-neutral-100 mb-4">
+              Edit Profile
+            </h2>
+            <p className="text-slate-600 dark:text-neutral-400 mb-4">
+              Edit profile for "{selectedUser.email}".
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-1">
+                  Display Name
+                </label>
+                <input
+                  type="text"
+                  value={editDisplayName}
+                  onChange={(e) => setEditDisplayName(e.target.value)}
+                  placeholder="Enter display name"
+                  className="w-full px-4 py-2 rounded-lg border-2 border-black dark:border-neutral-700 bg-white dark:bg-neutral-800 text-slate-900 dark:text-neutral-100"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  placeholder="Enter email"
+                  className="w-full px-4 py-2 rounded-lg border-2 border-black dark:border-neutral-700 bg-white dark:bg-neutral-800 text-slate-900 dark:text-neutral-100"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end mt-6">
+              <button
+                onClick={() => { setSelectedUser(null); setModalAction(null); setEditDisplayName(''); setEditEmail(''); }}
+                className="px-4 py-2 rounded-lg border-2 border-black dark:border-neutral-700 text-slate-700 dark:text-neutral-300 hover:bg-slate-100 dark:hover:bg-neutral-800 font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUserAction}
+                disabled={actionLoading || !editEmail.trim()}
+                className="px-4 py-2 rounded-lg bg-indigo-600 text-white border-2 border-black dark:border-neutral-700 hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 font-bold"
+              >
+                {actionLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                Save Changes
               </button>
             </div>
           </div>

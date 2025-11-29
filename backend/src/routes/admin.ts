@@ -19,7 +19,8 @@ router.use(authenticate, requireAdmin);
 
 // Validation schema for user updates
 const updateUserSchema = z.object({
-  displayName: z.string().min(1).max(100).optional(),
+  displayName: z.string().min(1).max(100).optional().nullable(),
+  email: z.string().email().optional(),
   role: z.enum(["ADMIN", "USER"]).optional(),
   isActive: z.boolean().optional(),
   password: z.string().min(8).optional(),
@@ -39,12 +40,13 @@ router.get("/stats", async (req: AuthenticatedRequest, res: Response) => {
       prisma.user.count(),
       prisma.user.count({ where: { isActive: true } }),
       prisma.drawing.count(),
-      prisma.collection.count(),
+      // Exclude system collections (Trash, etc.) that have no userId
+      prisma.collection.count({ where: { userId: { not: null } } }),
       prisma.session.count({ where: { expiresAt: { gt: new Date() } } }),
       prisma.user.findMany({
         select: {
           id: true,
-          username: true,
+          email: true,
           displayName: true,
           createdAt: true,
         },
@@ -212,15 +214,26 @@ router.put("/users/:id", async (req: AuthenticatedRequest, res: Response) => {
       });
     }
 
-    const { displayName, role, isActive, password } = validation.data;
+    const { displayName, email, role, isActive, password } = validation.data;
 
     // Check user exists
     const existingUser = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, role: true },
+      select: { id: true, role: true, email: true },
     });
     if (!existingUser) {
       return res.status(404).json({ error: "User not found" });
+    }
+
+    // Check email uniqueness if changing
+    if (email && email !== existingUser.email) {
+      const emailTaken = await prisma.user.findUnique({
+        where: { email },
+        select: { id: true },
+      });
+      if (emailTaken) {
+        return res.status(400).json({ error: "Email already in use" });
+      }
     }
 
     // Prevent demoting the last admin
@@ -246,6 +259,7 @@ router.put("/users/:id", async (req: AuthenticatedRequest, res: Response) => {
     // Build update data
     const updateData: any = {};
     if (displayName !== undefined) updateData.displayName = displayName;
+    if (email !== undefined) updateData.email = email;
     if (role !== undefined) updateData.role = role;
     if (isActive !== undefined) updateData.isActive = isActive;
     if (password) updateData.passwordHash = await hashPassword(password);

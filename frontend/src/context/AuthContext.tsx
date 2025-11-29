@@ -3,10 +3,10 @@ import type { AuthState } from '../types';
 import { api } from '../api';
 
 interface AuthContextType extends AuthState {
-  login: (emailOrUsername: string, password: string) => Promise<void>;
-  register: (email: string, username: string, password: string, displayName?: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, displayName?: string) => Promise<void>;
   logout: () => Promise<void>;
-  updateProfile: (data: { displayName?: string; currentPassword?: string; newPassword?: string }) => Promise<void>;
+  updateProfile: (data: { displayName?: string; email?: string; currentPassword?: string; newPassword?: string }) => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
@@ -64,13 +64,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initAuth();
   }, []);
 
-  const login = useCallback(async (emailOrUsername: string, password: string) => {
-    const isEmail = emailOrUsername.includes('@');
-    const payload = isEmail 
-      ? { email: emailOrUsername, password }
-      : { username: emailOrUsername, password };
-
-    const response = await api.post('/auth/login', payload);
+  const login = useCallback(async (email: string, password: string) => {
+    const response = await api.post('/auth/login', { email, password });
     const { user, token } = response.data;
 
     // Save to localStorage
@@ -90,13 +85,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const register = useCallback(async (
     email: string, 
-    username: string, 
     password: string, 
     displayName?: string
   ) => {
     const response = await api.post('/auth/register', {
       email,
-      username,
       password,
       displayName,
     });

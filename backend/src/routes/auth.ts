@@ -25,24 +25,21 @@ const registerSchema = z.object({
     .regex(
       /^[a-zA-Z0-9_]+$/,
       "Username can only contain letters, numbers, and underscores"
-    ),
+    )
+    .optional(), // Made optional - will auto-generate from email if not provided
   password: z.string().min(8, "Password must be at least 8 characters"),
   displayName: z.string().min(1).max(100).optional(),
 });
 
-const loginSchema = z
-  .object({
-    email: z.string().email().optional(),
-    username: z.string().optional(),
-    password: z.string().min(1, "Password is required"),
-  })
-  .refine((data) => data.email || data.username, {
-    message: "Email or username is required",
-  });
+const loginSchema = z.object({
+  email: z.string().email("Invalid email format"),
+  password: z.string().min(1, "Password is required"),
+});
 
 const updateProfileSchema = z
   .object({
     displayName: z.string().min(1).max(100).optional(),
+    email: z.string().email("Invalid email format").optional(),
     currentPassword: z.string().optional(),
     newPassword: z.string().min(8).optional(),
   })
@@ -69,7 +66,15 @@ router.post("/register", async (req, res: Response) => {
       });
     }
 
-    const { email, username, password, displayName } = validation.data;
+    const { email, password, displayName } = validation.data;
+    
+    // Auto-generate username from email (part before @)
+    let username = validation.data.username || email.split("@")[0].replace(/[^a-zA-Z0-9_]/g, "_").substring(0, 30);
+    
+    // Ensure username is at least 3 characters
+    if (username.length < 3) {
+      username = username + "_user";
+    }
 
     // Check if email already exists
     const existingEmail = await prisma.user.findUnique({
@@ -79,12 +84,18 @@ router.post("/register", async (req, res: Response) => {
       return res.status(409).json({ error: "Email already registered" });
     }
 
-    // Check if username already exists
-    const existingUsername = await prisma.user.findUnique({
+    // Check if username already exists and make unique if needed
+    let existingUsername = await prisma.user.findUnique({
       where: { username },
     });
-    if (existingUsername) {
-      return res.status(409).json({ error: "Username already taken" });
+    let counter = 1;
+    const baseUsername = username;
+    while (existingUsername) {
+      username = `${baseUsername}${counter}`;
+      existingUsername = await prisma.user.findUnique({
+        where: { username },
+      });
+      counter++;
     }
 
     // Hash password
@@ -100,13 +111,12 @@ router.post("/register", async (req, res: Response) => {
         email,
         username,
         passwordHash,
-        displayName: displayName || username,
+        displayName: displayName || email.split("@")[0],
         role: isFirstUser ? "ADMIN" : "USER",
       },
       select: {
         id: true,
         email: true,
-        username: true,
         displayName: true,
         role: true,
         createdAt: true,
@@ -132,7 +142,7 @@ router.post("/register", async (req, res: Response) => {
   }
 });
 
-// POST /auth/login - Login with email or username
+// POST /auth/login - Login with email
 router.post("/login", async (req, res: Response) => {
   try {
     const validation = loginSchema.safeParse(req.body);
@@ -143,11 +153,11 @@ router.post("/login", async (req, res: Response) => {
       });
     }
 
-    const { email, username, password } = validation.data;
+    const { email, password } = validation.data;
 
-    // Find user by email or username
-    const user = await prisma.user.findFirst({
-      where: email ? { email } : { username },
+    // Find user by email
+    const user = await prisma.user.findUnique({
+      where: { email },
     });
 
     if (!user) {
@@ -180,7 +190,6 @@ router.post("/login", async (req, res: Response) => {
       user: {
         id: user.id,
         email: user.email,
-        username: user.username,
         displayName: user.displayName,
         role: user.role,
       },
@@ -280,7 +289,7 @@ router.put(
         });
       }
 
-      const { displayName, currentPassword, newPassword } = validation.data;
+      const { displayName, email, currentPassword, newPassword } = validation.data;
       const userId = req.user?.id;
 
       if (!userId) {
@@ -292,6 +301,21 @@ router.put(
       // Update display name if provided
       if (displayName !== undefined) {
         updateData.displayName = displayName;
+      }
+
+      // Update email if provided
+      if (email !== undefined) {
+        // Check if email is already taken by another user
+        const existingEmail = await prisma.user.findFirst({
+          where: { 
+            email,
+            NOT: { id: userId }
+          },
+        });
+        if (existingEmail) {
+          return res.status(409).json({ error: "Email already in use" });
+        }
+        updateData.email = email;
       }
 
       // Change password if provided
@@ -325,7 +349,6 @@ router.put(
         select: {
           id: true,
           email: true,
-          username: true,
           displayName: true,
           role: true,
           updatedAt: true,

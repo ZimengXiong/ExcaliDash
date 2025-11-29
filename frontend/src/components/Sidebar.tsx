@@ -126,28 +126,28 @@ const UserAccountSection: React.FC = () => {
   return (
     <>
       <div className="px-3 pt-3 pb-4 border-t border-slate-200/50 dark:border-slate-700/50">
-        <div className="flex items-center gap-3 px-3 py-2.5 bg-slate-50 dark:bg-neutral-800 rounded-xl border-2 border-slate-200 dark:border-neutral-700">
-          <div className="w-9 h-9 rounded-lg bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center flex-shrink-0">
+        <div className="flex items-center gap-3 px-3 py-2.5 bg-white dark:bg-neutral-900 rounded-xl border-2 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)]">
+          <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 border-2 border-indigo-200 dark:border-indigo-800 flex items-center justify-center flex-shrink-0">
             {user.role === 'ADMIN' ? (
-              <Shield size={18} className="text-indigo-600 dark:text-indigo-400" />
+              <Shield size={16} className="text-indigo-600 dark:text-indigo-400" />
             ) : (
-              <User size={18} className="text-indigo-600 dark:text-indigo-400" />
+              <User size={16} className="text-indigo-600 dark:text-indigo-400" />
             )}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
               {user.displayName || user.username}
             </p>
-            <p className="text-xs text-slate-500 dark:text-neutral-400 truncate">
+            <p className="text-xs font-medium text-slate-500 dark:text-neutral-400 truncate">
               {user.role === 'ADMIN' ? 'Administrator' : 'User'}
             </p>
           </div>
           <button
             onClick={() => setShowLogoutConfirm(true)}
-            className="p-2 text-slate-400 hover:text-rose-600 dark:text-neutral-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-all"
+            className="p-1.5 text-slate-400 hover:text-rose-600 dark:text-neutral-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg border-2 border-transparent hover:border-rose-200 dark:hover:border-rose-800 transition-all"
             title="Log out"
           >
-            <LogOut size={18} />
+            <LogOut size={16} />
           </button>
         </div>
       </div>

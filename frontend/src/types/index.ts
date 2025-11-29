@@ -55,7 +55,7 @@ export interface AdminStats {
   };
   recentUsers: {
     id: string;
-    username: string;
+    email: string;
     displayName: string | null;
     createdAt: string;
   }[];

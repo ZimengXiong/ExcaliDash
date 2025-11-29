@@ -3,7 +3,7 @@ import { Layout } from '../components/Layout';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../api';
 import type { Collection } from '../types';
-import { Database, FileJson, Upload, Moon, Sun, Info, HardDrive, Users, LogOut, User, KeyRound } from 'lucide-react';
+import { Database, FileJson, Upload, Moon, Sun, Info, HardDrive, Users, LogOut, User, KeyRound, Pencil, Loader2 } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { importDrawings } from '../utils/importUtils';
 import { useTheme } from '../context/ThemeContext';
@@ -13,7 +13,7 @@ export const Settings: React.FC = () => {
     const [collections, setCollections] = useState<Collection[]>([]);
     const navigate = useNavigate();
     const { theme, toggleTheme } = useTheme();
-    const { user, logout } = useAuth();
+    const { user, logout, updateProfile, refreshUser } = useAuth();
 
     // Import state
     const [importConfirmation, setImportConfirmation] = useState<{ isOpen: boolean; file: File | null }>({ isOpen: false, file: null });
@@ -29,6 +29,17 @@ export const Settings: React.FC = () => {
     const [passwordError, setPasswordError] = useState('');
     const [passwordSuccess, setPasswordSuccess] = useState(false);
     const [passwordLoading, setPasswordLoading] = useState(false);
+
+    // Edit Profile state
+    const [editProfileModal, setEditProfileModal] = useState(false);
+    const [editDisplayName, setEditDisplayName] = useState('');
+    const [editEmail, setEditEmail] = useState('');
+    const [profileError, setProfileError] = useState('');
+    const [profileSuccess, setProfileSuccess] = useState(false);
+    const [profileLoading, setProfileLoading] = useState(false);
+
+    // Export state
+    const [exportLoading, setExportLoading] = useState<string | null>(null);
 
     const appVersion = import.meta.env.VITE_APP_VERSION || 'Unknown version';
     const buildLabel = import.meta.env.VITE_APP_BUILD_LABEL;
@@ -104,6 +115,80 @@ export const Settings: React.FC = () => {
         }
     };
 
+    const handleEditProfile = async () => {
+        setProfileError('');
+
+        if (!editEmail.trim()) {
+            setProfileError('Email is required');
+            return;
+        }
+
+        setProfileLoading(true);
+        try {
+            await updateProfile({
+                displayName: editDisplayName.trim() || undefined,
+                email: editEmail.trim(),
+            });
+            setProfileSuccess(true);
+            setEditProfileModal(false);
+        } catch (err: any) {
+            setProfileError(err.response?.data?.error || 'Failed to update profile');
+        } finally {
+            setProfileLoading(false);
+        }
+    };
+
+    const openEditProfileModal = () => {
+        setEditDisplayName(user?.displayName || '');
+        setEditEmail(user?.email || '');
+        setProfileError('');
+        setEditProfileModal(true);
+    };
+
+    const handleExport = async (format: 'sqlite' | 'db' | 'json') => {
+        setExportLoading(format);
+        try {
+            const token = localStorage.getItem('excalidash_token');
+            const url = format === 'json' 
+                ? `${api.API_URL}/export/json`
+                : `${api.API_URL}/export${format === 'db' ? '?format=db' : ''}`;
+            
+            const response = await fetch(url, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Export failed');
+            }
+
+            // Get filename from Content-Disposition header
+            const contentDisposition = response.headers.get('Content-Disposition');
+            let filename = `excalidash-export.${format === 'json' ? 'json' : format}`;
+            if (contentDisposition) {
+                const match = contentDisposition.match(/filename="?(.+)"?/);
+                if (match) filename = match[1];
+            }
+
+            // Download the file
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(downloadUrl);
+            a.remove();
+        } catch (err: any) {
+            setImportError({ isOpen: true, message: err.message || 'Export failed' });
+        } finally {
+            setExportLoading(null);
+        }
+    };
+
 
     return (
         <Layout
@@ -141,13 +226,21 @@ export const Settings: React.FC = () => {
                     </div>
                 </button>
 
-                {/* Account Info */}
-                <div className="flex flex-col items-center justify-center gap-4 p-8 bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)]">
-                    <div className="w-16 h-16 bg-violet-50 dark:bg-neutral-800 rounded-2xl flex items-center justify-center border-2 border-violet-100 dark:border-neutral-700">
-                        <User size={32} className="text-violet-600 dark:text-violet-400" />
+                {/* Account Info - Editable */}
+                <button
+                    onClick={openEditProfileModal}
+                    className="flex flex-col items-center justify-center gap-4 p-8 bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[6px_6px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-1 transition-all duration-200 group"
+                >
+                    <div className="relative">
+                        <div className="w-16 h-16 bg-violet-50 dark:bg-neutral-800 rounded-2xl flex items-center justify-center border-2 border-violet-100 dark:border-neutral-700 group-hover:border-violet-200 dark:group-hover:border-neutral-600 transition-colors">
+                            <User size={32} className="text-violet-600 dark:text-violet-400" />
+                        </div>
+                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-white dark:bg-neutral-800 rounded-full flex items-center justify-center border-2 border-violet-200 dark:border-neutral-600">
+                            <Pencil size={12} className="text-violet-600 dark:text-violet-400" />
+                        </div>
                     </div>
                     <div className="text-center">
-                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Account</h3>
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Edit Profile</h3>
                         <p className="text-sm text-slate-500 dark:text-neutral-400 font-medium">
                             {user?.displayName || user?.username || 'User'}
                         </p>
@@ -155,7 +248,7 @@ export const Settings: React.FC = () => {
                             {user?.email}
                         </p>
                     </div>
-                </div>
+                </button>
 
                 {/* Change Password */}
                 <button
@@ -201,45 +294,64 @@ export const Settings: React.FC = () => {
                     </button>
                 )}
 
-                {/* Export SQLite (.sqlite) */}
-                <button
-                    onClick={() => window.location.href = `${api.API_URL}/export`}
-                    className="flex flex-col items-center justify-center gap-4 p-8 bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[6px_6px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-1 transition-all duration-200 group"
-                >
-                    <div className="w-16 h-16 bg-indigo-50 dark:bg-neutral-800 rounded-2xl flex items-center justify-center border-2 border-indigo-100 dark:border-neutral-700 group-hover:border-indigo-200 dark:group-hover:border-neutral-600 transition-colors">
-                        <Database size={32} className="text-indigo-600 dark:text-indigo-400" />
-                    </div>
-                    <div className="text-center">
-                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Export Data (.sqlite)</h3>
-                        <p className="text-sm text-slate-500 dark:text-neutral-400 font-medium">Download full database backup</p>
-                    </div>
-                </button>
+                {/* Export SQLite (.sqlite) - Admin Only */}
+                {user?.role === 'ADMIN' && (
+                    <button
+                        onClick={() => handleExport('sqlite')}
+                        disabled={exportLoading === 'sqlite'}
+                        className="flex flex-col items-center justify-center gap-4 p-8 bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[6px_6px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-1 transition-all duration-200 group disabled:opacity-50"
+                    >
+                        <div className="w-16 h-16 bg-indigo-50 dark:bg-neutral-800 rounded-2xl flex items-center justify-center border-2 border-indigo-100 dark:border-neutral-700 group-hover:border-indigo-200 dark:group-hover:border-neutral-600 transition-colors">
+                            {exportLoading === 'sqlite' ? (
+                                <Loader2 size={32} className="text-indigo-600 dark:text-indigo-400 animate-spin" />
+                            ) : (
+                                <Database size={32} className="text-indigo-600 dark:text-indigo-400" />
+                            )}
+                        </div>
+                        <div className="text-center">
+                            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Export Data (.sqlite)</h3>
+                            <p className="text-sm text-slate-500 dark:text-neutral-400 font-medium">Download full database backup</p>
+                        </div>
+                    </button>
+                )}
 
-                {/* Export SQLite (.db) */}
-                <button
-                    onClick={() => window.location.href = `${api.API_URL}/export?format=db`}
-                    className="flex flex-col items-center justify-center gap-4 p-8 bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[6px_6px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-1 transition-all duration-200 group"
-                >
-                    <div className="w-16 h-16 bg-blue-50 dark:bg-neutral-800 rounded-2xl flex items-center justify-center border-2 border-blue-100 dark:border-neutral-700 group-hover:border-blue-200 dark:group-hover:border-neutral-600 transition-colors">
-                        <HardDrive size={32} className="text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div className="text-center">
-                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Export Data (.db)</h3>
-                        <p className="text-sm text-slate-500 dark:text-neutral-400 font-medium">Download Prisma .db format</p>
-                    </div>
-                </button>
+                {/* Export SQLite (.db) - Admin Only */}
+                {user?.role === 'ADMIN' && (
+                    <button
+                        onClick={() => handleExport('db')}
+                        disabled={exportLoading === 'db'}
+                        className="flex flex-col items-center justify-center gap-4 p-8 bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[6px_6px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-1 transition-all duration-200 group disabled:opacity-50"
+                    >
+                        <div className="w-16 h-16 bg-blue-50 dark:bg-neutral-800 rounded-2xl flex items-center justify-center border-2 border-blue-100 dark:border-neutral-700 group-hover:border-blue-200 dark:group-hover:border-neutral-600 transition-colors">
+                            {exportLoading === 'db' ? (
+                                <Loader2 size={32} className="text-blue-600 dark:text-blue-400 animate-spin" />
+                            ) : (
+                                <HardDrive size={32} className="text-blue-600 dark:text-blue-400" />
+                            )}
+                        </div>
+                        <div className="text-center">
+                            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Export Data (.db)</h3>
+                            <p className="text-sm text-slate-500 dark:text-neutral-400 font-medium">Download Prisma .db format</p>
+                        </div>
+                    </button>
+                )}
 
-                {/* Export JSON */}
+                {/* Export JSON - User's drawings only */}
                 <button
-                    onClick={() => window.location.href = `${api.API_URL}/export/json`}
-                    className="flex flex-col items-center justify-center gap-4 p-8 bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[6px_6px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-1 transition-all duration-200 group"
+                    onClick={() => handleExport('json')}
+                    disabled={exportLoading === 'json'}
+                    className="flex flex-col items-center justify-center gap-4 p-8 bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[6px_6px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-1 transition-all duration-200 group disabled:opacity-50"
                 >
                     <div className="w-16 h-16 bg-emerald-50 dark:bg-neutral-800 rounded-2xl flex items-center justify-center border-2 border-emerald-100 dark:border-neutral-700 group-hover:border-emerald-200 dark:group-hover:border-neutral-600 transition-colors">
-                        <FileJson size={32} className="text-emerald-600 dark:text-emerald-400" />
+                        {exportLoading === 'json' ? (
+                            <Loader2 size={32} className="text-emerald-600 dark:text-emerald-400 animate-spin" />
+                        ) : (
+                            <FileJson size={32} className="text-emerald-600 dark:text-emerald-400" />
+                        )}
                     </div>
                     <div className="text-center">
-                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Export Data (JSON)</h3>
-                        <p className="text-sm text-slate-500 dark:text-neutral-400 font-medium">Download drawings as JSON</p>
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">Export My Drawings</h3>
+                        <p className="text-sm text-slate-500 dark:text-neutral-400 font-medium">Download your drawings as JSON</p>
                     </div>
                 </button>
 
@@ -267,10 +379,13 @@ export const Settings: React.FC = () => {
                                 const formData = new FormData();
                                 formData.append('db', databaseFile);
 
+                                const token = localStorage.getItem('excalidash_token');
+
                                 try {
                                     const res = await fetch(`${api.API_URL}/import/sqlite/verify`, {
                                         method: 'POST',
                                         body: formData,
+                                        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
                                     });
 
                                     if (!res.ok) {
@@ -360,10 +475,13 @@ export const Settings: React.FC = () => {
                     const formData = new FormData();
                     formData.append('db', importConfirmation.file);
 
+                    const token = localStorage.getItem('excalidash_token');
+
                     try {
                         const res = await fetch(`${api.API_URL}/import/sqlite`, {
                             method: 'POST',
                             body: formData,
+                            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
                         });
 
                         if (!res.ok) {
@@ -501,6 +619,81 @@ export const Settings: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            {/* Edit Profile Modal */}
+            {editProfileModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="bg-white dark:bg-neutral-900 rounded-2xl border-2 border-black dark:border-neutral-700 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] p-6 max-w-md w-full mx-4">
+                        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">Edit Profile</h2>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-1">
+                                    Display Name
+                                </label>
+                                <input
+                                    type="text"
+                                    value={editDisplayName}
+                                    onChange={(e) => setEditDisplayName(e.target.value)}
+                                    placeholder="Enter your display name"
+                                    className="w-full px-4 py-2 border-2 border-black dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-1">
+                                    Email
+                                </label>
+                                <input
+                                    type="email"
+                                    value={editEmail}
+                                    onChange={(e) => setEditEmail(e.target.value)}
+                                    placeholder="Enter your email"
+                                    className="w-full px-4 py-2 border-2 border-black dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                            </div>
+
+                            {profileError && (
+                                <p className="text-sm text-rose-600 dark:text-rose-400">{profileError}</p>
+                            )}
+                        </div>
+
+                        <div className="flex gap-3 mt-6">
+                            <button
+                                onClick={() => {
+                                    setEditProfileModal(false);
+                                    setEditDisplayName('');
+                                    setEditEmail('');
+                                    setProfileError('');
+                                }}
+                                className="flex-1 px-4 py-2 border-2 border-black dark:border-neutral-700 rounded-lg font-bold text-slate-900 dark:text-white hover:bg-slate-50 dark:hover:bg-neutral-800 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleEditProfile}
+                                disabled={profileLoading}
+                                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                            >
+                                {profileLoading ? 'Saving...' : 'Save Changes'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Profile Update Success */}
+            <ConfirmModal
+                isOpen={profileSuccess}
+                title="Profile Updated"
+                message="Your profile has been updated successfully."
+                confirmText="OK"
+                showCancel={false}
+                isDangerous={false}
+                variant="success"
+                onConfirm={() => setProfileSuccess(false)}
+                onCancel={() => setProfileSuccess(false)}
+            />
         </Layout >
     );
 };

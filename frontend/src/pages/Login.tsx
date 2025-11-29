@@ -8,7 +8,7 @@ export const Login: React.FC = () => {
   const navigate = useNavigate();
   const { login, isAuthenticated, isLoading: authLoading } = useAuth();
   
-  const [emailOrUsername, setEmailOrUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -27,7 +27,7 @@ export const Login: React.FC = () => {
     setIsLoading(true);
 
     try {
-      await login(emailOrUsername, password);
+      await login(email, password);
       navigate('/');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Login failed. Please try again.');
@@ -67,18 +67,18 @@ export const Login: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label 
-                htmlFor="emailOrUsername" 
+                htmlFor="email" 
                 className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-1"
               >
-                Email or Username
+                Email
               </label>
               <input
-                id="emailOrUsername"
-                type="text"
-                value={emailOrUsername}
-                onChange={(e) => setEmailOrUsername(e.target.value)}
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-2 rounded-lg border-2 border-black dark:border-neutral-700 bg-white dark:bg-neutral-800 text-slate-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.1)]"
-                placeholder="Enter email or username"
+                placeholder="you@example.com"
                 required
               />
             </div>

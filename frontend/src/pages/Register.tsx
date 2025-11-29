@@ -9,7 +9,6 @@ export const Register: React.FC = () => {
   const { register, isAuthenticated, isLoading: authLoading } = useAuth();
   
   const [email, setEmail] = useState('');
-  const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -33,9 +32,6 @@ export const Register: React.FC = () => {
   const isPasswordValid = Object.values(passwordChecks).every(Boolean);
   const passwordsMatch = password === confirmPassword;
 
-  // Username validation
-  const isUsernameValid = /^[a-zA-Z0-9_]{3,30}$/.test(username);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -50,15 +46,10 @@ export const Register: React.FC = () => {
       return;
     }
 
-    if (!isUsernameValid) {
-      setError('Username must be 3-30 characters, letters, numbers, and underscores only');
-      return;
-    }
-
     setIsLoading(true);
 
     try {
-      await register(email, username, password, displayName || undefined);
+      await register(email, password, displayName || undefined);
       navigate('/');
     } catch (err: any) {
       setError(err.response?.data?.error || 'Registration failed. Please try again.');
@@ -119,31 +110,6 @@ export const Register: React.FC = () => {
                 placeholder="you@example.com"
                 required
               />
-            </div>
-
-            <div>
-              <label 
-                htmlFor="username" 
-                className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-1"
-              >
-                Username
-              </label>
-              <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value.toLowerCase())}
-                className={`w-full px-4 py-2 rounded-lg border-2 ${
-                  username && !isUsernameValid 
-                    ? 'border-red-500' 
-                    : 'border-black dark:border-neutral-700'
-                } bg-white dark:bg-neutral-800 text-slate-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.1)]`}
-                placeholder="username"
-                required
-              />
-              {username && !isUsernameValid && (
-                <p className="mt-1 text-xs text-red-500">3-30 characters, letters, numbers, and underscores only</p>
-              )}
             </div>
 
             <div>
@@ -224,7 +190,7 @@ export const Register: React.FC = () => {
 
             <button
               type="submit"
-              disabled={isLoading || !isPasswordValid || !passwordsMatch || !isUsernameValid}
+              disabled={isLoading || !isPasswordValid || !passwordsMatch}
               className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg border-2 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.1)] hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isLoading ? (
