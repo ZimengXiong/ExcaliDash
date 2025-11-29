@@ -1,13 +1,17 @@
-export interface Drawing {
+export interface DrawingSummary {
   id: string;
   name: string;
-  elements: any[];
-  appState: any;
-  files: Record<string, any> | null;
   collectionId: string | null;
   updatedAt: number;
   createdAt: number;
-  preview?: string;
+  version: number;
+  preview?: string | null;
+}
+
+export interface Drawing extends DrawingSummary {
+  elements: any[];
+  appState: any;
+  files: Record<string, any> | null;
 }
 
 export interface Collection {

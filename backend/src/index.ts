@@ -11,7 +11,7 @@ import multer from "multer";
 import archiver from "archiver";
 import { z } from "zod";
 // @ts-ignore
-import { PrismaClient } from "./generated/client";
+import { PrismaClient, Prisma } from "./generated/client";
 import {
   sanitizeDrawingData,
   validateImportedDrawing,
@@ -112,6 +112,70 @@ const io = new Server(httpServer, {
   maxHttpBufferSize: 1e8, // 100 MB
 });
 const prisma = new PrismaClient();
+const parseJsonField = <T>(rawValue: string | null | undefined, fallback: T): T => {
+  if (!rawValue) return fallback;
+  try {
+    return JSON.parse(rawValue) as T;
+  } catch (error) {
+    console.warn("Failed to parse JSON field", { error, valuePreview: rawValue.slice(0, 50) });
+    return fallback;
+  }
+};
+
+const DRAWINGS_CACHE_TTL_MS = (() => {
+  const parsed = Number(process.env.DRAWINGS_CACHE_TTL_MS);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 5_000;
+  }
+  return parsed;
+})();
+type DrawingsCacheEntry = { body: Buffer; expiresAt: number };
+const drawingsCache = new Map<string, DrawingsCacheEntry>();
+
+const buildDrawingsCacheKey = (keyParts: {
+  searchTerm: string;
+  collectionFilter: string;
+  includeData: boolean;
+}) =>
+  JSON.stringify([
+    keyParts.searchTerm,
+    keyParts.collectionFilter,
+    keyParts.includeData ? "full" : "summary",
+  ]);
+
+const getCachedDrawingsBody = (key: string): Buffer | null => {
+  const entry = drawingsCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    drawingsCache.delete(key);
+    return null;
+  }
+  return entry.body;
+};
+
+const cacheDrawingsResponse = (key: string, payload: any): Buffer => {
+  const body = Buffer.from(JSON.stringify(payload));
+  drawingsCache.set(key, {
+    body,
+    expiresAt: Date.now() + DRAWINGS_CACHE_TTL_MS,
+  });
+  return body;
+};
+
+const invalidateDrawingsCache = () => {
+  drawingsCache.clear();
+};
+
+// Cleanup cache every 60 seconds
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of drawingsCache.entries()) {
+    if (now > entry.expiresAt) {
+      drawingsCache.delete(key);
+    }
+  }
+}, 60_000).unref(); // unref so it doesn't keep the process alive if everything else stops
+
 const PORT = process.env.PORT || 8000;
 
 // Multer setup for file uploads with streaming support
@@ -189,7 +253,24 @@ app.use((req, res, next) => {
 // Rate limiting middleware (basic implementation)
 const requestCounts = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_WINDOW = 15 * 60 * 1000; // 15 minutes
-const RATE_LIMIT_MAX_REQUESTS = 1000; // Max requests per window
+
+// Cleanup rate limit map every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, data] of requestCounts.entries()) {
+    if (now > data.resetTime) {
+      requestCounts.delete(ip);
+    }
+  }
+}, 5 * 60 * 1000).unref();
+
+const RATE_LIMIT_MAX_REQUESTS = (() => {
+  const parsed = Number(process.env.RATE_LIMIT_MAX_REQUESTS);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 1000;
+  }
+  return parsed;
+})(); // Max requests per window
 
 app.use((req, res, next) => {
   const ip = req.ip || req.connection.remoteAddress || "unknown";
@@ -486,36 +567,84 @@ app.get("/health", (req, res) => {
 // GET /drawings
 app.get("/drawings", async (req, res) => {
   try {
-    const { search, collectionId } = req.query;
+    const { search, collectionId, includeData } = req.query;
     const where: any = {};
+    const searchTerm =
+      typeof search === "string" && search.trim().length > 0
+        ? search.trim()
+        : undefined;
 
-    if (search) {
-      where.name = { contains: String(search) };
+    if (searchTerm) {
+      where.name = { contains: searchTerm };
     }
 
+    let collectionFilterKey = "default";
     if (collectionId === "null") {
       where.collectionId = null;
+      collectionFilterKey = "null";
     } else if (collectionId) {
-      where.collectionId = String(collectionId);
+      const normalizedCollectionId = String(collectionId);
+      where.collectionId = normalizedCollectionId;
+      collectionFilterKey = `id:${normalizedCollectionId}`;
     } else {
       // Default: Exclude trash, but include unorganized (null)
       where.OR = [{ collectionId: { not: "trash" } }, { collectionId: null }];
     }
 
-    const drawings = await prisma.drawing.findMany({
-      where,
-      orderBy: { updatedAt: "desc" },
+    const shouldIncludeData =
+      typeof includeData === "string"
+        ? includeData.toLowerCase() === "true" || includeData === "1"
+        : false;
+
+    const cacheKey = buildDrawingsCacheKey({
+      searchTerm: searchTerm ?? "",
+      collectionFilter: collectionFilterKey,
+      includeData: shouldIncludeData,
     });
 
-    // Parse JSON strings for response
-    const parsedDrawings = drawings.map((d: any) => ({
-      ...d,
-      elements: JSON.parse(d.elements),
-      appState: JSON.parse(d.appState),
-      files: JSON.parse(d.files || "{}"),
-    }));
+    const cachedBody = getCachedDrawingsBody(cacheKey);
+    if (cachedBody) {
+      res.setHeader("X-Cache", "HIT");
+      res.setHeader("Content-Type", "application/json");
+      return res.send(cachedBody);
+    }
 
-    res.json(parsedDrawings);
+    const summarySelect: Prisma.DrawingSelect = {
+      id: true,
+      name: true,
+      collectionId: true,
+      preview: true,
+      version: true,
+      createdAt: true,
+      updatedAt: true,
+    };
+
+    const queryOptions: Prisma.DrawingFindManyArgs = {
+      where,
+      orderBy: { updatedAt: "desc" },
+    };
+
+    if (!shouldIncludeData) {
+      queryOptions.select = summarySelect;
+    }
+
+    const drawings = await prisma.drawing.findMany(queryOptions);
+
+    let responsePayload: any = drawings;
+
+    if (shouldIncludeData) {
+      responsePayload = drawings.map((d: any) => ({
+        ...d,
+        elements: parseJsonField(d.elements, []),
+        appState: parseJsonField(d.appState, {}),
+        files: parseJsonField(d.files, {}),
+      }));
+    }
+
+    const body = cacheDrawingsResponse(cacheKey, responsePayload);
+    res.setHeader("X-Cache", "MISS");
+    res.setHeader("Content-Type", "application/json");
+    return res.send(body);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Failed to fetch drawings" });
@@ -591,6 +720,7 @@ app.post("/drawings", async (req, res) => {
         files: JSON.stringify(payload.files ?? {}),
       },
     });
+    invalidateDrawingsCache();
 
     res.json({
       ...newDrawing,
@@ -668,6 +798,7 @@ app.put("/drawings/:id", async (req, res) => {
       where: { id },
       data,
     });
+    await invalidateDrawingsCache();
 
     console.log("[API] Update complete", {
       id,
@@ -698,6 +829,7 @@ app.delete("/drawings/:id", async (req, res) => {
   try {
     const { id } = req.params;
     await prisma.drawing.delete({ where: { id } });
+    invalidateDrawingsCache();
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: "Failed to delete drawing" });
@@ -724,6 +856,7 @@ app.post("/drawings/:id/duplicate", async (req, res) => {
         version: 1,
       },
     });
+    invalidateDrawingsCache();
 
     res.json({
       ...newDrawing,
@@ -794,6 +927,7 @@ app.delete("/collections/:id", async (req, res) => {
         where: { id },
       }),
     ]);
+    await invalidateDrawingsCache();
 
     res.json({ success: true });
   } catch (error) {
@@ -1059,6 +1193,7 @@ app.post("/import/sqlite", upload.single("db"), async (req, res) => {
 
     // Reinitialize Prisma client
     await prisma.$disconnect();
+    invalidateDrawingsCache();
 
     res.json({ success: true, message: "Database imported successfully" });
   } catch (error) {

@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { Drawing, Collection } from "../types";
+import type { Drawing, Collection, DrawingSummary } from "../types";
 
 export const API_URL = import.meta.env.VITE_API_URL || "/api";
 
@@ -14,23 +14,48 @@ const coerceTimestamp = (value: string | number | Date): number => {
   return Number.isNaN(parsed) ? Date.now() : parsed;
 };
 
-const deserializeDrawing = (drawing: any): Drawing => ({
-  ...drawing,
-  createdAt: coerceTimestamp(drawing.createdAt),
-  updatedAt: coerceTimestamp(drawing.updatedAt),
+const deserializeTimestamps = <T extends { createdAt: any; updatedAt: any }>(
+  data: T
+): T & { createdAt: number; updatedAt: number } => ({
+  ...data,
+  createdAt: coerceTimestamp(data.createdAt),
+  updatedAt: coerceTimestamp(data.updatedAt),
 });
 
-export const getDrawings = async (
+const deserializeDrawingSummary = (drawing: any): DrawingSummary =>
+  deserializeTimestamps(drawing);
+
+const deserializeDrawing = (drawing: any): Drawing =>
+  deserializeTimestamps(drawing);
+
+export function getDrawings(
   search?: string,
   collectionId?: string | null
-) => {
+): Promise<DrawingSummary[]>;
+
+export function getDrawings(
+  search: string | undefined,
+  collectionId: string | null | undefined,
+  options: { includeData: true }
+): Promise<Drawing[]>;
+
+export async function getDrawings(
+  search?: string,
+  collectionId?: string | null,
+  options?: { includeData?: boolean }
+) {
   const params: any = {};
   if (search) params.search = search;
   if (collectionId !== undefined)
     params.collectionId = collectionId === null ? "null" : collectionId;
-  const response = await api.get<Drawing[]>("/drawings", { params });
-  return response.data.map(deserializeDrawing);
-};
+  if (options?.includeData) {
+    params.includeData = "true";
+    const response = await api.get<Drawing[]>("/drawings", { params });
+    return response.data.map(deserializeDrawing);
+  }
+  const response = await api.get<DrawingSummary[]>("/drawings", { params });
+  return response.data.map(deserializeDrawingSummary);
+}
 
 export const getDrawing = async (id: string) => {
   const response = await api.get<Drawing>(`/drawings/${id}`);

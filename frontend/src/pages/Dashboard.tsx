@@ -5,7 +5,7 @@ import { DrawingCard } from '../components/DrawingCard';
 import { Plus, Search, Loader2, Inbox, Trash2, Folder, ArrowRight, Copy, Upload } from 'lucide-react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import * as api from '../api';
-import type { Drawing, Collection } from '../types';
+import type { DrawingSummary, Collection } from '../types';
 import { useDebounce } from '../hooks/useDebounce';
 import clsx from 'clsx';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -45,7 +45,7 @@ export const Dashboard: React.FC = () => {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const [drawings, setDrawings] = useState<Drawing[]>([]);
+  const [drawings, setDrawings] = useState<DrawingSummary[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
 
   // Derived state from URL
@@ -309,12 +309,12 @@ export const Dashboard: React.FC = () => {
 
   const handleImportDrawings = async (files: FileList | null) => {
     if (!files || isTrashView) return;
-    
+
     const fileArray = Array.from(files);
     const targetCollectionId = selectedCollectionId === undefined ? null : selectedCollectionId;
-    
+
     const result = await importDrawings(fileArray, targetCollectionId, refreshData);
-    
+
     if (result.failed > 0) {
       setShowImportError({
         isOpen: true,
@@ -810,7 +810,7 @@ export const Dashboard: React.FC = () => {
               e.target.value = ''; // Reset input
             }}
           />
-          
+
           <button
             onClick={() => document.getElementById('dashboard-import')?.click()}
             disabled={isTrashView}

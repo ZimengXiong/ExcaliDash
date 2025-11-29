@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { PenTool, Trash2, FolderInput, ArrowRight, Check, Clock, Copy, Download } from 'lucide-react';
-import type { Drawing, Collection } from '../types';
+import { PenTool, Trash2, FolderInput, ArrowRight, Check, Clock, Copy, Download, Loader2 } from 'lucide-react';
+import type { DrawingSummary, Collection, Drawing } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import clsx from 'clsx';
 import { exportToSvg } from "@excalidraw/excalidraw";
@@ -10,8 +10,14 @@ import { exportDrawingToFile } from '../utils/exportUtils';
 
 import * as api from '../api';
 
+type HydratedDrawingData = {
+  elements: any[];
+  appState: any;
+  files: Record<string, any>;
+};
+
 interface DrawingCardProps {
-  drawing: Drawing;
+  drawing: DrawingSummary;
   collections: Collection[];
   isSelected: boolean;
   isTrash?: boolean;
@@ -49,30 +55,69 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
   const [showMoveSubmenu, setShowMoveSubmenu] = useState(false);
   const [showCollectionDropdown, setShowCollectionDropdown] = useState(false);
   const [newName, setNewName] = useState(drawing.name);
-  const [previewSvg, setPreviewSvg] = useState<string | null>(null);
+  const [previewSvg, setPreviewSvg] = useState<string | null>(drawing.preview ?? null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [fullData, setFullData] = useState<HydratedDrawingData | null>(null);
+
+  const fullDataRef = React.useRef(fullData);
+  fullDataRef.current = fullData;
+  const fullDataPromiseRef = React.useRef<Promise<HydratedDrawingData> | null>(null);
 
   useEffect(() => {
+    setFullData(null);
+    fullDataPromiseRef.current = null;
+  }, [drawing.id]);
+
+  const ensureFullData = useCallback(async () => {
+    if (fullDataRef.current) {
+      return fullDataRef.current;
+    }
+    if (fullDataPromiseRef.current) {
+      return fullDataPromiseRef.current;
+    }
+    const promise = api.getDrawing(drawing.id).then((fullDrawing) => {
+      const payload: HydratedDrawingData = {
+        elements: fullDrawing.elements || [],
+        appState: fullDrawing.appState || {},
+        files: fullDrawing.files || {},
+      };
+      setFullData(payload);
+      fullDataPromiseRef.current = null;
+      return payload;
+    }).catch((error) => {
+      fullDataPromiseRef.current = null;
+      throw error;
+    });
+    fullDataPromiseRef.current = promise;
+    return promise;
+  }, [drawing.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+
     if (drawing.preview) {
       setPreviewSvg(drawing.preview);
       return;
     }
 
     const generatePreview = async () => {
-      // Ensure elements and appState exist before trying to generate
-      if (!drawing.elements || !drawing.appState) return;
-
       try {
+        const data = await ensureFullData();
+        if (cancelled) return;
+        if (!data?.elements || !data?.appState) return;
+
         const svg = await exportToSvg({
-          elements: drawing.elements,
+          elements: data.elements,
           appState: {
-            ...drawing.appState,
+            ...data.appState,
             exportBackground: true,
-            viewBackgroundColor: drawing.appState.viewBackgroundColor || "#ffffff"
+            viewBackgroundColor: data.appState.viewBackgroundColor || "#ffffff"
           },
-          files: drawing.files || {},
+          files: data.files || {},
           exportPadding: 10
         });
+        if (cancelled) return;
         const previewHtml = svg.outerHTML;
         setPreviewSvg(previewHtml);
 
@@ -80,11 +125,37 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
         api.updateDrawing(drawing.id, { preview: previewHtml }).catch(console.error);
         onPreviewGenerated?.(drawing.id, previewHtml);
       } catch (e) {
-        console.error("Failed to generate preview", e);
+        if (!cancelled) {
+          console.error("Failed to generate preview", e);
+        }
       }
     };
+
     generatePreview();
-  }, [drawing, onPreviewGenerated]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [drawing.id, drawing.preview, ensureFullData, onPreviewGenerated]);
+
+  const handleExport = useCallback(async () => {
+    try {
+      setIsExporting(true);
+      const data = await ensureFullData();
+      const drawingPayload: Drawing = {
+        ...drawing,
+        elements: data.elements || [],
+        appState: data.appState || {},
+        files: data.files || {},
+      };
+      exportDrawingToFile(drawingPayload);
+    } catch (error) {
+      console.error("Failed to export drawing", error);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [drawing, ensureFullData]);
+
 
   // Close context menu on click outside
   useEffect(() => {
@@ -327,13 +398,16 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
               </button>
 
               <button
-                onClick={() => {
-                  exportDrawingToFile(drawing);
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  await handleExport();
                   setContextMenu(null);
                 }}
-                className="w-full px-3 py-2 text-sm text-left text-slate-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white flex items-center gap-2"
+                disabled={isExporting}
+                className="w-full px-3 py-2 text-sm text-left text-slate-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Download size={14} /> Export
+                {isExporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                {isExporting ? 'Exporting...' : 'Export'}
               </button>
 
               <div className="border-t border-slate-50 dark:border-slate-700 my-1"></div>
