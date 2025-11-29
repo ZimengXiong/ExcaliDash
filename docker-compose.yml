@@ -32,6 +32,8 @@ services:
     container_name: excalidash-frontend
     ports:
       - "6767:80"
+    environment:
+      - BACKEND_URL=backend:8000
     depends_on:
       - backend
     networks:
