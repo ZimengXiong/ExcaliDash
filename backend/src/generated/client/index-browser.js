@@ -119,9 +119,34 @@ exports.Prisma.TransactionIsolationLevel = makeStrictEnum({
   Serializable: 'Serializable'
 });
 
+exports.Prisma.UserScalarFieldEnum = {
+  id: 'id',
+  email: 'email',
+  username: 'username',
+  passwordHash: 'passwordHash',
+  displayName: 'displayName',
+  role: 'role',
+  isActive: 'isActive',
+  lastLoginAt: 'lastLoginAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.SessionScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  token: 'token',
+  expiresAt: 'expiresAt',
+  createdAt: 'createdAt',
+  userAgent: 'userAgent',
+  ipAddress: 'ipAddress'
+};
+
 exports.Prisma.CollectionScalarFieldEnum = {
   id: 'id',
   name: 'name',
+  userId: 'userId',
+  isPublic: 'isPublic',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
@@ -134,13 +159,17 @@ exports.Prisma.DrawingScalarFieldEnum = {
   files: 'files',
   preview: 'preview',
   version: 'version',
+  userId: 'userId',
   collectionId: 'collectionId',
+  isPublic: 'isPublic',
+  isLocked: 'isLocked',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
 
 exports.Prisma.LibraryScalarFieldEnum = {
   id: 'id',
+  userId: 'userId',
   items: 'items',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
@@ -158,6 +187,8 @@ exports.Prisma.NullsOrder = {
 
 
 exports.Prisma.ModelName = {
+  User: 'User',
+  Session: 'Session',
   Collection: 'Collection',
   Drawing: 'Drawing',
   Library: 'Library'

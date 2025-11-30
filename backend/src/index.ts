@@ -20,6 +20,10 @@ import {
   elementSchema,
   appStateSchema,
 } from "./security";
+import { authenticate, requireAdmin, AuthenticatedRequest } from "./auth";
+import authRoutes from "./routes/auth";
+import adminRoutes from "./routes/admin";
+import setupRoutes from "./routes/setup";
 
 dotenv.config();
 
@@ -476,18 +480,31 @@ io.on("connection", (socket) => {
   });
 });
 
+// Mount routes
+app.use("/setup", setupRoutes);
+app.use("/auth", authRoutes);
+app.use("/admin", adminRoutes);
+
 // Health check endpoint
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });
 });
 
-// --- Drawings ---
+// --- Drawings (Protected Routes) ---
 
 // GET /drawings
-app.get("/drawings", async (req, res) => {
+app.get("/drawings", authenticate, async (req: AuthenticatedRequest, res) => {
   try {
     const { search, collectionId } = req.query;
-    const where: any = {};
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const where: any = {
+      userId, // Filter by user
+    };
 
     if (search) {
       where.name = { contains: String(search) };
@@ -523,14 +540,18 @@ app.get("/drawings", async (req, res) => {
 });
 
 // GET /drawings/:id
-app.get("/drawings/:id", async (req, res) => {
+app.get("/drawings/:id", authenticate, async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
-    console.log("[API] Fetching drawing", { id });
-    const drawing = await prisma.drawing.findUnique({ where: { id } });
+    const userId = req.user?.id;
+    
+    console.log("[API] Fetching drawing", { id, userId });
+    const drawing = await prisma.drawing.findFirst({ 
+      where: { id, userId } // Only allow access to own drawings
+    });
 
     if (!drawing) {
-      console.warn("[API] Drawing not found", { id });
+      console.warn("[API] Drawing not found or access denied", { id });
       return res.status(404).json({ error: "Drawing not found" });
     }
 
@@ -558,8 +579,14 @@ app.get("/drawings/:id", async (req, res) => {
 });
 
 // POST /drawings
-app.post("/drawings", async (req, res) => {
+app.post("/drawings", authenticate, async (req: AuthenticatedRequest, res) => {
   try {
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
     // Additional security validation for imported data
     const isImportedDrawing = req.headers["x-imported-file"] === "true";
 
@@ -589,6 +616,7 @@ app.post("/drawings", async (req, res) => {
         collectionId: targetCollectionId,
         preview: payload.preview ?? null,
         files: JSON.stringify(payload.files ?? {}),
+        userId, // Associate with current user
       },
     });
 
@@ -605,9 +633,19 @@ app.post("/drawings", async (req, res) => {
 });
 
 // PUT /drawings/:id
-app.put("/drawings/:id", async (req, res) => {
+app.put("/drawings/:id", authenticate, async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user?.id;
+
+    // Verify ownership
+    const existingDrawing = await prisma.drawing.findFirst({
+      where: { id, userId }
+    });
+    
+    if (!existingDrawing) {
+      return res.status(404).json({ error: "Drawing not found" });
+    }
 
     console.log("[API] Update request received", {
       id,
@@ -694,9 +732,20 @@ app.put("/drawings/:id", async (req, res) => {
 });
 
 // DELETE /drawings/:id
-app.delete("/drawings/:id", async (req, res) => {
+app.delete("/drawings/:id", authenticate, async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user?.id;
+    
+    // Verify ownership before deleting
+    const drawing = await prisma.drawing.findFirst({
+      where: { id, userId }
+    });
+    
+    if (!drawing) {
+      return res.status(404).json({ error: "Drawing not found" });
+    }
+    
     await prisma.drawing.delete({ where: { id } });
     res.json({ success: true });
   } catch (error) {
@@ -705,10 +754,14 @@ app.delete("/drawings/:id", async (req, res) => {
 });
 
 // POST /drawings/:id/duplicate
-app.post("/drawings/:id/duplicate", async (req, res) => {
+app.post("/drawings/:id/duplicate", authenticate, async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
-    const original = await prisma.drawing.findUnique({ where: { id } });
+    const userId = req.user?.id;
+    
+    const original = await prisma.drawing.findFirst({ 
+      where: { id, userId } // Only allow duplicating own drawings
+    });
 
     if (!original) {
       return res.status(404).json({ error: "Original drawing not found" });
@@ -722,6 +775,7 @@ app.post("/drawings/:id/duplicate", async (req, res) => {
         files: original.files,
         collectionId: original.collectionId,
         version: 1,
+        userId, // Associate with current user
       },
     });
 
@@ -736,12 +790,15 @@ app.post("/drawings/:id/duplicate", async (req, res) => {
   }
 });
 
-// --- Collections ---
+// --- Collections (Protected Routes) ---
 
 // GET /collections
-app.get("/collections", async (req, res) => {
+app.get("/collections", authenticate, async (req: AuthenticatedRequest, res) => {
   try {
+    const userId = req.user?.id;
+    
     const collections = await prisma.collection.findMany({
+      where: { userId },
       orderBy: { createdAt: "desc" },
     });
     res.json(collections);
@@ -752,11 +809,17 @@ app.get("/collections", async (req, res) => {
 });
 
 // POST /collections
-app.post("/collections", async (req, res) => {
+app.post("/collections", authenticate, async (req: AuthenticatedRequest, res) => {
   try {
     const { name } = req.body;
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
     const newCollection = await prisma.collection.create({
-      data: { name },
+      data: { name, userId },
     });
     res.json(newCollection);
   } catch (error) {
@@ -765,10 +828,21 @@ app.post("/collections", async (req, res) => {
 });
 
 // PUT /collections/:id
-app.put("/collections/:id", async (req, res) => {
+app.put("/collections/:id", authenticate, async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
     const { name } = req.body;
+    const userId = req.user?.id;
+    
+    // Verify ownership
+    const collection = await prisma.collection.findFirst({
+      where: { id, userId }
+    });
+    
+    if (!collection) {
+      return res.status(404).json({ error: "Collection not found" });
+    }
+    
     const updatedCollection = await prisma.collection.update({
       where: { id },
       data: { name },
@@ -780,14 +854,24 @@ app.put("/collections/:id", async (req, res) => {
 });
 
 // DELETE /collections/:id
-app.delete("/collections/:id", async (req, res) => {
+app.delete("/collections/:id", authenticate, async (req: AuthenticatedRequest, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user?.id;
+    
+    // Verify ownership
+    const collection = await prisma.collection.findFirst({
+      where: { id, userId }
+    });
+    
+    if (!collection) {
+      return res.status(404).json({ error: "Collection not found" });
+    }
 
     // Transaction: Unlink drawings, then delete collection
     await prisma.$transaction([
       prisma.drawing.updateMany({
-        where: { collectionId: id },
+        where: { collectionId: id, userId },
         data: { collectionId: null },
       }),
       prisma.collection.delete({
@@ -801,13 +885,19 @@ app.delete("/collections/:id", async (req, res) => {
   }
 });
 
-// --- Library ---
+// --- Library (Protected Routes) ---
 
 // GET /library - Fetch stored library items
-app.get("/library", async (req, res) => {
+app.get("/library", authenticate, async (req: AuthenticatedRequest, res) => {
   try {
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
     const library = await prisma.library.findUnique({
-      where: { id: "default" },
+      where: { userId },
     });
 
     if (!library) {
@@ -825,8 +915,14 @@ app.get("/library", async (req, res) => {
 });
 
 // PUT /library - Update/create library items
-app.put("/library", async (req, res) => {
+app.put("/library", authenticate, async (req: AuthenticatedRequest, res) => {
   try {
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
     const { items } = req.body;
 
     if (!Array.isArray(items)) {
@@ -834,12 +930,12 @@ app.put("/library", async (req, res) => {
     }
 
     const library = await prisma.library.upsert({
-      where: { id: "default" },
+      where: { userId },
       update: {
         items: JSON.stringify(items),
       },
       create: {
-        id: "default",
+        userId,
         items: JSON.stringify(items),
       },
     });
@@ -853,10 +949,10 @@ app.put("/library", async (req, res) => {
   }
 });
 
-// --- Export/Import Endpoints ---
+// --- Export/Import Endpoints (Admin only for DB, authenticated for JSON) ---
 
-// GET /export - Export SQLite database (supports .sqlite and .db extensions)
-app.get("/export", async (req, res) => {
+// GET /export - Export SQLite database (supports .sqlite and .db extensions) - Admin only
+app.get("/export", authenticate, requireAdmin, async (req: AuthenticatedRequest, res) => {
   try {
     const formatParam =
       typeof req.query.format === "string"
@@ -888,9 +984,16 @@ app.get("/export", async (req, res) => {
 });
 
 // GET /export/json - Export drawings as ZIP of .excalidraw files
-app.get("/export/json", async (req, res) => {
+app.get("/export/json", authenticate, async (req: AuthenticatedRequest, res) => {
   try {
+    const userId = req.user?.id;
+    
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
     const drawings = await prisma.drawing.findMany({
+      where: { userId },
       include: {
         collection: true,
       },
@@ -981,8 +1084,8 @@ ${Object.entries(drawingsByCollection)
   }
 });
 
-// POST /import/sqlite/verify - Verify SQLite database before import
-app.post("/import/sqlite/verify", upload.single("db"), async (req, res) => {
+// POST /import/sqlite/verify - Verify SQLite database before import - Admin only
+app.post("/import/sqlite/verify", authenticate, requireAdmin, upload.single("db"), async (req: AuthenticatedRequest, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
@@ -1006,8 +1109,8 @@ app.post("/import/sqlite/verify", upload.single("db"), async (req, res) => {
   }
 });
 
-// POST /import/sqlite - Import SQLite database
-app.post("/import/sqlite", upload.single("db"), async (req, res) => {
+// POST /import/sqlite - Import SQLite database - Admin only
+app.post("/import/sqlite", authenticate, requireAdmin, upload.single("db"), async (req: AuthenticatedRequest, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
