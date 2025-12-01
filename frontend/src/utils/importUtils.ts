@@ -18,6 +18,9 @@ export const importDrawings = async (
   let failCount = 0;
   const errors: string[] = [];
 
+  // Get auth token
+  const token = localStorage.getItem('excalidash_token');
+
   await Promise.all(
     drawingFiles.map(async (file) => {
       try {
@@ -54,12 +57,18 @@ export const importDrawings = async (
           preview: svg.outerHTML,
         };
 
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          "X-Imported-File": "true", // Mark as imported file for additional validation
+        };
+        
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+
         const res = await fetch(`${API_URL}/drawings`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Imported-File": "true", // Mark as imported file for additional validation
-          },
+          headers,
           body: JSON.stringify(payload),
         });
 

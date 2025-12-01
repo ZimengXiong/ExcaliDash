@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { Drawing, Collection } from "../types";
+import type { Drawing, Collection, SetupStatus, User } from "../types";
 
 export const API_URL = import.meta.env.VITE_API_URL || "/api";
 
@@ -19,6 +19,25 @@ const deserializeDrawing = (drawing: any): Drawing => ({
   createdAt: coerceTimestamp(drawing.createdAt),
   updatedAt: coerceTimestamp(drawing.updatedAt),
 });
+
+// --- Setup ---
+
+export const getSetupStatus = async (): Promise<SetupStatus> => {
+  const response = await api.get<SetupStatus>("/setup/status");
+  return response.data;
+};
+
+export const createAdminAccount = async (data: {
+  email: string;
+  username: string;
+  password: string;
+  displayName?: string;
+}): Promise<{ user: User; token: string; expiresAt: string }> => {
+  const response = await api.post("/setup/admin", data);
+  return response.data;
+};
+
+// --- Drawings ---
 
 export const getDrawings = async (
   search?: string,
@@ -62,6 +81,8 @@ export const duplicateDrawing = async (id: string) => {
   const response = await api.post<Drawing>(`/drawings/${id}/duplicate`);
   return deserializeDrawing(response.data);
 };
+
+// --- Collections ---
 
 export const getCollections = async () => {
   const response = await api.get<Collection[]>("/collections");
