@@ -440,15 +440,36 @@ export const sanitizeDrawingData = (data: {
     // Sanitize files object
     let sanitizedFiles = data.files;
     if (typeof sanitizedFiles === "object" && sanitizedFiles !== null) {
-      // Recursively sanitize any string values in files
-      sanitizedFiles = JSON.parse(
-        JSON.stringify(sanitizedFiles, (key, value) => {
-          if (typeof value === "string") {
-            return sanitizeText(value, 10000);
+      // Create a deep copy to avoid mutating the original input if it's used elsewhere
+      sanitizedFiles = JSON.parse(JSON.stringify(sanitizedFiles));
+      
+      // Iterate over each file in the dictionary
+      for (const fileId in sanitizedFiles) {
+        const file = sanitizedFiles[fileId];
+        if (typeof file === "object" && file !== null) {
+          // Sanitize each property of the file object
+          for (const key in file) {
+            const value = file[key];
+            if (typeof value === "string") {
+              // Special handling for dataURL: allow it to be long if it's a valid image data URL
+              if (key === "dataURL" && value.startsWith("data:image/")) {
+                // Validate it looks like a data URL but don't truncate or sanitize content
+                // We just ensure it doesn't contain script tags or other obvious vectors
+                // (though data:image should be safe from XSS in <img> tags)
+                if (value.includes("<script") || value.includes("javascript:")) {
+                   file[key] = ""; // Nuke it if it looks suspicious
+                } else {
+                   // Keep it as is - it's a binary blob
+                   file[key] = value;
+                }
+              } else {
+                // For all other string fields (id, mimeType, etc.), apply strict sanitization
+                file[key] = sanitizeText(value, 1000);
+              }
+            }
           }
-          return value;
-        })
-      );
+        }
+      }
     }
 
     return {
