@@ -141,7 +141,7 @@ const config = {
       "value": "prisma-client-js"
     },
     "output": {
-      "value": "/Users/zimengx/Code/Apps_CLI_Scripts/ExcaliDash/backend/src/generated/client",
+      "value": "/Users/adrian/Documents/git/ExcaliDash/backend/src/generated/client",
       "fromEnvVar": null
     },
     "config": {
@@ -163,12 +163,11 @@ const config = {
       }
     ],
     "previewFeatures": [],
-    "sourceFilePath": "/Users/zimengx/Code/Apps_CLI_Scripts/ExcaliDash/backend/prisma/schema.prisma",
+    "sourceFilePath": "/Users/adrian/Documents/git/ExcaliDash/backend/prisma/schema.prisma",
     "isCustomOutput": true
   },
   "relativeEnvPaths": {
-    "rootEnvPath": null,
-    "schemaEnvPath": "../../../.env"
+    "rootEnvPath": null
   },
   "relativePath": "../../../prisma",
   "clientVersion": "5.22.0",

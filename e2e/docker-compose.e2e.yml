@@ -1,0 +1,79 @@
+version: "3.8"
+
+# Docker Compose for E2E Browser Testing
+# This provides a repeatable environment for running Playwright tests
+# with full browser automation against the real frontend and backend.
+#
+# Usage:
+#   docker-compose -f docker-compose.e2e.yml up --build --abort-on-container-exit
+#
+# For headed mode (requires X11):
+#   HEADED=true docker-compose -f docker-compose.e2e.yml up --build
+
+services:
+  # Backend API server
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=file:./prisma/e2e-test.db
+      - PORT=8000
+      - NODE_ENV=test
+      - FRONTEND_URL=http://frontend:80,http://localhost:5173
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - e2e-network
+
+  # Frontend web server
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://backend:8000
+    ports:
+      - "5173:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - e2e-network
+
+  # Playwright test runner
+  playwright:
+    build:
+      context: .
+      dockerfile: Dockerfile.playwright
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    environment:
+      - BASE_URL=http://frontend:80
+      - API_URL=http://backend:8000
+      - NO_SERVER=true
+      - CI=true
+    volumes:
+      - ./test-results:/app/test-results
+      - ./playwright-report:/app/playwright-report
+    networks:
+      - e2e-network
+
+networks:
+  e2e-network:
+    driver: bridge

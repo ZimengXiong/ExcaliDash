@@ -1,0 +1,21 @@
+# Playwright E2E Test Runner
+FROM mcr.microsoft.com/playwright:v1.52.0-noble
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json package-lock.json* ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy test files and config
+COPY playwright.config.ts ./
+COPY tests/ ./tests/
+COPY fixtures/ ./fixtures/
+
+# Set environment variables
+ENV CI=true
+
+# Default command runs tests in headless mode
+CMD ["npx", "playwright", "test", "--reporter=html,list"]
