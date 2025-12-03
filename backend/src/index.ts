@@ -133,11 +133,6 @@ const DRAWINGS_CACHE_TTL_MS = (() => {
 type DrawingsCacheEntry = { body: Buffer; expiresAt: number };
 const drawingsCache = new Map<string, DrawingsCacheEntry>();
 
-/**
- * Builds a cache key for the drawings list endpoint.
- * NOTE: This key does NOT include sort order. If sorting options are added
- * to the endpoint in the future, they must be included in this key.
- */
 const buildDrawingsCacheKey = (keyParts: {
   searchTerm: string;
   collectionFilter: string;
@@ -641,18 +636,6 @@ app.get("/drawings/:id", async (req, res) => {
       return res.status(404).json({ error: "Drawing not found" });
     }
 
-    console.log("[API] Returning drawing", {
-      id,
-      elementCount: (() => {
-        try {
-          const parsed = JSON.parse(drawing.elements);
-          return Array.isArray(parsed) ? parsed.length : null;
-        } catch (_err) {
-          return null;
-        }
-      })(),
-    });
-
     res.json({
       ...drawing,
       elements: JSON.parse(drawing.elements),
@@ -714,19 +697,6 @@ app.put("/drawings/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
-    console.log("[API] Update request received", {
-      id,
-      bodyKeys: Object.keys(req.body || {}),
-      hasElements: req.body?.elements !== undefined,
-      elementCount: Array.isArray(req.body?.elements)
-        ? req.body.elements.length
-        : undefined,
-      hasAppState: req.body?.appState !== undefined,
-      appStateKeys: req.body?.appState ? Object.keys(req.body.appState) : [],
-      hasFiles: req.body?.files !== undefined,
-      hasPreview: req.body?.preview !== undefined,
-    });
-
     const parsed = drawingUpdateSchema.safeParse(req.body);
     if (!parsed.success) {
       console.error("[API] Validation failed", {
@@ -743,17 +713,6 @@ app.put("/drawings/:id", async (req, res) => {
     }
 
     const payload = parsed.data;
-
-    console.log("[API] Updating drawing", {
-      id,
-      hasElements: payload.elements !== undefined,
-      elementCount: Array.isArray(payload.elements)
-        ? payload.elements.length
-        : undefined,
-      hasAppState: payload.appState !== undefined,
-      hasFiles: payload.files !== undefined,
-      hasPreview: payload.preview !== undefined,
-    });
 
     const data: any = {
       version: { increment: 1 },
@@ -774,18 +733,6 @@ app.put("/drawings/:id", async (req, res) => {
       data,
     });
     invalidateDrawingsCache();
-
-    console.log("[API] Update complete", {
-      id,
-      storedElementCount: (() => {
-        try {
-          const parsed = JSON.parse(updatedDrawing.elements);
-          return Array.isArray(parsed) ? parsed.length : null;
-        } catch (_err) {
-          return null;
-        }
-      })(),
-    });
 
     res.json({
       ...updatedDrawing,

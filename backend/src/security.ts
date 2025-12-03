@@ -1,7 +1,3 @@
-/**
- * Security utilities for XSS prevention and data sanitization
- */
-
 import { z } from "zod";
 import DOMPurify from "dompurify";
 import { JSDOM } from "jsdom";
@@ -10,29 +6,14 @@ import { JSDOM } from "jsdom";
 const window = new JSDOM("").window;
 const purify = DOMPurify(window);
 
-/**
- * Sanitize HTML/JS content using DOMPurify (battle-tested library)
- */
 export const sanitizeHtml = (input: string): string => {
   if (typeof input !== "string") return "";
 
   return purify
     .sanitize(input, {
-      ALLOWED_TAGS: [
-        // Allow basic text formatting that might be in drawings
-        "b",
-        "i",
-        "u",
-        "em",
-        "strong",
-        "p",
-        "br",
-        "span",
-        "div",
-      ],
-      ALLOWED_ATTR: [], // No attributes allowed by default for security
+      ALLOWED_TAGS: ["b", "i", "u", "em", "strong", "p", "br", "span", "div"],
+      ALLOWED_ATTR: [],
       FORBID_TAGS: [
-        // Explicitly forbid dangerous tags
         "script",
         "iframe",
         "object",
@@ -48,7 +29,6 @@ export const sanitizeHtml = (input: string): string => {
         "foreignObject",
       ],
       FORBID_ATTR: [
-        // Explicitly forbid dangerous attributes
         "onload",
         "onclick",
         "onerror",
@@ -66,23 +46,17 @@ export const sanitizeHtml = (input: string): string => {
         "action",
         "formaction",
       ],
-      KEEP_CONTENT: true, // Keep content even if tags are removed
+      KEEP_CONTENT: true,
     })
     .trim();
 };
 
-/**
- * Sanitize SVG content using DOMPurify with strict SVG restrictions
- */
 export const sanitizeSvg = (svgContent: string): string => {
   if (typeof svgContent !== "string") return "";
 
-  // For SVG content, we'll be very restrictive since SVG can execute JavaScript
-  // We only allow basic geometric shapes without any scripts or external references
   return purify
     .sanitize(svgContent, {
       ALLOWED_TAGS: [
-        // Allow only safe SVG geometric elements
         "svg",
         "g",
         "rect",
@@ -96,7 +70,6 @@ export const sanitizeSvg = (svgContent: string): string => {
         "tspan",
       ],
       ALLOWED_ATTR: [
-        // Allow only safe geometric attributes
         "x",
         "y",
         "width",
@@ -123,7 +96,6 @@ export const sanitizeSvg = (svgContent: string): string => {
         "dominant-baseline",
       ],
       FORBID_TAGS: [
-        // Completely forbid any script-related or external content
         "script",
         "foreignObject",
         "iframe",
@@ -141,7 +113,6 @@ export const sanitizeSvg = (svgContent: string): string => {
         "filter",
       ],
       FORBID_ATTR: [
-        // Forbid any attributes that could execute code or load external content
         "onload",
         "onclick",
         "onerror",
@@ -161,37 +132,20 @@ export const sanitizeSvg = (svgContent: string): string => {
     .trim();
 };
 
-/**
- * Validate and sanitize text content using DOMPurify
- */
 export const sanitizeText = (
   input: unknown,
   maxLength: number = 1000
 ): string => {
   if (typeof input !== "string") return "";
 
-  // Remove null bytes and control characters except newlines and tabs
   const cleaned = input.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
-
-  // Truncate if too long
   const truncated = cleaned.slice(0, maxLength);
 
-  // Use DOMPurify for text content - more permissive than HTML but still safe
   return purify
     .sanitize(truncated, {
-      ALLOWED_TAGS: [
-        // Allow basic text formatting that might be in drawing text
-        "b",
-        "i",
-        "u",
-        "em",
-        "strong",
-        "br",
-        "span",
-      ],
-      ALLOWED_ATTR: [], // No attributes allowed for text content
+      ALLOWED_TAGS: ["b", "i", "u", "em", "strong", "br", "span"],
+      ALLOWED_ATTR: [],
       FORBID_TAGS: [
-        // Block potentially dangerous tags
         "script",
         "iframe",
         "object",
@@ -207,7 +161,6 @@ export const sanitizeText = (
         "foreignObject",
       ],
       FORBID_ATTR: [
-        // Block all event handlers and dangerous attributes
         "onload",
         "onclick",
         "onerror",
@@ -231,22 +184,16 @@ export const sanitizeText = (
     .trim();
 };
 
-/**
- * Sanitize URL to prevent javascript: and data: attacks
- */
 export const sanitizeUrl = (url: unknown): string => {
   if (typeof url !== "string") return "";
 
   const trimmed = url.trim();
 
-  // Block javascript:, data:, vbscript: URLs
   if (/^(javascript|data|vbscript):/i.test(trimmed)) {
     return "";
   }
 
-  // Basic URL validation
   try {
-    // Allow http, https, mailto, and relative URLs
     if (/^(https?:\/\/|mailto:|\/|\.\/|\.\.\/)/i.test(trimmed)) {
       return trimmed;
     }
@@ -256,9 +203,6 @@ export const sanitizeUrl = (url: unknown): string => {
   }
 };
 
-/**
- * Very flexible Zod schema for Excalidraw elements
- */
 export const elementSchema = z
   .object({
     id: z.string().min(1).max(200).optional().nullable(),
@@ -293,7 +237,6 @@ export const elementSchema = z
   })
   .passthrough()
   .transform((element) => {
-    // Apply basic sanitization to string values only
     const sanitized = { ...element };
 
     if (typeof sanitized.text === "string") {
@@ -307,9 +250,6 @@ export const elementSchema = z
     return sanitized;
   });
 
-/**
- * Flexible Zod schema for Excalidraw app state with validation
- */
 export const appStateSchema = z
   .object({
     gridSize: z.number().finite().min(0).max(1000).optional().nullable(),
@@ -400,24 +340,17 @@ export const appStateSchema = z
       .nullable(),
     cursorX: z.number().finite().optional().nullable(),
     cursorY: z.number().finite().optional().nullable(),
-    // Add common Excalidraw app state properties
     collaborators: z.record(z.string(), z.any()).optional().nullable(),
   })
-  // Allow any additional properties
   .catchall(
     z.any().refine((val) => {
-      // Sanitize string values, but be more permissive for other types
       if (typeof val === "string") {
         return sanitizeText(val, 1000);
       }
-      // Allow numbers, booleans, objects, arrays, null, undefined
       return true;
     })
   );
 
-/**
- * Sanitize drawing data before persistence
- */
 export const sanitizeDrawingData = (data: {
   elements: any[];
   appState: any;
@@ -425,22 +358,16 @@ export const sanitizeDrawingData = (data: {
   preview?: string | null;
 }) => {
   try {
-    // Validate and sanitize elements
     const sanitizedElements = elementSchema.array().parse(data.elements);
-
-    // Validate and sanitize app state
     const sanitizedAppState = appStateSchema.parse(data.appState);
 
-    // Sanitize preview SVG if present
     let sanitizedPreview = data.preview;
     if (typeof sanitizedPreview === "string") {
       sanitizedPreview = sanitizeSvg(sanitizedPreview);
     }
 
-    // Sanitize files object
     let sanitizedFiles = data.files;
     if (typeof sanitizedFiles === "object" && sanitizedFiles !== null) {
-      // Recursively sanitize any string values in files
       sanitizedFiles = JSON.parse(
         JSON.stringify(sanitizedFiles, (key, value) => {
           if (typeof value === "string") {
@@ -463,26 +390,19 @@ export const sanitizeDrawingData = (data: {
   }
 };
 
-/**
- * Validate imported .excalidraw file structure
- */
 export const validateImportedDrawing = (data: any): boolean => {
   try {
-    // Basic structure validation
     if (!data || typeof data !== "object") return false;
 
     if (!Array.isArray(data.elements)) return false;
     if (typeof data.appState !== "object") return false;
 
-    // Check element count to prevent DoS
     if (data.elements.length > 10000) {
       throw new Error("Drawing contains too many elements (max 10,000)");
     }
 
-    // Sanitize and validate the data
     const sanitized = sanitizeDrawingData(data);
 
-    // Additional structural validation
     if (sanitized.elements.length !== data.elements.length) {
       throw new Error("Element count mismatch after sanitization");
     }

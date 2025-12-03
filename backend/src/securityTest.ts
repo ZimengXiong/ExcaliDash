@@ -1,8 +1,3 @@
-/**
- * Security Test Suite for XSS Prevention
- * Tests malicious payload detection and sanitization
- */
-
 import {
   sanitizeHtml,
   sanitizeSvg,
@@ -14,7 +9,6 @@ import {
 
 console.log("Starting Security Test Suite...\n");
 
-// Test 1: HTML/JS Sanitization
 console.log("Test 1: HTML/JS Sanitization");
 const maliciousHtml = `
   <script>alert('XSS')</script>
@@ -38,7 +32,6 @@ console.log(
 );
 console.log("");
 
-// Test 2: SVG Sanitization
 console.log("Test 2: SVG Sanitization");
 const maliciousSvg = `
   <svg>
@@ -59,7 +52,6 @@ console.log(
 );
 console.log("");
 
-// Test 3: URL Sanitization
 console.log("Test 3: URL Sanitization");
 const maliciousUrls = [
   "javascript:alert('XSS')",
@@ -81,7 +73,6 @@ maliciousUrls.forEach((url) => {
 });
 console.log("");
 
-// Test 4: Text Sanitization with Length Limits
 console.log("Test 4: Text Sanitization with Length Limits");
 const longText = "A".repeat(2000);
 const sanitizedLongText = sanitizeText(longText, 500);
@@ -98,7 +89,6 @@ console.log(
 );
 console.log("");
 
-// Test 5: Drawing Validation
 console.log("Test 5: Drawing Data Validation");
 const maliciousDrawing = {
   elements: [
@@ -153,7 +143,6 @@ try {
 }
 console.log("");
 
-// Test 6: Legitimate Drawing Should Pass
 console.log("Test 6: Legitimate Drawing Validation");
 const legitimateDrawing = {
   elements: [
