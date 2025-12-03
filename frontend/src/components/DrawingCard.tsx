@@ -217,6 +217,9 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
         <div className="absolute top-2 right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" style={{ opacity: isSelected ? 1 : undefined }}>
           <button
             onClick={(e) => { e.stopPropagation(); onToggleSelection(e); }}
+            data-testid={`select-drawing-${drawing.id}`}
+            aria-pressed={isSelected}
+            aria-label={`${isSelected ? "Deselect" : "Select"} ${drawing.name}`}
             className={clsx(
               "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-200 shadow-sm",
               isSelected ? "bg-neutral-600 dark:bg-neutral-500 border-neutral-600 dark:border-neutral-500 text-white" : "bg-white dark:bg-neutral-800 border-slate-300 dark:border-neutral-600 hover:border-neutral-500 dark:hover:border-neutral-400"
@@ -291,6 +294,9 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
             <div className="relative" onClick={e => e.stopPropagation()}>
               <button
                 onClick={() => setShowCollectionDropdown(!showCollectionDropdown)}
+                data-testid={`collection-picker-${drawing.id}`}
+                aria-haspopup="listbox"
+                aria-expanded={showCollectionDropdown}
                 className="px-2 py-1 rounded-md bg-slate-50 dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-neutral-200 text-slate-500 dark:text-neutral-400 text-[10px] font-bold uppercase tracking-wide max-w-[120px] truncate transition-all cursor-pointer border border-slate-100 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600"
               >
                 {drawing.collectionId ? (collections.find(c => c.id === drawing.collectionId)?.name || 'Collection') : 'Unorganized'}
@@ -301,6 +307,7 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
                   <div className="fixed inset-0 z-10" onClick={() => setShowCollectionDropdown(false)} />
                   <div className="absolute right-0 bottom-8 w-48 bg-white dark:bg-neutral-900 rounded-xl border-2 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] z-20 py-1 max-h-56 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100">
                     <button
+                      data-testid="collection-option-unorganized"
                       onClick={() => { onMoveToCollection(drawing.id, null); setShowCollectionDropdown(false); }}
                       className={clsx(
                         "w-full px-3 py-2 text-xs text-left flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors",
@@ -313,6 +320,7 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
                     {collections.map(c => (
                       <button
                         key={c.id}
+                        data-testid={`collection-option-${c.id}`}
                         onClick={() => { onMoveToCollection(drawing.id, c.id); setShowCollectionDropdown(false); }}
                         className={clsx(
                           "w-full px-3 py-2 text-xs text-left flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors truncate",

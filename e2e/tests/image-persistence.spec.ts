@@ -1,6 +1,7 @@
-import { test, expect, Page, APIRequestContext } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
+import { API_URL, createDrawing, deleteDrawing, getDrawing } from "./helpers/api";
 
 /**
  * E2E Browser Tests for Image Persistence - Issue #17 Regression
@@ -15,13 +16,6 @@ import * as path from "path";
  * "Images don't load fully when reopening the file"
  */
 
-// API URL for direct backend calls
-const API_URL = process.env.API_URL || "http://localhost:8000";
-
-/**
- * Generate a large base64 image data URL for testing
- * This creates a valid PNG that exceeds the old 10000 char limit
- */
 function generateLargeImageDataUrl(sizeInBytes: number = 50000): string {
   // Create pseudo-random data that looks like base64
   const base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -32,59 +26,6 @@ function generateLargeImageDataUrl(sizeInBytes: number = 50000): string {
   return `data:image/png;base64,${base64Data}`;
 }
 
-/**
- * Create a drawing via API
- */
-async function createDrawingViaAPI(
-  request: APIRequestContext,
-  name: string,
-  files: Record<string, any> = {}
-): Promise<string> {
-  const response = await request.post(`${API_URL}/drawings`, {
-    headers: {
-      "Content-Type": "application/json",
-    },
-    data: {
-      name,
-      elements: [],  // Array, not string
-      appState: { viewBackgroundColor: "#ffffff" },  // Object, not string
-      files: files,  // Object, not string
-      preview: null,
-    },
-  });
-  
-  if (!response.ok()) {
-    const text = await response.text();
-    console.error(`API Error: ${response.status()} - ${text}`);
-    throw new Error(`Failed to create drawing: ${response.status()} - ${text}`);
-  }
-  
-  const drawing = await response.json();
-  return drawing.id;
-}
-
-/**
- * Get a drawing via API
- */
-async function getDrawingViaAPI(
-  request: APIRequestContext,
-  id: string
-): Promise<any> {
-  const response = await request.get(`${API_URL}/drawings/${id}`);
-  expect(response.ok()).toBe(true);
-  return response.json();
-}
-
-/**
- * Delete a drawing via API (cleanup)
- */
-async function deleteDrawingViaAPI(
-  request: APIRequestContext,
-  id: string
-): Promise<void> {
-  await request.delete(`${API_URL}/drawings/${id}`);
-}
-
 test.describe("Image Persistence - Browser E2E Tests", () => {
   let testDrawingIds: string[] = [];
   
@@ -92,7 +33,7 @@ test.describe("Image Persistence - Browser E2E Tests", () => {
     // Clean up any drawings created during tests
     for (const id of testDrawingIds) {
       try {
-        await deleteDrawingViaAPI(request, id);
+        await deleteDrawing(request, id);
       } catch (e) {
         // Ignore cleanup errors
       }
@@ -141,12 +82,15 @@ test.describe("Image Persistence - Browser E2E Tests", () => {
     };
     
     // Create drawing with large image
-    const drawingId = await createDrawingViaAPI(request, "E2E Test - Large Image", files);
-    testDrawingIds.push(drawingId);
+    const createdDrawing = await createDrawing(request, {
+      name: "E2E Test - Large Image",
+      files,
+    });
+    testDrawingIds.push(createdDrawing.id);
     
     // Retrieve the drawing
-    const drawing = await getDrawingViaAPI(request, drawingId);
-    const savedFiles = drawing.files;  // Already parsed by API
+    const drawing = await getDrawing(request, createdDrawing.id);
+    const savedFiles = drawing.files || {};  // Already parsed by API
     
     // Verify the image data was preserved
     expect(savedFiles["test-image-1"]).toBeDefined();
@@ -158,11 +102,13 @@ test.describe("Image Persistence - Browser E2E Tests", () => {
 
   test("should display drawing in editor view", async ({ page, request }) => {
     // Create a test drawing first
-    const drawingId = await createDrawingViaAPI(request, "E2E Test - Editor View", {});
-    testDrawingIds.push(drawingId);
+    const createdDrawing = await createDrawing(request, {
+      name: "E2E Test - Editor View",
+    });
+    testDrawingIds.push(createdDrawing.id);
     
     // Navigate to the editor
-    await page.goto(`/editor/${drawingId}`);
+    await page.goto(`/editor/${createdDrawing.id}`);
     
     // Wait for the page to load
     await page.waitForLoadState("networkidle");
@@ -179,17 +125,16 @@ test.describe("Image Persistence - Browser E2E Tests", () => {
     const fixtureContent = fs.readFileSync(fixturePath, "utf-8");
     const fixtureData = JSON.parse(fixtureContent);
     
-    // Create drawing via API with fixture data
-    const drawingId = await createDrawingViaAPI(
-      request,
-      "E2E Test - Imported Image",
-      fixtureData.files
-    );
-    testDrawingIds.push(drawingId);
+      // Create drawing via API with fixture data
+      const createdDrawing = await createDrawing(request, {
+        name: "E2E Test - Imported Image",
+        files: fixtureData.files,
+      });
+      testDrawingIds.push(createdDrawing.id);
     
     // Verify via API that image data was preserved
-    const drawing = await getDrawingViaAPI(request, drawingId);
-    const savedFiles = drawing.files;  // Already parsed by API
+      const drawing = await getDrawing(request, createdDrawing.id);
+    const savedFiles = drawing.files || {};  // Already parsed by API
     
     expect(savedFiles["embedded-test-image"]).toBeDefined();
     expect(savedFiles["embedded-test-image"].dataURL).toBe(fixtureData.files["embedded-test-image"].dataURL);
@@ -217,11 +162,14 @@ test.describe("Image Persistence - Browser E2E Tests", () => {
       },
     };
     
-    const drawingId = await createDrawingViaAPI(request, "E2E Test - Multiple Images", files);
-    testDrawingIds.push(drawingId);
+    const createdDrawing = await createDrawing(request, {
+      name: "E2E Test - Multiple Images",
+      files,
+    });
+    testDrawingIds.push(createdDrawing.id);
     
-    const drawing = await getDrawingViaAPI(request, drawingId);
-    const savedFiles = drawing.files;  // Already parsed by API
+    const drawing = await getDrawing(request, createdDrawing.id);
+    const savedFiles = drawing.files || {};  // Already parsed by API
     
     // Verify all images preserved correctly
     for (const [id, originalFile] of Object.entries(files)) {

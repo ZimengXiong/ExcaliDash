@@ -1,5 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// Centralized test environment URLs
+const FRONTEND_PORT = 5173;
+const BACKEND_PORT = 8000;
+const FRONTEND_URL = process.env.BASE_URL || `http://localhost:${FRONTEND_PORT}`;
+const BACKEND_URL = process.env.API_URL || `http://localhost:${BACKEND_PORT}`;
+
 /**
  * Playwright configuration for E2E browser testing
  * 
@@ -43,7 +49,7 @@ export default defineConfig({
   
   use: {
     // Base URL for page.goto()
-    baseURL: process.env.BASE_URL || "http://localhost:5173",
+    baseURL: FRONTEND_URL,
     
     // Collect trace on first retry
     trace: "on-first-retry",
@@ -72,16 +78,20 @@ export default defineConfig({
   // Run local dev servers before tests (skip if NO_SERVER or CI)
   webServer: (process.env.CI || process.env.NO_SERVER) ? undefined : [
     {
-      command: "cd ../backend && DATABASE_URL='file:./prisma/dev.db' npm run dev",
-      url: "http://localhost:8000/health",
+      command: "cd ../backend && npm run dev",
+      url: `${BACKEND_URL}/health`,
       reuseExistingServer: true,
       timeout: 120000,
       stdout: "pipe",
       stderr: "pipe",
+      env: {
+        DATABASE_URL: "file:./prisma/dev.db",
+        FRONTEND_URL,
+      },
     },
     {
       command: "cd ../frontend && npm run dev -- --host",
-      url: "http://localhost:5173",
+      url: FRONTEND_URL,
       reuseExistingServer: true,
       timeout: 120000,
       stdout: "pipe",
