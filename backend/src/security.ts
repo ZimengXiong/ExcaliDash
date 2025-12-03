@@ -1,10 +1,11 @@
 /**
- * Security utilities for XSS prevention and data sanitization
+ * Security utilities for XSS prevention, data sanitization, and CSRF protection
  */
 
 import { z } from "zod";
 import DOMPurify from "dompurify";
 import { JSDOM } from "jsdom";
+import crypto from "crypto";
 
 // Create a DOM environment for DOMPurify (Node.js compatibility)
 const window = new JSDOM("").window;
@@ -492,4 +493,103 @@ export const validateImportedDrawing = (data: any): boolean => {
     console.error("Imported drawing validation failed:", error);
     return false;
   }
+};
+
+// ============================================================================
+// CSRF Protection
+// ============================================================================
+
+const CSRF_TOKEN_LENGTH = 32;
+const CSRF_TOKEN_HEADER = "x-csrf-token";
+const CSRF_TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+const MAX_STORE_SIZE = 10000; // Prevent memory exhaustion
+
+// In-memory token store with expiration
+// In production with multiple instances, use Redis or similar
+const csrfTokenStore = new Map<string, { token: string; expiresAt: number }>();
+
+// Cleanup expired tokens every 15 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, data] of csrfTokenStore.entries()) {
+    if (now > data.expiresAt) {
+      csrfTokenStore.delete(key);
+    }
+  }
+}, 15 * 60 * 1000).unref();
+
+/**
+ * Generate a cryptographically secure CSRF token
+ */
+export const generateCsrfToken = (): string => {
+  return crypto.randomBytes(CSRF_TOKEN_LENGTH).toString("hex");
+};
+
+/**
+ * Create and store a new CSRF token for a client
+ * Returns the token to be sent to the client
+ */
+export const createCsrfToken = (clientId: string): string => {
+  // Prevent DoS by limiting store size
+  if (csrfTokenStore.size >= MAX_STORE_SIZE) {
+    // Remove oldest entry if full (simple LRU approximation)
+    const firstKey = csrfTokenStore.keys().next().value;
+    if (firstKey) csrfTokenStore.delete(firstKey);
+  }
+
+  const token = generateCsrfToken();
+  csrfTokenStore.set(clientId, {
+    token,
+    expiresAt: Date.now() + CSRF_TOKEN_EXPIRY_MS,
+  });
+  return token;
+};
+
+/**
+ * Validate a CSRF token for a client
+ * Uses timing-safe comparison to prevent timing attacks
+ */
+export const validateCsrfToken = (clientId: string, token: string): boolean => {
+  if (!token || typeof token !== "string") {
+    return false;
+  }
+
+  const stored = csrfTokenStore.get(clientId);
+  if (!stored) {
+    return false;
+  }
+
+  // Check if token has expired
+  if (Date.now() > stored.expiresAt) {
+    csrfTokenStore.delete(clientId);
+    return false;
+  }
+
+  // Use timing-safe comparison to prevent timing attacks
+  try {
+    const storedBuffer = Buffer.from(stored.token, "utf8");
+    const providedBuffer = Buffer.from(token, "utf8");
+
+    if (storedBuffer.length !== providedBuffer.length) {
+      return false;
+    }
+
+    return crypto.timingSafeEqual(storedBuffer, providedBuffer);
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Revoke a CSRF token (e.g., on logout or token refresh)
+ */
+export const revokeCsrfToken = (clientId: string): void => {
+  csrfTokenStore.delete(clientId);
+};
+
+/**
+ * Get the CSRF token header name
+ */
+export const getCsrfTokenHeader = (): string => {
+  return CSRF_TOKEN_HEADER;
 };
