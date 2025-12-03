@@ -75,7 +75,7 @@ See [release notes](https://github.com/ZimengXiong/ExcaliDash/releases) for a sp
 # Installation
 
 > [!CAUTION]
-> NOT for production use. While attempts have been made at hardening (XSS/dompurify, CORS, rate-limiting, sanitization), they are inadequate for public deployment. Do not expose any ports. Currently lacking CSRF.
+> NOT for production use. While attempts have been made at hardening (XSS/dompurify, CORS, rate-limiting, sanitization), they are inadequate for public deployment. Do not expose any ports.
 
 > [!CAUTION]
 > ExcaliDash is in BETA. Please backup your data regularly (e.g. with cron).

@@ -19,6 +19,9 @@ import {
   sanitizeSvg,
   elementSchema,
   appStateSchema,
+  createCsrfToken,
+  validateCsrfToken,
+  getCsrfTokenHeader,
 } from "./security";
 
 dotenv.config();
@@ -56,11 +59,15 @@ const normalizeOrigins = (rawOrigins?: string | null): string[] => {
   const ensureProtocol = (origin: string) =>
     /^https?:\/\//i.test(origin) ? origin : `http://${origin}`;
 
+  const removeTrailingSlash = (origin: string) =>
+    origin.endsWith("/") ? origin.slice(0, -1) : origin;
+
   const parsed = rawOrigins
     .split(",")
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0)
-    .map(ensureProtocol);
+    .map(ensureProtocol)
+    .map(removeTrailingSlash);
 
   return parsed.length > 0 ? parsed : [fallback];
 };
@@ -214,6 +221,8 @@ app.use(
   cors({
     origin: allowedOrigins,
     credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization", "x-csrf-token"],
+    exposedHeaders: ["x-csrf-token"],
   })
 );
 app.use(express.json({ limit: "50mb" }));
@@ -303,6 +312,123 @@ app.use((req, res, next) => {
   clientData.count++;
   next();
 });
+
+// CSRF Protection Middleware
+// Generates a unique client ID based on IP and User-Agent for token association
+const getClientId = (req: express.Request): string => {
+  const ip = req.ip || req.connection.remoteAddress || "unknown";
+  const userAgent = req.headers["user-agent"] || "unknown";
+  // Create a simple hash for client identification
+  // In production, you might use a session ID instead
+  return `${ip}:${userAgent}`.slice(0, 256);
+};
+
+// Rate limiter specifically for CSRF token generation to prevent store exhaustion
+const csrfRateLimit = new Map<string, { count: number; resetTime: number }>();
+const CSRF_RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const CSRF_MAX_REQUESTS = 60; // 1 per second average
+
+// CSRF token endpoint - clients should call this to get a token
+app.get("/csrf-token", (req, res) => {
+  const ip = req.ip || req.connection.remoteAddress || "unknown";
+  const now = Date.now();
+  const clientLimit = csrfRateLimit.get(ip);
+
+  if (clientLimit && now < clientLimit.resetTime) {
+    if (clientLimit.count >= CSRF_MAX_REQUESTS) {
+      return res.status(429).json({
+        error: "Rate limit exceeded",
+        message: "Too many CSRF token requests",
+      });
+    }
+    clientLimit.count++;
+  } else {
+    csrfRateLimit.set(ip, { count: 1, resetTime: now + CSRF_RATE_LIMIT_WINDOW });
+  }
+
+  // Cleanup old rate limit entries occasionally
+  if (Math.random() < 0.01) {
+    for (const [key, data] of csrfRateLimit.entries()) {
+      if (now > data.resetTime) csrfRateLimit.delete(key);
+    }
+  }
+
+  const clientId = getClientId(req);
+  const token = createCsrfToken(clientId);
+  
+  res.json({ 
+    token,
+    header: getCsrfTokenHeader()
+  });
+});
+
+// CSRF validation middleware for state-changing requests
+const csrfProtectionMiddleware = (
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) => {
+  // Skip CSRF validation for safe methods (GET, HEAD, OPTIONS)
+  const safeMethods = ["GET", "HEAD", "OPTIONS"];
+  if (safeMethods.includes(req.method)) {
+    return next();
+  }
+
+  // Skip CSRF for the CSRF token endpoint itself
+  if (req.path === "/csrf-token") {
+    return next();
+  }
+
+  // Origin/Referer check for defense in depth
+  const origin = req.headers["origin"];
+  const referer = req.headers["referer"];
+  
+  // If Origin is present, it must match allowed origins
+  if (origin) {
+    if (!allowedOrigins.includes(origin)) {
+      return res.status(403).json({
+        error: "CSRF origin mismatch",
+        message: "Origin not allowed",
+      });
+    }
+  } else if (referer) {
+    // If no Origin but Referer exists, check it starts with an allowed origin
+    const refererAllowed = allowedOrigins.some(allowed => referer.startsWith(allowed));
+    if (!refererAllowed) {
+      return res.status(403).json({
+        error: "CSRF referer mismatch",
+        message: "Referer not allowed",
+      });
+    }
+  }
+  // Note: If neither Origin nor Referer is present, we proceed to token check.
+  // Some legitimate clients/proxies might strip these, so we don't block strictly on their absence,
+  // but relying on the token is the primary defense.
+
+  const clientId = getClientId(req);
+  const headerName = getCsrfTokenHeader();
+  const tokenHeader = req.headers[headerName];
+  const token = Array.isArray(tokenHeader) ? tokenHeader[0] : tokenHeader;
+
+  if (!token) {
+    return res.status(403).json({
+      error: "CSRF token missing",
+      message: `Missing ${headerName} header`,
+    });
+  }
+
+  if (!validateCsrfToken(clientId, token)) {
+    return res.status(403).json({
+      error: "CSRF token invalid",
+      message: "Invalid or expired CSRF token. Please refresh and try again.",
+    });
+  }
+
+  next();
+};
+
+// Apply CSRF protection to all routes
+app.use(csrfProtectionMiddleware);
 
 const filesFieldSchema = z
   .union([z.record(z.string(), z.any()), z.null()])
