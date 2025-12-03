@@ -48,7 +48,6 @@ export const Dashboard: React.FC = () => {
   const [drawings, setDrawings] = useState<DrawingSummary[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
 
-  // Derived state from URL
   const selectedCollectionId = React.useMemo(() => {
     if (location.pathname === '/') return undefined;
     if (location.pathname === '/collections') {
@@ -75,15 +74,12 @@ export const Dashboard: React.FC = () => {
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [showBulkMoveMenu, setShowBulkMoveMenu] = useState(false);
 
-  // Modal State
   const [drawingToDelete, setDrawingToDelete] = useState<string | null>(null);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
-  // Import state
   const [showImportError, setShowImportError] = useState<{ isOpen: boolean; message: string }>({ isOpen: false, message: '' });
   const [showImportSuccess, setShowImportSuccess] = useState(false);
 
-  // Drag Selection State
   const [isDragSelecting, setIsDragSelecting] = useState(false);
   const [dragStart, setDragStart] = useState<Point | null>(null);
   const [dragCurrent, setDragCurrent] = useState<Point | null>(null);
@@ -102,7 +98,6 @@ export const Dashboard: React.FC = () => {
   });
 
   const [isLoading, setIsLoading] = useState(false);
-  // navigate is already declared at the top
 
   const refreshData = useCallback(async () => {
     setIsLoading(true);
@@ -125,7 +120,6 @@ export const Dashboard: React.FC = () => {
     refreshData();
   }, [refreshData]);
 
-  // Drag File State
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const dragCounter = useRef(0);
 
@@ -208,7 +202,6 @@ export const Dashboard: React.FC = () => {
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button, a, input, textarea, .drawing-card')) return;
-    // Don't start drag selection if user is editing text
     if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) return;
 
     if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
@@ -231,7 +224,6 @@ export const Dashboard: React.FC = () => {
     });
   }, [drawings, sortConfig]);
 
-  // Keyboard Shortcuts (Cmd+A, Escape, Cmd+K)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Cmd+A or Ctrl+A to Select All
@@ -293,9 +285,8 @@ export const Dashboard: React.FC = () => {
     );
   };
 
-  // Trash Helpers
-  const isTrashView = selectedCollectionId === 'trash';
-
+  
+    const isTrashView = selectedCollectionId === 'trash';
   const handleCreateDrawing = async () => {
     if (isTrashView) return;
     try {
@@ -330,7 +321,6 @@ export const Dashboard: React.FC = () => {
     await api.updateDrawing(id, { name });
   };
 
-  // Logic for deleting a single drawing
   const handleDeleteDrawing = async (id: string) => {
     if (isTrashView) {
       // Permanent Delete -> Confirm first
@@ -378,7 +368,6 @@ export const Dashboard: React.FC = () => {
           const start = Math.min(currentIndex, lastIndex);
           const end = Math.max(currentIndex, lastIndex);
 
-          // Select range
           for (let i = start; i <= end; i++) {
             next.add(sortedDrawings[i].id);
           }
@@ -386,7 +375,6 @@ export const Dashboard: React.FC = () => {
         }
       }
 
-      // Normal Toggle
       if (next.has(id)) {
         next.delete(id);
         setLastSelectedId(null);
@@ -398,13 +386,11 @@ export const Dashboard: React.FC = () => {
     });
   };
 
-  // Bulk Delete
   const handleBulkDeleteClick = () => {
     if (selectedIds.size === 0) return;
     if (isTrashView) {
       setShowBulkDeleteConfirm(true);
     } else {
-      // Move all to Trash
       executeBulkMoveToTrash();
     }
   };
@@ -566,7 +552,6 @@ export const Dashboard: React.FC = () => {
 
     let idsToMove = new Set<string>();
 
-    // If the dragged item is part of the selection, move all selected items
     if (selectedIds.has(draggedDrawingId)) {
       idsToMove = new Set(selectedIds);
     } else {
@@ -599,11 +584,9 @@ export const Dashboard: React.FC = () => {
 
   const dragPreviewDrawings = React.useMemo(() => {
     if (!potentialDragId) return [];
-    // If dragging a selected item and we have multiple selected, show all
     if (selectedIds.has(potentialDragId) && selectedIds.size > 1) {
       return drawings.filter(d => selectedIds.has(d.id));
     }
-    // Otherwise show just the dragged item
     const drawing = drawings.find(d => d.id === potentialDragId);
     return drawing ? [drawing] : [];
   }, [potentialDragId, selectedIds, drawings]);
@@ -623,7 +606,6 @@ export const Dashboard: React.FC = () => {
     setDrawings(prev => prev.map(d => d.id === id ? { ...d, preview } : d));
   };
 
-  // Filter out trash from the collections list passed to sidebar
   const visibleCollections = React.useMemo(() => collections.filter(c => c.id !== 'trash'), [collections]);
 
   return (
@@ -636,7 +618,6 @@ export const Dashboard: React.FC = () => {
       onDeleteCollection={handleDeleteCollection}
       onDrop={handleDrop}
     >
-      {/* Drag Preview */}
       <div
         id="drag-preview"
         className="fixed top-[-1000px] left-[-1000px] w-[160px] aspect-[16/10] pointer-events-none"
@@ -654,7 +635,6 @@ export const Dashboard: React.FC = () => {
                   height: '100%'
                 }}
               >
-                {/* Grid Pattern */}
                 <div className="absolute inset-0 opacity-[0.3] bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] [background-size:24px_24px]"></div>
 
                 {d.preview ? (
@@ -676,8 +656,7 @@ export const Dashboard: React.FC = () => {
         )}
       </div>
 
-      {/* Drag Selection Overlay */}
-      {isDragSelecting && selectionBounds && (
+    {isDragSelecting && selectionBounds && (
         <DragOverlayPortal>
           <div
             className="fixed z-50 pointer-events-none border-2 border-black dark:border-neutral-500 bg-neutral-500/20 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)]"
@@ -697,7 +676,6 @@ export const Dashboard: React.FC = () => {
 
       <div className="mb-8 flex flex-col xl:flex-row items-center justify-between gap-4">
         <div className="flex flex-1 w-full gap-3 items-center">
-          {/* Search and Sort */}
           <div className="relative flex-1 group max-w-md transition-all duration-200 focus-within:-translate-y-0.5">
             <input
               ref={searchInputRef}
@@ -722,7 +700,6 @@ export const Dashboard: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-          {/* Bulk Actions */}
           <div className="flex items-center gap-2 mr-2">
             <button
               onClick={handleBulkDeleteClick}
@@ -792,7 +769,6 @@ export const Dashboard: React.FC = () => {
                         <Folder size={14} /> <span className="truncate">{c.name}</span>
                       </button>
                     ))}
-                    {/* Option to move to Trash explicitly? Probably not needed if we have the delete button */}
                   </div>
                 </>
               )}
@@ -807,7 +783,7 @@ export const Dashboard: React.FC = () => {
             id="dashboard-import"
             onChange={(e) => {
               handleImportDrawings(e.target.files);
-              e.target.value = ''; // Reset input
+              e.target.value = '';
             }}
           />
 
@@ -861,7 +837,6 @@ export const Dashboard: React.FC = () => {
           handleDrop(e, target);
         }}
       >
-        {/* File Drag Overlay */}
         {isDraggingFile && (
           <div className="absolute inset-0 z-50 bg-white/80 backdrop-blur-sm border-4 border-dashed border-indigo-400 rounded-3xl flex flex-col items-center justify-center animate-in fade-in duration-200">
             <div className="bg-indigo-50 p-8 rounded-full mb-6 shadow-sm">
@@ -934,7 +909,6 @@ export const Dashboard: React.FC = () => {
         )}
       </div>
 
-      {/* Modals */}
       <ConfirmModal
         isOpen={!!drawingToDelete}
         title="Delete Drawing"

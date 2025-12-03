@@ -24,13 +24,10 @@ export const importDrawings = async (
         const text = await file.text();
         const data = JSON.parse(text);
 
-        // Basic validation
         if (!data.elements || !data.appState) {
           throw new Error(`Invalid file structure: ${file.name}`);
         }
 
-        // Use raw elements directly from the file - no normalization needed
-        // Generate Preview with raw elements
         const svg = await exportToSvg({
           elements: data.elements,
           appState: {
@@ -42,7 +39,6 @@ export const importDrawings = async (
           exportPadding: 10,
         });
 
-        // Prepare payload with raw elements
         const payload = {
           name: file.name.replace(/\.(json|excalidraw)$/, ""),
           elements: data.elements,
@@ -58,7 +54,7 @@ export const importDrawings = async (
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-Imported-File": "true", // Mark as imported file for additional validation
+            "X-Imported-File": "true",
           },
           body: JSON.stringify(payload),
         });

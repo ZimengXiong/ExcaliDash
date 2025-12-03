@@ -13,7 +13,6 @@ export const Settings: React.FC = () => {
     const navigate = useNavigate();
     const { theme, toggleTheme } = useTheme();
 
-    // Import state
     const [importConfirmation, setImportConfirmation] = useState<{ isOpen: boolean; file: File | null }>({ isOpen: false, file: null });
     const [importError, setImportError] = useState<{ isOpen: boolean; message: string }>({ isOpen: false, message: '' });
     const [importSuccess, setImportSuccess] = useState(false);
@@ -50,7 +49,6 @@ export const Settings: React.FC = () => {
     };
 
     const handleSelectCollection = (id: string | null | undefined) => {
-        // Navigate to dashboard with selected collection
         if (id === undefined) navigate('/');
         else if (id === null) navigate('/collections?id=unorganized');
         else navigate(`/collections?id=${id}`);
@@ -61,7 +59,7 @@ export const Settings: React.FC = () => {
     return (
         <Layout
             collections={collections}
-            selectedCollectionId="SETTINGS" // Special ID to highlight Settings in Sidebar if we add logic for it
+            selectedCollectionId="SETTINGS"
             onSelectCollection={handleSelectCollection}
             onCreateCollection={handleCreateCollection}
             onEditCollection={handleEditCollection}
@@ -72,7 +70,6 @@ export const Settings: React.FC = () => {
             </h1>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Theme Toggle */}
                 <button
                     onClick={toggleTheme}
                     className="flex flex-col items-center justify-center gap-4 p-8 bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[6px_6px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-1 transition-all duration-200 group"
@@ -94,7 +91,6 @@ export const Settings: React.FC = () => {
                     </div>
                 </button>
 
-                {/* Export SQLite (.sqlite) */}
                 <button
                     onClick={() => window.location.href = `${api.API_URL}/export`}
                     className="flex flex-col items-center justify-center gap-4 p-8 bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[6px_6px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-1 transition-all duration-200 group"
@@ -108,7 +104,6 @@ export const Settings: React.FC = () => {
                     </div>
                 </button>
 
-                {/* Export SQLite (.db) */}
                 <button
                     onClick={() => window.location.href = `${api.API_URL}/export?format=db`}
                     className="flex flex-col items-center justify-center gap-4 p-8 bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[6px_6px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-1 transition-all duration-200 group"
@@ -122,7 +117,6 @@ export const Settings: React.FC = () => {
                     </div>
                 </button>
 
-                {/* Export JSON */}
                 <button
                     onClick={() => window.location.href = `${api.API_URL}/export/json`}
                     className="flex flex-col items-center justify-center gap-4 p-8 bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[6px_6px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-1 transition-all duration-200 group"
@@ -136,7 +130,6 @@ export const Settings: React.FC = () => {
                     </div>
                 </button>
 
-                {/* Import Data */}
                 <div className="relative">
                     <input
                         type="file"
@@ -183,7 +176,6 @@ export const Settings: React.FC = () => {
                                 return;
                             }
 
-                            // Handle Bulk Drawing Import
                             const drawingFiles = files.filter(f => f.name.endsWith('.json') || f.name.endsWith('.excalidraw'));
                             if (drawingFiles.length === 0) {
                                 setImportError({ isOpen: true, message: 'No supported files found.' });
@@ -220,7 +212,6 @@ export const Settings: React.FC = () => {
                     </button>
                 </div>
 
-                {/* Version Info */}
                 <div className="flex flex-col items-center justify-center gap-4 p-8 bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)]">
                     <div className="w-16 h-16 bg-gray-50 dark:bg-neutral-800 rounded-2xl flex items-center justify-center border-2 border-gray-100 dark:border-neutral-700">
                         <Info size={32} className="text-gray-600 dark:text-gray-400" />
@@ -241,7 +232,6 @@ export const Settings: React.FC = () => {
                 </div>
             </div>
 
-            {/* Modals */}
             <ConfirmModal
                 isOpen={importConfirmation.isOpen}
                 title="Import Database"

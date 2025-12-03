@@ -37,7 +37,6 @@ const haveSameElements = (a: readonly any[] = [], b: readonly any[] = []) => {
   return true;
 };
 
-// Move UIOptions outside to prevent re-creation on every render
 const UIOptions = {
   canvasActions: {
     saveToActiveFile: false,
@@ -107,9 +106,8 @@ export const Editor: React.FC = () => {
   useEffect(() => {
     if (!id || !isReady) return;
 
-    // For production/Docker, connect to same origin. For dev, use localhost:8000
-    const socketUrl = import.meta.env.VITE_API_URL === '/api' 
-      ? window.location.origin 
+    const socketUrl = import.meta.env.VITE_API_URL === '/api'
+      ? window.location.origin
       : (import.meta.env.VITE_API_URL || 'http://localhost:8000');
     
     const socket = io(socketUrl, {
@@ -124,11 +122,11 @@ export const Editor: React.FC = () => {
     const renderLoop = () => {
       if (cursorBuffer.current.size > 0 && excalidrawAPI.current) {
         const collaborators = new Map(excalidrawAPI.current.getAppState().collaborators || []);
-        
+
         cursorBuffer.current.forEach((data, userId) => {
            collaborators.set(userId, data);
         });
-        
+
         cursorBuffer.current.clear();
         excalidrawAPI.current.updateScene({ collaborators });
       }
@@ -138,8 +136,7 @@ export const Editor: React.FC = () => {
 
     socket.on('presence-update', (users: Peer[]) => {
       setPeers(users.filter(u => u.id !== me.id));
-      
-      // Update collaborators map to remove inactive users
+
       if (excalidrawAPI.current) {
         const collaborators = new Map(excalidrawAPI.current.getAppState().collaborators || []);
         users.forEach(user => {
@@ -152,7 +149,6 @@ export const Editor: React.FC = () => {
     });
 
     socket.on('cursor-move', (data: any) => {
-       // Just buffer the data
        cursorBuffer.current.set(data.userId, {
           pointer: data.pointer,
           button: data.button || 'up',
@@ -166,32 +162,26 @@ export const Editor: React.FC = () => {
 
     socket.on('element-update', ({ elements }: { elements: any[] }) => {
       if (!excalidrawAPI.current) return;
-      
+
       isSyncing.current = true;
 
-      // 3. THE SELECTION GUARD (Fixes Dragging/Snap-back)
-      // Get IDs of elements YOU are currently holding
       const currentAppState = excalidrawAPI.current.getAppState();
       const mySelectedIds = currentAppState.selectedElementIds || {};
 
-      // Filter out updates for elements you are currently dragging
-      // This prevents the server from pulling the object out of your hand
       const validRemoteElements = elements.filter((el: any) => !mySelectedIds[el.id]);
 
       const localElements = excalidrawAPI.current.getSceneElementsIncludingDeleted();
       const mergedElements = reconcileElements(localElements, validRemoteElements);
-      
-      // Update version map with remote versions to avoid echoing
+
       validRemoteElements.forEach((el: any) => {
         recordElementVersion(el);
       });
-      
+
       excalidrawAPI.current.updateScene({ elements: mergedElements });
       latestElementsRef.current = mergedElements;
       isSyncing.current = false;
     });
 
-    // Activity Tracking
     const handleActivity = (isActive: boolean) => {
       socket.emit('user-activity', { drawingId: id, isActive });
     };
@@ -265,11 +255,7 @@ export const Editor: React.FC = () => {
         }
 
         const blob = await response.blob();
-        
-        // Use Excalidraw's updateLibrary API with proper settings:
-        // - defaultStatus: "published" puts items in "Excalidraw library" section
-        // - merge: true preserves existing library items
-        // - openLibraryMenu: true shows the library sidebar after import
+
         await excalidrawAPI.current.updateLibrary({
           libraryItems: blob,
           merge: true,
@@ -277,7 +263,6 @@ export const Editor: React.FC = () => {
           openLibraryMenu: true,
         });
 
-        // Get the updated library items and persist to server
         const updatedItems = excalidrawAPI.current.getAppState().libraryItems || [];
         await api.updateLibrary([...updatedItems]);
 
@@ -306,21 +291,14 @@ export const Editor: React.FC = () => {
     scrollToContent: true,
   }), []);
 
-  // ------------------------------------------------------------------
-  // 1. STABLE SAVE LOGIC (The Fix)
-  // We use a Ref to hold the save function so the debounce wrapper
-  // doesn't need to be recreated on every render.
-  // ------------------------------------------------------------------
   const saveDataRef = useRef<((elements: readonly any[], appState: any) => Promise<void>) | null>(null);
   const savePreviewRef = useRef<((elements: readonly any[], appState: any, files: any) => Promise<void>) | null>(null);
   const saveLibraryRef = useRef<((items: any[]) => Promise<void>) | null>(null);
 
-  // Update the ref on every render to ensure it has access to the latest props/state
   saveDataRef.current = async (elements: readonly any[], appState: any) => {
     if (!id) return;
-    
+
     try {
-      // Ensure we always have valid data structure
       const persistableAppState = {
         viewBackgroundColor: appState?.viewBackgroundColor || '#ffffff',
         gridSize: appState?.gridSize || null,
@@ -356,7 +334,6 @@ export const Editor: React.FC = () => {
       const currentSnapshot = latestElementsRef.current ?? elements;
       const currentFiles = latestFilesRef.current ?? files;
 
-      // Generate preview
       const svg = await exportToSvg({
         elements: currentSnapshot,
         appState: {
@@ -392,17 +369,15 @@ export const Editor: React.FC = () => {
     }
   };
 
-  // Create the debounced function ONLY ONCE.
-  // It simply calls whatever is currently in saveDataRef.current
-  const debouncedSave = useCallback(
-    debounce((elements, appState) => {
-      if (saveDataRef.current) {
-        saveDataRef.current(elements, appState);
-      }
-    }, 1000),
-    [] // Empty dependency array = Stable across renders
-  );
-
+  
+    const debouncedSave = useCallback(
+      debounce((elements, appState) => {
+        if (saveDataRef.current) {
+          saveDataRef.current(elements, appState);
+        }
+      }, 1000),
+      [] // Empty dependency array = Stable across renders
+    );
   const debouncedSavePreview = useCallback(
     debounce((elements, appState, files) => {
       if (savePreviewRef.current) {
@@ -445,9 +420,6 @@ export const Editor: React.FC = () => {
     [id, hasElementChanged, recordElementVersion]
   );
 
-  // ------------------------------------------------------------------
-  // 2. DATA LOADING
-  // ------------------------------------------------------------------
   useEffect(() => {
     isBootstrappingScene.current = true;
     hasHydratedInitialScene.current = false;
@@ -466,7 +438,6 @@ export const Editor: React.FC = () => {
         return;
       }
       try {
-        // Fetch drawing and library in parallel
         const [data, libraryItems] = await Promise.all([
           api.getDrawing(id),
           api.getLibrary().catch((err) => {
@@ -475,8 +446,7 @@ export const Editor: React.FC = () => {
           })
         ]);
         setDrawingName(data.name);
-        
-        // Use elements directly without converting - they're already normalized during import
+
         const elements = data.elements || [];
         const files = data.files || {};
         latestElementsRef.current = elements;
@@ -514,10 +484,6 @@ export const Editor: React.FC = () => {
     loadData();
   }, [id, recordElementVersion, buildEmptyScene]);
 
-  // ------------------------------------------------------------------
-  // 3. HANDLERS
-  // ------------------------------------------------------------------
-  
   // Hijack Ctrl+S to save immediately
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
@@ -529,9 +495,7 @@ export const Editor: React.FC = () => {
           const files = excalidrawAPI.current.getFiles() || {};
           latestElementsRef.current = elements;
           latestFilesRef.current = files;
-          // Call save immediately, bypassing debounce
           await saveDataRef.current(elements, appState);
-          // Also update preview
           savePreviewRef.current(elements, appState, files);
           toast.success("Saved changes to server");
         }
@@ -547,8 +511,6 @@ export const Editor: React.FC = () => {
       return;
     }
 
-    // 4. STOP THE ECHO
-    // If this change was caused by a socket update, do NOT broadcast it back
     if (isSyncing.current) return;
     
     // Get ALL elements including deleted (fixes the "deletion not syncing" bug)
@@ -627,7 +589,6 @@ export const Editor: React.FC = () => {
   }, [debouncedSaveLibrary]);
 
   // Disable native Excalidraw save dialogs
-  // UIOptions is now defined outside the component
 
   const handleBackClick = async () => {
     // Save drawing and generate preview before navigating
@@ -639,7 +600,6 @@ export const Editor: React.FC = () => {
       latestFilesRef.current = files;
       
       try {
-        // Save both drawing data and preview
         await Promise.all([
           saveDataRef.current(elements, appState),
           savePreviewRef.current(elements, appState, files)
