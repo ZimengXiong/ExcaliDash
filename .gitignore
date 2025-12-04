@@ -4,8 +4,15 @@ backend/node_modules
 
 # Database
 backend/prisma/*.db
+backend/prisma/**/*.db
+backend/prisma/*.db-journal
+backend/prisma/**/*.db-journal
 backend/prisma/dev.db
 backend/prisma/e2e-test.db
+backend/prisma/*.backup
+
+# Uploads
+backend/uploads/
 
 # Generated files
 backend/src/generated/
