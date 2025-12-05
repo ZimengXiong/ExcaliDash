@@ -4,7 +4,15 @@ backend/node_modules
 
 # Database
 backend/prisma/*.db
+backend/prisma/**/*.db
+backend/prisma/*.db-journal
+backend/prisma/**/*.db-journal
 backend/prisma/dev.db
+backend/prisma/e2e-test.db
+backend/prisma/*.backup
+
+# Uploads
+backend/uploads/
 
 # Generated files
 backend/src/generated/
@@ -19,6 +27,25 @@ backend/src/generated/
 frontend/dist/
 frontend/build/
 backend/dist/
+
+# E2E Testing
+e2e/node_modules/
+e2e/test-results/
+e2e/playwright-report/
+e2e/.playwright/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# Test artifacts (in case they appear in other locations)
+**/playwright-report/
+**/test-results/
+**/playwright/.cache/
+
+# Docker volumes (if any temporary ones are created)
+docker-volumes/
 
 # Logs
 *.log
@@ -36,6 +63,13 @@ pids
 # Coverage directory used by tools like istanbul
 coverage/
 *.lcov
+
+# Vitest cache
+.vitest/
+
+# Playwright screenshots/videos on failure
+**/screenshots/
+**/videos/
 
 # Dependency directories
 jspm_packages/

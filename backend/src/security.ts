@@ -11,6 +11,44 @@ const window = new JSDOM("").window;
 const purify = DOMPurify(window);
 
 /**
+ * Configuration for security limits
+ */
+export interface SecurityConfig {
+  /** Maximum size for dataURL in bytes (default: 10MB) */
+  maxDataUrlSize: number;
+}
+
+// Default configuration
+const defaultConfig: SecurityConfig = {
+  maxDataUrlSize: 10 * 1024 * 1024, // 10MB
+};
+
+// Current active configuration
+let activeConfig: SecurityConfig = { ...defaultConfig };
+
+/**
+ * Configure security settings
+ * @param config Partial configuration to merge with defaults
+ */
+export const configureSecuritySettings = (config: Partial<SecurityConfig>): void => {
+  activeConfig = { ...activeConfig, ...config };
+};
+
+/**
+ * Reset security settings to defaults
+ */
+export const resetSecuritySettings = (): void => {
+  activeConfig = { ...defaultConfig };
+};
+
+/**
+ * Get current security configuration
+ */
+export const getSecurityConfig = (): SecurityConfig => {
+  return { ...activeConfig };
+};
+
+/**
  * Sanitize HTML/JS content using DOMPurify (battle-tested library)
  */
 export const sanitizeHtml = (input: string): string => {
@@ -437,18 +475,85 @@ export const sanitizeDrawingData = (data: {
       sanitizedPreview = sanitizeSvg(sanitizedPreview);
     }
 
-    // Sanitize files object
+    // Sanitize files object with special handling for dataURL
     let sanitizedFiles = data.files;
     if (typeof sanitizedFiles === "object" && sanitizedFiles !== null) {
-      // Recursively sanitize any string values in files
-      sanitizedFiles = JSON.parse(
-        JSON.stringify(sanitizedFiles, (key, value) => {
-          if (typeof value === "string") {
-            return sanitizeText(value, 10000);
+      // Create a deep copy to avoid mutating the original input
+      sanitizedFiles = structuredClone(sanitizedFiles);
+
+      // Safe image MIME types that we allow for dataURL (case-insensitive)
+      const safeImageTypes = [
+        "data:image/png",
+        "data:image/jpeg",
+        "data:image/jpg",
+        "data:image/gif",
+        "data:image/webp",
+      ];
+
+      // Dangerous URL protocols to block entirely
+      const dangerousProtocols = [/^javascript:/i, /^vbscript:/i, /^data:text\/html/i];
+
+      // Suspicious patterns for security validation within data URLs
+      const suspiciousPatterns = [/<script/i, /javascript:/i, /on\w+\s*=/i, /<iframe/i];
+
+      // Maximum size for dataURL (configurable, default 10MB to prevent DoS)
+      const MAX_DATAURL_SIZE = activeConfig.maxDataUrlSize;
+
+      // Iterate over each file in the dictionary
+      for (const fileId in sanitizedFiles) {
+        const file = sanitizedFiles[fileId];
+        if (typeof file === "object" && file !== null) {
+          // Sanitize each property of the file object
+          for (const key in file) {
+            const value = file[key];
+            if (typeof value === "string") {
+              // Special handling for dataURL: allow it to be long if it's a valid image data URL
+              if (key === "dataURL") {
+                const normalizedValue = value.toLowerCase();
+
+                // First, check for dangerous protocols - block these entirely
+                const hasDangerousProtocol = dangerousProtocols.some((pattern) =>
+                  pattern.test(value)
+                );
+
+                if (hasDangerousProtocol) {
+                  // Block dangerous URLs entirely
+                  file[key] = "";
+                  continue;
+                }
+
+                // Check if it's a safe image type
+                const isSafeImageType = safeImageTypes.some((type) =>
+                  normalizedValue.startsWith(type)
+                );
+
+                if (isSafeImageType) {
+                  // Check for suspicious content and size limits
+                  const hasSuspiciousContent = suspiciousPatterns.some((pattern) =>
+                    pattern.test(value)
+                  );
+                  const isTooLarge = value.length > MAX_DATAURL_SIZE;
+
+                  if (hasSuspiciousContent || isTooLarge) {
+                    // Clear suspicious or oversized data URLs
+                    file[key] = "";
+                  } else {
+                    // Keep the base64-encoded image data URL as-is
+                    file[key] = value;
+                  }
+                } else {
+                  // Not a safe image type and not a dangerous protocol
+                  // Sanitize as text but this likely means it's invalid anyway
+                  file[key] = sanitizeText(value, 1000);
+                }
+              } else {
+                // For all other string fields (id, mimeType, etc.), apply strict sanitization
+                file[key] = sanitizeText(value, 1000);
+              }
+            }
           }
-          return value;
-        })
-      );
+        }
+      }
     }
 
     return {
