@@ -44,6 +44,16 @@ const resolveDatabaseUrl = (rawUrl?: string) => {
 process.env.DATABASE_URL = resolveDatabaseUrl(process.env.DATABASE_URL);
 console.log("Resolved DATABASE_URL:", process.env.DATABASE_URL);
 
+// Helper to get the resolved database file path
+const getResolvedDbPath = (): string => {
+  const dbUrl = process.env.DATABASE_URL || `file:${defaultDbPath}`;
+  if (dbUrl.startsWith("file:")) {
+    return dbUrl.replace(/^file:/, "");
+  }
+  // Fallback to default for non-file URLs (e.g., Postgres)
+  return defaultDbPath;
+};
+
 const normalizeOrigins = (rawOrigins?: string | null): string[] => {
   const fallback = "http://localhost:6767";
   if (!rawOrigins || rawOrigins.trim().length === 0) {
@@ -901,7 +911,7 @@ app.get("/export", async (req, res) => {
         ? req.query.format.toLowerCase()
         : undefined;
     const extension = formatParam === "db" ? "db" : "sqlite";
-    const dbPath = path.resolve(__dirname, "../prisma/dev.db");
+    const dbPath = getResolvedDbPath();
 
     try {
       await fsPromises.access(dbPath);
@@ -1068,8 +1078,8 @@ app.post("/import/sqlite", upload.single("db"), async (req, res) => {
         .json({ error: "Uploaded database failed integrity check" });
     }
 
-    const dbPath = path.resolve(__dirname, "../prisma/dev.db");
-    const backupPath = path.resolve(__dirname, "../prisma/dev.db.backup");
+    const dbPath = getResolvedDbPath();
+    const backupPath = `${dbPath}.backup`;
 
     try {
       try {
