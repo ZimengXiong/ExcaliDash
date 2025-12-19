@@ -104,24 +104,53 @@ jobs:
           cd e2e
           npx playwright install chromium --with-deps
       
-      - name: Start backend server
+      - name: Start servers and run E2E tests
         run: |
+          # Start backend server in background
           cd backend
           DATABASE_URL="file:./prisma/e2e-test.db" FRONTEND_URL="http://localhost:5173" npm run dev &
-          sleep 10
-          curl --retry 10 --retry-delay 2 --retry-all-errors http://localhost:8000/health
-      
-      - name: Start frontend server
-        run: |
+          BACKEND_PID=$!
+          cd ..
+          
+          # Wait for backend to be ready
+          echo "Waiting for backend server..."
+          for i in {1..30}; do
+            if curl -s http://localhost:8000/health > /dev/null; then
+              echo "Backend is ready!"
+              break
+            fi
+            echo "Attempt $i: Backend not ready yet..."
+            sleep 2
+          done
+          
+          # Start frontend server in background
           cd frontend
           npm run dev -- --host &
-          sleep 5
-          curl --retry 10 --retry-delay 2 --retry-all-errors http://localhost:5173
-      
-      - name: Run E2E tests
-        run: |
+          FRONTEND_PID=$!
+          cd ..
+          
+          # Wait for frontend to be ready
+          echo "Waiting for frontend server..."
+          for i in {1..30}; do
+            if curl -s http://localhost:5173 > /dev/null; then
+              echo "Frontend is ready!"
+              break
+            fi
+            echo "Attempt $i: Frontend not ready yet..."
+            sleep 2
+          done
+          
+          # Run E2E tests
           cd e2e
           NO_SERVER=true CI=true npx playwright test
+          TEST_EXIT_CODE=$?
+          
+          # Cleanup
+          kill $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
+          
+          exit $TEST_EXIT_CODE
+        env:
+          DATABASE_URL: file:./prisma/e2e-test.db
       
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
