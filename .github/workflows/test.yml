@@ -87,7 +87,7 @@ jobs:
           cd backend
           npx prisma db push
         env:
-          DATABASE_URL: file:./prisma/e2e-test.db
+          DATABASE_URL: file:${{ github.workspace }}/backend/prisma/e2e-test.db
       
       - name: Install frontend dependencies
         run: |
@@ -108,7 +108,7 @@ jobs:
         run: |
           # Start backend server in background
           cd backend
-          DATABASE_URL="file:./prisma/e2e-test.db" FRONTEND_URL="http://localhost:5173" npm run dev &
+          DATABASE_URL="file:${{ github.workspace }}/backend/prisma/e2e-test.db" FRONTEND_URL="http://localhost:5173" npm run dev &
           BACKEND_PID=$!
           cd ..
           
@@ -150,7 +150,7 @@ jobs:
           
           exit $TEST_EXIT_CODE
         env:
-          DATABASE_URL: file:./prisma/e2e-test.db
+          DATABASE_URL: file:${{ github.workspace }}/backend/prisma/e2e-test.db
       
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
