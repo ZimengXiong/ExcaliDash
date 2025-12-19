@@ -3,7 +3,6 @@
  */
 import { PrismaClient } from "../generated/client";
 import path from "path";
-import fs from "fs";
 import { execSync } from "child_process";
 
 // Use a separate test database
