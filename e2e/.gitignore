@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Test output
+test-results/
+playwright-report/
+
+# Playwright state
+.playwright/
+
+# OS files
+.DS_Store
+
+# Editor
+.idea/
+*.swp
+*.swo
