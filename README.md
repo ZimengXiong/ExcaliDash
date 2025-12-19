@@ -1,6 +1,6 @@
 <img src="logoExcaliDash.png" alt="ExcaliDash Logo" width="80" height="88">
 
-# ExcaliDash v0.1.7
+# ExcaliDash v0.1.8
 
 ![License](https://img.shields.io/github/license/zimengxiong/ExcaliDash)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
