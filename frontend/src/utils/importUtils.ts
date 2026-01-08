@@ -1,10 +1,18 @@
 import { exportToSvg } from "@excalidraw/excalidraw";
+import axios from "axios";
 import { API_URL } from "../api";
+import { type UploadStatus } from "../context/UploadContext";
 
 export const importDrawings = async (
   files: File[],
   targetCollectionId: string | null,
-  onSuccess?: () => void | Promise<void>
+  onSuccess?: () => void | Promise<void>,
+  onProgress?: (
+    fileName: string, 
+    status: UploadStatus, 
+    progress: number, 
+    error?: string
+  ) => void
 ) => {
   const drawingFiles = files.filter(
     (f) => f.name.endsWith(".json") || f.name.endsWith(".excalidraw")
@@ -18,9 +26,13 @@ export const importDrawings = async (
   let failCount = 0;
   const errors: string[] = [];
 
+  // We process files in parallel (Promise.all) but we could limit concurrency if needed.
+  // For now, full parallel is fine as browser limits connection count anyway.
   await Promise.all(
     drawingFiles.map(async (file) => {
       try {
+        if (onProgress) onProgress(file.name, 'processing', 0); // Parsing phase
+
         const text = await file.text();
         const data = JSON.parse(text);
 
@@ -50,21 +62,32 @@ export const importDrawings = async (
           preview: svg.outerHTML,
         };
 
-        const res = await fetch(`${API_URL}/drawings`, {
-          method: "POST",
+        if (onProgress) onProgress(file.name, 'uploading', 0);
+
+        await axios.post(`${API_URL}/drawings`, payload, {
           headers: {
             "Content-Type": "application/json",
             "X-Imported-File": "true",
           },
-          body: JSON.stringify(payload),
+          onUploadProgress: (progressEvent) => {
+            if (onProgress && progressEvent.total) {
+              const percentCompleted = Math.round(
+                (progressEvent.loaded * 100) / progressEvent.total
+              );
+              onProgress(file.name, 'uploading', percentCompleted);
+            }
+          },
         });
 
-        if (!res.ok) throw new Error("API Error");
+        if (onProgress) onProgress(file.name, 'success', 100);
         successCount++;
+        
       } catch (err: any) {
         console.error(`Failed to import ${file.name}:`, err);
         failCount++;
-        errors.push(`${file.name}: ${err.message}`);
+        const errorMessage = err.response?.data?.error || err.message || "Upload failed";
+        errors.push(`${file.name}: ${errorMessage}`);
+        if (onProgress) onProgress(file.name, 'error', 0, errorMessage);
       }
     })
   );

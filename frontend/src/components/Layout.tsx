@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
+import { UploadStatus } from './UploadStatus';
 import type { Collection } from '../types';
 
 interface LayoutProps {
@@ -93,6 +94,7 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
         </main>
       </div>
+      <UploadStatus />
     </div>
   );
 };
