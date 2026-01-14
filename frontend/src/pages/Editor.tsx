@@ -593,26 +593,28 @@ export const Editor: React.FC = () => {
 
   const handleBackClick = async () => {
     if (isSavingOnLeave) return; // Prevent double clicks
-    
+
     setIsSavingOnLeave(true);
 
     // Save drawing and generate preview before navigating
-    if (excalidrawAPI.current && saveDataRef.current && savePreviewRef.current) {
-      const elements = excalidrawAPI.current.getSceneElementsIncludingDeleted();
-      const appState = excalidrawAPI.current.getAppState();
-      const files = excalidrawAPI.current.getFiles() || {};
-      latestElementsRef.current = elements;
-      latestFilesRef.current = files;
-      
-      try {
+    try {
+      if (excalidrawAPI.current && saveDataRef.current && savePreviewRef.current) {
+        const elements = excalidrawAPI.current.getSceneElementsIncludingDeleted();
+        const appState = excalidrawAPI.current.getAppState();
+        const files = excalidrawAPI.current.getFiles() || {};
+        latestElementsRef.current = elements;
+        latestFilesRef.current = files;
+
         await Promise.all([
           saveDataRef.current(elements, appState),
           savePreviewRef.current(elements, appState, files)
         ]);
         console.log("[Editor] Saved on back navigation", { drawingId: id });
-      } catch (err) {
-        console.error('Failed to save on back navigation', err);
       }
+    } catch (err) {
+      console.error('Failed to save on back navigation', err);
+    } finally {
+      setIsSavingOnLeave(false);
     }
     navigate('/');
   };

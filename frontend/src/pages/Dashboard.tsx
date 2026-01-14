@@ -307,10 +307,9 @@ export const Dashboard: React.FC = () => {
     const targetCollectionId = selectedCollectionId === undefined ? null : selectedCollectionId;
     
     // Use the global upload context
-    uploadFiles(fileArray, targetCollectionId).then(() => {
-       // Refresh after upload is presumably done or started
-       // Since uploadFiles waits for all, we can refresh here.
-       refreshData();
+    uploadFiles(fileArray, targetCollectionId).finally(() => {
+      // Refresh after all uploads complete (success or failure)
+      refreshData();
     });
   };
 
@@ -534,8 +533,8 @@ export const Dashboard: React.FC = () => {
 
       const drawingFiles = files.filter(f => !f.name.endsWith('.excalidrawlib'));
       if (drawingFiles.length > 0) {
-        uploadFiles(drawingFiles, targetCollectionId).then(() => {
-            refreshData();
+        uploadFiles(drawingFiles, targetCollectionId).finally(() => {
+          refreshData();
         });
       }
 

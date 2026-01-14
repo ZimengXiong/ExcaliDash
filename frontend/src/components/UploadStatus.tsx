@@ -10,7 +10,7 @@ export const UploadStatus: React.FC = () => {
 
   // Auto-open when upload starts
   useEffect(() => {
-    if (isUploading && !isOpen) {
+    if (isUploading) {
       setIsOpen(true);
     }
   }, [isUploading]);
@@ -84,8 +84,7 @@ export const UploadStatus: React.FC = () => {
                       <div 
                         className={clsx(
                           "h-full transition-all duration-300 ease-out rounded-full",
-                          task.status === 'error' ? "bg-rose-500" : "bg-indigo-600",
-                          task.status === 'success' && "bg-emerald-500"
+                          task.status === 'error' ? "bg-rose-500" : task.status === 'success' ? "bg-emerald-500" : "bg-indigo-600"
                         )}
                         style={{ width: `${task.progress}%` }}
                       />

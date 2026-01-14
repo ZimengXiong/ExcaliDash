@@ -48,7 +48,7 @@ export const UploadProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const uploadFiles = useCallback(async (files: File[], targetCollectionId: string | null) => {
     const newTasks: UploadTask[] = files.map(f => ({
-      id: Math.random().toString(36).substr(2, 9),
+      id: Math.random().toString(36).substring(2, 11),
       fileName: f.name,
       status: 'pending',
       progress: 0
@@ -56,34 +56,26 @@ export const UploadProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     setTasks(prev => [...newTasks, ...prev]);
 
-    // Process files
-    // Note: We are using a modified importDrawings that will be updated to accept onProgress
-    // We map the tasks to the files for the callback
-    const fileTaskMap = new Map<string, string>(); // fileName -> taskId
+    // Map file names to task IDs for progress callbacks
+    const fileTaskMap = new Map<string, string>();
     newTasks.forEach(t => fileTaskMap.set(t.fileName, t.id));
 
-    // We start all uploads. The Utils will handle the actual async work.
-    // For now we assume sequential or parallel is handled by util, but we need to pass a callback per file or a global one.
-
     const handleProgress = (fileName: string, status: UploadStatus, progress: number, error?: string) => {
-        const taskId = fileTaskMap.get(fileName);
-        if (taskId) {
-            updateTask(taskId, { status, progress, error });
-        }
+      const taskId = fileTaskMap.get(fileName);
+      if (taskId) {
+        updateTask(taskId, { status, progress, error });
+      }
     };
 
     try {
-        await importDrawings(files, targetCollectionId, undefined, handleProgress);
+      await importDrawings(files, targetCollectionId, undefined, handleProgress);
     } catch (e) {
-        console.error("Global upload error", e);
-        // Mark pending as error if something crashed completely
-        newTasks.forEach(t => {
-            if (t.status === 'pending' || t.status === 'uploading') {
-                updateTask(t.id, { status: 'error', error: 'Upload failed unexpectedly' });
-            }
-        });
+      console.error("Global upload error", e);
+      // Mark all new tasks as error if something crashed completely
+      newTasks.forEach(t => {
+        updateTask(t.id, { status: 'error', error: 'Upload failed unexpectedly' });
+      });
     }
-
   }, [updateTask]);
 
   return (
