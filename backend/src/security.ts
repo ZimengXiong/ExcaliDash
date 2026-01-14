@@ -532,7 +532,6 @@ export const validateImportedDrawing = (data: any): boolean => {
 // CSRF Protection
 // ============================================================================
 
-const CSRF_TOKEN_LENGTH = 32;
 const CSRF_TOKEN_HEADER = "x-csrf-token";
 const CSRF_TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
 const CSRF_TOKEN_FUTURE_SKEW_MS = 5 * 60 * 1000; // 5 minutes clock skew tolerance
