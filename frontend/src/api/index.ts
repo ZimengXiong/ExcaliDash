@@ -7,6 +7,91 @@ export const api = axios.create({
   baseURL: API_URL,
 });
 
+// CSRF Token Management
+let csrfToken: string | null = null;
+let csrfHeaderName: string = "x-csrf-token";
+let csrfTokenPromise: Promise<void> | null = null;
+
+/**
+ * Fetch a fresh CSRF token from the server
+ */
+export const fetchCsrfToken = async (): Promise<void> => {
+  try {
+    const response = await axios.get<{ token: string; header: string }>(
+      `${API_URL}/csrf-token`
+    );
+    csrfToken = response.data.token;
+    csrfHeaderName = response.data.header || "x-csrf-token";
+  } catch (error) {
+    console.error("Failed to fetch CSRF token:", error);
+    throw error;
+  }
+};
+
+/**
+ * Ensure we have a valid CSRF token, fetching one if needed
+ */
+const ensureCsrfToken = async (): Promise<void> => {
+  if (csrfToken) return;
+
+  // Prevent multiple simultaneous token fetches
+  if (!csrfTokenPromise) {
+    csrfTokenPromise = fetchCsrfToken().finally(() => {
+      csrfTokenPromise = null;
+    });
+  }
+  await csrfTokenPromise;
+};
+
+/**
+ * Clear the cached CSRF token (useful for handling 403 errors)
+ */
+export const clearCsrfToken = (): void => {
+  csrfToken = null;
+};
+
+// Add request interceptor to include CSRF token
+api.interceptors.request.use(
+  async (config) => {
+    // Only add CSRF token for state-changing methods
+    const method = config.method?.toUpperCase();
+    if (method && ["POST", "PUT", "DELETE", "PATCH"].includes(method)) {
+      await ensureCsrfToken();
+      if (csrfToken) {
+        config.headers[csrfHeaderName] = csrfToken;
+      }
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Add response interceptor to handle CSRF token errors
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    // If we get a 403 with CSRF error, clear token and retry once
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.error?.includes("CSRF")
+    ) {
+      clearCsrfToken();
+
+      // Retry the request once with a fresh token
+      const originalRequest = error.config;
+      if (!originalRequest._csrfRetry) {
+        originalRequest._csrfRetry = true;
+        await fetchCsrfToken();
+        if (csrfToken) {
+          originalRequest.headers[csrfHeaderName] = csrfToken;
+        }
+        return api(originalRequest);
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 const coerceTimestamp = (value: string | number | Date): number => {
   if (typeof value === "number") return value;
   if (value instanceof Date) return value.getTime();

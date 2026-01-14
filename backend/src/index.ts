@@ -18,6 +18,10 @@ import {
   sanitizeSvg,
   elementSchema,
   appStateSchema,
+  createCsrfToken,
+  validateCsrfToken,
+  getCsrfTokenHeader,
+  getOriginFromReferer,
 } from "./security";
 
 dotenv.config();
@@ -34,9 +38,22 @@ const resolveDatabaseUrl = (rawUrl?: string) => {
   }
 
   const filePath = rawUrl.replace(/^file:/, "");
+
+  // Prisma treats relative SQLite paths as relative to the schema directory
+  // (i.e. `backend/prisma/schema.prisma`). Historically this project used
+  // `file:./prisma/dev.db`, which Prisma interprets as `prisma/prisma/dev.db`.
+  // To keep runtime and migrations aligned:
+  // - Prefer resolving relative paths against `backend/prisma`
+  // - But if the path already includes a leading `prisma/`, resolve from repo root
+  const prismaDir = path.resolve(backendRoot, "prisma");
+  const normalizedRelative = filePath.replace(/^\.\/?/, "");
+  const hasLeadingPrismaDir =
+    normalizedRelative === "prisma" ||
+    normalizedRelative.startsWith("prisma/");
+
   const absolutePath = path.isAbsolute(filePath)
     ? filePath
-    : path.resolve(backendRoot, filePath);
+    : path.resolve(hasLeadingPrismaDir ? backendRoot : prismaDir, normalizedRelative);
 
   return `file:${absolutePath}`;
 };
@@ -63,11 +80,15 @@ const normalizeOrigins = (rawOrigins?: string | null): string[] => {
   const ensureProtocol = (origin: string) =>
     /^https?:\/\//i.test(origin) ? origin : `http://${origin}`;
 
+  const removeTrailingSlash = (origin: string) =>
+    origin.endsWith("/") ? origin.slice(0, -1) : origin;
+
   const parsed = rawOrigins
     .split(",")
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0)
-    .map(ensureProtocol);
+    .map(ensureProtocol)
+    .map(removeTrailingSlash);
 
   return parsed.length > 0 ? parsed : [fallback];
 };
@@ -211,6 +232,8 @@ app.use(
   cors({
     origin: allowedOrigins,
     credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization", "x-csrf-token"],
+    exposedHeaders: ["x-csrf-token"],
   })
 );
 app.use(express.json({ limit: "50mb" }));
@@ -244,12 +267,12 @@ app.use((req, res, next) => {
   res.setHeader(
     "Content-Security-Policy",
     "default-src 'self'; " +
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com; " +
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-      "font-src 'self' https://fonts.gstatic.com; " +
-      "img-src 'self' data: blob: https:; " +
-      "connect-src 'self' ws: wss:; " +
-      "frame-ancestors 'none';"
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com; " +
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+    "font-src 'self' https://fonts.gstatic.com; " +
+    "img-src 'self' data: blob: https:; " +
+    "connect-src 'self' ws: wss:; " +
+    "frame-ancestors 'none';"
   );
 
   next();
@@ -295,6 +318,128 @@ app.use((req, res, next) => {
   clientData.count++;
   next();
 });
+
+// CSRF Protection Middleware
+// Generates a unique client ID based on IP and User-Agent for token association
+const getClientId = (req: express.Request): string => {
+  const ip = req.ip || req.connection.remoteAddress || "unknown";
+  const userAgent = req.headers["user-agent"] || "unknown";
+  // Create a simple hash for client identification
+  // In production, you might use a session ID instead
+  return `${ip}:${userAgent}`.slice(0, 256);
+};
+
+// Rate limiter specifically for CSRF token generation to prevent store exhaustion
+const csrfRateLimit = new Map<string, { count: number; resetTime: number }>();
+const CSRF_RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const CSRF_MAX_REQUESTS = (() => {
+  const parsed = Number(process.env.CSRF_MAX_REQUESTS);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return 60; // 1 per second average
+  }
+  return parsed;
+})();
+
+// CSRF token endpoint - clients should call this to get a token
+app.get("/csrf-token", (req, res) => {
+  const ip = req.ip || req.connection.remoteAddress || "unknown";
+  const now = Date.now();
+  const clientLimit = csrfRateLimit.get(ip);
+
+  if (clientLimit && now < clientLimit.resetTime) {
+    if (clientLimit.count >= CSRF_MAX_REQUESTS) {
+      return res.status(429).json({
+        error: "Rate limit exceeded",
+        message: "Too many CSRF token requests",
+      });
+    }
+    clientLimit.count++;
+  } else {
+    csrfRateLimit.set(ip, { count: 1, resetTime: now + CSRF_RATE_LIMIT_WINDOW });
+  }
+
+  // Cleanup old rate limit entries occasionally
+  if (Math.random() < 0.01) {
+    for (const [key, data] of csrfRateLimit.entries()) {
+      if (now > data.resetTime) csrfRateLimit.delete(key);
+    }
+  }
+
+  const clientId = getClientId(req);
+  const token = createCsrfToken(clientId);
+
+  res.json({
+    token,
+    header: getCsrfTokenHeader()
+  });
+});
+
+// CSRF validation middleware for state-changing requests
+const csrfProtectionMiddleware = (
+  req: express.Request,
+  res: express.Response,
+  next: express.NextFunction
+) => {
+  // Skip CSRF validation for safe methods (GET, HEAD, OPTIONS)
+  // Note: /csrf-token is a GET endpoint, so it's automatically exempt
+  const safeMethods = ["GET", "HEAD", "OPTIONS"];
+  if (safeMethods.includes(req.method)) {
+    return next();
+  }
+
+  // Origin/Referer check for defense in depth
+  const origin = req.headers["origin"];
+  const referer = req.headers["referer"];
+
+  // If Origin is present, it must match allowed origins
+  const originValue = Array.isArray(origin) ? origin[0] : origin;
+  const refererValue = Array.isArray(referer) ? referer[0] : referer;
+
+  if (originValue) {
+    if (!allowedOrigins.includes(originValue)) {
+      return res.status(403).json({
+        error: "CSRF origin mismatch",
+        message: "Origin not allowed",
+      });
+    }
+  } else if (refererValue) {
+    // If no Origin but Referer exists, validate its *origin* (avoid prefix bypass)
+    const refererOrigin = getOriginFromReferer(refererValue);
+    if (!refererOrigin || !allowedOrigins.includes(refererOrigin)) {
+      return res.status(403).json({
+        error: "CSRF referer mismatch",
+        message: "Referer not allowed",
+      });
+    }
+  }
+  // Note: If neither Origin nor Referer is present, we proceed to token check.
+  // Some legitimate clients/proxies might strip these, so we don't block strictly on their absence,
+  // but relying on the token is the primary defense.
+
+  const clientId = getClientId(req);
+  const headerName = getCsrfTokenHeader();
+  const tokenHeader = req.headers[headerName];
+  const token = Array.isArray(tokenHeader) ? tokenHeader[0] : tokenHeader;
+
+  if (!token) {
+    return res.status(403).json({
+      error: "CSRF token missing",
+      message: `Missing ${headerName} header`,
+    });
+  }
+
+  if (!validateCsrfToken(clientId, token)) {
+    return res.status(403).json({
+      error: "CSRF token invalid",
+      message: "Invalid or expired CSRF token. Please refresh and try again.",
+    });
+  }
+
+  next();
+};
+
+// Apply CSRF protection to all routes
+app.use(csrfProtectionMiddleware);
 
 const filesFieldSchema = z
   .union([z.record(z.string(), z.any()), z.null()])
@@ -922,8 +1067,7 @@ app.get("/export", async (req, res) => {
     res.setHeader("Content-Type", "application/octet-stream");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="excalidash-db-${
-        new Date().toISOString().split("T")[0]
+      `attachment; filename="excalidash-db-${new Date().toISOString().split("T")[0]
       }.${extension}"`
     );
 
@@ -946,8 +1090,7 @@ app.get("/export/json", async (req, res) => {
     res.setHeader("Content-Type", "application/zip");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="excalidraw-drawings-${
-        new Date().toISOString().split("T")[0]
+      `attachment; filename="excalidraw-drawings-${new Date().toISOString().split("T")[0]
       }.zip"`
     );
 
@@ -1012,8 +1155,8 @@ Total Drawings: ${drawings.length}
 
 Collections:
 ${Object.entries(drawingsByCollection)
-  .map(([name, drawings]) => `- ${name}: ${drawings.length} drawings`)
-  .join("\n")}
+        .map(([name, drawings]) => `- ${name}: ${drawings.length} drawings`)
+        .join("\n")}
 `;
 
     archive.append(readmeContent, { name: "README.txt" });
@@ -1085,7 +1228,7 @@ app.post("/import/sqlite", upload.single("db"), async (req, res) => {
       try {
         await fsPromises.access(dbPath);
         await fsPromises.copyFile(dbPath, backupPath);
-      } catch {}
+      } catch { }
 
       await moveFile(stagedPath, dbPath);
     } catch (error) {

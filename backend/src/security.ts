@@ -1,6 +1,10 @@
+/**
+ * Security utilities for XSS prevention, data sanitization, and CSRF protection
+ */
 import { z } from "zod";
 import DOMPurify from "dompurify";
 import { JSDOM } from "jsdom";
+import crypto from "crypto";
 
 // Create a DOM environment for DOMPurify (Node.js compatibility)
 const window = new JSDOM("").window;
@@ -521,5 +525,182 @@ export const validateImportedDrawing = (data: any): boolean => {
   } catch (error) {
     console.error("Imported drawing validation failed:", error);
     return false;
+  }
+};
+
+// ============================================================================
+// CSRF Protection
+// ============================================================================
+
+const CSRF_TOKEN_LENGTH = 32;
+const CSRF_TOKEN_HEADER = "x-csrf-token";
+const CSRF_TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+const CSRF_TOKEN_FUTURE_SKEW_MS = 5 * 60 * 1000; // 5 minutes clock skew tolerance
+const CSRF_NONCE_BYTES = 16;
+const CSRF_TOKEN_MAX_LENGTH = 2048; // sanity limit against abuse
+
+/**
+ * IMPORTANT (Horizontal Scaling / K8s)
+ * -----------------------------------
+ * CSRF tokens must validate across multiple stateless instances.
+ *
+ * The prior in-memory Map-based token store breaks under horizontal scaling
+ * because each pod has its own memory. This implementation is stateless:
+ *
+ * - Token payload: { ts, nonce }
+ * - Signature: HMAC_SHA256(secret, `${clientId}|${ts}|${nonce}`)
+ *
+ * As long as all pods share the same `CSRF_SECRET`, any pod can validate
+ * any token without shared state (works on Kubernetes).
+ */
+
+let cachedCsrfSecret: Buffer | null = null;
+const getCsrfSecret = (): Buffer => {
+  if (cachedCsrfSecret) return cachedCsrfSecret;
+
+  const secretFromEnv = process.env.CSRF_SECRET;
+  if (secretFromEnv && secretFromEnv.trim().length > 0) {
+    cachedCsrfSecret = Buffer.from(secretFromEnv, "utf8");
+    return cachedCsrfSecret;
+  }
+
+  // If not configured, generate an ephemeral secret for this process.
+  // This keeps single-instance deployments working out of the box, but:
+  // - Horizontal scaling will BREAK unless CSRF_SECRET is set and shared.
+  cachedCsrfSecret = crypto.randomBytes(32);
+  const envLabel = process.env.NODE_ENV ? ` (${process.env.NODE_ENV})` : "";
+  console.warn(
+    `[security] CSRF_SECRET is not set${envLabel}. Using an ephemeral per-process secret. ` +
+    "For horizontal scaling (k8s), set CSRF_SECRET to the same value on all instances."
+  );
+  return cachedCsrfSecret;
+};
+
+const base64UrlEncode = (input: Buffer | string): string => {
+  const buf = typeof input === "string" ? Buffer.from(input, "utf8") : input;
+  return buf
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+};
+
+const base64UrlDecode = (input: string): Buffer => {
+  const normalized = input.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+  return Buffer.from(padded, "base64");
+};
+
+type CsrfTokenPayload = {
+  /** Issued-at timestamp (ms since epoch) */
+  ts: number;
+  /** Random nonce (base64url) */
+  nonce: string;
+};
+
+const signCsrfToken = (clientId: string, payload: CsrfTokenPayload): Buffer => {
+  const secret = getCsrfSecret();
+  const data = `${clientId}|${payload.ts}|${payload.nonce}`;
+  return crypto.createHmac("sha256", secret).update(data, "utf8").digest();
+};
+
+/**
+ * Create a new CSRF token for a client
+ * Returns the token to be sent to the client
+ */
+export const createCsrfToken = (clientId: string): string => {
+  const payload: CsrfTokenPayload = {
+    ts: Date.now(),
+    nonce: base64UrlEncode(crypto.randomBytes(CSRF_NONCE_BYTES)),
+  };
+
+  const payloadJson = JSON.stringify(payload);
+  const payloadB64 = base64UrlEncode(payloadJson);
+  const sigB64 = base64UrlEncode(signCsrfToken(clientId, payload));
+
+  return `${payloadB64}.${sigB64}`;
+};
+
+/**
+ * Validate a CSRF token for a client
+ * Uses timing-safe comparison to prevent timing attacks
+ */
+export const validateCsrfToken = (clientId: string, token: string): boolean => {
+  if (!token || typeof token !== "string") {
+    return false;
+  }
+
+  if (token.length > CSRF_TOKEN_MAX_LENGTH) {
+    return false;
+  }
+
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 2) return false;
+
+    const [payloadB64, sigB64] = parts;
+    const payloadJson = base64UrlDecode(payloadB64).toString("utf8");
+    const payload = JSON.parse(payloadJson) as Partial<CsrfTokenPayload>;
+
+    if (
+      typeof payload.ts !== "number" ||
+      !Number.isFinite(payload.ts) ||
+      typeof payload.nonce !== "string" ||
+      payload.nonce.length < 8
+    ) {
+      return false;
+    }
+
+    const now = Date.now();
+    // Expiry check
+    if (now - payload.ts > CSRF_TOKEN_EXPIRY_MS) return false;
+    // Future skew check (clock mismatch)
+    if (payload.ts - now > CSRF_TOKEN_FUTURE_SKEW_MS) return false;
+
+    const expectedSig = signCsrfToken(clientId, {
+      ts: payload.ts,
+      nonce: payload.nonce,
+    });
+
+    const providedSig = base64UrlDecode(sigB64);
+    if (providedSig.length !== expectedSig.length) return false;
+
+    return crypto.timingSafeEqual(providedSig, expectedSig);
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Revoke a CSRF token (e.g., on logout or token refresh)
+ */
+export const revokeCsrfToken = (clientId: string): void => {
+  // Stateless CSRF tokens cannot be selectively revoked without shared state.
+  // If revocation is required, implement token blacklisting in a shared store
+  // (e.g., Redis) or rotate CSRF_SECRET.
+  void clientId;
+};
+
+/**
+ * Get the CSRF token header name
+ */
+export const getCsrfTokenHeader = (): string => {
+  return CSRF_TOKEN_HEADER;
+};
+
+export const getOriginFromReferer = (referer: unknown): string | null => {
+  if (typeof referer !== "string" || referer.trim().length === 0) {
+    return null;
+  }
+
+  try {
+    const url = new URL(referer);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return null;
+    }
+
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return null;
   }
 };

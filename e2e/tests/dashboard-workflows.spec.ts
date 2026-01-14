@@ -45,7 +45,7 @@ test.describe("Dashboard Workflows", () => {
     for (const id of createdDrawingIds) {
       try {
         await deleteDrawing(request, id);
-      } catch (error) {
+      } catch {
         // Ignore cleanup failures to keep tests resilient
       }
     }
@@ -54,7 +54,7 @@ test.describe("Dashboard Workflows", () => {
     for (const id of createdCollectionIds) {
       try {
         await deleteCollection(request, id);
-      } catch (error) {
+      } catch {
         // Ignore cleanup failures to keep tests resilient
       }
     }

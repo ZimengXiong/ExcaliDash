@@ -2,7 +2,6 @@ import { test, expect } from "@playwright/test";
 import * as path from "path";
 import * as fs from "fs";
 import {
-  API_URL,
   createDrawing,
   deleteDrawing,
   listDrawings,
@@ -27,7 +26,7 @@ test.describe("Drag and Drop - Collections", () => {
     for (const id of createdDrawingIds) {
       try {
         await deleteDrawing(request, id);
-      } catch (e) {
+      } catch {
         // Ignore cleanup errors
       }
     }
@@ -36,7 +35,7 @@ test.describe("Drag and Drop - Collections", () => {
     for (const id of createdCollectionIds) {
       try {
         await deleteCollection(request, id);
-      } catch (e) {
+      } catch {
         // Ignore cleanup errors
       }
     }
@@ -61,7 +60,7 @@ test.describe("Drag and Drop - Collections", () => {
 
     // Hover to reveal the collection picker
     await card.hover();
-    
+
     // Click the collection picker button on the card
     const collectionPicker = card.locator(`[data-testid="collection-picker-${drawing.id}"]`);
     await collectionPicker.click();
@@ -76,7 +75,7 @@ test.describe("Drag and Drop - Collections", () => {
     // Navigate to the collection and verify drawing is there
     await page.getByRole("navigation").getByRole("button", { name: collection.name }).click();
     await page.waitForLoadState("networkidle");
-    
+
     await expect(card).toBeVisible();
   });
 
@@ -85,9 +84,9 @@ test.describe("Drag and Drop - Collections", () => {
     const collection = await createCollection(request, `UnorgTest_Collection_${Date.now()}`);
     createdCollectionIds.push(collection.id);
 
-    const drawing = await createDrawing(request, { 
+    const drawing = await createDrawing(request, {
       name: `UnorgTest_Drawing_${Date.now()}`,
-      collectionId: collection.id 
+      collectionId: collection.id
     });
     createdDrawingIds.push(drawing.id);
 
@@ -119,7 +118,7 @@ test.describe("Drag and Drop - Collections", () => {
     // Navigate to Unorganized and verify drawing is there
     await page.getByRole("navigation").getByRole("button", { name: "Unorganized" }).click();
     await page.waitForLoadState("networkidle");
-    
+
     await expect(page.locator(`#drawing-card-${drawing.id}`)).toBeVisible();
   });
 
@@ -146,7 +145,7 @@ test.describe("Drag and Drop - Collections", () => {
     // Select both drawings
     const card1 = page.locator(`#drawing-card-${drawing1.id}`);
     const card2 = page.locator(`#drawing-card-${drawing2.id}`);
-    
+
     await card1.hover();
     const toggle1 = card1.locator(`[data-testid="select-drawing-${drawing1.id}"]`);
     await toggle1.click();
@@ -186,7 +185,7 @@ test.describe("Drag and Drop - File Import", () => {
     for (const drawing of drawings) {
       try {
         await deleteDrawing(request, drawing.id);
-      } catch (e) {
+      } catch {
         // Ignore cleanup errors
       }
     }
@@ -194,7 +193,7 @@ test.describe("Drag and Drop - File Import", () => {
     for (const id of createdDrawingIds) {
       try {
         await deleteDrawing(request, id);
-      } catch (e) {
+      } catch {
         // Ignore cleanup errors
       }
     }
@@ -205,7 +204,7 @@ test.describe("Drag and Drop - File Import", () => {
     // Note: Simulating drag events with files is unreliable in Playwright
     // because the DataTransfer API has security restrictions.
     // This test verifies the drop zone UI exists and can be triggered.
-    
+
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
@@ -218,13 +217,13 @@ test.describe("Drag and Drop - File Import", () => {
       try {
         const dt = new DataTransfer();
         dt.items.add(new File(['test'], 'test.excalidraw', { type: 'application/json' }));
-        
+
         const event = new DragEvent('dragenter', {
           bubbles: true,
           cancelable: true,
           dataTransfer: dt,
         });
-        
+
         // Find the main content area and dispatch the event
         const main = document.querySelector('main');
         if (main) {
@@ -242,7 +241,7 @@ test.describe("Drag and Drop - File Import", () => {
       // Check that the drop zone overlay is shown
       const dropZone = page.getByText("Drop files to import");
       const isVisible = await dropZone.isVisible().catch(() => false);
-      
+
       if (isVisible) {
         await expect(dropZone).toBeVisible();
       } else {
@@ -255,7 +254,7 @@ test.describe("Drag and Drop - File Import", () => {
     }
   });
 
-  test("should import excalidraw file via file input", async ({ page, request }, testInfo) => {
+  test("should import excalidraw file via file input", async ({ page }, testInfo) => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
@@ -275,7 +274,7 @@ test.describe("Drag and Drop - File Import", () => {
 
     // Wait for import success modal
     await expect(page.getByText("Import Successful")).toBeVisible({ timeout: 10000 });
-    
+
     // Dismiss the modal
     await page.getByRole("button", { name: "OK" }).click();
 

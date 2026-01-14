@@ -148,7 +148,7 @@ ExcaliDash/
 **Backend (.env):**
 
 ```bash
-DATABASE_URL="file:./prisma/dev.db"
+DATABASE_URL="file:./dev.db"
 PORT=8000
 NODE_ENV=development
 ```

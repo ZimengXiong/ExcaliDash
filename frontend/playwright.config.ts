@@ -22,7 +22,7 @@ export default defineConfig({
   // Locally, you may need to start them manually or use npm run dev
   webServer: process.env.CI ? [
     {
-      command: "cd ../backend && DATABASE_URL=file:./prisma/dev.db npm run dev",
+      command: "cd ../backend && DATABASE_URL=file:./dev.db npm run dev",
       url: "http://localhost:8000/health",
       reuseExistingServer: false,
       timeout: 120000,

@@ -22,6 +22,8 @@ A self-hosted dashboard and organizer for [Excalidraw](https://github.com/excali
 - [Installation](#installation)
   - [Docker Hub (Recommended)](#dockerhub-recommended)
   - [Docker Build](#docker-build)
+  - [Reverse Proxy / Traefik Setups](#reverse-proxy--traefik-setups-docker)
+  - [Multi-Container / Kubernetes Deployments](#multi-container--kubernetes-deployments)
 - [Development](#development)
   - [Clone the Repository](#clone-the-repository)
   - [Frontend](#frontend)
@@ -75,7 +77,7 @@ See [release notes](https://github.com/ZimengXiong/ExcaliDash/releases) for a sp
 # Installation
 
 > [!CAUTION]
-> NOT for production use. While attempts have been made at hardening (XSS/dompurify, CORS, rate-limiting, sanitization), they are inadequate for public deployment. Do not expose any ports. Currently lacking CSRF.
+> NOT for production use. While attempts have been made at hardening (XSS/dompurify, CORS, rate-limiting, sanitization), they are inadequate for public deployment. Do not expose any ports.
 
 > [!CAUTION]
 > ExcaliDash is in BETA. Please backup your data regularly (e.g. with cron).
@@ -133,6 +135,24 @@ frontend:
     # For Kubernetes, use the service DNS name:
     - BACKEND_URL=excalidash-backend.default.svc.cluster.local:8000
 ```
+
+### Multi-Container / Kubernetes Deployments
+
+When running multiple backend replicas (e.g., Kubernetes, Docker Swarm, or load-balanced containers), you **must** set the `CSRF_SECRET` environment variable to the same value across all instances.
+
+```bash
+# Generate a secure secret
+openssl rand -base64 32
+```
+
+```yaml
+# docker-compose.yml or k8s deployment
+backend:
+  environment:
+    - CSRF_SECRET=your-generated-secret-here
+```
+
+Without this, each container generates its own ephemeral CSRF secret, causing token validation failures when requests are routed to different replicas. Single-container deployments work without this setting.
 
 # Development
 

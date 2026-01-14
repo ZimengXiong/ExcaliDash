@@ -17,14 +17,18 @@ services:
       context: ../backend
       dockerfile: Dockerfile
     environment:
-      - DATABASE_URL=file:./prisma/e2e-test.db
+      # Use an absolute sqlite path so Prisma CLI + the running app always point
+      # at the same DB file (avoids schema being applied to a different relative path).
+      - DATABASE_URL=file:/app/prisma/e2e-test.db
       - PORT=8000
       - NODE_ENV=test
-      - FRONTEND_URL=http://frontend:80,http://localhost:5173
+      # Include both with and without :80 because browsers omit default ports in Origin.
+      - FRONTEND_URL=http://frontend,http://frontend:80,http://localhost:5173
     ports:
       - "8000:8000"
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8000/health"]
+      # Use IPv4 loopback explicitly to avoid IPv6 localhost resolution issues.
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8000/health"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -35,17 +39,18 @@ services:
   # Frontend web server
   frontend:
     build:
-      context: ../frontend
-      dockerfile: Dockerfile
-      args:
-        - VITE_API_URL=http://backend:8000
+      # Use the repo root as build context because `frontend/Dockerfile` expects
+      # `frontend/...` paths (same as production `docker-compose.yml`).
+      context: ..
+      dockerfile: frontend/Dockerfile
     ports:
       - "5173:80"
     depends_on:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80"]
+      # Use IPv4 loopback explicitly to avoid IPv6 localhost resolution issues.
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:80"]
       interval: 5s
       timeout: 5s
       retries: 10

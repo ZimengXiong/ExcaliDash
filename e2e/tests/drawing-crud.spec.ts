@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import {
+  API_URL,
   createDrawing,
   deleteDrawing,
   getDrawing,
@@ -24,7 +25,7 @@ test.describe("Drawing Creation", () => {
     for (const id of createdDrawingIds) {
       try {
         await deleteDrawing(request, id);
-      } catch (e) {
+      } catch {
         // Ignore cleanup errors
       }
     }
@@ -96,7 +97,7 @@ test.describe("Drawing Creation", () => {
   test("should rename drawing via editor header", async ({ page, request }) => {
     const originalName = `Rename_Original_${Date.now()}`;
     const newName = `Rename_Updated_${Date.now()}`;
-    
+
     const drawing = await createDrawing(request, { name: originalName });
     createdDrawingIds.push(drawing.id);
 
@@ -150,7 +151,7 @@ test.describe("Drawing Editing", () => {
     for (const id of createdDrawingIds) {
       try {
         await deleteDrawing(request, id);
-      } catch (e) {
+      } catch {
         // Ignore cleanup errors
       }
     }
@@ -158,7 +159,7 @@ test.describe("Drawing Editing", () => {
   });
 
   test("should draw a rectangle on canvas", async ({ page, request }) => {
-    const drawing = await createDrawing(request, { 
+    const drawing = await createDrawing(request, {
       name: `Draw_Rect_${Date.now()}`,
       elements: [],
     });
@@ -172,19 +173,19 @@ test.describe("Drawing Editing", () => {
     const canvas = page.locator("canvas.excalidraw__canvas.interactive");
     const box = await canvas.boundingBox();
     if (!box) throw new Error("Canvas not found");
-    
+
     console.log(`Canvas bounding box: x=${box.x}, y=${box.y}, width=${box.width}, height=${box.height}`);
-    
+
     // Click on the rectangle tool using the label element
     // Find the label that contains the rectangle radio button
     const rectangleLabel = page.locator('label:has([data-testid="toolbar-rectangle"])');
     await rectangleLabel.click();
     await page.waitForTimeout(500);
-    
+
     // Verify the tool was selected
     const isRectangleSelectedBefore = await page.locator('[data-testid="toolbar-rectangle"]').isChecked();
     console.log("Rectangle tool selected before drawing:", isRectangleSelectedBefore);
-    
+
     // Draw the rectangle by dragging on the canvas - use center of canvas
     const centerX = box.x + box.width / 2;
     const centerY = box.y + box.height / 2;
@@ -192,13 +193,13 @@ test.describe("Drawing Editing", () => {
     const startY = centerY - 75;
     const endX = centerX + 100;
     const endY = centerY + 75;
-    
+
     console.log(`Drawing from (${startX}, ${startY}) to (${endX}, ${endY})`);
-    
+
     // First click on the canvas to ensure it has focus
     await page.mouse.click(centerX, centerY);
     await page.waitForTimeout(200);
-    
+
     // Now draw the rectangle
     await page.mouse.move(startX, startY);
     await page.waitForTimeout(100);
@@ -207,10 +208,10 @@ test.describe("Drawing Editing", () => {
     await page.mouse.move(endX, endY, { steps: 20 });
     await page.waitForTimeout(100);
     await page.mouse.up();
-    
+
     // Take a screenshot after drawing
     await page.screenshot({ path: 'test-results/after-drawing.png' });
-    
+
     // Check if Undo button is now enabled (indicating something was drawn)
     const undoButton = page.locator('button[aria-label="Undo"]');
     const isUndoDisabled = await undoButton.getAttribute('disabled');
@@ -231,7 +232,7 @@ test.describe("Drawing Editing", () => {
   });
 
   test("should draw text on canvas", async ({ page, request }) => {
-    const drawing = await createDrawing(request, { 
+    const drawing = await createDrawing(request, {
       name: `Draw_Text_${Date.now()}`,
       elements: [],
     });
@@ -245,11 +246,11 @@ test.describe("Drawing Editing", () => {
     const canvas = page.locator("canvas.excalidraw__canvas.interactive");
     const box = await canvas.boundingBox();
     if (!box) throw new Error("Canvas not found");
-    
+
     // Click to focus the canvas
     await page.mouse.click(box.x + 100, box.y + 100);
     await page.waitForTimeout(100);
-    
+
     // Select text tool using keyboard shortcut (now that canvas is focused)
     await page.keyboard.press("t");
     await page.waitForTimeout(200);
@@ -260,7 +261,7 @@ test.describe("Drawing Editing", () => {
 
     // Type some text
     await page.keyboard.type("Hello E2E Test");
-    
+
     // Press Escape to finish text editing
     await page.keyboard.press("Escape");
     await page.waitForTimeout(500);
@@ -276,7 +277,7 @@ test.describe("Drawing Editing", () => {
   });
 
   test("should use undo/redo functionality", async ({ page, request }) => {
-    const drawing = await createDrawing(request, { 
+    const drawing = await createDrawing(request, {
       name: `Undo_Redo_${Date.now()}`,
       elements: [],
     });
@@ -290,10 +291,10 @@ test.describe("Drawing Editing", () => {
     const canvas = page.locator("canvas.excalidraw__canvas.interactive");
     const box = await canvas.boundingBox();
     if (!box) throw new Error("Canvas not found");
-    
+
     await page.keyboard.press("r");
     await page.waitForTimeout(200);
-    
+
     await page.mouse.move(box.x + 200, box.y + 200);
     await page.mouse.down();
     await page.mouse.move(box.x + 300, box.y + 300, { steps: 5 });
@@ -320,7 +321,7 @@ test.describe("Drawing Deletion", () => {
     for (const id of createdDrawingIds) {
       try {
         await deleteDrawing(request, id);
-      } catch (e) {
+      } catch {
         // Ignore cleanup errors
       }
     }
@@ -341,7 +342,7 @@ test.describe("Drawing Deletion", () => {
     // Find the card and select it
     const card = page.locator(`#drawing-card-${drawing.id}`);
     await card.hover();
-    
+
     const selectToggle = card.locator(`[data-testid="select-drawing-${drawing.id}"]`);
     await selectToggle.click();
 
@@ -360,9 +361,9 @@ test.describe("Drawing Deletion", () => {
   });
 
   test("should permanently delete drawing from trash", async ({ page, request }) => {
-    const drawing = await createDrawing(request, { 
+    const drawing = await createDrawing(request, {
       name: `Perm_Delete_${Date.now()}`,
-      collectionId: "trash" 
+      collectionId: "trash"
     });
     createdDrawingIds.push(drawing.id);
 
@@ -374,7 +375,7 @@ test.describe("Drawing Deletion", () => {
     // Select the drawing
     const card = page.locator(`#drawing-card-${drawing.id}`);
     await card.hover();
-    
+
     const selectToggle = card.locator(`[data-testid="select-drawing-${drawing.id}"]`);
     await selectToggle.click();
 
@@ -388,7 +389,7 @@ test.describe("Drawing Deletion", () => {
     await expect(card).not.toBeVisible();
 
     // Verify via API that drawing is deleted
-    const response = await request.get(`http://localhost:8000/drawings/${drawing.id}`);
+    const response = await request.get(`${API_URL}/drawings/${drawing.id}`);
     expect(response.status()).toBe(404);
 
     // Remove from cleanup list since it's already deleted
@@ -409,7 +410,7 @@ test.describe("Drawing Deletion", () => {
     // Select the drawing
     const card = page.locator(`#drawing-card-${drawing.id}`);
     await card.hover();
-    
+
     const selectToggle = card.locator(`[data-testid="select-drawing-${drawing.id}"]`);
     await selectToggle.click();
 
@@ -422,7 +423,7 @@ test.describe("Drawing Deletion", () => {
     // Clear search to see all drawings
     await page.getByPlaceholder("Search drawings...").fill("");
     await page.waitForTimeout(500);
-    
+
     // Search again to find both
     await page.getByPlaceholder("Search drawings...").fill("Duplicate_Test");
     await page.waitForTimeout(500);

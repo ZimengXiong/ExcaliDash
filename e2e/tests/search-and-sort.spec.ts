@@ -2,7 +2,6 @@ import { test, expect } from "@playwright/test";
 import {
   createDrawing,
   deleteDrawing,
-  listDrawings,
 } from "./helpers/api";
 
 /**
@@ -21,7 +20,7 @@ test.describe("Search Drawings", () => {
     for (const id of createdDrawingIds) {
       try {
         await deleteDrawing(request, id);
-      } catch (e) {
+      } catch {
         // Ignore cleanup errors
       }
     }
@@ -47,10 +46,10 @@ test.describe("Search Drawings", () => {
 
     // Search for the prefix - should show only matching drawings
     await searchInput.fill(prefix);
-    
+
     // Wait for search to apply (debounced)
     await page.waitForTimeout(500);
-    
+
     // Verify only matching drawings are shown
     await expect(page.locator(`#drawing-card-${drawing1.id}`)).toBeVisible();
     await expect(page.locator(`#drawing-card-${drawing2.id}`)).toBeVisible();
@@ -59,7 +58,7 @@ test.describe("Search Drawings", () => {
     // Search for specific drawing
     await searchInput.fill(`${prefix}_Alpha`);
     await page.waitForTimeout(500);
-    
+
     await expect(page.locator(`#drawing-card-${drawing1.id}`)).toBeVisible();
     await expect(page.locator(`#drawing-card-${drawing2.id}`)).not.toBeVisible();
   });
@@ -92,7 +91,7 @@ test.describe("Search Drawings", () => {
     await page.waitForLoadState("networkidle");
 
     const searchInput = page.getByPlaceholder("Search drawings...");
-    
+
     // Search for one drawing
     await searchInput.fill(`${prefix}_One`);
     await page.waitForTimeout(500);
@@ -105,7 +104,7 @@ test.describe("Search Drawings", () => {
     // Search for prefix to find both
     await searchInput.fill(prefix);
     await page.waitForTimeout(500);
-    
+
     // Both should be visible now
     await expect(page.locator(`#drawing-card-${drawing1.id}`)).toBeVisible();
     await expect(page.locator(`#drawing-card-${drawing2.id}`)).toBeVisible();
@@ -119,10 +118,10 @@ test.describe("Search Drawings", () => {
     await page.waitForLoadState("networkidle");
 
     const searchInput = page.getByPlaceholder("Search drawings...");
-    
+
     // Use keyboard shortcut (Cmd+K on Mac, Ctrl+K on Windows/Linux)
     await page.keyboard.press("Meta+k");
-    
+
     // Search input should be focused
     await expect(searchInput).toBeFocused();
   });
@@ -135,7 +134,7 @@ test.describe("Sort Drawings", () => {
     for (const id of createdDrawingIds) {
       try {
         await deleteDrawing(request, id);
-      } catch (e) {
+      } catch {
         // Ignore cleanup errors
       }
     }
@@ -144,7 +143,7 @@ test.describe("Sort Drawings", () => {
 
   test("should sort drawings by name", async ({ page, request }) => {
     const prefix = `SortTest_${Date.now()}`;
-    
+
     // Create drawings with names that sort in a specific order
     const [drawingC, drawingA, drawingB] = await Promise.all([
       createDrawing(request, { name: `${prefix}_Charlie` }),
@@ -176,7 +175,7 @@ test.describe("Sort Drawings", () => {
 
   test("should toggle sort direction on repeated clicks", async ({ page, request }) => {
     const prefix = `ToggleSortTest_${Date.now()}`;
-    
+
     const [drawingA, drawingZ] = await Promise.all([
       createDrawing(request, { name: `${prefix}_AAA` }),
       createDrawing(request, { name: `${prefix}_ZZZ` }),
@@ -191,11 +190,11 @@ test.describe("Sort Drawings", () => {
     await page.waitForTimeout(500);
 
     const nameSortButton = page.getByRole("button", { name: "Name" });
-    
+
     // First click - ascending (A first)
     await nameSortButton.click();
     await page.waitForTimeout(200);
-    
+
     let cards = page.locator("[id^='drawing-card-']");
     let firstCard = cards.first();
     await expect(firstCard).toHaveId(`drawing-card-${drawingA.id}`);
@@ -203,7 +202,7 @@ test.describe("Sort Drawings", () => {
     // Second click - descending (Z first)
     await nameSortButton.click();
     await page.waitForTimeout(200);
-    
+
     cards = page.locator("[id^='drawing-card-']");
     firstCard = cards.first();
     await expect(firstCard).toHaveId(`drawing-card-${drawingZ.id}`);
@@ -211,13 +210,13 @@ test.describe("Sort Drawings", () => {
 
   test("should sort by date created", async ({ page, request }) => {
     const prefix = `DateSortTest_${Date.now()}`;
-    
+
     // Create drawings sequentially to ensure different creation times
     const drawing1 = await createDrawing(request, { name: `${prefix}_First` });
     createdDrawingIds.push(drawing1.id);
-    
+
     await page.waitForTimeout(100); // Ensure different timestamps
-    
+
     const drawing2 = await createDrawing(request, { name: `${prefix}_Second` });
     createdDrawingIds.push(drawing2.id);
 
@@ -241,7 +240,7 @@ test.describe("Sort Drawings", () => {
 
   test("should sort by date modified", async ({ page, request }) => {
     const prefix = `ModifiedSortTest_${Date.now()}`;
-    
+
     const [drawing1, drawing2] = await Promise.all([
       createDrawing(request, { name: `${prefix}_One` }),
       createDrawing(request, { name: `${prefix}_Two` }),

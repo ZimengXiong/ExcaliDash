@@ -1,6 +1,5 @@
 import { exportToSvg } from "@excalidraw/excalidraw";
-import axios from "axios";
-import { API_URL } from "../api";
+import { api } from "../api";
 import { type UploadStatus } from "../context/UploadContext";
 
 export const importDrawings = async (
@@ -8,9 +7,9 @@ export const importDrawings = async (
   targetCollectionId: string | null,
   onSuccess?: () => void | Promise<void>,
   onProgress?: (
-    fileName: string, 
-    status: UploadStatus, 
-    progress: number, 
+    fileName: string,
+    status: UploadStatus,
+    progress: number,
     error?: string
   ) => void
 ) => {
@@ -64,9 +63,9 @@ export const importDrawings = async (
 
         if (onProgress) onProgress(file.name, 'uploading', 0);
 
-        await axios.post(`${API_URL}/drawings`, payload, {
+        await api.post("/drawings", payload, {
           headers: {
-            "Content-Type": "application/json",
+            // Backend uses this header to apply stricter validation for imported files.
             "X-Imported-File": "true",
           },
           onUploadProgress: (progressEvent) => {
@@ -81,11 +80,15 @@ export const importDrawings = async (
 
         if (onProgress) onProgress(file.name, 'success', 100);
         successCount++;
-        
+
       } catch (err: any) {
         console.error(`Failed to import ${file.name}:`, err);
         failCount++;
-        const errorMessage = err.response?.data?.error || err.message || "Upload failed";
+        const errorMessage =
+          err?.response?.data?.message ||
+          err?.response?.data?.error ||
+          err?.message ||
+          "Upload failed";
         errors.push(`${file.name}: ${errorMessage}`);
         if (onProgress) onProgress(file.name, 'error', 0, errorMessage);
       }

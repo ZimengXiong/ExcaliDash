@@ -8,6 +8,8 @@ services:
       - DATABASE_URL=file:/app/prisma/dev.db
       - PORT=8000
       - NODE_ENV=production
+      # Required for horizontal scaling (k8s): must be the same across all instances
+      - CSRF_SECRET=${CSRF_SECRET}
     volumes:
       - backend-data:/app/prisma
     networks:
