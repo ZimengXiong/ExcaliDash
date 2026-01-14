@@ -15,19 +15,16 @@ try {
   console.warn("Unable to read VERSION file:", error);
 }
 
-if (
-  !process.env.VITE_APP_VERSION ||
-  process.env.VITE_APP_VERSION.trim().length === 0
-) {
-  process.env.VITE_APP_VERSION = versionFromFile;
-  if (!process.env.VITE_APP_BUILD_LABEL) {
-    process.env.VITE_APP_BUILD_LABEL = "local development build";
-  }
-}
+const appVersion = process.env.VITE_APP_VERSION?.trim() || versionFromFile;
+const buildLabel = process.env.VITE_APP_BUILD_LABEL?.trim() || "local development build";
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  define: {
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
+    'import.meta.env.VITE_APP_BUILD_LABEL': JSON.stringify(buildLabel),
+  },
   server: {
     proxy: {
       "/api": {

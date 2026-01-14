@@ -7,7 +7,7 @@ export const importDrawings = async (
   targetCollectionId: string | null,
   onSuccess?: () => void | Promise<void>,
   onProgress?: (
-    fileName: string,
+    fileIndex: number,
     status: UploadStatus,
     progress: number,
     error?: string
@@ -25,12 +25,20 @@ export const importDrawings = async (
   let failCount = 0;
   const errors: string[] = [];
 
+  // Build a map from drawingFile index to original file index for progress reporting
+  const originalIndexMap = new Map<number, number>();
+  drawingFiles.forEach((df, i) => {
+    const originalIndex = files.indexOf(df);
+    originalIndexMap.set(i, originalIndex);
+  });
+
   // We process files in parallel (Promise.all) but we could limit concurrency if needed.
   // For now, full parallel is fine as browser limits connection count anyway.
   await Promise.all(
-    drawingFiles.map(async (file) => {
+    drawingFiles.map(async (file, drawingIndex) => {
+      const fileIndex = originalIndexMap.get(drawingIndex) ?? drawingIndex;
       try {
-        if (onProgress) onProgress(file.name, 'processing', 0); // Parsing phase
+        if (onProgress) onProgress(fileIndex, 'processing', 0); // Parsing phase
 
         const text = await file.text();
         const data = JSON.parse(text);
@@ -61,7 +69,7 @@ export const importDrawings = async (
           preview: svg.outerHTML,
         };
 
-        if (onProgress) onProgress(file.name, 'uploading', 0);
+        if (onProgress) onProgress(fileIndex, 'uploading', 0);
 
         await api.post("/drawings", payload, {
           headers: {
@@ -73,12 +81,12 @@ export const importDrawings = async (
               const percentCompleted = Math.round(
                 (progressEvent.loaded * 100) / progressEvent.total
               );
-              onProgress(file.name, 'uploading', percentCompleted);
+              onProgress(fileIndex, 'uploading', percentCompleted);
             }
           },
         });
 
-        if (onProgress) onProgress(file.name, 'success', 100);
+        if (onProgress) onProgress(fileIndex, 'success', 100);
         successCount++;
 
       } catch (err: any) {
@@ -90,7 +98,7 @@ export const importDrawings = async (
           err?.message ||
           "Upload failed";
         errors.push(`${file.name}: ${errorMessage}`);
-        if (onProgress) onProgress(file.name, 'error', 0, errorMessage);
+        if (onProgress) onProgress(fileIndex, 'error', 0, errorMessage);
       }
     })
   );

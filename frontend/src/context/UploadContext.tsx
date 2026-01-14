@@ -48,7 +48,7 @@ export const UploadProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const uploadFiles = useCallback(async (files: File[], targetCollectionId: string | null) => {
     const newTasks: UploadTask[] = files.map(f => ({
-      id: Math.random().toString(36).substring(2, 11),
+      id: crypto.randomUUID(),
       fileName: f.name,
       status: 'pending',
       progress: 0
@@ -56,12 +56,12 @@ export const UploadProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     setTasks(prev => [...newTasks, ...prev]);
 
-    // Map file names to task IDs for progress callbacks
-    const fileTaskMap = new Map<string, string>();
-    newTasks.forEach(t => fileTaskMap.set(t.fileName, t.id));
+    // Map file index to task ID for progress callbacks (handles duplicate filenames)
+    const indexToTaskId = new Map<number, string>();
+    newTasks.forEach((t, index) => indexToTaskId.set(index, t.id));
 
-    const handleProgress = (fileName: string, status: UploadStatus, progress: number, error?: string) => {
-      const taskId = fileTaskMap.get(fileName);
+    const handleProgress = (fileIndex: number, status: UploadStatus, progress: number, error?: string) => {
+      const taskId = indexToTaskId.get(fileIndex);
       if (taskId) {
         updateTask(taskId, { status, progress, error });
       }
