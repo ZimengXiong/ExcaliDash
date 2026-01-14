@@ -32,6 +32,11 @@ export const CollectionPicker: React.FC<CollectionPickerProps> = ({
     ? 'bottom-full mb-2'
     : 'top-full mt-2';
 
+  const handleSelectAndClose = (collectionId: string | null) => {
+    onSelect(collectionId);
+    onClose();
+  };
+
   return (
     <>
       <div className="fixed inset-0 z-10" onClick={onClose} />
@@ -49,7 +54,7 @@ export const CollectionPicker: React.FC<CollectionPickerProps> = ({
         )}
         <button
           data-testid="collection-option-unorganized"
-          onClick={() => { onSelect(null); onClose(); }}
+          onClick={() => handleSelectAndClose(null)}
           className={clsx(
             "w-full px-3 py-2 text-xs text-left flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors",
             currentCollectionId === null
@@ -67,7 +72,7 @@ export const CollectionPicker: React.FC<CollectionPickerProps> = ({
           <button
             key={c.id}
             data-testid={`collection-option-${c.id}`}
-            onClick={() => { onSelect(c.id); onClose(); }}
+            onClick={() => handleSelectAndClose(c.id)}
             className={clsx(
               "w-full px-3 py-2 text-xs text-left flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors truncate",
               currentCollectionId === c.id

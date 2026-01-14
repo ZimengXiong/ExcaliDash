@@ -9,6 +9,7 @@ import path from "path";
 import archiver from "archiver";
 import { Worker } from "worker_threads";
 import multer from "multer";
+import rateLimit from "express-rate-limit";
 import { PrismaClient } from "../generated/client";
 import { invalidateDrawingsCache } from "../utils/cache";
 
@@ -17,6 +18,19 @@ interface ExportRouterOptions {
   uploadDir: string;
   getResolvedDbPath: () => string;
 }
+
+/**
+ * Validates that a file path is within the allowed root directory.
+ * Prevents path traversal attacks by ensuring the resolved path stays within bounds.
+ */
+const isPathWithinRoot = (filePath: string, rootDir: string): boolean => {
+  const normalizedRoot = path.resolve(rootDir);
+  const normalizedPath = path.resolve(filePath);
+  return (
+    normalizedPath === normalizedRoot ||
+    normalizedPath.startsWith(normalizedRoot + path.sep)
+  );
+};
 
 const validateSqliteHeader = (filePath: string): boolean => {
   try {
@@ -92,8 +106,18 @@ const verifyDatabaseIntegrityAsync = (filePath: string): Promise<boolean> => {
   });
 };
 
-const removeFileIfExists = async (filePath?: string) => {
+const removeFileIfExists = async (filePath?: string, safeRootDir?: string) => {
   if (!filePath) return;
+
+  // If safeRootDir is provided, validate that the path is within the allowed directory
+  if (safeRootDir && !isPathWithinRoot(filePath, safeRootDir)) {
+    console.warn("Attempted to remove file outside of safe directory", {
+      filePath,
+      safeRootDir,
+    });
+    return;
+  }
+
   try {
     await fsPromises.access(filePath).catch(() => {
       return;
@@ -104,7 +128,23 @@ const removeFileIfExists = async (filePath?: string) => {
   }
 };
 
-const moveFile = async (source: string, destination: string) => {
+const moveFile = async (
+  source: string,
+  destination: string,
+  safeRootDir?: string
+) => {
+  // If safeRootDir is provided, validate both source and destination are within bounds
+  if (safeRootDir) {
+    if (!isPathWithinRoot(source, safeRootDir)) {
+      throw new Error(`Source path is outside of allowed directory: ${source}`);
+    }
+    if (!isPathWithinRoot(destination, safeRootDir)) {
+      throw new Error(
+        `Destination path is outside of allowed directory: ${destination}`
+      );
+    }
+  }
+
   try {
     await fsPromises.rename(source, destination);
   } catch (error) {
@@ -133,6 +173,24 @@ export const createExportRouter = ({
 }: ExportRouterOptions) => {
   const router = Router();
 
+  // Rate limiter for export operations (allows 100 requests per 5 minutes per IP)
+  const exportRateLimiter = rateLimit({
+    windowMs: 5 * 60 * 1000, // 5 minutes
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many export requests, please try again later" },
+  });
+
+  // Rate limiter for import operations (allows 100 requests per 5 minutes per IP)
+  const importRateLimiter = rateLimit({
+    windowMs: 5 * 60 * 1000, // 5 minutes
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many import requests, please try again later" },
+  });
+
   const upload = multer({
     dest: uploadDir,
     limits: {
@@ -153,7 +211,7 @@ export const createExportRouter = ({
   });
 
   // GET /export - Export database as SQLite file
-  router.get("/", async (req, res) => {
+  router.get("/", exportRateLimiter, async (req, res) => {
     try {
       const formatParam =
         typeof req.query.format === "string"
@@ -274,88 +332,115 @@ ${Object.entries(drawingsByCollection)
   });
 
   // POST /sqlite/verify - Verify uploaded SQLite database (mounted at /import)
-  router.post("/sqlite/verify", upload.single("db"), async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ error: "No file uploaded" });
-      }
+  router.post(
+    "/sqlite/verify",
+    importRateLimiter,
+    upload.single("db"),
+    async (req, res) => {
+      try {
+        if (!req.file) {
+          return res.status(400).json({ error: "No file uploaded" });
+        }
 
-      const stagedPath = req.file.path;
-      const isValid = await verifyDatabaseIntegrityAsync(stagedPath);
-      await removeFileIfExists(stagedPath);
+        const stagedPath = req.file.path;
 
-      if (!isValid) {
-        return res.status(400).json({ error: "Invalid database format" });
-      }
+        // Validate that the uploaded file path is within the upload directory
+        if (!isPathWithinRoot(stagedPath, uploadDir)) {
+          await removeFileIfExists(stagedPath, uploadDir);
+          return res.status(400).json({ error: "Invalid upload path" });
+        }
 
-      res.json({ valid: true, message: "Database file is valid" });
-    } catch (error) {
-      console.error(error);
-      if (req.file) {
-        await removeFileIfExists(req.file.path);
+        const isValid = await verifyDatabaseIntegrityAsync(stagedPath);
+        await removeFileIfExists(stagedPath, uploadDir);
+
+        if (!isValid) {
+          return res.status(400).json({ error: "Invalid database format" });
+        }
+
+        res.json({ valid: true, message: "Database file is valid" });
+      } catch (error) {
+        console.error(error);
+        if (req.file) {
+          await removeFileIfExists(req.file.path, uploadDir);
+        }
+        res.status(500).json({ error: "Failed to verify database file" });
       }
-      res.status(500).json({ error: "Failed to verify database file" });
     }
-  });
+  );
 
   // POST /sqlite - Import SQLite database (mounted at /import)
-  router.post("/sqlite", upload.single("db"), async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ error: "No file uploaded" });
-      }
-
-      const originalPath = req.file.path;
-      const stagedPath = path.join(
-        uploadDir,
-        `temp-${Date.now()}-${Math.random().toString(36).slice(2)}.db`
-      );
-
+  router.post(
+    "/sqlite",
+    importRateLimiter,
+    upload.single("db"),
+    async (req, res) => {
       try {
-        await moveFile(originalPath, stagedPath);
-      } catch (error) {
-        console.error("Failed to stage uploaded database", error);
-        await removeFileIfExists(originalPath);
-        await removeFileIfExists(stagedPath);
-        return res.status(500).json({ error: "Failed to stage uploaded file" });
-      }
+        if (!req.file) {
+          return res.status(400).json({ error: "No file uploaded" });
+        }
 
-      const isValid = await verifyDatabaseIntegrityAsync(stagedPath);
-      if (!isValid) {
-        await removeFileIfExists(stagedPath);
-        return res
-          .status(400)
-          .json({ error: "Uploaded database failed integrity check" });
-      }
+        const originalPath = req.file.path;
 
-      const dbPath = getResolvedDbPath();
-      const backupPath = `${dbPath}.backup`;
+        // Validate that the uploaded file path is within the upload directory
+        if (!isPathWithinRoot(originalPath, uploadDir)) {
+          await removeFileIfExists(originalPath, uploadDir);
+          return res.status(400).json({ error: "Invalid upload path" });
+        }
 
-      try {
+        const stagedPath = path.join(
+          uploadDir,
+          `temp-${Date.now()}-${Math.random().toString(36).slice(2)}.db`
+        );
+
         try {
-          await fsPromises.access(dbPath);
-          await fsPromises.copyFile(dbPath, backupPath);
-        } catch { }
+          await moveFile(originalPath, stagedPath, uploadDir);
+        } catch (error) {
+          console.error("Failed to stage uploaded database", error);
+          await removeFileIfExists(originalPath, uploadDir);
+          await removeFileIfExists(stagedPath, uploadDir);
+          return res
+            .status(500)
+            .json({ error: "Failed to stage uploaded file" });
+        }
 
-        await moveFile(stagedPath, dbPath);
+        const isValid = await verifyDatabaseIntegrityAsync(stagedPath);
+        if (!isValid) {
+          await removeFileIfExists(stagedPath, uploadDir);
+          return res
+            .status(400)
+            .json({ error: "Uploaded database failed integrity check" });
+        }
+
+        const dbPath = getResolvedDbPath();
+        const backupPath = `${dbPath}.backup`;
+
+        try {
+          try {
+            await fsPromises.access(dbPath);
+            await fsPromises.copyFile(dbPath, backupPath);
+          } catch {}
+
+          // Note: moveFile from uploadDir to dbPath - dbPath is trusted (from config)
+          await moveFile(stagedPath, dbPath);
+        } catch (error) {
+          console.error("Failed to replace database", error);
+          await removeFileIfExists(stagedPath, uploadDir);
+          return res.status(500).json({ error: "Failed to replace database" });
+        }
+
+        await prisma.$disconnect();
+        invalidateDrawingsCache();
+
+        res.json({ success: true, message: "Database imported successfully" });
       } catch (error) {
-        console.error("Failed to replace database", error);
-        await removeFileIfExists(stagedPath);
-        return res.status(500).json({ error: "Failed to replace database" });
+        console.error(error);
+        if (req.file) {
+          await removeFileIfExists(req.file.path, uploadDir);
+        }
+        res.status(500).json({ error: "Failed to import database" });
       }
-
-      await prisma.$disconnect();
-      invalidateDrawingsCache();
-
-      res.json({ success: true, message: "Database imported successfully" });
-    } catch (error) {
-      console.error(error);
-      if (req.file) {
-        await removeFileIfExists(req.file.path);
-      }
-      res.status(500).json({ error: "Failed to import database" });
     }
-  });
+  );
 
   return router;
 };
