@@ -272,11 +272,8 @@ test.describe("Drag and Drop - File Import", () => {
     const fileInput = page.locator("#dashboard-import");
     await fileInput.setInputFiles(fixturePath);
 
-    // Wait for import success modal
-    await expect(page.getByText("Import Successful")).toBeVisible({ timeout: 10000 });
-
-    // Dismiss the modal
-    await page.getByRole("button", { name: "OK" }).click();
+    // Wait for upload to complete - the UploadStatus component shows "Done" when finished
+    await expect(page.getByText("Uploads (Done)")).toBeVisible({ timeout: 10000 });
 
     // Search for the imported drawing (it uses the filename as name)
     await page.getByPlaceholder("Search drawings...").fill("small-image");

@@ -78,7 +78,6 @@ export const Dashboard: React.FC = () => {
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
   const [showImportError, setShowImportError] = useState<{ isOpen: boolean; message: string }>({ isOpen: false, message: '' });
-  const [showImportSuccess, setShowImportSuccess] = useState(false);
 
   const [isDragSelecting, setIsDragSelecting] = useState(false);
   const [dragStart, setDragStart] = useState<Point | null>(null);
@@ -932,17 +931,6 @@ export const Dashboard: React.FC = () => {
         onCancel={() => setShowImportError({ isOpen: false, message: '' })}
       />
 
-      <ConfirmModal
-        isOpen={showImportSuccess}
-        title="Import Successful"
-        message="Drawings imported successfully."
-        confirmText="OK"
-        showCancel={false}
-        isDangerous={false}
-        variant="success"
-        onConfirm={() => setShowImportSuccess(false)}
-        onCancel={() => setShowImportSuccess(false)}
-      />
     </Layout>
   );
 };

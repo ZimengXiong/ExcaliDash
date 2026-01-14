@@ -219,9 +219,8 @@ test.describe.serial("Import Functionality", () => {
       buffer: Buffer.from(fixtureContent),
     });
 
-    // Wait for success modal
-    await expect(page.getByText("Import Successful")).toBeVisible({ timeout: 10000 });
-    await page.getByRole("button", { name: "OK" }).click();
+    // Wait for upload to complete - the UploadStatus component shows "Done" when finished
+    await expect(page.getByText("Uploads (Done)")).toBeVisible({ timeout: 10000 });
 
     // Reload to ensure dashboard state reflects the newly imported drawing
     await page.reload({ waitUntil: "networkidle" });
@@ -287,24 +286,15 @@ test.describe.serial("Import Functionality", () => {
       buffer: Buffer.from(jsonContent),
     });
 
-    // Wait for import result - could be success or failure
-    const successModal = page.getByText("Import Successful");
-    const failModal = page.getByText("Import Failed");
+    // Wait for upload to complete - the UploadStatus component shows "Done" when finished
+    await expect(page.getByText("Uploads (Done)")).toBeVisible({ timeout: 15000 });
 
-    await expect(successModal.or(failModal)).toBeVisible({ timeout: 15000 });
-
-    // If we got a failure, check the error
-    if (await failModal.isVisible()) {
-      // Get the error message
-      const errorText = await page.locator(".modal, [role='dialog']").textContent();
-      console.log("Import failed with:", errorText);
-      // Still click OK to dismiss
-      await page.getByRole("button", { name: "OK" }).click();
-      // Skip the rest of the test since import failed
+    // Check if upload failed (shows "Failed" text in the upload status)
+    const failedIndicator = page.getByText("Failed");
+    if (await failedIndicator.isVisible()) {
+      console.log("Import failed - skipping rest of test");
       return;
     }
-
-    await page.getByRole("button", { name: "OK" }).click();
 
     // Reload to force a fresh fetch of drawings after import
     await page.reload({ waitUntil: "networkidle" });
@@ -335,9 +325,10 @@ test.describe.serial("Import Functionality", () => {
       buffer: Buffer.from(invalidContent),
     });
 
-    // Should show error modal
-    await expect(page.getByText("Import Failed")).toBeVisible({ timeout: 10000 });
-    await page.getByRole("button", { name: "OK" }).click();
+    // Wait for upload to complete and check for failure indicator
+    await expect(page.getByText("Uploads (Done)")).toBeVisible({ timeout: 10000 });
+    // Should show "Failed" status in the upload status component
+    await expect(page.getByText("Failed")).toBeVisible();
   });
 
   test("should import multiple drawings at once", async ({ page }) => {
@@ -374,8 +365,8 @@ test.describe.serial("Import Functionality", () => {
     const fileInput = page.locator("#dashboard-import");
     await fileInput.setInputFiles(files);
 
-    await expect(page.getByText("Import Successful")).toBeVisible({ timeout: 10000 });
-    await page.getByRole("button", { name: "OK" }).click();
+    // Wait for upload to complete - the UploadStatus component shows "Done" when finished
+    await expect(page.getByText("Uploads (Done)")).toBeVisible({ timeout: 10000 });
 
     // Verify both were imported by searching for the unique prefix
     await page.getByPlaceholder("Search drawings...").fill(searchPrefix);
