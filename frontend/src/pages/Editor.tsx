@@ -37,6 +37,44 @@ const haveSameElements = (a: readonly any[] = [], b: readonly any[] = []) => {
   return true;
 };
 
+const buildFileSignature = (file: any): string => {
+  const mimeType = typeof file?.mimeType === "string" ? file.mimeType : "";
+  const id = typeof file?.id === "string" ? file.id : "";
+  const dataURL = typeof file?.dataURL === "string" ? file.dataURL : "";
+  // Avoid keeping the whole dataURL for comparisons; use a cheap signature.
+  const prefix = dataURL.slice(0, 32);
+  const suffix = dataURL.slice(-32);
+  return `${id}|${mimeType}|${dataURL.length}|${prefix}|${suffix}`;
+};
+
+const getFilesDelta = (
+  previous: Record<string, any>,
+  next: Record<string, any>
+): Record<string, any> => {
+  const delta: Record<string, any> = {};
+  const prev = previous || {};
+  const nxt = next || {};
+
+  for (const fileId of Object.keys(nxt)) {
+    const nextFile = nxt[fileId];
+    const nextHasDataUrl = typeof nextFile?.dataURL === "string" && nextFile.dataURL.length > 0;
+    // Only sync files that actually have data; otherwise other tabs can't render yet.
+    if (!nextHasDataUrl) continue;
+
+    const prevFile = prev[fileId];
+    if (!prevFile) {
+      delta[fileId] = nextFile;
+      continue;
+    }
+
+    if (buildFileSignature(prevFile) !== buildFileSignature(nextFile)) {
+      delta[fileId] = nextFile;
+    }
+  }
+
+  return delta;
+};
+
 const UIOptions = {
   canvasActions: {
     saveToActiveFile: false,
@@ -50,7 +88,7 @@ export const Editor: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { theme } = useTheme();
-  
+
   const [drawingName, setDrawingName] = useState('Drawing Editor');
   const [isRenaming, setIsRenaming] = useState(false);
   const [newName, setNewName] = useState('');
@@ -64,7 +102,7 @@ export const Editor: React.FC = () => {
       document.title = 'ExcaliDash';
     };
   }, [drawingName]);
-  
+
   const [peers, setPeers] = useState<Peer[]>([]);
   const [me] = useState(getUserIdentity());
   const [isReady, setIsReady] = useState(false);
@@ -79,6 +117,39 @@ export const Editor: React.FC = () => {
   const animationFrameId = useRef<number>(0);
   const latestElementsRef = useRef<readonly any[]>([]);
   const latestFilesRef = useRef<any>(null);
+  const lastSyncedFilesRef = useRef<Record<string, any>>({});
+  const latestAppStateRef = useRef<any>(null);
+  const debouncedSaveRef = useRef<((elements: readonly any[], appState: any) => void) | null>(null);
+
+  const emitFilesDeltaIfNeeded = useCallback(
+    (nextFiles: Record<string, any>) => {
+      if (!socketRef.current || !id) return false;
+      const filesDelta = getFilesDelta(lastSyncedFilesRef.current, nextFiles || {});
+      if (Object.keys(filesDelta).length === 0) return false;
+
+      latestFilesRef.current = nextFiles;
+      lastSyncedFilesRef.current = nextFiles;
+
+      if (import.meta.env.DEV) {
+        const dbg = ((window as any).__EXCALIDASH_E2E_DEBUG__ ||= {
+          fileEmits: 0,
+          lastFilesDeltaIds: [] as string[],
+        });
+        dbg.fileEmits += 1;
+        dbg.lastFilesDeltaIds = Object.keys(filesDelta);
+      }
+
+      socketRef.current.emit("element-update", {
+        drawingId: id,
+        elements: [],
+        files: filesDelta,
+        userId: me.id,
+      });
+
+      return true;
+    },
+    [id, me.id]
+  );
 
   const recordElementVersion = useCallback((element: any) => {
     elementVersionMap.current.set(element.id, {
@@ -110,12 +181,25 @@ export const Editor: React.FC = () => {
     const socketUrl = import.meta.env.VITE_API_URL === '/api'
       ? window.location.origin
       : (import.meta.env.VITE_API_URL || 'http://localhost:8000');
-    
+
     const socket = io(socketUrl, {
       path: '/socket.io',
       transports: ['websocket', 'polling'],
     });
     socketRef.current = socket;
+
+    // DEV-only: expose socket status for E2E tests to wait for connection.
+    if (import.meta.env.DEV) {
+      (window as any).__EXCALIDASH_SOCKET_STATUS__ = {
+        connected: socket.connected,
+      };
+      socket.on("connect", () => {
+        (window as any).__EXCALIDASH_SOCKET_STATUS__ = { connected: true };
+      });
+      socket.on("disconnect", () => {
+        (window as any).__EXCALIDASH_SOCKET_STATUS__ = { connected: false };
+      });
+    }
 
     socket.emit('join-room', { drawingId: id, user: me });
 
@@ -125,7 +209,7 @@ export const Editor: React.FC = () => {
         const collaborators = new Map(excalidrawAPI.current.getAppState().collaborators || []);
 
         cursorBuffer.current.forEach((data, userId) => {
-           collaborators.set(userId, data);
+          collaborators.set(userId, data);
         });
 
         cursorBuffer.current.clear();
@@ -150,18 +234,18 @@ export const Editor: React.FC = () => {
     });
 
     socket.on('cursor-move', (data: any) => {
-       cursorBuffer.current.set(data.userId, {
-          pointer: data.pointer,
-          button: data.button || 'up',
-          selectedElementIds: data.selectedElementIds || {},
-          username: data.username,
-          avatarUrl: data.avatarUrl,
-          color: { background: data.color, stroke: data.color },
-          id: data.userId,
-       });
+      cursorBuffer.current.set(data.userId, {
+        pointer: data.pointer,
+        button: data.button || 'up',
+        selectedElementIds: data.selectedElementIds || {},
+        username: data.username,
+        avatarUrl: data.avatarUrl,
+        color: { background: data.color, stroke: data.color },
+        id: data.userId,
+      });
     });
 
-    socket.on('element-update', ({ elements }: { elements: any[] }) => {
+    socket.on('element-update', ({ elements, files }: { elements: any[]; files?: Record<string, any> }) => {
       if (!excalidrawAPI.current) return;
 
       isSyncing.current = true;
@@ -169,7 +253,11 @@ export const Editor: React.FC = () => {
       const currentAppState = excalidrawAPI.current.getAppState();
       const mySelectedIds = currentAppState.selectedElementIds || {};
 
-      const validRemoteElements = elements.filter((el: any) => !mySelectedIds[el.id]);
+      // Don't overwrite elements I'm actively editing/dragging in this tab,
+      // BUT always apply remote deletions so all tabs converge.
+      const validRemoteElements = elements.filter(
+        (el: any) => el?.isDeleted || !mySelectedIds[el.id]
+      );
 
       const localElements = excalidrawAPI.current.getSceneElementsIncludingDeleted();
       const mergedElements = reconcileElements(localElements, validRemoteElements);
@@ -178,10 +266,27 @@ export const Editor: React.FC = () => {
         recordElementVersion(el);
       });
 
+      const incomingFiles = files || {};
+      const shouldUpdateFiles = Object.keys(incomingFiles).length > 0;
+      const nextFiles = shouldUpdateFiles
+        ? { ...lastSyncedFilesRef.current, ...incomingFiles }
+        : lastSyncedFilesRef.current;
+
+      if (shouldUpdateFiles && typeof excalidrawAPI.current.addFiles === "function") {
+        // Excalidraw manages binary files separately from scene elements; updateScene(files)
+        // is not reliable for syncing pasted images across tabs.
+        excalidrawAPI.current.addFiles(incomingFiles);
+      }
+
       excalidrawAPI.current.updateScene({ elements: mergedElements });
       latestElementsRef.current = mergedElements;
+      if (shouldUpdateFiles) {
+        latestFilesRef.current = nextFiles;
+        lastSyncedFilesRef.current = nextFiles;
+      }
       isSyncing.current = false;
     });
+
 
     const handleActivity = (isActive: boolean) => {
       socket.emit('user-activity', { drawingId: id, isActive });
@@ -224,14 +329,39 @@ export const Editor: React.FC = () => {
       lastCursorEmit.current = now;
     }
   }, [id, me]);
-  
+
   // Refs for API interaction
   const excalidrawAPI = useRef<any>(null);
-  
+
   const setExcalidrawAPI = useCallback((api: any) => {
     excalidrawAPI.current = api;
+    // DEV-only: expose API for debugging/e2e reproduction of collaboration bugs.
+    // This is intentionally not relied upon by app logic.
+    if (import.meta.env.DEV) {
+      (window as any).__EXCALIDASH_EXCALIDRAW_API__ = api;
+    }
+
+    // Ensure file-only updates (e.g. pasted image dataURL arriving asynchronously)
+    // are broadcast immediately even if Excalidraw doesn't trigger `onChange` for files.
+    if (api && typeof api.addFiles === "function") {
+      const originalAddFiles = api.addFiles.bind(api);
+      api.addFiles = (files: Record<string, any>) => {
+        originalAddFiles(files);
+
+        // Avoid rebroadcast loops when we are applying remote updates.
+        if (isSyncing.current) return;
+
+        const nextFiles = api.getFiles?.() || {};
+        const didEmit = emitFilesDeltaIfNeeded(nextFiles);
+
+        // Persist after file data becomes available so new tabs (tab3) load correctly.
+        if (didEmit && latestAppStateRef.current && debouncedSaveRef.current) {
+          debouncedSaveRef.current(latestElementsRef.current, latestAppStateRef.current);
+        }
+      };
+    }
     setIsReady(true);
-  }, []);
+  }, [emitFilesDeltaIfNeeded]);
 
   // Handle #addLibrary URL hash parameter for importing libraries from links
   useEffect(() => {
@@ -242,7 +372,7 @@ export const Editor: React.FC = () => {
 
     const params = new URLSearchParams(hash.slice(1)); // Remove the leading #
     const libraryUrl = params.get('addLibrary');
-    
+
     if (!libraryUrl) return;
 
     const importLibraryFromUrl = async () => {
@@ -370,15 +500,17 @@ export const Editor: React.FC = () => {
     }
   };
 
-  
-    const debouncedSave = useCallback(
-      debounce((elements, appState) => {
-        if (saveDataRef.current) {
-          saveDataRef.current(elements, appState);
-        }
-      }, 1000),
-      [] // Empty dependency array = Stable across renders
-    );
+
+  const debouncedSave = useCallback(
+    debounce((elements, appState) => {
+      if (saveDataRef.current) {
+        saveDataRef.current(elements, appState);
+      }
+    }, 1000),
+    [] // Empty dependency array = Stable across renders
+  );
+  // Allow non-hook code (e.g., Excalidraw API wrappers) to trigger debounced saves.
+  debouncedSaveRef.current = debouncedSave;
   const debouncedSavePreview = useCallback(
     debounce((elements, appState, files) => {
       if (savePreviewRef.current) {
@@ -398,9 +530,9 @@ export const Editor: React.FC = () => {
   );
 
   const broadcastChanges = useCallback(
-    throttle((elements: readonly any[]) => {
+    throttle((elements: readonly any[], currentFiles?: Record<string, any>) => {
       if (!socketRef.current || !id) return;
-      
+
       const changes: any[] = [];
 
       elements.forEach((el) => {
@@ -409,11 +541,24 @@ export const Editor: React.FC = () => {
           recordElementVersion(el);
         }
       });
-      
-      if (changes.length > 0) {
+
+      const nextFiles = currentFiles || excalidrawAPI.current?.getFiles() || {};
+      const filesDelta = getFilesDelta(lastSyncedFilesRef.current, nextFiles);
+      const shouldSyncFiles = Object.keys(filesDelta).length > 0;
+
+      if (Object.keys(nextFiles || {}).length > 0) {
+        latestFilesRef.current = nextFiles;
+      }
+      if (shouldSyncFiles) {
+        // Keep our baseline in sync so we only send deltas next time.
+        lastSyncedFilesRef.current = nextFiles;
+      }
+
+      if (changes.length > 0 || shouldSyncFiles) {
         socketRef.current.emit('element-update', {
           drawingId: id,
-          elements: changes,
+          elements: changes.length > 0 ? changes : [],
+          files: shouldSyncFiles ? filesDelta : undefined,
           userId: me.id
         });
       }
@@ -427,6 +572,7 @@ export const Editor: React.FC = () => {
     elementVersionMap.current.clear();
     latestElementsRef.current = [];
     latestFilesRef.current = {};
+    lastSyncedFilesRef.current = {};
     excalidrawAPI.current = null;
     setIsReady(false);
     setIsSceneLoading(true);
@@ -452,7 +598,8 @@ export const Editor: React.FC = () => {
         const files = data.files || {};
         latestElementsRef.current = elements;
         latestFilesRef.current = files;
-        
+        lastSyncedFilesRef.current = files;
+
         elements.forEach((el: any) => {
           recordElementVersion(el);
         });
@@ -464,6 +611,9 @@ export const Editor: React.FC = () => {
           gridSize: persistedAppState.gridSize ?? null,
           collaborators: new Map(),
         };
+        // Ensure we always have an appState available for file-only persistence triggers
+        // (some Excalidraw file updates may not trigger onChange with appState).
+        latestAppStateRef.current = hydratedAppState;
 
         setInitialData({
           elements,
@@ -477,6 +627,7 @@ export const Editor: React.FC = () => {
         toast.error("Failed to load drawing");
         latestElementsRef.current = [];
         latestFilesRef.current = {};
+        lastSyncedFilesRef.current = {};
         setInitialData(buildEmptyScene());
       } finally {
         setIsSceneLoading(false);
@@ -506,17 +657,24 @@ export const Editor: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const handleCanvasChange = useCallback((elements: readonly any[], appState: any) => {
+  const handleCanvasChange = useCallback((elements: readonly any[], appState: any, files?: Record<string, any>) => {
     if (isUnmounting.current) {
       console.log("[Editor] Ignoring change during unmount", { drawingId: id });
       return;
     }
 
     if (isSyncing.current) return;
-    
+
+    latestAppStateRef.current = appState;
+
+    const currentFiles = files || excalidrawAPI.current?.getFiles() || {};
+    if (Object.keys(currentFiles).length > 0) {
+      latestFilesRef.current = currentFiles;
+    }
+
     // Get ALL elements including deleted (fixes the "deletion not syncing" bug)
-    const allElements = excalidrawAPI.current 
-      ? excalidrawAPI.current.getSceneElementsIncludingDeleted() 
+    const allElements = excalidrawAPI.current
+      ? excalidrawAPI.current.getSceneElementsIncludingDeleted()
       : elements;
 
     if (!hasHydratedInitialScene.current) {
@@ -550,7 +708,7 @@ export const Editor: React.FC = () => {
     }
 
     // Trigger Sync (Throttled)
-    broadcastChanges(allElements);
+    broadcastChanges(allElements, currentFiles);
 
     // Trigger Fast Save
     console.log("[Editor] Queueing save", {
@@ -561,14 +719,37 @@ export const Editor: React.FC = () => {
     debouncedSave(allElements, appState);
 
     // Trigger Slow Preview Gen
-    const files = excalidrawAPI.current?.getFiles() || {};
-    latestFilesRef.current = files;
+    const filesSnapshot = currentFiles;
+    latestFilesRef.current = filesSnapshot;
     console.log("[Editor] Queueing preview save", {
       drawingId: id,
-      fileCount: Object.keys(files).length,
+      fileCount: Object.keys(filesSnapshot).length,
     });
-    debouncedSavePreview(allElements, appState, files);
+    debouncedSavePreview(allElements, appState, filesSnapshot);
   }, [debouncedSave, debouncedSavePreview, broadcastChanges]);
+
+  // Ensure file-only updates (e.g. pasted image dataURL arriving asynchronously)
+  // are still broadcast to collaborators AND persisted to the server.
+  useEffect(() => {
+    if (!id || !isReady) return;
+
+    const interval = window.setInterval(() => {
+      if (isUnmounting.current) return;
+      if (isSyncing.current) return;
+      if (!socketRef.current) return;
+      if (!excalidrawAPI.current) return;
+
+      const nextFiles = excalidrawAPI.current.getFiles?.() || {};
+      const didEmit = emitFilesDeltaIfNeeded(nextFiles);
+
+      // Persist after file data becomes available (covers the "tab 3" case).
+      if (didEmit && latestAppStateRef.current && debouncedSaveRef.current) {
+        debouncedSaveRef.current(latestElementsRef.current, latestAppStateRef.current);
+      }
+    }, 500);
+
+    return () => window.clearInterval(interval);
+  }, [id, isReady, emitFilesDeltaIfNeeded]);
 
   const handleRenameSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -623,8 +804,8 @@ export const Editor: React.FC = () => {
     <div className="h-screen flex flex-col bg-white dark:bg-neutral-950 overflow-hidden">
       <header className="h-14 bg-white dark:bg-neutral-900 border-b border-gray-200 dark:border-neutral-800 flex items-center px-4 justify-between z-10">
         <div className="flex items-center gap-4">
-          <button 
-            onClick={handleBackClick} 
+          <button
+            onClick={handleBackClick}
             disabled={isSavingOnLeave}
             className={`flex items-center gap-2 p-2 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-full text-gray-600 dark:text-gray-300 disabled:opacity-50 disabled:cursor-wait transition-all duration-200 ${isSavingOnLeave ? 'pr-4' : ''}`}
           >
@@ -659,7 +840,7 @@ export const Editor: React.FC = () => {
             </h1>
           )}
         </div>
-        
+
         <div className="flex items-center gap-3">
           {/* Download Button */}
           <button
@@ -682,7 +863,7 @@ export const Editor: React.FC = () => {
 
           <div className="flex items-center">
             <div className="relative group">
-              <div 
+              <div
                 className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-white shadow-sm"
                 style={{ backgroundColor: me.color }}
               >
@@ -692,16 +873,16 @@ export const Editor: React.FC = () => {
                 {me.name} (You)
               </div>
             </div>
-            
+
             <div className="h-6 w-px bg-gray-300 dark:bg-gray-700 mx-2" />
-            
+
             <div className="flex items-center gap-2">
               {peers.map(peer => (
-                <div 
+                <div
                   key={peer.id}
                   className="relative group"
                 >
-                  <div 
+                  <div
                     className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-white shadow-sm transition-all duration-300 ${!peer.isActive ? 'opacity-30 grayscale' : ''}`}
                     style={{ backgroundColor: peer.color }}
                   >

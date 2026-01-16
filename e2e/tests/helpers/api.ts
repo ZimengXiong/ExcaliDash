@@ -174,6 +174,37 @@ export async function getDrawing(
   return (await response.json()) as DrawingRecord;
 }
 
+export async function updateDrawing(
+  request: APIRequestContext,
+  id: string,
+  data: Partial<DrawingRecord>
+): Promise<DrawingRecord> {
+  const headers = await withCsrfHeaders(request, { "Content-Type": "application/json" });
+
+  let response = await request.put(`${API_URL}/drawings/${id}`, {
+    headers,
+    data,
+  });
+
+  if (!response.ok() && response.status() === 403) {
+    await refreshCsrfInfo(request);
+    const retryHeaders = await withCsrfHeaders(request, {
+      "Content-Type": "application/json",
+    });
+    response = await request.put(`${API_URL}/drawings/${id}`, {
+      headers: retryHeaders,
+      data,
+    });
+  }
+
+  if (!response.ok()) {
+    const text = await response.text();
+    throw new Error(`Failed to update drawing ${id}: ${response.status()} ${text}`);
+  }
+
+  return (await response.json()) as DrawingRecord;
+}
+
 export async function deleteDrawing(
   request: APIRequestContext,
   id: string
