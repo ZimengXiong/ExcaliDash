@@ -746,7 +746,7 @@ export const Editor: React.FC = () => {
       if (didEmit && latestAppStateRef.current && debouncedSaveRef.current) {
         debouncedSaveRef.current(latestElementsRef.current, latestAppStateRef.current);
       }
-    }, 500);
+    }, 1000);
 
     return () => window.clearInterval(interval);
   }, [id, isReady, emitFilesDeltaIfNeeded]);
