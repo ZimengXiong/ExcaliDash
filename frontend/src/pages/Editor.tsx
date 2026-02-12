@@ -253,12 +253,30 @@ export const Editor: React.FC = () => {
   useEffect(() => {
     if (!id || !isReady) return;
 
-    const socketUrl = import.meta.env.VITE_API_URL === '/api'
+    const apiUrl = import.meta.env.VITE_API_URL || '/api';
+    const usingRelativeApiBasePath = apiUrl.startsWith('/');
+    const socketUrl = usingRelativeApiBasePath
       ? window.location.origin
-      : (import.meta.env.VITE_API_URL || 'http://localhost:8000');
+      : apiUrl;
+    const socketPath = (() => {
+      if (usingRelativeApiBasePath) {
+        const normalized = apiUrl.endsWith('/') && apiUrl.length > 1 ? apiUrl.slice(0, -1) : apiUrl;
+        return normalized === '/' ? '/socket.io' : `${normalized}/socket.io`;
+      }
+      try {
+        const parsed = new URL(apiUrl);
+        const normalizedPath =
+          parsed.pathname.length > 1 && parsed.pathname.endsWith('/')
+            ? parsed.pathname.slice(0, -1)
+            : parsed.pathname;
+        return normalizedPath === '/' ? '/socket.io' : `${normalizedPath}/socket.io`;
+      } catch {
+        return '/socket.io';
+      }
+    })();
 
     const socket = io(socketUrl, {
-      path: '/socket.io',
+      path: socketPath,
       transports: ['websocket', 'polling'],
       withCredentials: true,
     });
