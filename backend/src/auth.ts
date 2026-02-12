@@ -29,6 +29,7 @@ import {
   setAccessTokenCookie,
   setAuthCookies,
 } from "./auth/cookies";
+import { getClientIp } from "./utils/clientIp";
 
 interface JwtPayload {
   userId: string;
@@ -125,8 +126,7 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
     return trimmed.length > 0 ? trimmed.slice(0, 255) : null;
   };
 
-  const resolveRateLimitIp = (req: Request): string =>
-    (req.ip || req.connection.remoteAddress || "unknown").slice(0, 255);
+  const resolveRateLimitIp = (req: Request): string => getClientIp(req);
 
   const trackIdentifierRateLimitKey = (identifier: string, key: string): void => {
     if (!loginIdentifierKeyIndex.has(identifier) && loginIdentifierKeyIndex.size >= 5000) {
@@ -250,6 +250,7 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
     validate: {
       trustProxy: false,
     },
+    keyGenerator: (req) => getClientIp(req as Request),
   });
 
   const generateTempPassword = (): string => {

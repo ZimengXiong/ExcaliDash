@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Logo } from '../components/Logo';
 
 export const Register: React.FC = () => {
+  const strongPasswordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{12,100}$/;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -43,7 +44,12 @@ export const Register: React.FC = () => {
     e.preventDefault();
     setError('');
 
-    if (password.length < 8) {
+    if (import.meta.env.PROD) {
+      if (!strongPasswordPattern.test(password)) {
+        setError('Password must be 12+ chars and include upper, lower, number, and symbol');
+        return;
+      }
+    } else if (password.length < 8) {
       setError('Password must be at least 8 characters long');
       return;
     }
@@ -134,9 +140,11 @@ export const Register: React.FC = () => {
                 type="password"
                 autoComplete="new-password"
                 required
-                minLength={8}
+                minLength={import.meta.env.PROD ? 12 : 8}
                 className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white dark:bg-gray-800 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="Password (min 8 characters)"
+                placeholder={import.meta.env.PROD
+                  ? "Password (12+, upper/lower/number/symbol)"
+                  : "Password (min 8 characters)"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />

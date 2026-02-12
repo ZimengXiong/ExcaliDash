@@ -31,6 +31,7 @@ import { prisma } from "./db/prisma";
 import { createDrawingsCacheStore } from "./server/drawingsCache";
 import { registerCsrfProtection } from "./server/csrf";
 import { registerSocketHandlers } from "./server/socket";
+import { getClientIp } from "./utils/clientIp";
 
 const backendRoot = path.resolve(__dirname, "../");
 console.log("Resolved DATABASE_URL:", process.env.DATABASE_URL);
@@ -330,6 +331,7 @@ const generalRateLimiter = rateLimit({
   validate: {
     trustProxy: false,
   },
+  keyGenerator: (req) => getClientIp(req),
 });
 
 app.use(generalRateLimiter);

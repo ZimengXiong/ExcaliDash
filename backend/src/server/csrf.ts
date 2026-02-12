@@ -11,6 +11,7 @@ import {
   getCsrfClientCookieValue,
   getCsrfValidationClientIds,
 } from "../security/csrfClient";
+import { getClientIp } from "../utils/clientIp";
 
 const CSRF_CLIENT_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
 const CSRF_RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
@@ -77,7 +78,7 @@ export const registerCsrfProtection = ({
 
     if (enableDebugLogging) {
       const validationCandidates = getCsrfValidationClientIds(req);
-      const ip = req.ip || req.connection.remoteAddress || "unknown";
+      const ip = getClientIp(req);
       console.log("[CSRF DEBUG] getClientId", {
         method: req.method,
         path: req.path,
@@ -102,7 +103,7 @@ export const registerCsrfProtection = ({
   let csrfCleanupCounter = 0;
 
   app.get("/csrf-token", (req, res) => {
-    const ip = req.ip || req.connection.remoteAddress || "unknown";
+    const ip = getClientIp(req);
     const now = Date.now();
     const clientLimit = csrfRateLimit.get(ip);
 

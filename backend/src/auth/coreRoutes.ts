@@ -167,6 +167,16 @@ export const registerCoreRoutes = (deps: RegisterCoreRoutesDeps) => {
       const parsed = registerSchema.safeParse(req.body);
 
       if (!parsed.success) {
+        const summarizedIssues = parsed.error.issues.map((issue) => ({
+          code: issue.code,
+          path: issue.path.join("."),
+          message: issue.message,
+        }));
+        console.warn("[auth/register] validation failed", {
+          issues: summarizedIssues,
+          requestId: req.headers["x-request-id"],
+          ip: req.ip || req.connection.remoteAddress || "unknown",
+        });
         return res.status(400).json({
           error: "Validation error",
           message: "Invalid registration data",
