@@ -2,6 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { Logo } from '../components/Logo';
 import { authPasswordResetConfirm, isAxiosError } from '../api';
+import {
+  getPasswordRequirementsLabel,
+  validatePasswordForCurrentEnv,
+} from '../utils/passwordPolicy';
 
 export const PasswordResetConfirm: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -29,8 +33,9 @@ export const PasswordResetConfirm: React.FC = () => {
       return;
     }
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters long');
+    const passwordError = validatePasswordForCurrentEnv(password);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
 
@@ -124,7 +129,7 @@ export const PasswordResetConfirm: React.FC = () => {
                 autoComplete="new-password"
                 required
                 className="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white dark:bg-gray-800 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="New password (min 8 characters)"
+                placeholder={`New password (${getPasswordRequirementsLabel()})`}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />

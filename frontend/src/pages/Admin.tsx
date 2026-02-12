@@ -12,6 +12,11 @@ import {
   readImpersonationState,
   USER_KEY,
 } from '../utils/impersonation';
+import {
+  getPasswordMinLength,
+  getPasswordRequirementsLabel,
+  validatePasswordForCurrentEnv,
+} from '../utils/passwordPolicy';
 
 type AdminUser = {
   id: string;
@@ -226,6 +231,12 @@ export const Admin: React.FC = () => {
     setError('');
     setSuccess('');
 
+    const passwordError = validatePasswordForCurrentEnv(createPassword, 'Temporary password');
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
+
     try {
       const payload = {
         email: createEmail.trim().toLowerCase(),
@@ -430,8 +441,9 @@ export const Admin: React.FC = () => {
                 type="password"
                 value={createPassword}
                 onChange={e => setCreatePassword(e.target.value)}
-                minLength={8}
+                minLength={getPasswordMinLength()}
                 required
+                placeholder={`Temporary password (${getPasswordRequirementsLabel()})`}
                 className="w-full px-4 py-3 bg-white dark:bg-neutral-800 border-2 border-slate-200 dark:border-neutral-700 rounded-xl text-slate-900 dark:text-white outline-none"
               />
             </div>

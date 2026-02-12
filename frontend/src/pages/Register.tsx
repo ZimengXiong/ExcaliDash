@@ -2,9 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Logo } from '../components/Logo';
+import {
+  getPasswordMinLength,
+  getPasswordRequirementsLabel,
+  validatePasswordForCurrentEnv,
+} from '../utils/passwordPolicy';
 
 export const Register: React.FC = () => {
-  const strongPasswordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{12,100}$/;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -44,13 +48,9 @@ export const Register: React.FC = () => {
     e.preventDefault();
     setError('');
 
-    if (import.meta.env.PROD) {
-      if (!strongPasswordPattern.test(password)) {
-        setError('Password must be 12+ chars and include upper, lower, number, and symbol');
-        return;
-      }
-    } else if (password.length < 8) {
-      setError('Password must be at least 8 characters long');
+    const passwordError = validatePasswordForCurrentEnv(password);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
 
@@ -140,11 +140,9 @@ export const Register: React.FC = () => {
                 type="password"
                 autoComplete="new-password"
                 required
-                minLength={import.meta.env.PROD ? 12 : 8}
+                minLength={getPasswordMinLength()}
                 className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white dark:bg-gray-800 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder={import.meta.env.PROD
-                  ? "Password (12+, upper/lower/number/symbol)"
-                  : "Password (min 8 characters)"}
+                placeholder={`Password (${getPasswordRequirementsLabel()})`}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />

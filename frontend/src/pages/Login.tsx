@@ -4,6 +4,11 @@ import { useAuth } from '../context/AuthContext';
 import { Logo } from '../components/Logo';
 import * as api from '../api';
 import { USER_KEY } from '../utils/impersonation';
+import {
+  getPasswordMinLength,
+  getPasswordRequirementsLabel,
+  validatePasswordForCurrentEnv,
+} from '../utils/passwordPolicy';
 
 export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -105,8 +110,9 @@ export const Login: React.FC = () => {
       setError('Please enter and confirm a new password');
       return;
     }
-    if (newPassword.length < 8) {
-      setError('New password must be at least 8 characters long');
+    const passwordError = validatePasswordForCurrentEnv(newPassword, 'New password');
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
     if (newPassword !== confirmNewPassword) {
@@ -233,9 +239,9 @@ export const Login: React.FC = () => {
                     type="password"
                     autoComplete="new-password"
                     required
-                    minLength={8}
+                    minLength={getPasswordMinLength()}
                     className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white dark:bg-gray-800 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                    placeholder="New password (min 8 characters)"
+                    placeholder={`New password (${getPasswordRequirementsLabel()})`}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                   />
@@ -250,7 +256,7 @@ export const Login: React.FC = () => {
                     type="password"
                     autoComplete="new-password"
                     required
-                    minLength={8}
+                    minLength={getPasswordMinLength()}
                     className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white dark:bg-gray-800 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                     placeholder="Confirm new password"
                     value={confirmNewPassword}

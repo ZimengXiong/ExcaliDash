@@ -6,6 +6,10 @@ import * as api from '../api';
 import type { Collection } from '../types';
 import { User, Lock, Save, X, Shield } from 'lucide-react';
 import { USER_KEY } from '../utils/impersonation';
+import {
+    getPasswordRequirementsLabel,
+    validatePasswordForCurrentEnv,
+} from '../utils/passwordPolicy';
 
 export const Profile: React.FC = () => {
     const { user: authUser, logout, authEnabled } = useAuth();
@@ -162,8 +166,9 @@ export const Profile: React.FC = () => {
             return;
         }
 
-        if (newPassword.length < 8) {
-            setError('New password must be at least 8 characters long');
+        const passwordError = validatePasswordForCurrentEnv(newPassword, 'New password');
+        if (passwordError) {
+            setError(passwordError);
             return;
         }
 
@@ -488,7 +493,7 @@ export const Profile: React.FC = () => {
                                     value={newPassword}
                                     onChange={(e) => setNewPassword(e.target.value)}
                                     className="w-full px-4 py-3 bg-white dark:bg-neutral-800 border-2 border-black dark:border-neutral-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500 dark:focus:ring-rose-400 font-medium"
-                                    placeholder="Enter new password (min 8 characters)"
+                                    placeholder={`Enter new password (${getPasswordRequirementsLabel()})`}
                                 />
                             </div>
 
