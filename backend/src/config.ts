@@ -12,6 +12,7 @@ interface Config {
   nodeEnv: string;
   databaseUrl?: string;
   frontendUrl?: string;
+  apiBasePath: string;
   authMode: AuthMode;
   jwtSecret: string;
   jwtAccessExpiresIn: string;
@@ -80,6 +81,22 @@ const parseFrontendUrl = (raw: string | undefined): string | undefined => {
     .filter((origin) => origin.length > 0)
     .join(",");
   return normalized.length > 0 ? normalized : undefined;
+};
+
+const parseApiBasePath = (raw: string | undefined): string => {
+  const fallback = "/api";
+  if (!raw || raw.trim().length === 0) return fallback;
+
+  const trimmed = raw.trim();
+  if (trimmed === "/") return "/";
+
+  const withLeadingSlash = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  const withoutTrailingSlash =
+    withLeadingSlash.length > 1 && withLeadingSlash.endsWith("/")
+      ? withLeadingSlash.slice(0, -1)
+      : withLeadingSlash;
+
+  return withoutTrailingSlash.length > 0 ? withoutTrailingSlash : fallback;
 };
 
 const resolveDatabaseUrl = (rawUrl?: string) => {
@@ -189,6 +206,7 @@ export const config: Config = {
   nodeEnv: getOptionalEnv("NODE_ENV", "development"),
   databaseUrl: process.env.DATABASE_URL,
   frontendUrl: parseFrontendUrl(process.env.FRONTEND_URL),
+  apiBasePath: parseApiBasePath(process.env.API_BASE_PATH),
   authMode: resolvedAuthMode,
   jwtSecret: resolveJwtSecret(getOptionalEnv("NODE_ENV", "development")),
   jwtAccessExpiresIn: getOptionalEnv("JWT_ACCESS_EXPIRES_IN", "15m"),

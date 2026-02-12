@@ -59,6 +59,7 @@ const normalizeOrigins = (rawOrigins?: string | null): string[] => {
 
 const allowedOrigins = normalizeOrigins(config.frontendUrl);
 console.log("Allowed origins:", allowedOrigins);
+console.log("API base path:", config.apiBasePath);
 
 const isDev = (process.env.NODE_ENV || "development") !== "production";
 const isLocalDevOrigin = (origin: string): boolean => {
@@ -132,6 +133,10 @@ if (trustProxyValue === true) {
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
+  path:
+    config.apiBasePath === "/"
+      ? "/socket.io"
+      : `${config.apiBasePath}/socket.io`,
   cors: {
     origin: (origin, cb) => cb(null, isAllowedOrigin(origin ?? undefined)),
     credentials: true,
@@ -329,15 +334,18 @@ const generalRateLimiter = rateLimit({
 
 app.use(generalRateLimiter);
 
+const apiApp = express();
+app.use(config.apiBasePath, apiApp);
+
 registerCsrfProtection({
-  app,
+  app: apiApp,
   isAllowedOrigin,
   maxRequestsPerWindow: config.csrfMaxRequests,
   enableDebugLogging: process.env.DEBUG_CSRF === "true",
 });
 
 // Authentication routes (no CSRF required, uses JWT)
-app.use("/auth", authRouter);
+apiApp.use("/auth", authRouter);
 
 // Files field can contain arbitrary file metadata, so we use unknown and validate structure
 const filesFieldSchema = z
@@ -556,13 +564,13 @@ registerSocketHandlers({
   jwtSecret: config.jwtSecret,
 });
 
-app.get("/health", (req, res) => {
+apiApp.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });
 });
 
 // Health check endpoint doesn't require auth
 
-registerDashboardRoutes(app, {
+registerDashboardRoutes(apiApp, {
   prisma,
   requireAuth,
   asyncHandler,
@@ -584,7 +592,7 @@ registerDashboardRoutes(app, {
 });
 
 registerImportExportRoutes({
-  app,
+  app: apiApp,
   prisma,
   requireAuth,
   asyncHandler,
@@ -622,5 +630,8 @@ if (isMain) {
     console.log(`Server running on port ${PORT}`);
     console.log(`Environment: ${config.nodeEnv}`);
     console.log(`Frontend URL: ${config.frontendUrl}`);
+    console.log(
+      `API endpoints: ${config.apiBasePath === "/" ? "/" : `${config.apiBasePath}/`}*`
+    );
   });
 }
