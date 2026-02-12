@@ -2,6 +2,14 @@ import express from "express";
 import { DashboardRouteDeps } from "./types";
 import { getUserTrashCollectionId, isTrashCollectionId } from "./trash";
 
+const getRouteIdParam = (value: string | string[] | undefined): string | null => {
+  if (typeof value === "string" && value.trim().length > 0) return value;
+  if (Array.isArray(value) && typeof value[0] === "string" && value[0].trim().length > 0) {
+    return value[0];
+  }
+  return null;
+};
+
 export const registerCollectionRoutes = (
   app: express.Express,
   deps: DashboardRouteDeps
@@ -59,7 +67,8 @@ export const registerCollectionRoutes = (
   app.put("/collections/:id", requireAuth, asyncHandler(async (req, res) => {
     if (!req.user) return res.status(401).json({ error: "Unauthorized" });
 
-    const { id } = req.params;
+    const id = getRouteIdParam(req.params.id);
+    if (!id) return res.status(400).json({ error: "Validation error", message: "Invalid id parameter" });
     if (isTrashCollectionId(id, req.user.id)) {
       return res.status(400).json({
         error: "Validation error",
@@ -99,7 +108,8 @@ export const registerCollectionRoutes = (
   app.delete("/collections/:id", requireAuth, asyncHandler(async (req, res) => {
     if (!req.user) return res.status(401).json({ error: "Unauthorized" });
 
-    const { id } = req.params;
+    const id = getRouteIdParam(req.params.id);
+    if (!id) return res.status(400).json({ error: "Validation error", message: "Invalid id parameter" });
     if (isTrashCollectionId(id, req.user.id)) {
       return res.status(400).json({
         error: "Validation error",

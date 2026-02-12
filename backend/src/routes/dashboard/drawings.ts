@@ -8,6 +8,14 @@ import {
   toPublicTrashCollectionId,
 } from "./trash";
 
+const getRouteIdParam = (value: string | string[] | undefined): string | null => {
+  if (typeof value === "string" && value.trim().length > 0) return value;
+  if (Array.isArray(value) && typeof value[0] === "string" && value[0].trim().length > 0) {
+    return value[0];
+  }
+  return null;
+};
+
 export const registerDrawingRoutes = (
   app: express.Express,
   deps: DashboardRouteDeps
@@ -172,7 +180,8 @@ export const registerDrawingRoutes = (
   app.get("/drawings/:id", requireAuth, asyncHandler(async (req, res) => {
     if (!req.user) return res.status(401).json({ error: "Unauthorized" });
 
-    const { id } = req.params;
+    const id = getRouteIdParam(req.params.id);
+    if (!id) return res.status(400).json({ error: "Validation error", message: "Invalid id parameter" });
     const drawing = await prisma.drawing.findFirst({
       where: {
         id,
@@ -255,7 +264,8 @@ export const registerDrawingRoutes = (
   app.put("/drawings/:id", requireAuth, asyncHandler(async (req, res) => {
     if (!req.user) return res.status(401).json({ error: "Unauthorized" });
 
-    const { id } = req.params;
+    const id = getRouteIdParam(req.params.id);
+    if (!id) return res.status(400).json({ error: "Validation error", message: "Invalid id parameter" });
     const existingDrawing = await prisma.drawing.findFirst({
       where: { id, userId: req.user.id },
     });
@@ -352,7 +362,8 @@ export const registerDrawingRoutes = (
 
   app.delete("/drawings/:id", requireAuth, asyncHandler(async (req, res) => {
     if (!req.user) return res.status(401).json({ error: "Unauthorized" });
-    const { id } = req.params;
+    const id = getRouteIdParam(req.params.id);
+    if (!id) return res.status(400).json({ error: "Validation error", message: "Invalid id parameter" });
 
     const drawing = await prisma.drawing.findFirst({ where: { id, userId: req.user.id } });
     if (!drawing) return res.status(404).json({ error: "Drawing not found" });
@@ -382,7 +393,8 @@ export const registerDrawingRoutes = (
   app.post("/drawings/:id/duplicate", requireAuth, asyncHandler(async (req, res) => {
     if (!req.user) return res.status(401).json({ error: "Unauthorized" });
 
-    const { id } = req.params;
+    const id = getRouteIdParam(req.params.id);
+    if (!id) return res.status(400).json({ error: "Validation error", message: "Invalid id parameter" });
     const original = await prisma.drawing.findFirst({ where: { id, userId: req.user.id } });
     if (!original) return res.status(404).json({ error: "Original drawing not found" });
     let duplicatedCollectionId = original.collectionId;

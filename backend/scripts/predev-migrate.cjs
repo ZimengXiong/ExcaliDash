@@ -24,7 +24,10 @@ const resolveDatabaseUrl = (rawUrl) => {
 
   const absolutePath = path.isAbsolute(filePath)
     ? filePath
-    : path.resolve(hasLeadingPrismaDir ? backendRoot : prismaDir, normalizedRelative);
+    : path.resolve(
+        hasLeadingPrismaDir ? backendRoot : prismaDir,
+        normalizedRelative,
+      );
 
   return `file:${absolutePath}`;
 };
@@ -91,7 +94,15 @@ const backupDbIfPresent = () => {
 const isNonProd = nodeEnv !== "production";
 const isFileDb = databaseUrl.startsWith("file:");
 
-const deploy = runCapture("npx prisma migrate deploy");
+let deploy = runCapture("npx prisma migrate deploy");
+
+if (!deploy.ok) {
+  console.warn(
+    `[predev] Prisma migrate deploy failed. Attempting pnpm exec...`,
+  );
+  deploy = runCapture("pnpm exec prisma migrate deploy");
+}
+
 if (deploy.ok) {
   if (deploy.stdout) process.stdout.write(deploy.stdout);
 } else {
@@ -111,7 +122,16 @@ if (deploy.ok) {
         `  If you need to preserve local data, restore the backup and baseline manually.`,
     );
 
-    run("npx prisma migrate reset --force --skip-seed");
+    // check for npx, if not present try pnpm exec
+    try {
+      console.log(
+        `[predev] Running: npx prisma migrate reset --force --skip-seed`,
+      );
+      run("npx prisma migrate reset --force --skip-seed");
+    } catch {
+      console.warn(`[predev] npx not found, trying pnpm exec...`);
+      run("pnpm exec prisma migrate reset --force --skip-seed");
+    }
   } else {
     throw deploy.error;
   }
