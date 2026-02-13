@@ -56,6 +56,7 @@ interface DrawingCardProps {
   onDragStart?: (e: React.DragEvent, id: string) => void;
   onMouseDown?: (e: React.MouseEvent, id: string) => void;
   onPreviewGenerated?: (id: string, preview: string) => void;
+  canManage?: boolean;
 }
 
 const ContextMenuPortal: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -76,6 +77,7 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
   onDragStart,
   onMouseDown,
   onPreviewGenerated,
+  canManage = true,
 }) => {
   const [isRenaming, setIsRenaming] = useState(false);
   const [showMoveSubmenu, setShowMoveSubmenu] = useState(false);
@@ -207,6 +209,7 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
   }, []);
 
   const handleRenameSubmit = (e: React.FormEvent) => {
+    if (!canManage) return;
     e.preventDefault();
     if (newName.trim()) {
       onRename(drawing.id, newName);
@@ -313,6 +316,7 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
               className="text-sm sm:text-base font-bold text-slate-800 dark:text-neutral-100 truncate cursor-text select-none group-hover:text-neutral-900 dark:group-hover:text-white transition-colors"
               title={drawing.name}
               onDoubleClick={(e) => {
+                if (!canManage) return;
                 e.stopPropagation();
                 setIsRenaming(true);
               }}
@@ -327,15 +331,17 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
             </p>
 
             <div className="relative" onClick={e => e.stopPropagation()}>
-              <button
-                onClick={() => setShowCollectionDropdown(!showCollectionDropdown)}
-                data-testid={`collection-picker-${drawing.id}`}
-                aria-haspopup="listbox"
-                aria-expanded={showCollectionDropdown}
-                className="px-2 py-1 rounded-md bg-slate-50 dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-neutral-200 text-slate-500 dark:text-neutral-400 text-[10px] font-bold uppercase tracking-wide max-w-[120px] truncate transition-all cursor-pointer border border-slate-100 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600"
-              >
-                {drawing.collectionId ? (collections.find(c => c.id === drawing.collectionId)?.name || 'Collection') : 'Unorganized'}
-              </button>
+              {canManage && (
+                <button
+                  onClick={() => setShowCollectionDropdown(!showCollectionDropdown)}
+                  data-testid={`collection-picker-${drawing.id}`}
+                  aria-haspopup="listbox"
+                  aria-expanded={showCollectionDropdown}
+                  className="px-2 py-1 rounded-md bg-slate-50 dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-neutral-200 text-slate-500 dark:text-neutral-400 text-[10px] font-bold uppercase tracking-wide max-w-[120px] truncate transition-all cursor-pointer border border-slate-100 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600"
+                >
+                  {drawing.collectionId ? (collections.find(c => c.id === drawing.collectionId)?.name || 'Collection') : 'Unorganized'}
+                </button>
+              )}
 
               {showCollectionDropdown && (
                 <>
@@ -387,56 +393,60 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
               style={{ top: contextMenu.y, left: contextMenu.x }}
               onClick={(e) => e.stopPropagation()}
             >
-              <button
-                onClick={() => {
-                  setIsRenaming(true);
-                  setContextMenu(null);
-                }}
-                className="w-full px-3 py-2 text-sm text-left text-slate-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white flex items-center gap-2"
-              >
-                <PenTool size={14} /> Rename
-              </button>
-
-              <div
-                className="relative group/move"
-                onMouseEnter={() => setShowMoveSubmenu(true)}
-                onMouseLeave={() => setShowMoveSubmenu(false)}
-              >
+              {canManage && (
                 <button
-                  className="w-full px-3 py-2 text-sm text-left text-slate-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white flex items-center justify-between"
+                  onClick={() => {
+                    setIsRenaming(true);
+                    setContextMenu(null);
+                  }}
+                  className="w-full px-3 py-2 text-sm text-left text-slate-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white flex items-center gap-2"
                 >
-                  <span className="flex items-center gap-2"><FolderInput size={14} /> Move to...</span>
-                  <ArrowRight size={12} />
+                  <PenTool size={14} /> Rename
                 </button>
+              )}
 
-                {showMoveSubmenu && (
-                  <div className="absolute left-full top-0 ml-1 w-40 bg-white dark:bg-neutral-900 rounded-lg border-2 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] py-1 max-h-64 overflow-y-auto">
-                    <button
-                      onClick={() => { onMoveToCollection(drawing.id, null); setContextMenu(null); }}
-                      className={clsx(
-                        "w-full px-3 py-1.5 text-xs text-left flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800",
-                        drawing.collectionId === null ? "text-neutral-900 dark:text-white font-medium" : "text-slate-600 dark:text-neutral-400"
-                      )}
-                    >
-                      Unorganized
-                      {drawing.collectionId === null && <Check size={10} />}
-                    </button>
-                    {collections.map(c => (
+              {canManage && (
+                <div
+                  className="relative group/move"
+                  onMouseEnter={() => setShowMoveSubmenu(true)}
+                  onMouseLeave={() => setShowMoveSubmenu(false)}
+                >
+                  <button
+                    className="w-full px-3 py-2 text-sm text-left text-slate-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white flex items-center justify-between"
+                  >
+                    <span className="flex items-center gap-2"><FolderInput size={14} /> Move to...</span>
+                    <ArrowRight size={12} />
+                  </button>
+
+                  {showMoveSubmenu && (
+                    <div className="absolute left-full top-0 ml-1 w-40 bg-white dark:bg-neutral-900 rounded-lg border-2 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] py-1 max-h-64 overflow-y-auto">
                       <button
-                        key={c.id}
-                        onClick={() => { onMoveToCollection(drawing.id, c.id); setContextMenu(null); }}
+                        onClick={() => { onMoveToCollection(drawing.id, null); setContextMenu(null); }}
                         className={clsx(
-                          "w-full px-3 py-1.5 text-xs text-left flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800 truncate",
-                          drawing.collectionId === c.id ? "text-neutral-900 dark:text-white font-medium" : "text-slate-600 dark:text-neutral-400"
+                          "w-full px-3 py-1.5 text-xs text-left flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800",
+                          drawing.collectionId === null ? "text-neutral-900 dark:text-white font-medium" : "text-slate-600 dark:text-neutral-400"
                         )}
                       >
-                        <span className="truncate">{c.name}</span>
-                        {drawing.collectionId === c.id && <Check size={10} />}
+                        Unorganized
+                        {drawing.collectionId === null && <Check size={10} />}
                       </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+                      {collections.map(c => (
+                        <button
+                          key={c.id}
+                          onClick={() => { onMoveToCollection(drawing.id, c.id); setContextMenu(null); }}
+                          className={clsx(
+                            "w-full px-3 py-1.5 text-xs text-left flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800 truncate",
+                            drawing.collectionId === c.id ? "text-neutral-900 dark:text-white font-medium" : "text-slate-600 dark:text-neutral-400"
+                          )}
+                        >
+                          <span className="truncate">{c.name}</span>
+                          {drawing.collectionId === c.id && <Check size={10} />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="border-t border-slate-50 dark:border-slate-700 my-1"></div>
 
@@ -468,17 +478,20 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
                 </div>
               )}
 
-              <div className="border-t border-slate-50 dark:border-slate-700 my-1"></div>
-
-              <button
-                onClick={() => {
-                  onDelete(drawing.id);
-                  setContextMenu(null);
-                }}
-                className="w-full px-3 py-2 text-sm text-left text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30 flex items-center gap-2"
-              >
-                <Trash2 size={14} /> Delete
-              </button>
+              {canManage && (
+                <>
+                  <div className="border-t border-slate-50 dark:border-slate-700 my-1"></div>
+                  <button
+                    onClick={() => {
+                      onDelete(drawing.id);
+                      setContextMenu(null);
+                    }}
+                    className="w-full px-3 py-2 text-sm text-left text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30 flex items-center gap-2"
+                  >
+                    <Trash2 size={14} /> Delete
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </ContextMenuPortal>

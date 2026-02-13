@@ -1,6 +1,7 @@
 import express from "express";
 import { z } from "zod";
 import { Prisma, PrismaClient } from "../../generated/client";
+import { AuthModeService } from "../../auth/authMode";
 
 export type SortField = "name" | "createdAt" | "updatedAt";
 export type SortDirection = "asc" | "desc";
@@ -30,6 +31,7 @@ type LogAuditEvent = (params: {
 
 export type DashboardRouteDeps = {
   prisma: PrismaClient;
+  authModeService: AuthModeService;
   requireAuth: express.RequestHandler;
   asyncHandler: <T = void>(
     fn: (req: express.Request, res: express.Response, next: express.NextFunction) => Promise<T>

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Download, Loader2, ChevronUp, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Download, Loader2, ChevronUp, ChevronDown, Share2, Copy, RotateCcw } from 'lucide-react';
 import clsx from 'clsx';
 import { Excalidraw, exportToSvg } from '@excalidraw/excalidraw';
 import debounce from 'lodash/debounce';
@@ -12,8 +12,10 @@ import { useAuth } from '../context/AuthContext';
 import { reconcileElements } from '../utils/sync';
 import { exportFromEditor } from '../utils/exportUtils';
 import * as api from '../api';
+import type { ShareLinkRole } from '../api';
 import { useTheme } from '../context/ThemeContext';
 import {
+  buildElementSyncFingerprint,
   UIOptions,
   getFilesDelta,
   hasRenderableElements,
@@ -25,6 +27,7 @@ import {
 import type { ElementVersionInfo } from './editor/shared';
 import { useEditorChrome } from './editor/useEditorChrome';
 import { useEditorIdentity } from './editor/useEditorIdentity';
+import type { DrawingAccessRole } from '../types';
 
 interface Peer extends UserIdentity {
   isActive: boolean;
@@ -49,6 +52,11 @@ export const Editor: React.FC = () => {
   const [isSceneLoading, setIsSceneLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isSavingOnLeave, setIsSavingOnLeave] = useState(false);
+  const [accessRole, setAccessRole] = useState<DrawingAccessRole>('owner');
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareLinks, setShareLinks] = useState<{ viewer: string; editor: string } | null>(null);
+  const [isLoadingShareLinks, setIsLoadingShareLinks] = useState(false);
+  const [rotatingRole, setRotatingRole] = useState<ShareLinkRole | null>(null);
   const [autoHideEnabled, setAutoHideEnabled] = useState(true);
   const { isHeaderVisible, setIsHeaderVisible } = useEditorChrome({
     drawingName,
@@ -56,11 +64,19 @@ export const Editor: React.FC = () => {
     isRenaming,
   });
   const me: UserIdentity = useEditorIdentity(user);
+  const canEditScene = accessRole !== 'viewer';
+  const isOwner = accessRole === 'owner';
+  const sharingAvailable = isOwner && Boolean(user);
+  const toShareUrl = useCallback((drawingId: string, token: string) => {
+    return `${window.location.origin}/editor/${drawingId}#share=${token}`;
+  }, []);
 
   const [peers, setPeers] = useState<Peer[]>([]);
   const [isReady, setIsReady] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   const lastCursorEmit = useRef<number>(0);
+  const lastPointerButtonRef = useRef<string>("up");
+  const lastPointerSelectionSigRef = useRef<string>("{}");
   const elementVersionMap = useRef<Map<string, ElementVersionInfo>>(new Map());
   const isBootstrappingScene = useRef(true);
   const hasHydratedInitialScene = useRef(false);
@@ -80,6 +96,8 @@ export const Editor: React.FC = () => {
   const patchedAddFilesApisRef = useRef<WeakSet<object>>(new WeakSet());
   const suspiciousBlankLoadRef = useRef(false);
   const hasSceneChangesSinceLoadRef = useRef(false);
+  const touchedElementIdsRef = useRef<Set<string>>(new Set());
+  const pointerDownRef = useRef(false);
 
   const getRenderableBaselineSnapshot = useCallback((): readonly any[] => {
     if (hasRenderableElements(lastPersistedElementsRef.current)) {
@@ -198,6 +216,7 @@ export const Editor: React.FC = () => {
 
   const emitFilesDeltaIfNeeded = useCallback(
     (nextFiles: Record<string, any>) => {
+      if (!canEditScene) return false;
       if (!socketRef.current || !id) return false;
       const filesDelta = getFilesDelta(lastSyncedFilesRef.current, nextFiles || {});
       if (Object.keys(filesDelta).length === 0) return false;
@@ -223,13 +242,16 @@ export const Editor: React.FC = () => {
 
       return true;
     },
-    [id, me.id]
+    [id, me.id, canEditScene]
   );
 
   const recordElementVersion = useCallback((element: any) => {
+    const updatedValue = element?.updated;
     elementVersionMap.current.set(element.id, {
       version: element.version ?? 0,
       versionNonce: element.versionNonce ?? 0,
+      updated: typeof updatedValue === "number" ? updatedValue : Number(updatedValue) || 0,
+      syncFingerprint: buildElementSyncFingerprint(element),
     });
   }, []);
 
@@ -239,9 +261,59 @@ export const Editor: React.FC = () => {
 
     const nextVersion = element.version ?? 0;
     const nextNonce = element.versionNonce ?? 0;
+    const updatedValue = element?.updated;
+    const nextUpdated = typeof updatedValue === "number" ? updatedValue : Number(updatedValue) || 0;
 
-    return previous.version !== nextVersion || previous.versionNonce !== nextNonce;
+    if (
+      previous.version !== nextVersion ||
+      previous.versionNonce !== nextNonce ||
+      previous.updated !== nextUpdated
+    ) {
+      return true;
+    }
+
+    const nextFingerprint = buildElementSyncFingerprint(element);
+
+    return previous.syncFingerprint !== nextFingerprint;
   }, []);
+
+  const emitFinalPointerSync = useCallback(() => {
+    if (!canEditScene) return;
+    if (!socketRef.current || !id || !excalidrawAPI.current) return;
+
+    const currentElements = excalidrawAPI.current.getSceneElementsIncludingDeleted() || [];
+    const currentFiles = excalidrawAPI.current.getFiles?.() || {};
+
+    const selectedIds = Object.keys(excalidrawAPI.current.getAppState?.().selectedElementIds || {});
+    const forcedIds = new Set<string>([...Array.from(touchedElementIdsRef.current), ...selectedIds]);
+    if (forcedIds.size === 0) return;
+
+    const forcedElements = currentElements.filter((el: any) => forcedIds.has(el.id));
+    if (forcedElements.length === 0) {
+      touchedElementIdsRef.current.clear();
+      return;
+    }
+
+    forcedElements.forEach((el: any) => {
+      recordElementVersion(el);
+    });
+
+    const filesDelta = getFilesDelta(lastSyncedFilesRef.current, currentFiles);
+    const shouldSyncFiles = Object.keys(filesDelta).length > 0;
+    if (shouldSyncFiles) {
+      lastSyncedFilesRef.current = currentFiles;
+      latestFilesRef.current = currentFiles;
+    }
+
+    socketRef.current.emit("element-update", {
+      drawingId: id,
+      elements: forcedElements,
+      files: shouldSyncFiles ? filesDelta : undefined,
+      userId: me.id,
+    });
+
+    touchedElementIdsRef.current.clear();
+  }, [canEditScene, id, me.id, recordElementVersion]);
 
   useEffect(() => {
     isUnmounting.current = false;
@@ -253,11 +325,17 @@ export const Editor: React.FC = () => {
   useEffect(() => {
     if (!id || !isReady) return;
 
-    const apiUrl = import.meta.env.VITE_API_URL || '/api';
+    const apiUrl = api.API_URL;
     const usingRelativeApiBasePath = apiUrl.startsWith('/');
-    const socketUrl = usingRelativeApiBasePath
-      ? window.location.origin
-      : apiUrl;
+    const socketUrl = (() => {
+      if (usingRelativeApiBasePath) return window.location.origin;
+      try {
+        const parsed = new URL(apiUrl);
+        return parsed.origin;
+      } catch {
+        return apiUrl;
+      }
+    })();
     const socketPath = (() => {
       if (usingRelativeApiBasePath) {
         const normalized = apiUrl.endsWith('/') && apiUrl.length > 1 ? apiUrl.slice(0, -1) : apiUrl;
@@ -343,19 +421,13 @@ export const Editor: React.FC = () => {
 
       isSyncing.current = true;
 
-      const currentAppState = excalidrawAPI.current.getAppState();
-      const mySelectedIds = currentAppState.selectedElementIds || {};
-
-      // Don't overwrite elements I'm actively editing/dragging in this tab,
-      // BUT always apply remote deletions so all tabs converge.
-      const validRemoteElements = elements.filter(
-        (el: any) => el?.isDeleted || !mySelectedIds[el.id]
-      );
-
       const localElements = excalidrawAPI.current.getSceneElementsIncludingDeleted();
-      const mergedElements = reconcileElements(localElements, validRemoteElements);
+      // Always merge all remote deltas; the version/timestamp reconciliation
+      // logic already protects newer local edits and prevents stale overwrites.
+      const remoteElements = Array.isArray(elements) ? elements : [];
+      const mergedElements = reconcileElements(localElements, remoteElements);
 
-      validRemoteElements.forEach((el: any) => {
+      remoteElements.forEach((el: any) => {
         recordElementVersion(el);
       });
 
@@ -410,18 +482,42 @@ export const Editor: React.FC = () => {
 
   const onPointerUpdate = useCallback((payload: any) => {
     const now = Date.now();
-    if (now - lastCursorEmit.current > 50 && socketRef.current) {
+    const button = typeof payload?.button === "string" ? payload.button : "up";
+    const selectedElementIdsFromPayload =
+      (payload?.selectedElementIds && typeof payload.selectedElementIds === "object")
+        ? payload.selectedElementIds
+        : (excalidrawAPI.current?.getAppState?.().selectedElementIds || {});
+    const selectedElementIds =
+      button !== "up" ? selectedElementIdsFromPayload : {};
+    const selectionSig = JSON.stringify(
+      Object.keys(selectedElementIds || {}).sort()
+    );
+    const forceEmit =
+      button !== lastPointerButtonRef.current ||
+      selectionSig !== lastPointerSelectionSigRef.current;
+
+    if ((now - lastCursorEmit.current > 50 || forceEmit) && socketRef.current) {
       socketRef.current.emit('cursor-move', {
         pointer: payload.pointer,
-        button: payload.button,
+        button,
+        selectedElementIds,
         username: me.name,
         userId: me.id,
         drawingId: id,
         color: me.color
       });
       lastCursorEmit.current = now;
+      lastPointerButtonRef.current = button;
+      lastPointerSelectionSigRef.current = selectionSig;
     }
-  }, [id, me]);
+    const isPointerDown = button && button !== "up";
+    if (isPointerDown) {
+      pointerDownRef.current = true;
+    } else if (pointerDownRef.current) {
+      pointerDownRef.current = false;
+      emitFinalPointerSync();
+    }
+  }, [id, me, emitFinalPointerSync]);
 
   // Refs for API interaction
   const excalidrawAPI = useRef<any>(null);
@@ -758,13 +854,18 @@ export const Editor: React.FC = () => {
 
   const broadcastChanges = useCallback(
     throttle((elements: readonly any[], currentFiles?: Record<string, any>) => {
+      if (!canEditScene) return;
       if (!socketRef.current || !id) return;
 
       const changes: any[] = [];
+      const selectedIds = new Set<string>(
+        Object.keys(excalidrawAPI.current?.getAppState?.().selectedElementIds || {})
+      );
 
       elements.forEach((el) => {
-        if (hasElementChanged(el)) {
+        if (hasElementChanged(el) || selectedIds.has(el.id)) {
           changes.push(el);
+          touchedElementIdsRef.current.add(el.id);
           recordElementVersion(el);
         }
       });
@@ -790,7 +891,7 @@ export const Editor: React.FC = () => {
         });
       }
     }, 100, { leading: true, trailing: true }),
-    [id, hasElementChanged, recordElementVersion]
+    [id, hasElementChanged, recordElementVersion, canEditScene]
   );
 
   useEffect(() => {
@@ -806,6 +907,10 @@ export const Editor: React.FC = () => {
     lastPersistedElementsRef.current = [];
     suspiciousBlankLoadRef.current = false;
     hasSceneChangesSinceLoadRef.current = false;
+    touchedElementIdsRef.current.clear();
+    pointerDownRef.current = false;
+    lastPointerButtonRef.current = "up";
+    lastPointerSelectionSigRef.current = "{}";
     excalidrawAPI.current = null;
     setIsReady(false);
     setIsSceneLoading(true);
@@ -815,17 +920,30 @@ export const Editor: React.FC = () => {
     const loadData = async () => {
       if (!id) {
         setInitialData(buildEmptyScene());
+        setAccessRole('owner');
         setIsSceneLoading(false);
         return;
       }
       try {
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+        const shareToken = hashParams.get('share') || undefined;
         const [data, libraryItems] = await Promise.all([
-          api.getDrawing(id),
+          api.getDrawing(id, { shareToken }),
           api.getLibrary().catch((err) => {
             console.warn('Failed to load library, using empty:', err);
             return [];
           })
         ]);
+        if (shareToken) {
+          hashParams.delete('share');
+          const nextHash = hashParams.toString();
+          window.history.replaceState(
+            null,
+            '',
+            `${window.location.pathname}${window.location.search}${nextHash ? `#${nextHash}` : ''}`
+          );
+        }
+        setAccessRole((data.accessRole || 'owner') as DrawingAccessRole);
         setDrawingName(data.name);
 
         const elements = data.elements || [];
@@ -897,6 +1015,7 @@ export const Editor: React.FC = () => {
         suspiciousBlankLoadRef.current = false;
         hasSceneChangesSinceLoadRef.current = false;
         setLoadError(message);
+        setAccessRole('owner');
         setInitialData(null);
       } finally {
         setIsSceneLoading(false);
@@ -910,6 +1029,7 @@ export const Editor: React.FC = () => {
     const handleKeyDown = async (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault();
+        if (!canEditScene) return;
         if (excalidrawAPI.current && saveDataRef.current && savePreviewRef.current) {
           const elements = excalidrawAPI.current.getSceneElementsIncludingDeleted();
           const {
@@ -939,7 +1059,7 @@ export const Editor: React.FC = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [enqueueSceneSave, id, resolveSafeSnapshot]);
+  }, [enqueueSceneSave, id, resolveSafeSnapshot, canEditScene]);
 
   const handleCanvasChange = useCallback((elements: readonly any[], appState: any, files?: Record<string, any>) => {
     if (isUnmounting.current) {
@@ -948,6 +1068,7 @@ export const Editor: React.FC = () => {
     }
 
     if (isSyncing.current) return;
+    if (!canEditScene) return;
 
     latestAppStateRef.current = appState;
 
@@ -1065,7 +1186,7 @@ export const Editor: React.FC = () => {
     if (id) {
       debouncedSavePreview(id, allElements, appState, filesSnapshot);
     }
-  }, [debouncedSave, debouncedSavePreview, broadcastChanges, id, resolveSafeSnapshot]);
+  }, [debouncedSave, debouncedSavePreview, broadcastChanges, id, resolveSafeSnapshot, canEditScene]);
 
   // Ensure file-only updates (e.g. pasted image dataURL arriving asynchronously)
   // are still broadcast to collaborators AND persisted to the server.
@@ -1100,6 +1221,7 @@ export const Editor: React.FC = () => {
   }, [id, isReady, emitFilesDeltaIfNeeded]);
 
   const handleRenameSubmit = async (e: React.FormEvent) => {
+    if (!isOwner) return;
     e.preventDefault();
     if (newName.trim() && id) {
       setDrawingName(newName);
@@ -1120,8 +1242,63 @@ export const Editor: React.FC = () => {
 
   // Disable native Excalidraw save dialogs
 
+  const loadShareLinks = useCallback(async () => {
+    if (!id || !sharingAvailable) return;
+    setIsLoadingShareLinks(true);
+    try {
+      const links = await api.getDrawingShareLinks(id);
+      setShareLinks({
+        viewer: toShareUrl(links.drawingId, links.viewerToken),
+        editor: toShareUrl(links.drawingId, links.editorToken),
+      });
+    } catch (error) {
+      console.error('Failed to load share links', error);
+      toast.error('Failed to load share links');
+    } finally {
+      setIsLoadingShareLinks(false);
+    }
+  }, [id, sharingAvailable, toShareUrl]);
+
+  const handleCopyShareLink = useCallback(async (role: ShareLinkRole) => {
+    const url = shareLinks?.[role];
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success(`${role === 'viewer' ? 'Viewer' : 'Editor'} link copied`);
+    } catch {
+      toast.error('Failed to copy link');
+    }
+  }, [shareLinks]);
+
+  const handleRotateShareLink = useCallback(async (role: ShareLinkRole) => {
+    if (!id) return;
+    setRotatingRole(role);
+    try {
+      const res = await api.rotateDrawingShareLink(id, role);
+      setShareLinks((prev) => ({
+        viewer: role === 'viewer' ? toShareUrl(res.drawingId, res.token) : (prev?.viewer || ''),
+        editor: role === 'editor' ? toShareUrl(res.drawingId, res.token) : (prev?.editor || ''),
+      }));
+      toast.success(`${role === 'viewer' ? 'Viewer' : 'Editor'} link rotated`);
+    } catch (error) {
+      console.error('Failed to rotate share link', error);
+      toast.error('Failed to rotate link');
+    } finally {
+      setRotatingRole(null);
+    }
+  }, [id, toShareUrl]);
+
+  useEffect(() => {
+    if (!showShareModal) return;
+    void loadShareLinks();
+  }, [showShareModal, loadShareLinks]);
+
   const handleBackClick = async () => {
     if (isSavingOnLeave) return; // Prevent double clicks
+    if (!canEditScene) {
+      navigate('/');
+      return;
+    }
 
     setIsSavingOnLeave(true);
     let shouldNavigate = false;
@@ -1223,8 +1400,15 @@ export const Editor: React.FC = () => {
             </form>
           ) : (
             <h1
-              className="font-medium text-gray-900 dark:text-white px-2 py-1 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded cursor-text"
-              onDoubleClick={() => { setNewName(drawingName); setIsRenaming(true); }}
+              className={clsx(
+                "font-medium text-gray-900 dark:text-white px-2 py-1 rounded",
+                isOwner ? "hover:bg-gray-100 dark:hover:bg-neutral-800 cursor-text" : "cursor-default"
+              )}
+              onDoubleClick={() => {
+                if (!isOwner) return;
+                setNewName(drawingName);
+                setIsRenaming(true);
+              }}
             >
               {drawingName}
             </h1>
@@ -1264,6 +1448,19 @@ export const Editor: React.FC = () => {
           >
             <Download size={20} />
           </button>
+
+          {sharingAvailable && (
+            <>
+              <div className="h-6 w-px bg-gray-300 dark:bg-gray-700" />
+              <button
+                onClick={() => setShowShareModal(true)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-lg text-gray-600 dark:text-gray-300 transition-colors"
+                title="Share drawing"
+              >
+                <Share2 size={20} />
+              </button>
+            </>
+          )}
 
           <div className="h-6 w-px bg-gray-300 dark:bg-gray-700" />
 
@@ -1338,6 +1535,7 @@ export const Editor: React.FC = () => {
             onLibraryChange={handleLibraryChange}
             excalidrawAPI={setExcalidrawAPI}
             UIOptions={UIOptions}
+            viewModeEnabled={!canEditScene}
           />
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-gray-500 dark:text-gray-400">
@@ -1347,6 +1545,71 @@ export const Editor: React.FC = () => {
           </div>
         )}
         <Toaster position="bottom-center" />
+
+        {showShareModal && (
+          <div
+            className="fixed inset-0 z-40 bg-black/30 flex items-center justify-center p-4"
+            onClick={() => setShowShareModal(false)}
+          >
+            <div
+              className="w-full max-w-lg rounded-2xl border-2 border-black dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] p-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Share Drawing</h2>
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                Anyone with a link must still be logged in to access this drawing.
+              </p>
+
+              {isLoadingShareLinks || !shareLinks ? (
+                <div className="mt-6 flex items-center gap-2 text-gray-600 dark:text-gray-300">
+                  <Loader2 size={16} className="animate-spin" />
+                  <span className="text-sm">Loading share links...</span>
+                </div>
+              ) : (
+                <div className="mt-5 space-y-4">
+                  {(['viewer', 'editor'] as ShareLinkRole[]).map((role) => (
+                    <div key={role} className="rounded-xl border border-gray-200 dark:border-neutral-700 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-semibold text-gray-900 dark:text-white capitalize">{role}</span>
+                        <button
+                          onClick={() => handleRotateShareLink(role)}
+                          disabled={rotatingRole === role}
+                          className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md border border-gray-300 dark:border-neutral-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800 disabled:opacity-50"
+                        >
+                          {rotatingRole === role ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
+                          Rotate
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          readOnly
+                          value={shareLinks[role]}
+                          className="flex-1 text-xs px-2 py-2 rounded-md border border-gray-300 dark:border-neutral-700 bg-gray-50 dark:bg-neutral-800 text-gray-700 dark:text-gray-200"
+                        />
+                        <button
+                          onClick={() => handleCopyShareLink(role)}
+                          className="inline-flex items-center gap-1 text-xs px-2 py-2 rounded-md border border-gray-300 dark:border-neutral-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-neutral-800"
+                        >
+                          <Copy size={12} />
+                          Copy
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-5 flex justify-end">
+                <button
+                  onClick={() => setShowShareModal(false)}
+                  className="px-4 py-2 rounded-lg border-2 border-black dark:border-neutral-700 bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 font-semibold hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

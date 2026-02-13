@@ -53,6 +53,14 @@ function App() {
                   }
                 />
                 <Route
+                  path="/shared"
+                  element={
+                    <ProtectedRoute>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/settings"
                   element={
                     <ProtectedRoute>

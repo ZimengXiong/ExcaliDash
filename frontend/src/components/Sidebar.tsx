@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutGrid, Folder, Plus, Trash2, Edit2, Archive, FolderOpen, Settings as SettingsIcon, User, LogOut, Shield } from 'lucide-react';
+import { LayoutGrid, Folder, Plus, Trash2, Edit2, Archive, FolderOpen, Settings as SettingsIcon, User, LogOut, Shield, Users } from 'lucide-react';
 import type { Collection } from '../types';
 import clsx from 'clsx';
 import { ConfirmModal } from './ConfirmModal';
@@ -207,6 +207,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={() => onSelectCollection(null)}
               onDrop={onDrop}
             />
+
+            {authEnabled && (
+              <div className="pl-3 pr-2">
+                <button
+                  onClick={() => onSelectCollection('__shared__')}
+                  className={clsx(
+                    "w-full flex items-center gap-3 px-3 py-2.5 text-sm font-bold rounded-lg transition-all duration-200 border-2",
+                    selectedCollectionId === '__shared__'
+                      ? "bg-indigo-50 dark:bg-neutral-800 text-indigo-900 dark:text-neutral-200 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] -translate-y-0.5"
+                      : "text-slate-600 dark:text-neutral-400 border-transparent hover:bg-slate-50 dark:hover:bg-neutral-800 hover:border-black dark:hover:border-neutral-700 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-0.5"
+                  )}
+                >
+                  <Users size={18} className={clsx(selectedCollectionId === '__shared__' ? "text-indigo-900 dark:text-neutral-200" : "text-slate-400 dark:text-neutral-500")} />
+                  <span className="min-w-0 flex-1 text-left">Shared with me</span>
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="space-y-1">

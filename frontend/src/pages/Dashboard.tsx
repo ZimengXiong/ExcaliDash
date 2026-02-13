@@ -21,6 +21,7 @@ export const Dashboard: React.FC = () => {
 
   const selectedCollectionId = React.useMemo(() => {
     if (location.pathname === '/') return undefined;
+    if (location.pathname === '/shared') return '__shared__';
     if (location.pathname === '/collections') {
       const id = searchParams.get('id');
       if (id === 'unorganized') return null;
@@ -32,12 +33,16 @@ export const Dashboard: React.FC = () => {
   const setSelectedCollectionId = (id: string | null | undefined) => {
     if (id === undefined) {
       navigate('/');
+    } else if (id === '__shared__') {
+      navigate('/shared');
     } else if (id === null) {
       navigate('/collections?id=unorganized');
     } else {
       navigate(`/collections?id=${id}`);
     }
   };
+
+  const isSharedView = selectedCollectionId === '__shared__';
 
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
@@ -265,8 +270,13 @@ export const Dashboard: React.FC = () => {
   const currentSortOption = sortOptions.find(opt => opt.field === sortConfig.field) || sortOptions[0];
 
   const isTrashView = selectedCollectionId === 'trash';
+  const canManageDrawing = useCallback(
+    (id: string) => (drawings.find((d) => d.id === id)?.accessRole ?? 'owner') === 'owner',
+    [drawings]
+  );
+
   const handleCreateDrawing = async () => {
-    if (isTrashView) return;
+    if (isTrashView || isSharedView) return;
     try {
       const targetCollectionId = selectedCollectionId === undefined ? null : selectedCollectionId;
       const { id } = await api.createDrawing('Untitled Drawing', targetCollectionId);
@@ -277,7 +287,7 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleImportDrawings = async (files: FileList | null) => {
-    if (!files || isTrashView) return;
+    if (!files || isTrashView || isSharedView) return;
 
     const fileArray = Array.from(files);
     const targetCollectionId = selectedCollectionId === undefined ? null : selectedCollectionId;
@@ -290,6 +300,7 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleRenameDrawing = async (id: string, name: string) => {
+    if (!canManageDrawing(id)) return;
     setDrawings(prev => prev.map(d => d.id === id ? { ...d, name } : d));
     try {
       await api.updateDrawing(id, { name });
@@ -300,6 +311,7 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleDeleteDrawing = async (id: string) => {
+    if (!canManageDrawing(id)) return;
     if (isTrashView) {
       // Permanent Delete -> Confirm first
       setDrawingToDelete(id);
@@ -327,6 +339,7 @@ export const Dashboard: React.FC = () => {
   };
 
   const executePermanentDelete = async (id: string) => {
+    if (!canManageDrawing(id)) return;
     setDrawings(prev => {
       const next = prev.filter(d => d.id !== id);
       if (next.length !== prev.length) {
@@ -378,6 +391,8 @@ export const Dashboard: React.FC = () => {
 
   const handleBulkDeleteClick = () => {
     if (selectedIds.size === 0) return;
+    const ownerSelectedCount = Array.from(selectedIds).filter((id) => canManageDrawing(id)).length;
+    if (ownerSelectedCount === 0) return;
     if (isTrashView) {
       setShowBulkDeleteConfirm(true);
     } else {
@@ -387,10 +402,12 @@ export const Dashboard: React.FC = () => {
 
   const executeBulkMoveToTrash = async () => {
     const trashId = 'trash';
-    const ids = Array.from(selectedIds);
+    const ids = Array.from(selectedIds).filter((id) => canManageDrawing(id));
+    if (ids.length === 0) return;
 
     setDrawings(prev => {
-      const next = prev.filter(d => !selectedIds.has(d.id));
+      const idSet = new Set(ids);
+      const next = prev.filter(d => !idSet.has(d.id));
       setTotalCount(t => t - (prev.length - next.length));
       return next;
     });
@@ -405,9 +422,11 @@ export const Dashboard: React.FC = () => {
   };
 
   const executeBulkPermanentDelete = async () => {
-    const ids = Array.from(selectedIds);
+    const ids = Array.from(selectedIds).filter((id) => canManageDrawing(id));
+    if (ids.length === 0) return;
     setDrawings(prev => {
-      const next = prev.filter(d => !selectedIds.has(d.id));
+      const idSet = new Set(ids);
+      const next = prev.filter(d => !idSet.has(d.id));
       setTotalCount(t => t - (prev.length - next.length));
       return next;
     });
@@ -425,11 +444,13 @@ export const Dashboard: React.FC = () => {
   const handleBulkMove = async (collectionId: string | null) => {
     if (selectedIds.size === 0) return;
 
-    const idsToMove = Array.from(selectedIds);
+    const idsToMove = Array.from(selectedIds).filter((id) => canManageDrawing(id));
+    if (idsToMove.length === 0) return;
+    const idsToMoveSet = new Set(idsToMove);
 
     // Optimistic update
     setDrawings(prev => {
-      const updated = prev.map(d => selectedIds.has(d.id) ? { ...d, collectionId } : d);
+      const updated = prev.map(d => idsToMoveSet.has(d.id) ? { ...d, collectionId } : d);
       if (selectedCollectionId === undefined) return updated;
       const next = updated.filter(d => {
         if (selectedCollectionId === null) return d.collectionId === null;
@@ -472,6 +493,7 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleMoveToCollection = async (id: string, collectionId: string | null) => {
+    if (!canManageDrawing(id)) return;
     setDrawings(prev => {
       const updated = prev.map(d => d.id === id ? { ...d, collectionId } : d);
       const next = updated.filter(d => {
@@ -530,6 +552,7 @@ export const Dashboard: React.FC = () => {
   const viewTitle = React.useMemo(() => {
     if (selectedCollectionId === undefined) return "All Drawings";
     if (selectedCollectionId === null) return "Unorganized";
+    if (selectedCollectionId === '__shared__') return "Shared with me";
     if (selectedCollectionId === 'trash') return "Trash";
     const collection = collections.find(c => c.id === selectedCollectionId);
     return collection ? collection.name : "Collection";
@@ -537,6 +560,10 @@ export const Dashboard: React.FC = () => {
 
   const hasSelection = selectedIds.size > 0;
   const allSelected = sortedDrawings.length > 0 && selectedIds.size === sortedDrawings.length;
+  const manageableSelectionCount = React.useMemo(
+    () => Array.from(selectedIds).filter((id) => canManageDrawing(id)).length,
+    [selectedIds, canManageDrawing]
+  );
   
   const handleSelectAll = () => {
     if (allSelected) {
@@ -567,7 +594,7 @@ export const Dashboard: React.FC = () => {
       }
 
       const drawingFiles = files.filter(f => !f.name.endsWith('.excalidrawlib'));
-      if (drawingFiles.length > 0) {
+      if (drawingFiles.length > 0 && !isSharedView) {
         uploadFiles(drawingFiles, targetCollectionId).finally(() => {
           refreshData();
         });
@@ -587,6 +614,9 @@ export const Dashboard: React.FC = () => {
       // Otherwise move just the dragged item
       idsToMove.add(draggedDrawingId);
     }
+
+    idsToMove = new Set(Array.from(idsToMove).filter((id) => canManageDrawing(id)));
+    if (idsToMove.size === 0) return;
 
     // Optimistic Update
     setDrawings(prev => {
@@ -805,10 +835,10 @@ export const Dashboard: React.FC = () => {
 
             <button
               onClick={handleBulkDeleteClick}
-              disabled={!hasSelection}
+              disabled={manageableSelectionCount === 0}
               className={clsx(
                 "h-[42px] w-[42px] flex items-center justify-center rounded-xl border-2 transition-all",
-                hasSelection
+                manageableSelectionCount > 0
                   ? "bg-white dark:bg-neutral-800 border-black dark:border-neutral-700 text-rose-600 dark:text-rose-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-1 hover:bg-rose-50 dark:hover:bg-rose-900/30"
                   : "bg-slate-100 dark:bg-neutral-900 border-slate-300 dark:border-neutral-800 text-slate-300 dark:text-neutral-700 cursor-not-allowed"
               )}
@@ -833,11 +863,11 @@ export const Dashboard: React.FC = () => {
 
             <div className="relative">
               <button
-                onClick={() => hasSelection && setShowBulkMoveMenu(!showBulkMoveMenu)}
-                disabled={!hasSelection}
+                onClick={() => manageableSelectionCount > 0 && setShowBulkMoveMenu(!showBulkMoveMenu)}
+                disabled={manageableSelectionCount === 0}
                 className={clsx(
                   "h-[42px] w-[42px] flex items-center justify-center rounded-xl border-2 transition-all",
-                  hasSelection
+                  manageableSelectionCount > 0
                     ? "bg-white dark:bg-neutral-800 border-black dark:border-neutral-700 text-emerald-600 dark:text-emerald-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-1 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
                     : "bg-slate-100 dark:bg-neutral-900 border-slate-300 dark:border-neutral-800 text-slate-300 dark:text-neutral-700 cursor-not-allowed"
                 )}
@@ -849,12 +879,12 @@ export const Dashboard: React.FC = () => {
                 </div>
               </button>
 
-              {showBulkMoveMenu && hasSelection && (
+              {showBulkMoveMenu && manageableSelectionCount > 0 && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowBulkMoveMenu(false)} />
                   <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-neutral-800 rounded-xl border-2 border-black dark:border-neutral-700 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] z-50 py-1 max-h-64 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100">
                     <div className="px-3 py-2 text-[10px] font-bold uppercase text-slate-400 dark:text-neutral-500 tracking-wider border-b border-slate-100 dark:border-neutral-700 mb-1">
-                      Move {selectedIds.size} items to...
+                      Move {manageableSelectionCount} items to...
                     </div>
                     <button
                       onClick={() => handleBulkMove(null)}
@@ -891,10 +921,10 @@ export const Dashboard: React.FC = () => {
 
           <button
             onClick={() => document.getElementById('dashboard-import')?.click()}
-            disabled={isTrashView}
+            disabled={isTrashView || isSharedView}
             className={clsx(
               "h-[42px] w-full sm:w-auto flex items-center justify-center gap-2 px-6 rounded-xl border-2 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] transition-all font-bold text-sm whitespace-nowrap",
-              isTrashView
+              isTrashView || isSharedView
                 ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border-slate-300 dark:border-slate-700 shadow-none cursor-not-allowed"
                 : "bg-emerald-600 dark:bg-neutral-800 text-white hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-1 active:translate-y-0 active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:active:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)]"
             )}
@@ -905,10 +935,10 @@ export const Dashboard: React.FC = () => {
 
           <button
             onClick={handleCreateDrawing}
-            disabled={isTrashView}
+            disabled={isTrashView || isSharedView}
             className={clsx(
               "h-[42px] w-full sm:w-auto flex items-center justify-center gap-2 px-6 rounded-xl border-2 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] transition-all font-bold text-sm whitespace-nowrap",
-              isTrashView
+              isTrashView || isSharedView
                 ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border-slate-300 dark:border-slate-700 shadow-none cursor-not-allowed"
                 : "bg-indigo-600 dark:bg-neutral-800 text-white hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-1 active:translate-y-0 active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:active:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)]"
             )}
@@ -1006,8 +1036,9 @@ export const Dashboard: React.FC = () => {
                     }
                   }}
                   onMouseDown={handleCardMouseDown}
-                  onDragStart={handleCardDragStart}
+                  onDragStart={(drawing.accessRole ?? 'owner') === 'owner' ? handleCardDragStart : undefined}
                   onPreviewGenerated={handlePreviewGenerated}
+                  canManage={(drawing.accessRole ?? 'owner') === 'owner'}
                 />
               ))
             )}

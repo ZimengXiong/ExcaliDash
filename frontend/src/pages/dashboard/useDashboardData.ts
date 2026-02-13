@@ -36,13 +36,22 @@ export const useDashboardData = ({
     const requestVersion = ++listRequestVersionRef.current;
     setIsLoading(true);
     try {
+      const isSharedView = selectedCollectionId === '__shared__';
       const [drawingsRes, collectionsData] = await Promise.all([
-        api.getDrawings(debouncedSearch, selectedCollectionId, {
-          limit: pageSize,
-          offset: 0,
-          sortField,
-          sortDirection,
-        }),
+        isSharedView
+          ? api.getSharedDrawings({
+            search: debouncedSearch || undefined,
+            limit: pageSize,
+            offset: 0,
+            sortField,
+            sortDirection,
+          })
+          : api.getDrawings(debouncedSearch, selectedCollectionId, {
+            limit: pageSize,
+            offset: 0,
+            sortField,
+            sortDirection,
+          }),
         api.getCollections(),
       ]);
       if (!isLatestRequest(requestVersion, listRequestVersionRef.current)) return;
@@ -71,12 +80,21 @@ export const useDashboardData = ({
     const requestVersion = listRequestVersionRef.current;
     setIsFetchingMore(true);
     try {
-      const drawingsRes = await api.getDrawings(debouncedSearch, selectedCollectionId, {
-        limit: pageSize,
-        offset: drawings.length,
-        sortField,
-        sortDirection,
-      });
+      const isSharedView = selectedCollectionId === '__shared__';
+      const drawingsRes = isSharedView
+        ? await api.getSharedDrawings({
+          search: debouncedSearch || undefined,
+          limit: pageSize,
+          offset: drawings.length,
+          sortField,
+          sortDirection,
+        })
+        : await api.getDrawings(debouncedSearch, selectedCollectionId, {
+          limit: pageSize,
+          offset: drawings.length,
+          sortField,
+          sortDirection,
+        });
       if (!isLatestRequest(requestVersion, listRequestVersionRef.current)) return;
       setDrawings((prev) => mergeUniqueDrawings(prev, drawingsRes.drawings));
       setTotalCount(drawingsRes.totalCount);

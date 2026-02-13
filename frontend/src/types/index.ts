@@ -1,3 +1,11 @@
+export type DrawingAccessRole = "owner" | "editor" | "viewer";
+
+export interface DrawingOwner {
+  id: string;
+  name: string;
+  email?: string;
+}
+
 export interface DrawingSummary {
   id: string;
   name: string;
@@ -6,6 +14,8 @@ export interface DrawingSummary {
   createdAt: number;
   version: number;
   preview?: string | null;
+  accessRole?: DrawingAccessRole;
+  owner?: DrawingOwner;
 }
 
 export interface Drawing extends DrawingSummary {

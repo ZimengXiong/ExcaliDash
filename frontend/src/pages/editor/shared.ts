@@ -1,7 +1,34 @@
 export interface ElementVersionInfo {
   version: number;
   versionNonce: number;
+  updated?: number;
+  syncFingerprint?: string;
 }
+
+export const buildElementSyncFingerprint = (element: any): string => {
+  if (!element || typeof element !== "object") return "";
+
+  const points = Array.isArray(element.points) ? element.points : null;
+  const firstPoint = points && points.length > 0 ? points[0] : null;
+  const lastPoint = points && points.length > 0 ? points[points.length - 1] : null;
+
+  return JSON.stringify({
+    id: element.id ?? null,
+    type: element.type ?? null,
+    isDeleted: Boolean(element.isDeleted),
+    x: element.x ?? null,
+    y: element.y ?? null,
+    width: element.width ?? null,
+    height: element.height ?? null,
+    angle: element.angle ?? null,
+    startBinding: element.startBinding?.elementId ?? null,
+    endBinding: element.endBinding?.elementId ?? null,
+    pointsLen: points ? points.length : null,
+    firstPoint,
+    lastPoint,
+    text: typeof element.text === "string" ? element.text : null,
+  });
+};
 
 export const haveSameElements = (a: readonly any[] = [], b: readonly any[] = []) => {
   if (!a || !b) return false;

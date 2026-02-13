@@ -3,6 +3,7 @@ import { Server } from "socket.io";
 import { PrismaClient } from "../generated/client";
 import { AuthModeService } from "../auth/authMode";
 import { ACCESS_TOKEN_COOKIE_NAME, parseCookieHeader } from "../auth/cookies";
+import { isAtLeastRole, resolveDrawingAccess } from "./drawingAccess";
 
 interface User {
   id: string;
@@ -110,7 +111,7 @@ export const registerSocketHandlers = ({
 
   io.on("connection", (socket) => {
     const authenticatedUserId = socketUserMap.get(socket.id);
-    const authorizedDrawingIds = new Set<string>();
+    const authorizedDrawingRoles = new Map<string, "owner" | "editor" | "viewer">();
 
     socket.on(
       "join-room",
@@ -123,20 +124,22 @@ export const registerSocketHandlers = ({
       }) => {
         try {
           if (authenticatedUserId) {
-            const drawing = await prisma.drawing.findFirst({
-              where: { id: drawingId, userId: authenticatedUserId },
-              select: { id: true },
+            const drawing = await resolveDrawingAccess({
+              prisma,
+              drawingId,
+              userId: authenticatedUserId,
             });
 
             if (!drawing) {
               socket.emit("error", { message: "You do not have access to this drawing" });
               return;
             }
+
+            authorizedDrawingRoles.set(drawingId, drawing.role);
           }
 
           const roomId = `drawing_${drawingId}`;
           socket.join(roomId);
-          authorizedDrawingIds.add(drawingId);
 
           let trustedUserId =
             typeof user?.id === "string" && user.id.trim().length > 0
@@ -179,7 +182,7 @@ export const registerSocketHandlers = ({
 
     socket.on("cursor-move", (data) => {
       const drawingId = typeof data?.drawingId === "string" ? data.drawingId : null;
-      if (!drawingId || !authorizedDrawingIds.has(drawingId)) {
+      if (!drawingId || !authorizedDrawingRoles.has(drawingId)) {
         return;
       }
       const roomId = `drawing_${drawingId}`;
@@ -188,7 +191,11 @@ export const registerSocketHandlers = ({
 
     socket.on("element-update", (data) => {
       const drawingId = typeof data?.drawingId === "string" ? data.drawingId : null;
-      if (!drawingId || !authorizedDrawingIds.has(drawingId)) {
+      if (!drawingId) {
+        return;
+      }
+      const role = authorizedDrawingRoles.get(drawingId);
+      if (!role || !isAtLeastRole(role, "editor")) {
         return;
       }
       const roomId = `drawing_${drawingId}`;
@@ -198,7 +205,7 @@ export const registerSocketHandlers = ({
     socket.on(
       "user-activity",
       ({ drawingId, isActive }: { drawingId: string; isActive: boolean }) => {
-        if (!authorizedDrawingIds.has(drawingId)) {
+        if (!authorizedDrawingRoles.has(drawingId)) {
           return;
         }
         const roomId = `drawing_${drawingId}`;

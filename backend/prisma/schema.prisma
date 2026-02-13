@@ -27,6 +27,7 @@ model User {
   passwordResetTokens PasswordResetToken[]
   refreshTokens       RefreshToken[]
   auditLogs           AuditLog[]
+  drawingShareGrants  DrawingShareGrant[]
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 }
@@ -67,11 +68,45 @@ model Drawing {
   user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   collectionId String?
   collection   Collection? @relation(fields: [collectionId], references: [id])
+  shareLinks   DrawingShareLink[]
+  shareGrants  DrawingShareGrant[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
   @@index([userId, updatedAt])
   @@index([userId, collectionId, updatedAt])
+}
+
+model DrawingShareLink {
+  id        String           @id @default(uuid())
+  drawingId String
+  drawing   Drawing          @relation(fields: [drawingId], references: [id], onDelete: Cascade)
+  role      String
+  token     String           @unique
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  grants DrawingShareGrant[]
+
+  @@unique([drawingId, role])
+  @@index([drawingId])
+}
+
+model DrawingShareGrant {
+  id          String           @id @default(uuid())
+  drawingId   String
+  drawing     Drawing          @relation(fields: [drawingId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shareLinkId String
+  shareLink   DrawingShareLink @relation(fields: [shareLinkId], references: [id], onDelete: Cascade)
+  role        String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([drawingId, userId, shareLinkId])
+  @@index([drawingId, userId])
+  @@index([userId, createdAt])
 }
 
 model Library {

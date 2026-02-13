@@ -2,7 +2,10 @@ import axios from "axios";
 import type { Drawing, Collection, DrawingSummary } from "../types";
 import { normalizePreviewSvg } from "../utils/previewSvg";
 
-export const API_URL = import.meta.env.VITE_API_URL || "/api";
+const DEFAULT_DEV_API_URL = "http://localhost:8000/api";
+export const API_URL =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.DEV ? DEFAULT_DEV_API_URL : "/api");
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -416,6 +419,7 @@ export interface PaginatedDrawings<T> {
 
 export type DrawingSortField = "name" | "createdAt" | "updatedAt";
 export type SortDirection = "asc" | "desc";
+export type ShareLinkRole = "viewer" | "editor";
 
 export function getDrawings(
   search?: string,
@@ -475,8 +479,46 @@ export async function getDrawings(
   };
 }
 
-export const getDrawing = async (id: string) => {
-  const response = await api.get<Drawing>(`/drawings/${id}`);
+export const getSharedDrawings = async (options?: {
+  search?: string;
+  includeData?: boolean;
+  limit?: number;
+  offset?: number;
+  sortField?: DrawingSortField;
+  sortDirection?: SortDirection;
+}) => {
+  const params: Record<string, string | number> = {};
+  if (options?.search) params.search = options.search;
+  if (options?.includeData) params.includeData = "true";
+  if (options?.limit !== undefined) params.limit = options.limit;
+  if (options?.offset !== undefined) params.offset = options.offset;
+  if (options?.sortField) params.sortField = options.sortField;
+  if (options?.sortDirection) params.sortDirection = options.sortDirection;
+
+  if (options?.includeData) {
+    const response = await api.get<PaginatedDrawings<Drawing>>("/drawings/shared", { params });
+    return {
+      ...response.data,
+      drawings: response.data.drawings.map(deserializeDrawing),
+    };
+  }
+
+  const response = await api.get<PaginatedDrawings<DrawingSummary>>("/drawings/shared", { params });
+  return {
+    ...response.data,
+    drawings: response.data.drawings.map(deserializeDrawingSummary),
+  };
+};
+
+export const getDrawing = async (
+  id: string,
+  options?: { shareToken?: string }
+) => {
+  const headers: Record<string, string> = {};
+  if (options?.shareToken) {
+    headers["x-share-token"] = options.shareToken;
+  }
+  const response = await api.get<Drawing>(`/drawings/${id}`, { headers });
   return deserializeDrawing(response.data);
 };
 
@@ -506,6 +548,23 @@ export const deleteDrawing = async (id: string) => {
 export const duplicateDrawing = async (id: string) => {
   const response = await api.post<Drawing>(`/drawings/${id}/duplicate`);
   return deserializeDrawing(response.data);
+};
+
+export const getDrawingShareLinks = async (
+  id: string
+): Promise<{ drawingId: string; viewerToken: string; editorToken: string }> => {
+  const response = await api.get<{ drawingId: string; viewerToken: string; editorToken: string }>(`/drawings/${id}/share-links`);
+  return response.data;
+};
+
+export const rotateDrawingShareLink = async (
+  id: string,
+  role: ShareLinkRole
+): Promise<{ role: ShareLinkRole; drawingId: string; token: string }> => {
+  const response = await api.post<{ role: ShareLinkRole; drawingId: string; token: string }>(
+    `/drawings/${id}/share-links/${role}/rotate`
+  );
+  return response.data;
 };
 
 export const getCollections = async () => {

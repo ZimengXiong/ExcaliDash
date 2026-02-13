@@ -17,6 +17,14 @@ export const reconcileElements = (
     const value = element?.updated;
     return typeof value === "number" ? value : Number(value) || 0;
   };
+  const getComparableContent = (element: any): string => {
+    if (!element || typeof element !== "object") return "";
+    const copy = { ...element } as Record<string, unknown>;
+    delete copy.version;
+    delete copy.versionNonce;
+    delete copy.updated;
+    return JSON.stringify(copy);
+  };
 
   remoteElements.forEach((remoteEl) => {
     const localEl = localMap.get(remoteEl.id);
@@ -51,7 +59,17 @@ export const reconcileElements = (
       getVersionNonce(remoteEl) !== getVersionNonce(localEl)
     ) {
       localMap.set(remoteEl.id, remoteEl);
+      return;
     }
+
+    if (
+      remoteUpdated === localUpdated &&
+      getVersionNonce(remoteEl) === getVersionNonce(localEl) &&
+      getComparableContent(remoteEl) !== getComparableContent(localEl)
+    ) {
+      localMap.set(remoteEl.id, remoteEl);
+    }
+
   });
 
   return Array.from(localMap.values());
