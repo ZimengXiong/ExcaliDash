@@ -77,6 +77,7 @@ export const Editor: React.FC = () => {
   const lastCursorEmit = useRef<number>(0);
   const lastPointerButtonRef = useRef<string>("up");
   const lastPointerSelectionSigRef = useRef<string>("{}");
+  const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
   const elementVersionMap = useRef<Map<string, ElementVersionInfo>>(new Map());
   const isBootstrappingScene = useRef(true);
   const hasHydratedInitialScene = useRef(false);
@@ -98,6 +99,7 @@ export const Editor: React.FC = () => {
   const hasSceneChangesSinceLoadRef = useRef(false);
   const touchedElementIdsRef = useRef<Set<string>>(new Set());
   const pointerDownRef = useRef(false);
+  const finalSyncTimeoutRef = useRef<number | null>(null);
 
   const getRenderableBaselineSnapshot = useCallback((): readonly any[] => {
     if (hasRenderableElements(lastPersistedElementsRef.current)) {
@@ -315,10 +317,45 @@ export const Editor: React.FC = () => {
     touchedElementIdsRef.current.clear();
   }, [canEditScene, id, me.id, recordElementVersion]);
 
+  const emitCursorPresence = useCallback((button: string = "up") => {
+    if (!socketRef.current || !id) return;
+    const selectedElementIds = excalidrawAPI.current?.getAppState?.().selectedElementIds || {};
+    const selectionSig = JSON.stringify(Object.keys(selectedElementIds || {}).sort());
+
+    socketRef.current.emit("cursor-move", {
+      pointer: lastPointerRef.current || { x: 0, y: 0 },
+      button,
+      selectedElementIds,
+      username: me.name,
+      userId: me.id,
+      drawingId: id,
+      color: me.color,
+    });
+
+    lastPointerButtonRef.current = button;
+    lastPointerSelectionSigRef.current = selectionSig;
+    lastCursorEmit.current = Date.now();
+  }, [id, me]);
+
+  const queueFinalPointerSync = useCallback(() => {
+    emitFinalPointerSync();
+    if (finalSyncTimeoutRef.current !== null) {
+      window.clearTimeout(finalSyncTimeoutRef.current);
+    }
+    finalSyncTimeoutRef.current = window.setTimeout(() => {
+      emitFinalPointerSync();
+      finalSyncTimeoutRef.current = null;
+    }, 60);
+  }, [emitFinalPointerSync]);
+
   useEffect(() => {
     isUnmounting.current = false;
     return () => {
       isUnmounting.current = true;
+      if (finalSyncTimeoutRef.current !== null) {
+        window.clearTimeout(finalSyncTimeoutRef.current);
+        finalSyncTimeoutRef.current = null;
+      }
     };
   }, []);
 
@@ -482,13 +519,15 @@ export const Editor: React.FC = () => {
 
   const onPointerUpdate = useCallback((payload: any) => {
     const now = Date.now();
+    if (payload?.pointer && typeof payload.pointer.x === "number" && typeof payload.pointer.y === "number") {
+      lastPointerRef.current = payload.pointer;
+    }
     const button = typeof payload?.button === "string" ? payload.button : "up";
     const selectedElementIdsFromPayload =
       (payload?.selectedElementIds && typeof payload.selectedElementIds === "object")
         ? payload.selectedElementIds
         : (excalidrawAPI.current?.getAppState?.().selectedElementIds || {});
-    const selectedElementIds =
-      button !== "up" ? selectedElementIdsFromPayload : {};
+    const selectedElementIds = selectedElementIdsFromPayload;
     const selectionSig = JSON.stringify(
       Object.keys(selectedElementIds || {}).sort()
     );
@@ -515,9 +554,12 @@ export const Editor: React.FC = () => {
       pointerDownRef.current = true;
     } else if (pointerDownRef.current) {
       pointerDownRef.current = false;
-      emitFinalPointerSync();
+      queueFinalPointerSync();
+      requestAnimationFrame(() => {
+        emitCursorPresence("up");
+      });
     }
-  }, [id, me, emitFinalPointerSync]);
+  }, [id, me, queueFinalPointerSync, emitCursorPresence]);
 
   // Refs for API interaction
   const excalidrawAPI = useRef<any>(null);
@@ -616,6 +658,57 @@ export const Editor: React.FC = () => {
     scrollToContent: true,
   }), []);
 
+  const recoverFromVersionConflict = useCallback(
+    async (
+      drawingId: string,
+      localElements: readonly any[],
+      localFiles: Record<string, any>
+    ): Promise<boolean> => {
+      try {
+        const latest = await api.getDrawing(drawingId);
+        const latestElements = Array.isArray(latest.elements) ? latest.elements : [];
+        const latestFiles = latest.files || {};
+        const mergedFiles = { ...latestFiles, ...(localFiles || {}) };
+        const normalizedLocalElements = normalizeImageElementStatus(localElements, mergedFiles);
+        const mergedElements = reconcileElements(latestElements, normalizedLocalElements);
+
+        if (typeof latest.version === "number") {
+          currentDrawingVersionRef.current = latest.version;
+        }
+        latestElementsRef.current = mergedElements;
+        initialSceneElementsRef.current = latestElements;
+        lastPersistedElementsRef.current = latestElements;
+        latestFilesRef.current = mergedFiles;
+        lastSyncedFilesRef.current = mergedFiles;
+        hasSceneChangesSinceLoadRef.current = false;
+
+        elementVersionMap.current.clear();
+        mergedElements.forEach((element: any) => {
+          recordElementVersion(element);
+        });
+
+        if (excalidrawAPI.current) {
+          isSyncing.current = true;
+          if (
+            Object.keys(mergedFiles).length > 0 &&
+            typeof excalidrawAPI.current.addFiles === "function"
+          ) {
+            excalidrawAPI.current.addFiles(Object.values(mergedFiles));
+          }
+          excalidrawAPI.current.updateScene({ elements: mergedElements });
+          isSyncing.current = false;
+        }
+
+        toast.info("Loaded latest collaborator changes");
+        return true;
+      } catch (error) {
+        console.error("[Editor] Failed to recover from version conflict", error);
+        return false;
+      }
+    },
+    [normalizeImageElementStatus, recordElementVersion]
+  );
+
   const saveDataRef = useRef<((drawingId: string, elements: readonly any[], appState: any, files?: Record<string, any>) => Promise<void>) | null>(null);
   const savePreviewRef = useRef<((drawingId: string, elements: readonly any[], appState: any, files: any) => Promise<void>) | null>(null);
   const saveLibraryRef = useRef<((items: any[]) => Promise<void>) | null>(null);
@@ -670,7 +763,7 @@ export const Editor: React.FC = () => {
         appState: persistableAppState,
       });
 
-      const persistScene = async (attempt: number): Promise<void> => {
+      const persistScene = async (): Promise<void> => {
         try {
           const updated = await api.updateDrawing(drawingId, {
             elements: normalizedElementsForSave,
@@ -691,13 +784,25 @@ export const Editor: React.FC = () => {
               currentDrawingVersionRef.current = reportedVersion;
             }
 
-            if (attempt === 0 && hasReportedVersion) {
-              console.warn("[Editor] Version conflict while saving drawing, retrying once", {
+            console.warn("[Editor] Version conflict while saving drawing, recovering latest", {
+              drawingId,
+              currentVersion: reportedVersion,
+            });
+
+            const recovered = await recoverFromVersionConflict(
+              drawingId,
+              normalizedElementsForSave,
+              persistableFiles
+            );
+            if (recovered) {
+              return;
+            }
+
+            if (hasReportedVersion) {
+              console.warn("[Editor] Version conflict recovery failed", {
                 drawingId,
                 currentVersion: reportedVersion,
               });
-              await persistScene(1);
-              return;
             }
 
             throw new DrawingSaveConflictError();
@@ -707,11 +812,11 @@ export const Editor: React.FC = () => {
         }
       };
 
-      await persistScene(0);
+      await persistScene();
     } catch (err) {
       if (err instanceof DrawingSaveConflictError) {
         console.warn("[Editor] Version conflict while saving drawing", { drawingId });
-        toast.error("Drawing changed in another tab. Refresh to load latest.");
+        toast.error("Drawing changed in another tab and recovery failed. Refresh to load latest.");
         throw err;
       }
       console.error('Failed to save drawing', err);
@@ -852,6 +957,51 @@ export const Editor: React.FC = () => {
     };
   }, [debouncedSave, debouncedSavePreview]);
 
+  const flushPendingSavesForLifecycle = useCallback(() => {
+    if (!canEditScene || !id) return;
+
+    emitFinalPointerSync();
+    debouncedSave.flush();
+    debouncedSavePreview.flush();
+
+    const snapshotElements = excalidrawAPI.current?.getSceneElementsIncludingDeleted?.() ?? latestElementsRef.current;
+    const snapshotAppState = excalidrawAPI.current?.getAppState?.() ?? latestAppStateRef.current;
+    const snapshotFiles = excalidrawAPI.current?.getFiles?.() ?? latestFilesRef.current ?? {};
+
+    if (!snapshotAppState || !saveDataRef.current) return;
+
+    hasSceneChangesSinceLoadRef.current = true;
+    void enqueueSceneSave(id, snapshotElements, snapshotAppState, snapshotFiles);
+  }, [canEditScene, id, debouncedSave, debouncedSavePreview, emitFinalPointerSync, enqueueSceneSave]);
+
+  useEffect(() => {
+    if (!id || !canEditScene) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        flushPendingSavesForLifecycle();
+      }
+    };
+
+    const handlePageHide = () => {
+      flushPendingSavesForLifecycle();
+    };
+
+    const handleBeforeUnload = () => {
+      flushPendingSavesForLifecycle();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [id, canEditScene, flushPendingSavesForLifecycle]);
+
   const broadcastChanges = useCallback(
     throttle((elements: readonly any[], currentFiles?: Record<string, any>) => {
       if (!canEditScene) return;
@@ -909,8 +1059,13 @@ export const Editor: React.FC = () => {
     hasSceneChangesSinceLoadRef.current = false;
     touchedElementIdsRef.current.clear();
     pointerDownRef.current = false;
+    if (finalSyncTimeoutRef.current !== null) {
+      window.clearTimeout(finalSyncTimeoutRef.current);
+      finalSyncTimeoutRef.current = null;
+    }
     lastPointerButtonRef.current = "up";
     lastPointerSelectionSigRef.current = "{}";
+    lastPointerRef.current = null;
     excalidrawAPI.current = null;
     setIsReady(false);
     setIsSceneLoading(true);
