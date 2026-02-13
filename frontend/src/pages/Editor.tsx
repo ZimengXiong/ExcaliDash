@@ -33,13 +33,6 @@ interface Peer extends UserIdentity {
   isActive: boolean;
 }
 
-class DrawingSaveConflictError extends Error {
-  constructor(message = "Drawing version conflict") {
-    super(message);
-    this.name = "DrawingSaveConflictError";
-  }
-}
-
 export const Editor: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -90,8 +83,6 @@ export const Editor: React.FC = () => {
   const latestFilesRef = useRef<any>(null);
   const lastSyncedFilesRef = useRef<Record<string, any>>({});
   const latestAppStateRef = useRef<any>(null);
-  const debouncedSaveRef = useRef<((drawingId: string, elements: readonly any[], appState: any, files?: Record<string, any>) => void) | null>(null);
-  const currentDrawingVersionRef = useRef<number | null>(null);
   const lastPersistedElementsRef = useRef<readonly any[]>([]);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const patchedAddFilesApisRef = useRef<WeakSet<object>>(new WeakSet());
@@ -100,6 +91,67 @@ export const Editor: React.FC = () => {
   const touchedElementIdsRef = useRef<Set<string>>(new Set());
   const pointerDownRef = useRef(false);
   const finalSyncTimeoutRef = useRef<number | null>(null);
+  const serverSceneSeqRef = useRef(0);
+  const MAX_PREVIEW_PAYLOAD_BYTES = 200_000;
+  const PREVIEW_WEBP_WIDTH = 480;
+  const PREVIEW_WEBP_QUALITY = 0.72;
+
+  const emitSceneOp = useCallback(
+    (ops: any[]) => {
+      if (!canEditScene) return false;
+      if (!socketRef.current || !id) return false;
+      if (!Array.isArray(ops) || ops.length === 0) return false;
+
+      socketRef.current.emit("scene-op", {
+        drawingId: id,
+        baseSeq: serverSceneSeqRef.current,
+        clientOpId:
+          typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        ops,
+      });
+      return true;
+    },
+    [canEditScene, id]
+  );
+
+  const svgToWebpDataUrl = useCallback(
+    async (svgMarkup: string): Promise<string | null> => {
+      if (typeof window === "undefined") return null;
+      const blob = new Blob([svgMarkup], { type: "image/svg+xml;charset=utf-8" });
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => resolve(image);
+          image.onerror = reject;
+          image.src = objectUrl;
+        });
+
+        const naturalWidth = Math.max(1, img.naturalWidth || PREVIEW_WEBP_WIDTH);
+        const naturalHeight = Math.max(1, img.naturalHeight || PREVIEW_WEBP_WIDTH);
+        const scale = Math.min(1, PREVIEW_WEBP_WIDTH / naturalWidth);
+        const targetWidth = Math.max(1, Math.round(naturalWidth * scale));
+        const targetHeight = Math.max(1, Math.round(naturalHeight * scale));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return null;
+
+        ctx.clearRect(0, 0, targetWidth, targetHeight);
+        ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+        return canvas.toDataURL("image/webp", PREVIEW_WEBP_QUALITY);
+      } catch {
+        return null;
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    },
+    []
+  );
 
   const getRenderableBaselineSnapshot = useCallback((): readonly any[] => {
     if (hasRenderableElements(lastPersistedElementsRef.current)) {
@@ -219,7 +271,6 @@ export const Editor: React.FC = () => {
   const emitFilesDeltaIfNeeded = useCallback(
     (nextFiles: Record<string, any>) => {
       if (!canEditScene) return false;
-      if (!socketRef.current || !id) return false;
       const filesDelta = getFilesDelta(lastSyncedFilesRef.current, nextFiles || {});
       if (Object.keys(filesDelta).length === 0) return false;
 
@@ -235,16 +286,16 @@ export const Editor: React.FC = () => {
         dbg.lastFilesDeltaIds = Object.keys(filesDelta);
       }
 
-      socketRef.current.emit("element-update", {
-        drawingId: id,
-        elements: [],
-        files: filesDelta,
-        userId: me.id,
-      });
-
-      return true;
+      return emitSceneOp([
+        {
+          upsertElements: [],
+          deleteElementIds: [],
+          filesDelta,
+          appStatePatch: {},
+        },
+      ]);
     },
-    [id, me.id, canEditScene]
+    [canEditScene, emitSceneOp]
   );
 
   const recordElementVersion = useCallback((element: any) => {
@@ -281,7 +332,7 @@ export const Editor: React.FC = () => {
 
   const emitFinalPointerSync = useCallback(() => {
     if (!canEditScene) return;
-    if (!socketRef.current || !id || !excalidrawAPI.current) return;
+    if (!excalidrawAPI.current) return;
 
     const currentElements = excalidrawAPI.current.getSceneElementsIncludingDeleted() || [];
     const currentFiles = excalidrawAPI.current.getFiles?.() || {};
@@ -307,15 +358,21 @@ export const Editor: React.FC = () => {
       latestFilesRef.current = currentFiles;
     }
 
-    socketRef.current.emit("element-update", {
-      drawingId: id,
-      elements: forcedElements,
-      files: shouldSyncFiles ? filesDelta : undefined,
-      userId: me.id,
-    });
+    const deletedIds = forcedElements
+      .filter((element: any) => element?.isDeleted === true)
+      .map((element: any) => element.id)
+      .filter((elementId: unknown): elementId is string => typeof elementId === "string");
+    emitSceneOp([
+      {
+        upsertElements: forcedElements,
+        deleteElementIds: deletedIds,
+        filesDelta: shouldSyncFiles ? filesDelta : {},
+        appStatePatch: {},
+      },
+    ]);
 
     touchedElementIdsRef.current.clear();
-  }, [canEditScene, id, me.id, recordElementVersion]);
+  }, [canEditScene, recordElementVersion, emitSceneOp]);
 
   const emitCursorPresence = useCallback((button: string = "up") => {
     if (!socketRef.current || !id) return;
@@ -453,40 +510,93 @@ export const Editor: React.FC = () => {
       });
     });
 
-    socket.on('element-update', ({ elements, files }: { elements: any[]; files?: Record<string, any> }) => {
+    const applyRemoteOps = (ops: any[]) => {
       if (!excalidrawAPI.current) return;
 
       isSyncing.current = true;
+      let nextElements = excalidrawAPI.current.getSceneElementsIncludingDeleted() || [];
+      let nextFiles = lastSyncedFilesRef.current || {};
 
-      const localElements = excalidrawAPI.current.getSceneElementsIncludingDeleted();
-      // Always merge all remote deltas; the version/timestamp reconciliation
-      // logic already protects newer local edits and prevents stale overwrites.
-      const remoteElements = Array.isArray(elements) ? elements : [];
-      const mergedElements = reconcileElements(localElements, remoteElements);
+      for (const op of ops) {
+        const remoteElements = Array.isArray(op?.upsertElements) ? op.upsertElements : [];
+        if (remoteElements.length > 0) {
+          nextElements = reconcileElements(nextElements, remoteElements);
+          remoteElements.forEach((element: any) => {
+            recordElementVersion(element);
+          });
+        }
 
-      remoteElements.forEach((el: any) => {
-        recordElementVersion(el);
+        const deleteIds = Array.isArray(op?.deleteElementIds) ? op.deleteElementIds : [];
+        if (deleteIds.length > 0) {
+          const deleteSet = new Set(deleteIds.filter((value: unknown): value is string => typeof value === "string"));
+          if (deleteSet.size > 0) {
+            nextElements = nextElements.map((element: any) =>
+              deleteSet.has(element.id) ? { ...element, isDeleted: true } : element
+            );
+          }
+        }
+
+        const incomingFiles = op?.filesDelta && typeof op.filesDelta === "object" ? op.filesDelta : {};
+        if (Object.keys(incomingFiles).length > 0) {
+          nextFiles = { ...nextFiles, ...incomingFiles };
+          if (typeof excalidrawAPI.current.addFiles === "function") {
+            excalidrawAPI.current.addFiles(Object.values(incomingFiles));
+          }
+        }
+      }
+
+      excalidrawAPI.current.updateScene({ elements: nextElements });
+      latestElementsRef.current = nextElements;
+      latestFilesRef.current = nextFiles;
+      lastSyncedFilesRef.current = nextFiles;
+      isSyncing.current = false;
+    };
+
+    socket.on("scene-snapshot", (snapshot: any) => {
+      if (!excalidrawAPI.current) return;
+      if (!snapshot || typeof snapshot !== "object") return;
+      const snapshotSeq = typeof snapshot.seq === "number" ? snapshot.seq : 0;
+      if (snapshotSeq < serverSceneSeqRef.current) return;
+
+      const elements = Array.isArray(snapshot.elements) ? snapshot.elements : [];
+      const files = snapshot.files && typeof snapshot.files === "object" ? snapshot.files : {};
+      serverSceneSeqRef.current = snapshotSeq;
+
+      elementVersionMap.current.clear();
+      elements.forEach((element: any) => {
+        recordElementVersion(element);
       });
 
-      const incomingFiles = files || {};
-      const shouldUpdateFiles = Object.keys(incomingFiles).length > 0;
-      const nextFiles = shouldUpdateFiles
-        ? { ...lastSyncedFilesRef.current, ...incomingFiles }
-        : lastSyncedFilesRef.current;
-
-      if (shouldUpdateFiles && typeof excalidrawAPI.current.addFiles === "function") {
-        // Excalidraw manages binary files separately from scene elements; updateScene(files)
-        // is not reliable for syncing pasted images across tabs.
-        excalidrawAPI.current.addFiles(Object.values(incomingFiles));
+      isSyncing.current = true;
+      if (Object.keys(files).length > 0 && typeof excalidrawAPI.current.addFiles === "function") {
+        excalidrawAPI.current.addFiles(Object.values(files));
       }
-
-      excalidrawAPI.current.updateScene({ elements: mergedElements });
-      latestElementsRef.current = mergedElements;
-      if (shouldUpdateFiles) {
-        latestFilesRef.current = nextFiles;
-        lastSyncedFilesRef.current = nextFiles;
-      }
+      excalidrawAPI.current.updateScene({ elements });
+      latestElementsRef.current = elements;
+      latestFilesRef.current = files;
+      lastSyncedFilesRef.current = files;
       isSyncing.current = false;
+    });
+
+    socket.on("scene-op-applied", (payload: any) => {
+      const seq = typeof payload?.seq === "number" ? payload.seq : null;
+      if (seq !== null && seq > serverSceneSeqRef.current) {
+        serverSceneSeqRef.current = seq;
+      }
+      const ops = Array.isArray(payload?.ops) ? payload.ops : [];
+      if (ops.length === 0) return;
+      applyRemoteOps(ops);
+    });
+
+    socket.on('element-update', ({ elements, files }: { elements: any[]; files?: Record<string, any> }) => {
+      applyRemoteOps([
+        {
+          upsertElements: Array.isArray(elements) ? elements : [],
+          deleteElementIds: [],
+          filesDelta: files || {},
+          appStatePatch: {},
+        },
+      ]);
     });
 
 
@@ -511,6 +621,8 @@ export const Editor: React.FC = () => {
       document.removeEventListener('mouseleave', onMouseLeave);
       socket.off('presence-update');
       socket.off('cursor-move');
+      socket.off('scene-snapshot');
+      socket.off('scene-op-applied');
       socket.off('element-update');
       socket.disconnect();
       cancelAnimationFrame(animationFrameId.current);
@@ -589,10 +701,17 @@ export const Editor: React.FC = () => {
         const nextFiles = api.getFiles?.() || {};
         const didEmit = emitFilesDeltaIfNeeded(nextFiles);
 
-        // Persist after file data becomes available so new tabs (tab3) load correctly.
-        if (didEmit && id && latestAppStateRef.current && debouncedSaveRef.current) {
+        // Keep preview in sync after async file data becomes available.
+        if (didEmit && id && latestAppStateRef.current) {
           hasSceneChangesSinceLoadRef.current = true;
-          debouncedSaveRef.current(id, latestElementsRef.current, latestAppStateRef.current, latestFilesRef.current || {});
+          if (savePreviewRef.current) {
+            void savePreviewRef.current(
+              id,
+              latestElementsRef.current,
+              latestAppStateRef.current,
+              latestFilesRef.current || {}
+            );
+          }
         }
       };
     }
@@ -658,168 +777,20 @@ export const Editor: React.FC = () => {
     scrollToContent: true,
   }), []);
 
-  const recoverFromVersionConflict = useCallback(
-    async (
-      drawingId: string,
-      localElements: readonly any[],
-      localFiles: Record<string, any>
-    ): Promise<boolean> => {
-      try {
-        const latest = await api.getDrawing(drawingId);
-        const latestElements = Array.isArray(latest.elements) ? latest.elements : [];
-        const latestFiles = latest.files || {};
-        const mergedFiles = { ...latestFiles, ...(localFiles || {}) };
-        const normalizedLocalElements = normalizeImageElementStatus(localElements, mergedFiles);
-        const mergedElements = reconcileElements(latestElements, normalizedLocalElements);
-
-        if (typeof latest.version === "number") {
-          currentDrawingVersionRef.current = latest.version;
-        }
-        latestElementsRef.current = mergedElements;
-        initialSceneElementsRef.current = latestElements;
-        lastPersistedElementsRef.current = latestElements;
-        latestFilesRef.current = mergedFiles;
-        lastSyncedFilesRef.current = mergedFiles;
-        hasSceneChangesSinceLoadRef.current = false;
-
-        elementVersionMap.current.clear();
-        mergedElements.forEach((element: any) => {
-          recordElementVersion(element);
-        });
-
-        if (excalidrawAPI.current) {
-          isSyncing.current = true;
-          if (
-            Object.keys(mergedFiles).length > 0 &&
-            typeof excalidrawAPI.current.addFiles === "function"
-          ) {
-            excalidrawAPI.current.addFiles(Object.values(mergedFiles));
-          }
-          excalidrawAPI.current.updateScene({ elements: mergedElements });
-          isSyncing.current = false;
-        }
-
-        toast.info("Loaded latest collaborator changes");
-        return true;
-      } catch (error) {
-        console.error("[Editor] Failed to recover from version conflict", error);
-        return false;
-      }
-    },
-    [normalizeImageElementStatus, recordElementVersion]
-  );
-
   const saveDataRef = useRef<((drawingId: string, elements: readonly any[], appState: any, files?: Record<string, any>) => Promise<void>) | null>(null);
   const savePreviewRef = useRef<((drawingId: string, elements: readonly any[], appState: any, files: any) => Promise<void>) | null>(null);
   const saveLibraryRef = useRef<((items: any[]) => Promise<void>) | null>(null);
 
-  saveDataRef.current = async (drawingId: string, elements: readonly any[], appState: any, files?: Record<string, any>) => {
+  saveDataRef.current = async (drawingId: string, _elements: readonly any[], _appState: any, _files?: Record<string, any>) => {
     if (!drawingId) return;
 
     try {
-      const persistableAppState = {
-        ...appState,
-        viewBackgroundColor: appState?.viewBackgroundColor || '#ffffff',
-        gridSize: appState?.gridSize || null,
-      };
-
-      const candidateElements = Array.isArray(elements) ? elements : [];
-      const {
-        snapshot: safeElements,
-        prevented,
-        staleEmptySnapshot,
-        staleNonRenderableSnapshot,
-      } = resolveSafeSnapshot(candidateElements);
-      const persistableElements = Array.from(safeElements);
-      if (suspiciousBlankLoadRef.current && !hasRenderableElements(persistableElements)) {
-        console.warn("[Editor] Blocking non-renderable save due to suspicious blank load", {
-          drawingId,
-          elementCount: persistableElements.length,
-        });
-        return;
-      }
-      if (staleEmptySnapshot || staleNonRenderableSnapshot) {
-        console.warn("[Editor] Skipping stale snapshot save", {
-          drawingId,
-          candidateElementCount: candidateElements.length,
-          fallbackElementCount: persistableElements.length,
-          prevented,
-          staleEmptySnapshot,
-          staleNonRenderableSnapshot,
-        });
-        return;
-      }
-      const persistableFiles = files ?? latestFilesRef.current ?? {};
-      const normalizedElements = normalizeImageElementStatus(
-        persistableElements,
-        persistableFiles
-      );
-      const normalizedElementsForSave = Array.from(normalizedElements);
-
-      console.log("[Editor] Saving drawing", {
-        drawingId,
-        elementCount: normalizedElementsForSave.length,
-        hasRenderableElements: hasRenderableElements(normalizedElementsForSave),
-        appState: persistableAppState,
-      });
-
-      const persistScene = async (): Promise<void> => {
-        try {
-          const updated = await api.updateDrawing(drawingId, {
-            elements: normalizedElementsForSave,
-            appState: persistableAppState,
-            files: persistableFiles,
-            version: currentDrawingVersionRef.current ?? undefined,
-          });
-          if (typeof updated.version === "number") {
-            currentDrawingVersionRef.current = updated.version;
-          }
-          lastPersistedElementsRef.current = normalizedElementsForSave;
-          console.log("[Editor] Save complete", { drawingId });
-        } catch (err) {
-          if (api.isAxiosError(err) && err.response?.status === 409) {
-            const reportedVersion = Number(err.response?.data?.currentVersion);
-            const hasReportedVersion = Number.isInteger(reportedVersion) && reportedVersion > 0;
-            if (hasReportedVersion) {
-              currentDrawingVersionRef.current = reportedVersion;
-            }
-
-            console.warn("[Editor] Version conflict while saving drawing, recovering latest", {
-              drawingId,
-              currentVersion: reportedVersion,
-            });
-
-            const recovered = await recoverFromVersionConflict(
-              drawingId,
-              normalizedElementsForSave,
-              persistableFiles
-            );
-            if (recovered) {
-              return;
-            }
-
-            if (hasReportedVersion) {
-              console.warn("[Editor] Version conflict recovery failed", {
-                drawingId,
-                currentVersion: reportedVersion,
-              });
-            }
-
-            throw new DrawingSaveConflictError();
-          }
-
-          throw err;
-        }
-      };
-
-      await persistScene();
+      await api.flushDrawingScene(drawingId);
+      hasSceneChangesSinceLoadRef.current = false;
+      lastPersistedElementsRef.current = latestElementsRef.current;
+      console.log("[Editor] Flush complete", { drawingId });
     } catch (err) {
-      if (err instanceof DrawingSaveConflictError) {
-        console.warn("[Editor] Version conflict while saving drawing", { drawingId });
-        toast.error("Drawing changed in another tab and recovery failed. Refresh to load latest.");
-        throw err;
-      }
-      console.error('Failed to save drawing', err);
+      console.error('Failed to flush drawing', err);
       toast.error("Failed to save changes");
       throw err;
     }
@@ -897,14 +868,29 @@ export const Editor: React.FC = () => {
         },
         files: currentFiles,
       });
-      const preview = svg.outerHTML;
+      const svgPreview = svg.outerHTML;
+      let preview = svgPreview;
+      if (svgPreview.length > MAX_PREVIEW_PAYLOAD_BYTES) {
+        const webpPreview = await svgToWebpDataUrl(svgPreview);
+        if (typeof webpPreview === "string" && webpPreview.length <= MAX_PREVIEW_PAYLOAD_BYTES) {
+          preview = webpPreview;
+        } else {
+          console.warn("[Editor] Skipping oversized preview payload", {
+            drawingId,
+            svgPreviewBytes: svgPreview.length,
+            webpPreviewBytes: webpPreview?.length ?? null,
+            maxPreviewBytes: MAX_PREVIEW_PAYLOAD_BYTES,
+          });
+          return;
+        }
+      }
 
       console.log("[Editor] Saving preview", {
         drawingId,
         elementCount: normalizedSnapshot.length,
       });
 
-      await api.updateDrawing(drawingId, { preview });
+      await api.updateDrawingPreview(drawingId, preview);
 
       console.log("[Editor] Preview save complete", { drawingId });
     } catch (err) {
@@ -924,14 +910,6 @@ export const Editor: React.FC = () => {
   };
 
 
-  const debouncedSave = useCallback(
-    debounce((drawingId, elements, appState, files) => {
-      enqueueSceneSave(drawingId, elements, appState, files);
-    }, 1000),
-    [enqueueSceneSave] // Stable queue wrapper avoids concurrent version conflicts
-  );
-  // Allow non-hook code (e.g., Excalidraw API wrappers) to trigger debounced saves.
-  debouncedSaveRef.current = debouncedSave;
   const debouncedSavePreview = useCallback(
     debounce((drawingId, elements, appState, files) => {
       if (savePreviewRef.current) {
@@ -952,27 +930,22 @@ export const Editor: React.FC = () => {
 
   useEffect(() => {
     return () => {
-      debouncedSave.cancel();
       debouncedSavePreview.cancel();
     };
-  }, [debouncedSave, debouncedSavePreview]);
+  }, [debouncedSavePreview]);
 
   const flushPendingSavesForLifecycle = useCallback(() => {
     if (!canEditScene || !id) return;
 
     emitFinalPointerSync();
-    debouncedSave.flush();
     debouncedSavePreview.flush();
-
-    const snapshotElements = excalidrawAPI.current?.getSceneElementsIncludingDeleted?.() ?? latestElementsRef.current;
-    const snapshotAppState = excalidrawAPI.current?.getAppState?.() ?? latestAppStateRef.current;
-    const snapshotFiles = excalidrawAPI.current?.getFiles?.() ?? latestFilesRef.current ?? {};
-
-    if (!snapshotAppState || !saveDataRef.current) return;
-
-    hasSceneChangesSinceLoadRef.current = true;
-    void enqueueSceneSave(id, snapshotElements, snapshotAppState, snapshotFiles);
-  }, [canEditScene, id, debouncedSave, debouncedSavePreview, emitFinalPointerSync, enqueueSceneSave]);
+    if (socketRef.current) {
+      socketRef.current.emit("scene-flush", { drawingId: id });
+    }
+    void api.flushDrawingScene(id).catch(() => {
+      // Best-effort flush during lifecycle events.
+    });
+  }, [canEditScene, id, debouncedSavePreview, emitFinalPointerSync]);
 
   useEffect(() => {
     if (!id || !canEditScene) return;
@@ -1005,7 +978,7 @@ export const Editor: React.FC = () => {
   const broadcastChanges = useCallback(
     throttle((elements: readonly any[], currentFiles?: Record<string, any>) => {
       if (!canEditScene) return;
-      if (!socketRef.current || !id) return;
+      if (!id) return;
 
       const changes: any[] = [];
       const selectedIds = new Set<string>(
@@ -1033,15 +1006,24 @@ export const Editor: React.FC = () => {
       }
 
       if (changes.length > 0 || shouldSyncFiles) {
-        socketRef.current.emit('element-update', {
-          drawingId: id,
-          elements: changes.length > 0 ? changes : [],
-          files: shouldSyncFiles ? filesDelta : undefined,
-          userId: me.id
-        });
+        const deletedIds = changes
+          .filter((element: any) => element?.isDeleted === true)
+          .map((element: any) => element.id)
+          .filter((elementId: unknown): elementId is string => typeof elementId === "string");
+        emitSceneOp([
+          {
+            upsertElements: changes.length > 0 ? changes : [],
+            deleteElementIds: deletedIds,
+            filesDelta: shouldSyncFiles ? filesDelta : {},
+            appStatePatch: {
+              viewBackgroundColor: latestAppStateRef.current?.viewBackgroundColor,
+              gridSize: latestAppStateRef.current?.gridSize ?? null,
+            },
+          },
+        ]);
       }
     }, 100, { leading: true, trailing: true }),
-    [id, hasElementChanged, recordElementVersion, canEditScene]
+    [id, hasElementChanged, recordElementVersion, canEditScene, emitSceneOp]
   );
 
   useEffect(() => {
@@ -1053,7 +1035,6 @@ export const Editor: React.FC = () => {
     initialSceneElementsRef.current = [];
     latestFilesRef.current = {};
     lastSyncedFilesRef.current = {};
-    currentDrawingVersionRef.current = null;
     lastPersistedElementsRef.current = [];
     suspiciousBlankLoadRef.current = false;
     hasSceneChangesSinceLoadRef.current = false;
@@ -1063,6 +1044,7 @@ export const Editor: React.FC = () => {
       window.clearTimeout(finalSyncTimeoutRef.current);
       finalSyncTimeoutRef.current = null;
     }
+    serverSceneSeqRef.current = 0;
     lastPointerButtonRef.current = "up";
     lastPointerSelectionSigRef.current = "{}";
     lastPointerRef.current = null;
@@ -1119,7 +1101,6 @@ export const Editor: React.FC = () => {
         initialSceneElementsRef.current = elements;
         latestFilesRef.current = files;
         lastSyncedFilesRef.current = files;
-        currentDrawingVersionRef.current = typeof data.version === "number" ? data.version : null;
         lastPersistedElementsRef.current = elements;
 
         elements.forEach((el: any) => {
@@ -1165,7 +1146,6 @@ export const Editor: React.FC = () => {
         initialSceneElementsRef.current = [];
         latestFilesRef.current = {};
         lastSyncedFilesRef.current = {};
-        currentDrawingVersionRef.current = null;
         lastPersistedElementsRef.current = [];
         suspiciousBlankLoadRef.current = false;
         hasSceneChangesSinceLoadRef.current = false;
@@ -1206,8 +1186,10 @@ export const Editor: React.FC = () => {
             });
           }
           if (!id) return;
-          await enqueueSceneSave(id, safeElements, appState, files);
-          savePreviewRef.current(id, safeElements, appState, files);
+          await Promise.all([
+            enqueueSceneSave(id, safeElements, appState, files),
+            savePreviewRef.current(id, safeElements, appState, files),
+          ]);
           toast.success("Saved changes to server");
         }
       }
@@ -1323,16 +1305,6 @@ export const Editor: React.FC = () => {
     const filesSnapshot = currentFiles;
     latestFilesRef.current = filesSnapshot;
 
-    // Trigger Fast Save
-    console.log("[Editor] Queueing save", {
-      drawingId: id,
-      elementCount: allElements.length,
-      hasRenderableElements: hasRenderable,
-    });
-    if (id) {
-      debouncedSave(id, allElements, appState, filesSnapshot);
-    }
-
     // Trigger Slow Preview Gen
     console.log("[Editor] Queueing preview save", {
       drawingId: id,
@@ -1341,7 +1313,7 @@ export const Editor: React.FC = () => {
     if (id) {
       debouncedSavePreview(id, allElements, appState, filesSnapshot);
     }
-  }, [debouncedSave, debouncedSavePreview, broadcastChanges, id, resolveSafeSnapshot, canEditScene]);
+  }, [debouncedSavePreview, broadcastChanges, id, resolveSafeSnapshot, canEditScene]);
 
   // Ensure file-only updates (e.g. pasted image dataURL arriving asynchronously)
   // are still broadcast to collaborators AND persisted to the server.
@@ -1357,10 +1329,9 @@ export const Editor: React.FC = () => {
       const nextFiles = excalidrawAPI.current.getFiles?.() || {};
       const didEmit = emitFilesDeltaIfNeeded(nextFiles);
 
-      // Persist after file data becomes available (covers the "tab 3" case).
-      if (didEmit && latestAppStateRef.current && debouncedSaveRef.current) {
+      // Keep preview updated after async image data becomes available.
+      if (didEmit && latestAppStateRef.current) {
         hasSceneChangesSinceLoadRef.current = true;
-        debouncedSaveRef.current(id, latestElementsRef.current, latestAppStateRef.current, nextFiles);
         if (savePreviewRef.current) {
           void savePreviewRef.current(
             id,
@@ -1460,7 +1431,7 @@ export const Editor: React.FC = () => {
 
     // Save drawing and generate preview before navigating
     try {
-      if (!(excalidrawAPI.current && saveDataRef.current && savePreviewRef.current)) {
+      if (!(excalidrawAPI.current && saveDataRef.current)) {
         // If editor API is not ready, allow navigation instead of trapping the user.
         shouldNavigate = true;
       } else if (!hasSceneChangesSinceLoadRef.current) {
@@ -1500,7 +1471,7 @@ export const Editor: React.FC = () => {
         } else {
           await Promise.all([
             enqueueSceneSave(id, safeElements, appState, files, { suppressErrors: false }),
-            savePreviewRef.current(id, safeElements, appState, files)
+            savePreviewRef.current?.(id, safeElements, appState, files),
           ]);
           console.log("[Editor] Saved on back navigation", { drawingId: id });
           shouldNavigate = true;

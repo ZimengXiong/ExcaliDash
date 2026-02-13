@@ -2,6 +2,7 @@ import express from "express";
 import { z } from "zod";
 import { Prisma, PrismaClient } from "../../generated/client";
 import { AuthModeService } from "../../auth/authMode";
+import { CollabSessionManager } from "../../server/collabSession";
 
 export type SortField = "name" | "createdAt" | "updatedAt";
 export type SortDirection = "asc" | "desc";
@@ -48,6 +49,7 @@ export type DashboardRouteDeps = {
   buildDrawingsCacheKey: BuildDrawingsCacheKey;
   getCachedDrawingsBody: (key: string) => Buffer | null;
   cacheDrawingsResponse: (key: string, payload: unknown) => Buffer;
+  collabSessionManager: CollabSessionManager;
   MAX_PAGE_SIZE: number;
   config: {
     nodeEnv: string;

@@ -16,7 +16,7 @@ import {
   sanitizeDrawingData,
   validateImportedDrawing,
   sanitizeText,
-  sanitizeSvg,
+  sanitizePreview,
   elementSchema,
   appStateSchema,
 } from "./security";
@@ -29,6 +29,7 @@ import { registerDashboardRoutes } from "./routes/dashboard";
 import { registerImportExportRoutes } from "./routes/importExport";
 import { prisma } from "./db/prisma";
 import { createDrawingsCacheStore } from "./server/drawingsCache";
+import { createCollabSessionManager } from "./server/collabSession";
 import { registerCsrfProtection } from "./server/csrf";
 import { registerSocketHandlers } from "./server/socket";
 import { getClientIp } from "./utils/clientIp";
@@ -173,6 +174,7 @@ const {
   cacheDrawingsResponse,
   invalidateDrawingsCache,
 } = createDrawingsCacheStore(DRAWINGS_CACHE_TTL_MS);
+const collabSessionManager = createCollabSessionManager({ prisma });
 
 const getUserTrashCollectionId = (userId: string): string => `trash:${userId}`;
 
@@ -430,7 +432,7 @@ export const sanitizeDrawingUpdateData = (
       Object.assign(data, sanitizedData);
     } else if (hasPreviewField && typeof data.preview === "string") {
       // Preview-only updates must not inject default scene fields.
-      data.preview = sanitizeSvg(data.preview);
+      data.preview = sanitizePreview(data.preview);
       Object.assign(data, { ...data, preview: data.preview });
     } else if (hasPreviewField && data.preview === null) {
       // Explicitly allow clearing preview without touching scene data.
@@ -564,6 +566,7 @@ registerSocketHandlers({
   prisma,
   authModeService,
   jwtSecret: config.jwtSecret,
+  collabSessionManager,
 });
 
 apiApp.get("/health", (req, res) => {
@@ -589,6 +592,7 @@ registerDashboardRoutes(apiApp, {
   buildDrawingsCacheKey,
   getCachedDrawingsBody,
   cacheDrawingsResponse,
+  collabSessionManager,
   MAX_PAGE_SIZE,
   config,
   logAuditEvent,

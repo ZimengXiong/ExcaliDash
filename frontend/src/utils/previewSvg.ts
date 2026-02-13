@@ -65,9 +65,27 @@ export const previewHasEmbeddedImages = (
   preview: string | null | undefined
 ): boolean => typeof preview === "string" && /<image[\s>]/i.test(preview);
 
+export const isPreviewImageDataUrl = (
+  preview: string | null | undefined
+): boolean =>
+  typeof preview === "string" &&
+  /^data:image\/(?:webp|png|jpe?g);base64,[a-z0-9+/=\s]+$/i.test(preview.trim());
+
+export const isPreviewSvgMarkup = (
+  preview: string | null | undefined
+): boolean => typeof preview === "string" && /^\s*<svg[\s>]/i.test(preview);
+
 export const normalizePreviewSvg = (preview: string | null | undefined): string | null => {
   if (typeof preview !== "string" || preview.trim().length === 0) {
     return preview ?? null;
+  }
+
+  if (isPreviewImageDataUrl(preview)) {
+    return preview.trim();
+  }
+
+  if (!isPreviewSvgMarkup(preview)) {
+    return null;
   }
 
   if (typeof DOMParser === "undefined") {

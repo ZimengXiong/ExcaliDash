@@ -58,6 +58,7 @@ export const registerDrawingRoutes = (
     buildDrawingsCacheKey,
     getCachedDrawingsBody,
     cacheDrawingsResponse,
+    collabSessionManager,
     MAX_PAGE_SIZE,
     config,
     logAuditEvent,
@@ -446,6 +447,57 @@ export const registerDrawingRoutes = (
     });
   }));
 
+  app.get("/drawings/:id/scene-meta", requireAuth, asyncHandler(async (req, res) => {
+    if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+    const id = getRouteIdParam(req.params.id);
+    if (!id) return res.status(400).json({ error: "Validation error", message: "Invalid id parameter" });
+
+    const access = await resolveDrawingAccess({
+      prisma,
+      drawingId: id,
+      userId: req.user.id,
+    });
+    if (!access) return res.status(404).json({ error: "Drawing not found" });
+
+    const meta = await collabSessionManager.getMeta(id);
+    if (!meta) {
+      return res.status(404).json({ error: "Drawing not found" });
+    }
+
+    return res.json({
+      drawingId: id,
+      seq: meta.seq,
+      dbVersion: meta.dbVersion,
+      updatedAt: access.drawing.updatedAt,
+    });
+  }));
+
+  app.post("/drawings/:id/flush", requireAuth, asyncHandler(async (req, res) => {
+    if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+    const id = getRouteIdParam(req.params.id);
+    if (!id) return res.status(400).json({ error: "Validation error", message: "Invalid id parameter" });
+
+    const access = await resolveDrawingAccess({
+      prisma,
+      drawingId: id,
+      userId: req.user.id,
+    });
+    if (!access) return res.status(404).json({ error: "Drawing not found" });
+    if (!isAtLeastRole(access.role, "editor")) {
+      return res.status(403).json({ error: "Forbidden", message: "You do not have edit access" });
+    }
+
+    await collabSessionManager.flushSession(id);
+    const meta = await collabSessionManager.getMeta(id);
+
+    return res.json({
+      success: true,
+      drawingId: id,
+      seq: meta?.seq ?? null,
+      dbVersion: meta?.dbVersion ?? null,
+    });
+  }));
+
   app.post("/drawings", requireAuth, asyncHandler(async (req, res) => {
     if (!req.user) return res.status(401).json({ error: "Unauthorized" });
 
@@ -628,6 +680,50 @@ export const registerDrawingRoutes = (
       appState: parseJsonField(updatedDrawing.appState, {}),
       files: parseJsonField(updatedDrawing.files, {}),
     });
+  }));
+
+  app.put("/drawings/:id/preview", requireAuth, asyncHandler(async (req, res) => {
+    if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+
+    const id = getRouteIdParam(req.params.id);
+    if (!id) {
+      return res.status(400).json({ error: "Validation error", message: "Invalid id parameter" });
+    }
+
+    const access = await resolveDrawingAccess({
+      prisma,
+      drawingId: id,
+      userId: req.user.id,
+    });
+    if (!access) return res.status(404).json({ error: "Drawing not found" });
+    if (!isAtLeastRole(access.role, "editor")) {
+      return res.status(403).json({ error: "Forbidden", message: "You do not have edit access" });
+    }
+
+    const parsed = drawingUpdateSchema.safeParse({ preview: req.body?.preview });
+    if (!parsed.success) {
+      if (config.nodeEnv === "development") {
+        console.error("[API] Preview validation failed", { id, errors: parsed.error.issues });
+      }
+      return respondWithValidationErrors(res, parsed.error.issues);
+    }
+
+    const payload = parsed.data as { preview?: string | null };
+    if (payload.preview === undefined) {
+      return res.status(400).json({ error: "Validation error", message: "Missing preview field" });
+    }
+
+    const updated = await prisma.drawing.updateMany({
+      where: access.role === "owner" ? { id, userId: req.user.id } : { id },
+      data: { preview: payload.preview },
+    });
+
+    if (updated.count === 0) {
+      return res.status(404).json({ error: "Drawing not found" });
+    }
+
+    invalidateDrawingsCache();
+    return res.json({ success: true });
   }));
 
   app.delete("/drawings/:id", requireAuth, asyncHandler(async (req, res) => {

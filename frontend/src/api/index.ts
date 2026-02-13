@@ -540,6 +540,44 @@ export const updateDrawing = async (id: string, data: Partial<Drawing>) => {
   return deserializeDrawing(response.data);
 };
 
+export const updateDrawingPreview = async (
+  id: string,
+  preview: string | null
+): Promise<{ success: true }> => {
+  const response = await api.put<{ success: true }>(`/drawings/${id}/preview`, { preview });
+  return response.data;
+};
+
+export const getDrawingSceneMeta = async (id: string): Promise<{
+  drawingId: string;
+  seq: number;
+  dbVersion: number;
+  updatedAt: string | number;
+}> => {
+  const response = await api.get<{
+    drawingId: string;
+    seq: number;
+    dbVersion: number;
+    updatedAt: string | number;
+  }>(`/drawings/${id}/scene-meta`);
+  return response.data;
+};
+
+export const flushDrawingScene = async (id: string): Promise<{
+  success: true;
+  drawingId: string;
+  seq: number | null;
+  dbVersion: number | null;
+}> => {
+  const response = await api.post<{
+    success: true;
+    drawingId: string;
+    seq: number | null;
+    dbVersion: number | null;
+  }>(`/drawings/${id}/flush`);
+  return response.data;
+};
+
 export const deleteDrawing = async (id: string) => {
   const response = await api.delete<{ success: true }>(`/drawings/${id}`);
   return response.data;

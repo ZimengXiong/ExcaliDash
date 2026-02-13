@@ -7,7 +7,7 @@ import { formatDistanceToNow } from 'date-fns';
 import clsx from 'clsx';
 // import { exportToSvg } from "@excalidraw/excalidraw"; // Lazy load this instead
 import { exportDrawingToFile } from '../utils/exportUtils';
-import { previewHasEmbeddedImages } from '../utils/previewSvg';
+import { isPreviewImageDataUrl, previewHasEmbeddedImages } from '../utils/previewSvg';
 
 import * as api from '../api';
 
@@ -89,6 +89,7 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
   const [exportError, setExportError] = useState<string | null>(null);
   const [fullData, setFullData] = useState<HydratedDrawingData | null>(null);
   const hasEmbeddedImages = previewHasEmbeddedImages(previewSvg);
+  const isImagePreview = isPreviewImageDataUrl(previewSvg);
 
   const fullDataRef = React.useRef(fullData);
   fullDataRef.current = fullData;
@@ -161,7 +162,7 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
         setPreviewSvg(previewHtml);
 
         // Save to backend and notify parent
-        api.updateDrawing(drawing.id, { preview: previewHtml }).catch(console.error);
+        api.updateDrawingPreview(drawing.id, previewHtml).catch(console.error);
         onPreviewGenerated?.(drawing.id, previewHtml);
       } catch (e) {
         if (!cancelled) {
@@ -277,6 +278,16 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
           <div className="absolute inset-0 opacity-[0.3] bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] [background-size:24px_24px]"></div>
 
           {previewSvg ? (
+            isImagePreview ? (
+              <img
+                src={previewSvg}
+                alt=""
+                className="w-full h-full object-contain p-2 sm:p-3 lg:p-4 relative z-10"
+                loading="lazy"
+                decoding="async"
+                draggable={false}
+              />
+            ) : (
             <div
               className={clsx(
                 "w-full h-full p-3 sm:p-4 lg:p-5 flex items-center justify-center [&>svg]:w-auto [&>svg]:h-auto [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:drop-shadow-sm transition-transform duration-500",
@@ -284,6 +295,7 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
               )}
               dangerouslySetInnerHTML={{ __html: previewSvg }}
             />
+            )
           ) : (
             <div className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 bg-white dark:bg-neutral-900 rounded-2xl shadow-sm flex items-center justify-center text-neutral-300 dark:text-neutral-400 border border-slate-100 dark:border-neutral-700 transform group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">
               <PenTool size={32} strokeWidth={1.5} className="sm:w-9 sm:h-9 lg:w-10 lg:h-10" />

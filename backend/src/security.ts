@@ -231,6 +231,31 @@ export const sanitizeSvg = (svgContent: string): string => {
   return sanitizeSvgImageTags(sanitized).trim();
 };
 
+const SAFE_PREVIEW_DATA_URL_PATTERN =
+  /^data:image\/(?:webp|png|jpe?g);base64,[a-z0-9+/=\s]+$/i;
+const MAX_PREVIEW_SIZE = 300_000;
+
+export const sanitizePreview = (
+  previewContent: string | null | undefined
+): string | null => {
+  if (previewContent === null || previewContent === undefined) return null;
+  if (typeof previewContent !== "string") return null;
+  const trimmed = previewContent.trim();
+  if (trimmed.length === 0) return null;
+  if (trimmed.length > MAX_PREVIEW_SIZE) return null;
+
+  if (SAFE_PREVIEW_DATA_URL_PATTERN.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (/^<svg[\s>]/i.test(trimmed)) {
+    const sanitized = sanitizeSvg(trimmed);
+    return sanitized.length > 0 && sanitized.length <= MAX_PREVIEW_SIZE ? sanitized : null;
+  }
+
+  return null;
+};
+
 export const sanitizeText = (
   input: unknown,
   maxLength: number = 1000
@@ -463,10 +488,7 @@ export const sanitizeDrawingData = (data: {
     const sanitizedElements = elementSchema.array().parse(data.elements);
     const sanitizedAppState = appStateSchema.parse(data.appState);
 
-    let sanitizedPreview = data.preview;
-    if (typeof sanitizedPreview === "string") {
-      sanitizedPreview = sanitizeSvg(sanitizedPreview);
-    }
+    const sanitizedPreview = sanitizePreview(data.preview);
 
     // Sanitize files object with special handling for dataURL
     let sanitizedFiles = data.files;

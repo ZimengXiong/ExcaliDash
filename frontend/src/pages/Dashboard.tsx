@@ -11,6 +11,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { useUpload } from '../context/UploadContext';
 import { DragOverlayPortal, getSelectionBounds, type Point, type SelectionBounds } from './dashboard/shared';
 import { useDashboardData } from './dashboard/useDashboardData';
+import { isPreviewImageDataUrl } from '../utils/previewSvg';
 
 const PAGE_SIZE = 24;
 
@@ -699,10 +700,21 @@ export const Dashboard: React.FC = () => {
                 <div className="absolute inset-0 opacity-[0.3] bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] [background-size:24px_24px]"></div>
 
                 {d.preview ? (
-                  <div
-                    className="w-full h-full p-2 flex items-center justify-center [&>svg]:w-auto [&>svg]:h-auto [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:drop-shadow-sm relative z-10"
-                    dangerouslySetInnerHTML={{ __html: d.preview }}
-                  />
+                  isPreviewImageDataUrl(d.preview) ? (
+                    <img
+                      src={d.preview}
+                      alt=""
+                      className="w-full h-full p-2 object-contain relative z-10"
+                      loading="lazy"
+                      decoding="async"
+                      draggable={false}
+                    />
+                  ) : (
+                    <div
+                      className="w-full h-full p-2 flex items-center justify-center [&>svg]:w-auto [&>svg]:h-auto [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:drop-shadow-sm relative z-10"
+                      dangerouslySetInnerHTML={{ __html: d.preview }}
+                    />
+                  )
                 ) : (
                   <div className="text-slate-300 relative z-10"><Folder size={24} /></div>
                 )}

@@ -4,6 +4,7 @@ import { PrismaClient } from "../generated/client";
 import { AuthModeService } from "../auth/authMode";
 import { ACCESS_TOKEN_COOKIE_NAME, parseCookieHeader } from "../auth/cookies";
 import { isAtLeastRole, resolveDrawingAccess } from "./drawingAccess";
+import { CollabSessionManager } from "./collabSession";
 
 interface User {
   id: string;
@@ -19,6 +20,7 @@ type RegisterSocketHandlersDeps = {
   prisma: PrismaClient;
   authModeService: AuthModeService;
   jwtSecret: string;
+  collabSessionManager: CollabSessionManager;
 };
 
 export const registerSocketHandlers = ({
@@ -26,6 +28,7 @@ export const registerSocketHandlers = ({
   prisma,
   authModeService,
   jwtSecret,
+  collabSessionManager,
 }: RegisterSocketHandlersDeps) => {
   const roomUsers = new Map<string, User[]>();
   const socketUserMap = new Map<string, string>();
@@ -140,6 +143,7 @@ export const registerSocketHandlers = ({
 
           const roomId = `drawing_${drawingId}`;
           socket.join(roomId);
+          await collabSessionManager.joinSession(drawingId, socket.id);
 
           let trustedUserId =
             typeof user?.id === "string" && user.id.trim().length > 0
@@ -173,6 +177,11 @@ export const registerSocketHandlers = ({
           roomUsers.set(roomId, filteredUsers);
 
           io.to(roomId).emit("presence-update", filteredUsers);
+
+          const snapshot = await collabSessionManager.getSceneSnapshot(drawingId);
+          if (snapshot) {
+            socket.emit("scene-snapshot", snapshot);
+          }
         } catch (err) {
           console.error("Error in join-room handler:", err);
           socket.emit("error", { message: "Failed to join room" });
@@ -202,6 +211,45 @@ export const registerSocketHandlers = ({
       socket.to(roomId).emit("element-update", data);
     });
 
+    socket.on("scene-op", async (data) => {
+      const drawingId = typeof data?.drawingId === "string" ? data.drawingId : null;
+      if (!drawingId) return;
+
+      const role = authorizedDrawingRoles.get(drawingId);
+      if (!role || !isAtLeastRole(role, "editor")) {
+        return;
+      }
+
+      const baseSeq = typeof data?.baseSeq === "number" ? data.baseSeq : 0;
+      const clientOpId = typeof data?.clientOpId === "string" ? data.clientOpId : undefined;
+      const incomingOps = Array.isArray(data?.ops) ? data.ops : [];
+      if (incomingOps.length === 0) return;
+
+      const applied = await collabSessionManager.applyOps({
+        drawingId,
+        clientOpId,
+        ops: incomingOps,
+      });
+      if (!applied) return;
+
+      const roomId = `drawing_${drawingId}`;
+      io.to(roomId).emit("scene-op-applied", {
+        drawingId,
+        seq: applied.seq,
+        baseSeq,
+        ops: incomingOps,
+        authorUserId: authenticatedUserId ?? socket.id,
+        clientOpId,
+      });
+    });
+
+    socket.on("scene-flush", async (data) => {
+      const drawingId = typeof data?.drawingId === "string" ? data.drawingId : null;
+      if (!drawingId) return;
+      if (!authorizedDrawingRoles.has(drawingId)) return;
+      await collabSessionManager.flushSession(drawingId);
+    });
+
     socket.on(
       "user-activity",
       ({ drawingId, isActive }: { drawingId: string; isActive: boolean }) => {
@@ -222,6 +270,9 @@ export const registerSocketHandlers = ({
 
     socket.on("disconnect", () => {
       socketUserMap.delete(socket.id);
+      for (const drawingId of authorizedDrawingRoles.keys()) {
+        void collabSessionManager.leaveSession(drawingId, socket.id);
+      }
       roomUsers.forEach((users, roomId) => {
         const index = users.findIndex((u) => u.socketId === socket.id);
         if (index !== -1) {
