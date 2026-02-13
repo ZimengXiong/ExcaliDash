@@ -6,6 +6,8 @@
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://hub.docker.com)
 
+_Original repo can be found [here](https://github.com/ZimengXiong/ExcaliDash)_
+
 A self-hosted dashboard and organizer for [Excalidraw](https://github.com/excalidraw/excalidraw) with live collaboration features.
 
 ## Screenshots
