@@ -161,8 +161,7 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
         const previewHtml = svg.outerHTML;
         setPreviewSvg(previewHtml);
 
-        // Save to backend and notify parent
-        api.updateDrawingPreview(drawing.id, previewHtml).catch(console.error);
+        // Keep this local to avoid dashboard mount storms writing previews.
         onPreviewGenerated?.(drawing.id, previewHtml);
       } catch (e) {
         if (!cancelled) {

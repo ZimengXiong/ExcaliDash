@@ -23,6 +23,25 @@ type RegisterSocketHandlersDeps = {
   collabSessionManager: CollabSessionManager;
 };
 
+type CursorGuardState = {
+  lastAt: number;
+  lastSignature: string;
+};
+
+const CURSOR_MIN_INTERVAL_MS = 45;
+const CURSOR_DUPLICATE_WINDOW_MS = 180;
+
+const toCursorSignature = (
+  pointer: { x: number; y: number },
+  button: string,
+  selectedElementIds?: Record<string, boolean>
+): string => {
+  const roundedX = Math.round(pointer.x * 10) / 10;
+  const roundedY = Math.round(pointer.y * 10) / 10;
+  const selectionKeys = Object.keys(selectedElementIds || {}).sort();
+  return `${roundedX},${roundedY}|${button}|${selectionKeys.join(",")}`;
+};
+
 export const registerSocketHandlers = ({
   io,
   prisma,
@@ -115,6 +134,7 @@ export const registerSocketHandlers = ({
   io.on("connection", (socket) => {
     const authenticatedUserId = socketUserMap.get(socket.id);
     const authorizedDrawingRoles = new Map<string, "owner" | "editor" | "viewer">();
+    const cursorGuardByDrawing = new Map<string, CursorGuardState>();
 
     socket.on(
       "join-room",
@@ -194,8 +214,46 @@ export const registerSocketHandlers = ({
       if (!drawingId || !authorizedDrawingRoles.has(drawingId)) {
         return;
       }
+      const pointerX = Number(data?.pointer?.x);
+      const pointerY = Number(data?.pointer?.y);
+      if (!Number.isFinite(pointerX) || !Number.isFinite(pointerY)) {
+        return;
+      }
+      const pointer = { x: pointerX, y: pointerY };
+      const button = typeof data?.button === "string" ? data.button : "up";
+      const selectedElementIds =
+        data?.selectedElementIds && typeof data.selectedElementIds === "object"
+          ? (data.selectedElementIds as Record<string, boolean>)
+          : undefined;
+      const signature = toCursorSignature(pointer, button, selectedElementIds);
+      const now = Date.now();
+      const guardState = cursorGuardByDrawing.get(drawingId);
+      if (guardState) {
+        if (now - guardState.lastAt < CURSOR_MIN_INTERVAL_MS) {
+          return;
+        }
+        if (
+          signature === guardState.lastSignature &&
+          now - guardState.lastAt < CURSOR_DUPLICATE_WINDOW_MS
+        ) {
+          return;
+        }
+      }
+      cursorGuardByDrawing.set(drawingId, { lastAt: now, lastSignature: signature });
+
+      const payload: Record<string, unknown> = {
+        drawingId,
+        pointer,
+        button,
+        userId: data?.userId,
+        username: data?.username,
+        color: data?.color,
+      };
+      if (selectedElementIds) {
+        payload.selectedElementIds = selectedElementIds;
+      }
       const roomId = `drawing_${drawingId}`;
-      socket.volatile.to(roomId).emit("cursor-move", data);
+      socket.volatile.to(roomId).emit("cursor-move", payload);
     });
 
     socket.on("element-update", (data) => {

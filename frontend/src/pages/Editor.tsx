@@ -33,6 +33,26 @@ interface Peer extends UserIdentity {
   isActive: boolean;
 }
 
+type Pointer = { x: number; y: number };
+
+type RemoteCursorState = {
+  id: string;
+  username: string;
+  color: string;
+  button: string;
+  selectedElementIds: Record<string, boolean>;
+  pointer: Pointer;
+  startPointer: Pointer;
+  targetPointer: Pointer;
+  targetAt: number;
+};
+
+const CURSOR_FAST_EMIT_MS = 100;
+const CURSOR_SLOW_EMIT_MS = 220;
+const CURSOR_TINY_MOVE_PX = 2;
+const CURSOR_INTERPOLATION_MS = 120;
+const PREVIEW_IDLE_DEBOUNCE_MS = 25_000;
+
 export const Editor: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -70,13 +90,15 @@ export const Editor: React.FC = () => {
   const lastCursorEmit = useRef<number>(0);
   const lastPointerButtonRef = useRef<string>("up");
   const lastPointerSelectionSigRef = useRef<string>("{}");
-  const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
+  const lastPointerRef = useRef<Pointer | null>(null);
+  const lastEmittedPointerRef = useRef<Pointer | null>(null);
   const elementVersionMap = useRef<Map<string, ElementVersionInfo>>(new Map());
   const isBootstrappingScene = useRef(true);
   const hasHydratedInitialScene = useRef(false);
   const isUnmounting = useRef(false);
   const isSyncing = useRef(false);
-  const cursorBuffer = useRef<Map<string, any>>(new Map());
+  const remoteCursorStatesRef = useRef<Map<string, RemoteCursorState>>(new Map());
+  const cursorRenderDirtyRef = useRef(false);
   const animationFrameId = useRef<number>(0);
   const latestElementsRef = useRef<readonly any[]>([]);
   const initialSceneElementsRef = useRef<readonly any[]>([]);
@@ -92,6 +114,15 @@ export const Editor: React.FC = () => {
   const pointerDownRef = useRef(false);
   const finalSyncTimeoutRef = useRef<number | null>(null);
   const serverSceneSeqRef = useRef(0);
+  const lastSavedPreviewRef = useRef<string | null>(null);
+  const previewDirtyRef = useRef(false);
+  const queuePreviewSaveRef = useRef<((params: {
+    drawingId: string;
+    elements: readonly any[];
+    appState: any;
+    files: Record<string, any>;
+    immediate?: boolean;
+  }) => void) | null>(null);
   const MAX_PREVIEW_PAYLOAD_BYTES = 200_000;
   const PREVIEW_WEBP_WIDTH = 480;
   const PREVIEW_WEBP_QUALITY = 0.72;
@@ -268,6 +299,37 @@ export const Editor: React.FC = () => {
     []
   );
 
+  const getPointerDistance = useCallback((a: Pointer | null, b: Pointer | null): number => {
+    if (!a || !b) return Number.POSITIVE_INFINITY;
+    const dx = a.x - b.x;
+    const dy = a.y - b.y;
+    return Math.hypot(dx, dy);
+  }, []);
+
+  const interpolatePointer = useCallback((start: Pointer, target: Pointer, progress: number): Pointer => {
+    if (progress >= 1) return target;
+    if (progress <= 0) return start;
+    return {
+      x: start.x + (target.x - start.x) * progress,
+      y: start.y + (target.y - start.y) * progress,
+    };
+  }, []);
+
+  const hasCollaboratorChanged = useCallback((prev: any, next: any): boolean => {
+    if (!prev) return true;
+    const prevPointer = prev.pointer;
+    const nextPointer = next.pointer;
+    if (!prevPointer || !nextPointer) return true;
+    if (Math.abs(prevPointer.x - nextPointer.x) > 0.1) return true;
+    if (Math.abs(prevPointer.y - nextPointer.y) > 0.1) return true;
+    if (prev.button !== next.button) return true;
+    if (prev.username !== next.username) return true;
+    if (prev.color?.background !== next.color?.background) return true;
+    const prevSelectionSig = JSON.stringify(Object.keys(prev.selectedElementIds || {}).sort());
+    const nextSelectionSig = JSON.stringify(Object.keys(next.selectedElementIds || {}).sort());
+    return prevSelectionSig !== nextSelectionSig;
+  }, []);
+
   const emitFilesDeltaIfNeeded = useCallback(
     (nextFiles: Record<string, any>) => {
       if (!canEditScene) return false;
@@ -374,25 +436,35 @@ export const Editor: React.FC = () => {
     touchedElementIdsRef.current.clear();
   }, [canEditScene, recordElementVersion, emitSceneOp]);
 
-  const emitCursorPresence = useCallback((button: string = "up") => {
+  const emitCursorPacket = useCallback((pointer: Pointer, button: string) => {
     if (!socketRef.current || !id) return;
     const selectedElementIds = excalidrawAPI.current?.getAppState?.().selectedElementIds || {};
     const selectionSig = JSON.stringify(Object.keys(selectedElementIds || {}).sort());
+    const selectionChanged = selectionSig !== lastPointerSelectionSigRef.current;
 
-    socketRef.current.emit("cursor-move", {
-      pointer: lastPointerRef.current || { x: 0, y: 0 },
+    const payload: Record<string, any> = {
+      pointer,
       button,
-      selectedElementIds,
       username: me.name,
       userId: me.id,
       drawingId: id,
       color: me.color,
-    });
+    };
+    if (selectionChanged) {
+      payload.selectedElementIds = selectedElementIds;
+    }
+
+    socketRef.current.emit("cursor-move", payload);
 
     lastPointerButtonRef.current = button;
     lastPointerSelectionSigRef.current = selectionSig;
     lastCursorEmit.current = Date.now();
+    lastEmittedPointerRef.current = pointer;
   }, [id, me]);
+
+  const emitCursorPresence = useCallback((button: string = "up") => {
+    emitCursorPacket(lastPointerRef.current || { x: 0, y: 0 }, button);
+  }, [emitCursorPacket]);
 
   const queueFinalPointerSync = useCallback(() => {
     emitFinalPointerSync();
@@ -471,15 +543,43 @@ export const Editor: React.FC = () => {
 
     // Start the render loop for cursors
     const renderLoop = () => {
-      if (cursorBuffer.current.size > 0 && excalidrawAPI.current) {
+      if (excalidrawAPI.current) {
         const collaborators = new Map(excalidrawAPI.current.getAppState().collaborators || []);
+        const now = performance.now();
+        let hasActiveInterpolation = false;
+        let shouldUpdateCollaborators = cursorRenderDirtyRef.current;
 
-        cursorBuffer.current.forEach((data, userId) => {
-          collaborators.set(userId, data);
+        remoteCursorStatesRef.current.forEach((state, userId) => {
+          const elapsed = now - state.targetAt;
+          const progress = Math.max(0, Math.min(1, elapsed / CURSOR_INTERPOLATION_MS));
+          const nextPointer = interpolatePointer(state.startPointer, state.targetPointer, progress);
+          if (progress < 1) {
+            hasActiveInterpolation = true;
+          }
+          if (getPointerDistance(state.pointer, nextPointer) > 0.1) {
+            state.pointer = nextPointer;
+            shouldUpdateCollaborators = true;
+          }
+
+          const collaborator = {
+            pointer: state.pointer,
+            button: state.button || 'up',
+            selectedElementIds: state.selectedElementIds || {},
+            username: state.username,
+            color: { background: state.color, stroke: state.color },
+            id: state.id,
+          };
+          const previousCollaborator = collaborators.get(userId);
+          if (hasCollaboratorChanged(previousCollaborator, collaborator)) {
+            collaborators.set(userId, collaborator);
+            shouldUpdateCollaborators = true;
+          }
         });
 
-        cursorBuffer.current.clear();
-        excalidrawAPI.current.updateScene({ collaborators });
+        if (shouldUpdateCollaborators) {
+          excalidrawAPI.current.updateScene({ collaborators });
+        }
+        cursorRenderDirtyRef.current = hasActiveInterpolation;
       }
       animationFrameId.current = requestAnimationFrame(renderLoop);
     };
@@ -490,24 +590,49 @@ export const Editor: React.FC = () => {
 
       if (excalidrawAPI.current) {
         const collaborators = new Map(excalidrawAPI.current.getAppState().collaborators || []);
+        const activeUserIds = new Set(users.filter((u) => u.isActive).map((u) => u.id));
         users.forEach(user => {
           if (!user.isActive && user.id !== me.id) {
             collaborators.delete(user.id);
+            remoteCursorStatesRef.current.delete(user.id);
           }
         });
+        for (const userId of Array.from(remoteCursorStatesRef.current.keys())) {
+          if (!activeUserIds.has(userId)) {
+            remoteCursorStatesRef.current.delete(userId);
+            collaborators.delete(userId);
+          }
+        }
+        cursorRenderDirtyRef.current = true;
         excalidrawAPI.current.updateScene({ collaborators });
       }
     });
 
     socket.on('cursor-move', (data: any) => {
-      cursorBuffer.current.set(data.userId, {
-        pointer: data.pointer,
-        button: data.button || 'up',
-        selectedElementIds: data.selectedElementIds || {},
-        username: data.username,
-        color: { background: data.color, stroke: data.color },
+      if (!data || typeof data.userId !== "string") return;
+      if (!data.pointer || typeof data.pointer.x !== "number" || typeof data.pointer.y !== "number") return;
+      const pointer: Pointer = { x: data.pointer.x, y: data.pointer.y };
+      const existing = remoteCursorStatesRef.current.get(data.userId);
+      const selectionFromPayload =
+        data.selectedElementIds && typeof data.selectedElementIds === "object"
+          ? data.selectedElementIds
+          : existing?.selectedElementIds || {};
+      const button = typeof data.button === "string" ? data.button : existing?.button || "up";
+      const username = typeof data.username === "string" ? data.username : existing?.username || "User";
+      const color = typeof data.color === "string" ? data.color : existing?.color || "#4f46e5";
+
+      remoteCursorStatesRef.current.set(data.userId, {
         id: data.userId,
+        username,
+        color,
+        button,
+        selectedElementIds: selectionFromPayload,
+        pointer: existing?.pointer || pointer,
+        startPointer: existing?.pointer || pointer,
+        targetPointer: pointer,
+        targetAt: performance.now(),
       });
+      cursorRenderDirtyRef.current = true;
     });
 
     const applyRemoteOps = (ops: any[]) => {
@@ -626,13 +751,19 @@ export const Editor: React.FC = () => {
       socket.off('element-update');
       socket.disconnect();
       cancelAnimationFrame(animationFrameId.current);
+      remoteCursorStatesRef.current.clear();
+      cursorRenderDirtyRef.current = false;
     };
-  }, [id, me, isReady, recordElementVersion]);
+  }, [id, me, isReady, recordElementVersion, getPointerDistance, hasCollaboratorChanged, interpolatePointer]);
 
   const onPointerUpdate = useCallback((payload: any) => {
     const now = Date.now();
-    if (payload?.pointer && typeof payload.pointer.x === "number" && typeof payload.pointer.y === "number") {
-      lastPointerRef.current = payload.pointer;
+    const hasPointer = payload?.pointer && typeof payload.pointer.x === "number" && typeof payload.pointer.y === "number";
+    const pointer: Pointer = hasPointer
+      ? payload.pointer
+      : (lastPointerRef.current || { x: 0, y: 0 });
+    if (hasPointer) {
+      lastPointerRef.current = pointer;
     }
     const button = typeof payload?.button === "string" ? payload.button : "up";
     const selectedElementIdsFromPayload =
@@ -646,20 +777,17 @@ export const Editor: React.FC = () => {
     const forceEmit =
       button !== lastPointerButtonRef.current ||
       selectionSig !== lastPointerSelectionSigRef.current;
+    const pointerMovedDistance = getPointerDistance(pointer, lastEmittedPointerRef.current);
+    const pointerMoved = pointerMovedDistance >= 0.1;
+    if (!pointerMoved && !forceEmit) {
+      return;
+    }
+    const emitIntervalMs = pointerMovedDistance <= CURSOR_TINY_MOVE_PX
+      ? CURSOR_SLOW_EMIT_MS
+      : CURSOR_FAST_EMIT_MS;
 
-    if ((now - lastCursorEmit.current > 50 || forceEmit) && socketRef.current) {
-      socketRef.current.emit('cursor-move', {
-        pointer: payload.pointer,
-        button,
-        selectedElementIds,
-        username: me.name,
-        userId: me.id,
-        drawingId: id,
-        color: me.color
-      });
-      lastCursorEmit.current = now;
-      lastPointerButtonRef.current = button;
-      lastPointerSelectionSigRef.current = selectionSig;
+    if (socketRef.current && (now - lastCursorEmit.current > emitIntervalMs || forceEmit)) {
+      emitCursorPacket(pointer, button);
     }
     const isPointerDown = button && button !== "up";
     if (isPointerDown) {
@@ -671,7 +799,7 @@ export const Editor: React.FC = () => {
         emitCursorPresence("up");
       });
     }
-  }, [id, me, queueFinalPointerSync, emitCursorPresence]);
+  }, [queueFinalPointerSync, emitCursorPresence, emitCursorPacket, getPointerDistance]);
 
   // Refs for API interaction
   const excalidrawAPI = useRef<any>(null);
@@ -704,14 +832,12 @@ export const Editor: React.FC = () => {
         // Keep preview in sync after async file data becomes available.
         if (didEmit && id && latestAppStateRef.current) {
           hasSceneChangesSinceLoadRef.current = true;
-          if (savePreviewRef.current) {
-            void savePreviewRef.current(
-              id,
-              latestElementsRef.current,
-              latestAppStateRef.current,
-              latestFilesRef.current || {}
-            );
-          }
+          queuePreviewSaveRef.current?.({
+            drawingId: id,
+            elements: latestElementsRef.current,
+            appState: latestAppStateRef.current,
+            files: latestFilesRef.current || {},
+          });
         }
       };
     }
@@ -890,10 +1016,18 @@ export const Editor: React.FC = () => {
         elementCount: normalizedSnapshot.length,
       });
 
+      if (lastSavedPreviewRef.current === preview) {
+        previewDirtyRef.current = false;
+        return;
+      }
+
       await api.updateDrawingPreview(drawingId, preview);
+      lastSavedPreviewRef.current = preview;
+      previewDirtyRef.current = false;
 
       console.log("[Editor] Preview save complete", { drawingId });
     } catch (err) {
+      previewDirtyRef.current = true;
       console.error('Failed to save preview', err);
     }
   };
@@ -915,9 +1049,28 @@ export const Editor: React.FC = () => {
       if (savePreviewRef.current) {
         savePreviewRef.current(drawingId, elements, appState, files);
       }
-    }, 10000),
+    }, PREVIEW_IDLE_DEBOUNCE_MS),
     []
   );
+
+  queuePreviewSaveRef.current = ({
+    drawingId,
+    elements,
+    appState,
+    files,
+    immediate = false,
+  }) => {
+    if (!drawingId || !appState) return;
+    previewDirtyRef.current = true;
+    if (immediate) {
+      debouncedSavePreview.cancel();
+      if (savePreviewRef.current) {
+        void savePreviewRef.current(drawingId, elements, appState, files);
+      }
+      return;
+    }
+    debouncedSavePreview(drawingId, elements, appState, files);
+  };
 
   const debouncedSaveLibrary = useCallback(
     debounce((items: any[]) => {
@@ -939,6 +1092,14 @@ export const Editor: React.FC = () => {
 
     emitFinalPointerSync();
     debouncedSavePreview.flush();
+    if (previewDirtyRef.current && savePreviewRef.current && latestAppStateRef.current) {
+      void savePreviewRef.current(
+        id,
+        latestElementsRef.current,
+        latestAppStateRef.current,
+        latestFilesRef.current || {}
+      );
+    }
     if (socketRef.current) {
       socketRef.current.emit("scene-flush", { drawingId: id });
     }
@@ -1045,9 +1206,14 @@ export const Editor: React.FC = () => {
       finalSyncTimeoutRef.current = null;
     }
     serverSceneSeqRef.current = 0;
+    remoteCursorStatesRef.current.clear();
+    cursorRenderDirtyRef.current = false;
     lastPointerButtonRef.current = "up";
     lastPointerSelectionSigRef.current = "{}";
     lastPointerRef.current = null;
+    lastEmittedPointerRef.current = null;
+    previewDirtyRef.current = false;
+    lastSavedPreviewRef.current = null;
     excalidrawAPI.current = null;
     setIsReady(false);
     setIsSceneLoading(true);
@@ -1086,6 +1252,7 @@ export const Editor: React.FC = () => {
         const elements = data.elements || [];
         const files = data.files || {};
         const hasPreview = typeof data.preview === "string" && data.preview.trim().length > 0;
+        lastSavedPreviewRef.current = hasPreview ? data.preview!.trim() : null;
         const loadedRenderable = hasRenderableElements(elements);
         suspiciousBlankLoadRef.current = !loadedRenderable && hasPreview;
         hasSceneChangesSinceLoadRef.current = false;
@@ -1311,9 +1478,14 @@ export const Editor: React.FC = () => {
       fileCount: Object.keys(filesSnapshot).length,
     });
     if (id) {
-      debouncedSavePreview(id, allElements, appState, filesSnapshot);
+      queuePreviewSaveRef.current?.({
+        drawingId: id,
+        elements: allElements,
+        appState,
+        files: filesSnapshot,
+      });
     }
-  }, [debouncedSavePreview, broadcastChanges, id, resolveSafeSnapshot, canEditScene]);
+  }, [broadcastChanges, id, resolveSafeSnapshot, canEditScene]);
 
   // Ensure file-only updates (e.g. pasted image dataURL arriving asynchronously)
   // are still broadcast to collaborators AND persisted to the server.
@@ -1332,14 +1504,12 @@ export const Editor: React.FC = () => {
       // Keep preview updated after async image data becomes available.
       if (didEmit && latestAppStateRef.current) {
         hasSceneChangesSinceLoadRef.current = true;
-        if (savePreviewRef.current) {
-          void savePreviewRef.current(
-            id,
-            latestElementsRef.current,
-            latestAppStateRef.current,
-            nextFiles
-          );
-        }
+        queuePreviewSaveRef.current?.({
+          drawingId: id,
+          elements: latestElementsRef.current,
+          appState: latestAppStateRef.current,
+          files: nextFiles,
+        });
       }
     }, 1000);
 
