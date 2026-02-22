@@ -26,7 +26,9 @@ describe("Auth onboarding decision", () => {
   });
 
   afterAll(async () => {
-    await prisma.$disconnect();
+    if (prisma) {
+      await prisma.$disconnect();
+    }
   });
 
   it("reports migration onboarding mode when no active users and legacy data exists", async () => {

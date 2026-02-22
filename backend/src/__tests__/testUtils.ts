@@ -15,8 +15,21 @@ const sleepSync = (ms: number) => {
   Atomics.wait(shared, 0, 0, ms);
 };
 
+const DEFAULT_DB_PUSH_LOCK_TIMEOUT_MS = 120_000;
+const isProcessRunning = (pidText: string): boolean => {
+  const pid = Number(pidText);
+  if (!Number.isFinite(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const withDbPushLock = (fn: () => void) => {
   const start = Date.now();
+  const timeoutMs = Number(process.env.TEST_DB_PUSH_LOCK_TIMEOUT_MS) || DEFAULT_DB_PUSH_LOCK_TIMEOUT_MS;
   let fd: number | null = null;
   while (fd === null) {
     try {
@@ -25,7 +38,16 @@ const withDbPushLock = (fn: () => void) => {
     } catch (error) {
       const err = error as NodeJS.ErrnoException;
       if (err.code !== "EEXIST") throw error;
-      if (Date.now() - start > 30_000) {
+      try {
+        const stalePid = fs.readFileSync(DB_PUSH_LOCK_PATH, "utf8").trim();
+        if (stalePid && !isProcessRunning(stalePid)) {
+          fs.unlinkSync(DB_PUSH_LOCK_PATH);
+          continue;
+        }
+      } catch {
+        // ignore
+      }
+      if (Date.now() - start > timeoutMs) {
         throw new Error("Timed out waiting for Prisma db push lock");
       }
       sleepSync(50);
@@ -38,10 +60,12 @@ const withDbPushLock = (fn: () => void) => {
     try {
       fs.closeSync(fd);
     } catch {
+      // ignore
     }
     try {
       fs.unlinkSync(DB_PUSH_LOCK_PATH);
     } catch {
+      // ignore
     }
   }
 };
@@ -89,9 +113,26 @@ export const setupTestDb = () => {
 /**
  * Clean up the test database between tests
  */
+const deleteIfExists = async (prisma: PrismaClient, model: string) => {
+  const client = (prisma as any)[model];
+  if (client && typeof client.deleteMany === "function") {
+    await client.deleteMany({});
+  }
+};
+
 export const cleanupTestDb = async (prisma: PrismaClient) => {
-  await prisma.drawing.deleteMany({});
-  await prisma.collection.deleteMany({});
+  await deleteIfExists(prisma, "drawingPermission");
+  await deleteIfExists(prisma, "drawingLinkShare");
+  await deleteIfExists(prisma, "drawing");
+  await deleteIfExists(prisma, "collection");
+  await deleteIfExists(prisma, "auditLog");
+  await deleteIfExists(prisma, "refreshToken");
+  await deleteIfExists(prisma, "passwordResetToken");
+  await deleteIfExists(prisma, "authIdentity");
+  await deleteIfExists(prisma, "library");
+  await deleteIfExists(prisma, "user");
+  await deleteIfExists(prisma, "systemConfig");
+  await deleteIfExists(prisma, "bootstrapSetupCode");
 };
 
 /**
@@ -116,9 +157,24 @@ export const createTestUser = async (prisma: PrismaClient, email: string = "test
  * Initialize test database with required data
  */
 export const initTestDb = async (prisma: PrismaClient) => {
+  await prisma.systemConfig.upsert({
+    where: { id: "default" },
+    update: {
+      authEnabled: true,
+      authOnboardingCompleted: true,
+      registrationEnabled: false,
+    },
+    create: {
+      id: "default",
+      authEnabled: true,
+      authOnboardingCompleted: true,
+      registrationEnabled: false,
+    },
+  });
+
   const testUser = await createTestUser(prisma);
   const trashCollectionId = `trash:${testUser.id}`;
-  
+
   const trash = await prisma.collection.findFirst({
     where: { id: trashCollectionId, userId: testUser.id },
   });
@@ -127,7 +183,7 @@ export const initTestDb = async (prisma: PrismaClient) => {
       data: { id: trashCollectionId, name: "Trash", userId: testUser.id },
     });
   }
-  
+
   return testUser;
 };
 

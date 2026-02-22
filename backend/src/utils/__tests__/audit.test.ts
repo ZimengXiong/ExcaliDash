@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
-import { getTestPrisma, setupTestDb, initTestDb, createTestUser } from "../../__tests__/testUtils";
+import { getTestPrisma, setupTestDb, initTestDb, createTestUser, cleanupTestDb } from "../../__tests__/testUtils";
 import {
   logAuditEvent,
   getAuditLogs,
@@ -15,11 +15,12 @@ import {
 } from "../audit";
 
 describe("Audit Logging", () => {
-  const prisma = getTestPrisma();
+  let prisma: ReturnType<typeof getTestPrisma>;
   let testUser: { id: string; email: string };
 
   beforeAll(async () => {
     setupTestDb();
+    prisma = getTestPrisma();
     testUser = await initTestDb(prisma);
     setAuditPrismaProvider(() => prisma);
     process.env.ENABLE_AUDIT_LOGGING = "true";
@@ -27,12 +28,15 @@ describe("Audit Logging", () => {
 
   afterAll(async () => {
     setAuditPrismaProvider(null);
-    await prisma.$disconnect();
+    if (prisma) {
+      await prisma.$disconnect();
+    }
     delete process.env.ENABLE_AUDIT_LOGGING;
   });
 
   beforeEach(async () => {
-    await prisma.auditLog.deleteMany({});
+    await cleanupTestDb(prisma);
+    testUser = await initTestDb(prisma);
   });
 
   describe("logAuditEvent", () => {

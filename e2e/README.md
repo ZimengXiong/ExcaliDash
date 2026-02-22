@@ -1,6 +1,6 @@
 # ExcaliDash E2E Tests
 
-Browser-based end-to-end tests for ExcaliDash using Playwright.
+Browser-based end-to-end tests for ExcaliDash using Cypress + Cucumber (Gherkin).
 
 ## Prerequisites
 
@@ -15,16 +15,15 @@ Browser-based end-to-end tests for ExcaliDash using Playwright.
 ```bash
 # Install dependencies
 npm install
-npx playwright install chromium
 
 # Run tests (will start servers automatically)
 npm test
 
+# Run auth-tagged tests only
+npm run test:auth
+
 # Run tests with visible browser
 npm run test:headed
-
-# Run tests in debug mode
-npm run test:debug
 ```
 
 ### With Existing Servers
@@ -44,27 +43,25 @@ Run tests in an isolated Docker environment:
 ```bash
 npm run docker:test
 
-# Or using docker-compose directly
-docker-compose -f docker-compose.e2e.yml up --build --abort-on-container-exit
+# Or using docker compose directly
+docker compose -f docker-compose.e2e.yml up --build --abort-on-container-exit
 ```
 
 ## Test Suites
 
-### Image Persistence (Issue #17 Regression)
+Feature files live under `features/` and map to the core product areas:
 
-Tests for the bug where images wouldn't load fully when reopening files.
-
-- **should preserve large image data through save/reload cycle** - Core regression test
-- **should display drawing in editor view** - Browser UI test
-- **should import .excalidraw file with embedded image** - File import test
-- **should handle multiple images of varying sizes** - Multi-image test
-
-### Security Tests
-
-Tests for malicious content blocking:
-
-- **should block javascript: URLs in image data** - XSS prevention
-- **should block script tags in image data** - Script injection prevention
+- Drawing management (create/edit/delete/export)
+- Dashboard workflows (bulk actions and collections)
+- Search & sort
+- Theme toggle
+- Drag-and-drop + imports
+- Export & import
+- Collaboration
+- Image persistence & security
+- Collections management
+- Library persistence
+- System health
 
 ## Configuration
 
@@ -82,49 +79,51 @@ Environment variables:
 
 ```
 e2e/
-├── tests/                    # Test files
-│   └── image-persistence.spec.ts
+├── features/                 # Gherkin features
+│   └── *.feature
+├── cypress/                  # Cypress support + step definitions
+│   ├── support/
+│   └── step_definitions/
 ├── fixtures/                 # Test data files
 │   └── small-image.excalidraw
-├── playwright.config.ts      # Playwright configuration
+├── cypress.config.ts         # Cypress configuration
 ├── docker-compose.e2e.yml    # Docker setup
-├── Dockerfile.playwright     # Playwright container
-├── run-e2e.sh               # Convenience script
-└── README.md                # This file
+├── Dockerfile.playwright     # Legacy Playwright container (to be removed)
+├── run-e2e.sh                # Convenience script
+└── README.md                 # This file
 ```
 
 ## Writing Tests
 
-```typescript
-import { test, expect } from "@playwright/test";
+```gherkin
+Feature: Example
+  Scenario: View the dashboard
+    Given the dashboard is open
+    Then I should see the dashboard search input
+```
 
-test("my test", async ({ page, request }) => {
-  await page.goto("/");
-  await expect(page.locator("h1")).toBeVisible();
-  
-  const response = await request.get("http://localhost:8000/drawings");
-  expect(response.ok()).toBe(true);
+```typescript
+import { Given, Then } from "@badeball/cypress-cucumber-preprocessor";
+
+Given("the dashboard is open", () => {
+  cy.visit("/");
+});
+
+Then("I should see the dashboard search input", () => {
+  cy.get('input[placeholder="Search drawings..."]').should("be.visible");
 });
 ```
 
 ## Debugging
 
 ```bash
-# Run with Playwright UI
-npm run test:ui
+# Open Cypress UI
+npm run test:headed
 
-# Run specific test
-npx playwright test -g "should preserve large image"
-
-# Show last test report
+# View videos/screenshots after a run
 npm run report
 ```
 
 ## CI Integration
 
-The tests are integrated into GitHub Actions. See `.github/workflows/test.yml`.
-
-For CI environments, tests run in headless mode with:
-- Automatic retries on failure
-- Screenshot/video on failure
-- HTML report generation
+The tests run in GitHub Actions. See `.github/workflows/test.yml`.

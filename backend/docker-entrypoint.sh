@@ -108,6 +108,74 @@ else
     echo "Skipping database migrations (RUN_MIGRATIONS=${RUN_MIGRATIONS})"
 fi
 
+if [ "${E2E_SEED_ADMIN:-}" = "true" ] || [ "${E2E_SEED_ADMIN:-}" = "1" ]; then
+    echo "Seeding E2E admin user..."
+    su-exec nodejs node -e "$(cat <<'EOF'
+const { PrismaClient } = require('./dist/generated/client');
+const bcrypt = require('bcrypt');
+const email = process.env.AUTH_EMAIL || 'admin@example.com';
+const username = process.env.AUTH_USERNAME || 'admin';
+const password = process.env.AUTH_PASSWORD || 'BddPassword!123';
+
+(async () => {
+  const prisma = new PrismaClient();
+  try {
+    const passwordHash = await bcrypt.hash(password, 10);
+    await prisma.systemConfig.upsert({
+      where: { id: 'default' },
+      update: {
+        authEnabled: true,
+        authOnboardingCompleted: true,
+        registrationEnabled: false,
+      },
+      create: {
+        id: 'default',
+        authEnabled: true,
+        authOnboardingCompleted: true,
+        registrationEnabled: false,
+        authLoginRateLimitEnabled: true,
+        authLoginRateLimitWindowMs: 15 * 60 * 1000,
+        authLoginRateLimitMax: 20,
+      },
+    });
+    await prisma.user.deleteMany({ where: { id: 'bootstrap-admin' } });
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (!existing) {
+      await prisma.user.create({
+        data: {
+          email,
+          username,
+          passwordHash,
+          name: 'BDD Admin',
+          role: 'ADMIN',
+          mustResetPassword: false,
+          isActive: true,
+        },
+      });
+    } else {
+      await prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          passwordHash,
+          role: 'ADMIN',
+          mustResetPassword: false,
+          isActive: true,
+          username: existing.username || username,
+          name: existing.name || 'BDD Admin',
+        },
+      });
+    }
+  } finally {
+    await prisma.$disconnect().catch(() => undefined);
+  }
+})().catch((error) => {
+  console.error('Failed to seed E2E admin user', error);
+  process.exit(1);
+});
+EOF
+)"
+fi
+
 # 4. Start Application (Drop privileges to nodejs)
 echo "Starting application as nodejs..."
 exec su-exec nodejs node dist/index.js

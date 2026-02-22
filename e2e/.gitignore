@@ -4,9 +4,14 @@ node_modules/
 # Test output
 test-results/
 playwright-report/
+reports/
 
 # Playwright state
 .playwright/
+
+# Cypress output
+cypress/videos/
+cypress/screenshots/
 
 # OS files
 .DS_Store

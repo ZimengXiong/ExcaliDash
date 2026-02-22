@@ -376,17 +376,15 @@ export const Editor: React.FC = () => {
     });
     socketRef.current = socket;
 
-    if (import.meta.env.DEV) {
-      (window as any).__EXCALIDASH_SOCKET_STATUS__ = {
-        connected: socket.connected,
-      };
-      socket.on("connect", () => {
-        (window as any).__EXCALIDASH_SOCKET_STATUS__ = { connected: true };
-      });
-      socket.on("disconnect", () => {
-        (window as any).__EXCALIDASH_SOCKET_STATUS__ = { connected: false };
-      });
-    }
+    (window as any).__EXCALIDASH_SOCKET_STATUS__ = {
+      connected: socket.connected,
+    };
+    socket.on("connect", () => {
+      (window as any).__EXCALIDASH_SOCKET_STATUS__ = { connected: true };
+    });
+    socket.on("disconnect", () => {
+      (window as any).__EXCALIDASH_SOCKET_STATUS__ = { connected: false };
+    });
 
     socket.emit('join-room', { drawingId: id, user: me }, (payload: any) => {
       const serverUser = payload?.user;
@@ -661,9 +659,7 @@ export const Editor: React.FC = () => {
 
   const setExcalidrawAPI = useCallback((api: any) => {
     excalidrawAPI.current = api;
-    if (import.meta.env.DEV) {
-      (window as any).__EXCALIDASH_EXCALIDRAW_API__ = api;
-    }
+    (window as any).__EXCALIDASH_EXCALIDRAW_API__ = api;
 
     if (api && typeof api.addFiles === "function" && !patchedAddFilesApisRef.current.has(api as object)) {
       patchedAddFilesApisRef.current.add(api as object);
@@ -729,7 +725,7 @@ export const Editor: React.FC = () => {
           }
         }
 
-        if (!import.meta.env.DEV && parsedUrl.protocol === 'http:' && !isLocalhost) {
+        if (!import.meta.env.DEV && parsedUrl.protocol === 'http:' && !isLocalhost && isCrossOrigin) {
           throw new Error('Insecure http:// library URL is not allowed');
         }
 

@@ -43,30 +43,31 @@ done
 
 if [ "$DOCKER" = "true" ]; then
   echo "🐳 Running E2E tests in Docker..."
-  docker-compose -f docker-compose.e2e.yml up --build --abort-on-container-exit --exit-code-from playwright
+  docker compose -f docker-compose.e2e.yml up --build --abort-on-container-exit --exit-code-from cypress
   exit $?
 fi
 
 # Install dependencies if needed
-if [ ! -d "node_modules" ]; then
+CYPRESS_BIN="$SCRIPT_DIR/node_modules/.bin/cypress"
+if [ ! -d "node_modules" ] || [ ! -x "$CYPRESS_BIN" ]; then
   echo "📦 Installing dependencies..."
   npm install
-  npx playwright install chromium
 fi
 
 # Run tests
-echo "🎭 Running Playwright E2E tests..."
+echo "🧪 Running Cypress + Cucumber E2E tests..."
 if [ "$HEADED" = "true" ]; then
   echo "   Mode: Headed (visible browser)"
-  HEADED=true NO_SERVER=${NO_SERVER:-false} npx playwright test
+  HEADED=true NO_SERVER=${NO_SERVER:-false} npm test
 elif [ "$CI" = "true" ]; then
   echo "   Mode: CI (headless, no server startup)"
-  CI=true NO_SERVER=true npx playwright test
+  CI=true NO_SERVER=true npm test
 else
   echo "   Mode: Headless"
-  NO_SERVER=${NO_SERVER:-false} npx playwright test
+  NO_SERVER=${NO_SERVER:-false} npm test
 fi
 
 echo ""
 echo "✅ E2E tests complete!"
-echo "   To view the HTML report: npx playwright show-report"
+echo "   Videos: cypress/videos"
+echo "   Screenshots: cypress/screenshots"

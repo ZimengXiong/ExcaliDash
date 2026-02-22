@@ -1,0 +1,49 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "excalidash-bdd",
+  "elements": [
+    {
+      "id": "fixture-image-1",
+      "type": "image",
+      "x": 100,
+      "y": 100,
+      "width": 200,
+      "height": 150,
+      "angle": 0,
+      "strokeColor": "#1e1e1e",
+      "backgroundColor": "transparent",
+      "fillStyle": "solid",
+      "strokeWidth": 1,
+      "strokeStyle": "solid",
+      "roughness": 0,
+      "opacity": 100,
+      "groupIds": [],
+      "frameId": null,
+      "roundness": null,
+      "seed": 12345,
+      "version": 1,
+      "versionNonce": 67890,
+      "isDeleted": false,
+      "boundElements": null,
+      "link": null,
+      "locked": false,
+      "status": "saved",
+      "fileId": "embedded-test-image",
+      "scale": [1, 1],
+      "crop": null
+    }
+  ],
+  "appState": {
+    "viewBackgroundColor": "#ffffff"
+  },
+  "files": {
+    "embedded-test-image": {
+      "id": "embedded-test-image",
+      "mimeType": "image/png",
+      "dataURL": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAIElEQVR42mP8z8Dwn4EIwDiqgWjAqIGhBo4aGAAAcO0Gg+o1P8oAAAAASUVORK5CYII=",
+      "created": 1700000000000,
+      "lastRetrieved": 1700000000000
+    }
+  }
+}

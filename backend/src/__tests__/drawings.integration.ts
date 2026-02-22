@@ -391,11 +391,14 @@ describe("Drawing API - Database Round-Trip", () => {
   });
 
   afterAll(async () => {
-    await prisma.$disconnect();
+    if (prisma) {
+      await prisma.$disconnect();
+    }
   });
 
   beforeEach(async () => {
     await cleanupTestDb(prisma);
+    testUser = await initTestDb(prisma);
   });
 
   it("should preserve image data URLs through create and read cycle", async () => {

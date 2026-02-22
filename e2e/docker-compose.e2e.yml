@@ -1,14 +1,12 @@
-version: "3.8"
-
 # Docker Compose for E2E Browser Testing
-# This provides a repeatable environment for running Playwright tests
+# This provides a repeatable environment for running Cypress tests
 # with full browser automation against the real frontend and backend.
 #
 # Usage:
-#   docker-compose -f docker-compose.e2e.yml up --build --abort-on-container-exit
+#   docker compose -f docker-compose.e2e.yml up --build --abort-on-container-exit
 #
 # For headed mode (requires X11):
-#   HEADED=true docker-compose -f docker-compose.e2e.yml up --build
+#   HEADED=true docker compose -f docker-compose.e2e.yml up --build
 
 services:
   # Backend API server
@@ -22,17 +20,24 @@ services:
       - DATABASE_URL=file:/app/prisma/e2e-test.db
       - PORT=8000
       - NODE_ENV=test
+      - RESET_DB_ON_START=true
+      - AUTH_MODE=local
+      - DISABLE_ONBOARDING_GATE=true
+      - ENABLE_PASSWORD_RESET=false
+      - ENABLE_REFRESH_TOKEN_ROTATION=false
+      - CSRF_MAX_REQUESTS=10000
+      - RATE_LIMIT_MAX_REQUESTS=100000
+      - E2E_SEED_ADMIN=true
       # Include both with and without :80 because browsers omit default ports in Origin.
       - FRONTEND_URL=http://frontend,http://frontend:80,http://localhost:5173
-    ports:
-      - "8000:8000"
     healthcheck:
       # Use IPv4 loopback explicitly to avoid IPv6 localhost resolution issues.
-      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8000/health"]
+      test:
+        ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:8000/health', res => process.exit(res.statusCode===200?0:1)).on('error', () => process.exit(1));"]
       interval: 5s
       timeout: 5s
-      retries: 10
-      start_period: 30s
+      retries: 20
+      start_period: 90s
     networks:
       - e2e-network
 
@@ -43,8 +48,6 @@ services:
       # `frontend/...` paths (same as production `docker-compose.yml`).
       context: ..
       dockerfile: frontend/Dockerfile
-    ports:
-      - "5173:80"
     depends_on:
       backend:
         condition: service_healthy
@@ -53,16 +56,16 @@ services:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:80"]
       interval: 5s
       timeout: 5s
-      retries: 10
-      start_period: 10s
+      retries: 20
+      start_period: 30s
     networks:
       - e2e-network
 
-  # Playwright test runner
-  playwright:
+  # Cypress test runner
+  cypress:
     build:
       context: .
-      dockerfile: Dockerfile.playwright
+      dockerfile: Dockerfile.cypress
     depends_on:
       frontend:
         condition: service_healthy
@@ -70,12 +73,12 @@ services:
         condition: service_healthy
     environment:
       - BASE_URL=http://frontend:80
-      - API_URL=http://backend:8000
+      - API_URL=http://frontend:80/api
       - NO_SERVER=true
       - CI=true
     volumes:
-      - ./test-results:/app/test-results
-      - ./playwright-report:/app/playwright-report
+      - ./cypress/videos:/app/cypress/videos
+      - ./cypress/screenshots:/app/cypress/screenshots
     networks:
       - e2e-network
 

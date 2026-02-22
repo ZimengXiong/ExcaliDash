@@ -3,18 +3,24 @@
   "version": "1.0.0",
   "description": "E2E browser tests for ExcaliDash",
   "scripts": {
-    "test": "playwright test",
-    "test:headed": "playwright test --headed",
-    "test:debug": "playwright test --debug",
-    "test:ui": "playwright test --ui",
-    "report": "playwright show-report",
-    "docker:build": "docker-compose -f docker-compose.e2e.yml build",
-    "docker:test": "docker-compose -f docker-compose.e2e.yml up --abort-on-container-exit --exit-code-from playwright",
-    "docker:test:headed": "HEADED=true docker-compose -f docker-compose.e2e.yml up --abort-on-container-exit --exit-code-from playwright",
-    "docker:down": "docker-compose -f docker-compose.e2e.yml down -v"
+    "test": "cypress run",
+    "test:headed": "cypress open",
+    "test:auth": "cypress run --env tags='@auth',filterSpecs=true",
+    "report": "echo 'Cypress writes videos/screenshots under cypress/videos and cypress/screenshots'",
+    "docker:build": "docker compose -f docker-compose.e2e.yml build",
+    "docker:test": "docker compose -f docker-compose.e2e.yml up --abort-on-container-exit --exit-code-from cypress",
+    "docker:test:headed": "HEADED=true docker compose -f docker-compose.e2e.yml up --abort-on-container-exit --exit-code-from cypress",
+    "docker:down": "docker compose -f docker-compose.e2e.yml down -v"
   },
   "devDependencies": {
-    "@playwright/test": "^1.52.0",
-    "@types/node": "^22.15.21"
+    "@badeball/cypress-cucumber-preprocessor": "^23.1.0",
+    "@bahmutov/cypress-esbuild-preprocessor": "^2.2.0",
+    "@playwright/test": "^1.58.2",
+    "@types/node": "^22.15.21",
+    "cypress": "^13.17.0",
+    "esbuild": "^0.25.2",
+    "jszip": "^3.10.1",
+    "socket.io-client": "^4.8.1",
+    "ts-node": "^10.9.2"
   }
 }

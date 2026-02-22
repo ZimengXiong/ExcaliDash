@@ -32,7 +32,9 @@ describe("Drawings - Shared With Me", () => {
   });
 
   afterAll(async () => {
-    await prisma.$disconnect();
+    if (prisma) {
+      await prisma.$disconnect();
+    }
   });
 
   it("does not include drawings you own even if you have a self permission row", async () => {
@@ -125,4 +127,3 @@ describe("Drawings - Shared With Me", () => {
     expect(ids).not.toContain(drawingOwnedByA.id);
   });
 });
-

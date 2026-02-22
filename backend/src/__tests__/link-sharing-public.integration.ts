@@ -83,7 +83,9 @@ describe("Link Sharing - Public By Drawing ID", () => {
   });
 
   afterAll(async () => {
-    await prisma.$disconnect();
+    if (prisma) {
+      await prisma.$disconnect();
+    }
   });
 
   it("allows anonymous GET when link-share policy is view", async () => {
@@ -180,4 +182,3 @@ describe("Link Sharing - Public By Drawing ID", () => {
     expect(activeCount).toBe(1);
   });
 });
-

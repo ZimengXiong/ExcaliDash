@@ -11,11 +11,12 @@ RUN npm ci
 
 # Copy test files and config
 COPY playwright.config.ts ./
-COPY tests/ ./tests/
+COPY cucumber.js tsconfig.cucumber.json ./
+COPY features/ ./features/
 COPY fixtures/ ./fixtures/
 
 # Set environment variables
 ENV CI=true
 
 # Default command runs tests in headless mode
-CMD ["npx", "playwright", "test", "--reporter=html,list"]
+CMD ["npm", "test"]

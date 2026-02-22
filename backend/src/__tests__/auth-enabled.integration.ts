@@ -89,7 +89,9 @@ describe("Auth Enabled Toggle Authorization", () => {
   });
 
   afterAll(async () => {
-    await prisma.$disconnect();
+    if (prisma) {
+      await prisma.$disconnect();
+    }
   });
 
   it("rejects unauthenticated auth-enabled toggle when auth is enabled", async () => {

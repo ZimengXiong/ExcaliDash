@@ -5,6 +5,11 @@ export default defineConfig({
     globals: true,
     environment: "node",
     include: ["src/**/*.test.ts", "src/**/*.integration.ts"],
+    fileParallelism: false,
+    maxConcurrency: 1,
+    sequence: {
+      concurrent: false,
+    },
     testTimeout: 30000,
     hookTimeout: 30000,
     env: {
