@@ -265,6 +265,7 @@ export const registerOidcRoutes = (deps: RegisterOidcRoutesDeps) => {
           redirect_uris: [config.oidc.redirectUri as string],
           response_types: ["code"],
           token_endpoint_auth_method: tokenEndpointAuthMethod,
+          id_token_signed_response_alg: (issuer.metadata.id_token_signing_alg_values_supported as string[])?.[0] ?? "RS256",
         };
 
         if (config.oidc.clientSecret) {
