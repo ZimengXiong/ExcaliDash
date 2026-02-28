@@ -54,8 +54,9 @@ const isJwtPayload = (decoded: unknown): decoded is JwtPayload => {
   );
 };
 
+const allowAllOrigins = "allow-all-origins";
 const normalizeOrigins = (rawOrigins?: string): string[] => {
-  const fallback = "http://localhost:6767";
+  const fallback = allowAllOrigins;
   if (!rawOrigins || rawOrigins.trim().length === 0) {
     return [fallback];
   }
@@ -87,6 +88,7 @@ const isLocalDevOrigin = (origin: string): boolean => {
 
 const isAllowedAuthOrigin = (origin?: string): boolean => {
   if (!origin) return true;
+  if (allowedOrigins.includes(allowAllOrigins)) return true;
   if (allowedOrigins.includes(origin)) return true;
   if (isDev && isLocalDevOrigin(origin)) return true;
   return false;
