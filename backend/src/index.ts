@@ -37,8 +37,9 @@ import { issueBootstrapSetupCodeIfRequired } from "./auth/bootstrapSetupCode";
 const backendRoot = path.resolve(__dirname, "../");
 console.log("Resolved DATABASE_URL:", process.env.DATABASE_URL);
 
+const allowAllOrigins = "allow-all-origins";
 const normalizeOrigins = (rawOrigins?: string | null): string[] => {
-  const fallback = "http://localhost:6767";
+  const fallback = allowAllOrigins;
   if (!rawOrigins || rawOrigins.trim().length === 0) {
     return [fallback];
   }
@@ -72,6 +73,7 @@ const isLocalDevOrigin = (origin: string): boolean => {
 
 const isAllowedOrigin = (origin?: string): boolean => {
   if (!origin) return true; // non-browser clients / same-origin
+  if (allowedOrigins.includes(allowAllOrigins)) return true;
   if (allowedOrigins.includes(origin)) return true;
   if (isDev && isLocalDevOrigin(origin)) return true;
   return false;
