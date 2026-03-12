@@ -111,7 +111,7 @@ export const UIOptions = {
   canvasActions: {
     saveToActiveFile: false,
     loadScene: false,
-    export: { saveFileToDisk: false },
+    export: false as const,
     toggleTheme: true,
   },
 };
