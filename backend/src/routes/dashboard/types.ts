@@ -44,6 +44,7 @@ export type DashboardRouteDeps = {
   collectionNameSchema: z.ZodTypeAny;
   ensureTrashCollection: EnsureTrashCollection;
   invalidateDrawingsCache: () => void;
+  invalidateDrawingsCacheForUser: (userId: string) => void;
   buildDrawingsCacheKey: BuildDrawingsCacheKey;
   getCachedDrawingsBody: (key: string) => Buffer | null;
   cacheDrawingsResponse: (key: string, payload: unknown) => Buffer;

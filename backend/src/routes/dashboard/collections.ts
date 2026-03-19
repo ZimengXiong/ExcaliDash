@@ -13,7 +13,7 @@ export const registerCollectionRoutes = (
     collectionNameSchema,
     sanitizeText,
     ensureTrashCollection,
-    invalidateDrawingsCache,
+    invalidateDrawingsCacheForUser,
     config,
     logAuditEvent,
   } = deps;
@@ -118,7 +118,7 @@ export const registerCollectionRoutes = (
       }),
       prisma.collection.deleteMany({ where: { id, userId: req.user.id } }),
     ]);
-    invalidateDrawingsCache();
+    invalidateDrawingsCacheForUser(req.user.id);
 
     if (config.enableAuditLogging) {
       await logAuditEvent({

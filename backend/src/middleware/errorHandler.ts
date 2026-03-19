@@ -4,6 +4,7 @@
  */
 import { Request, Response, NextFunction } from "express";
 import { config } from "../config";
+import { logger } from "../logger";
 
 export interface AppError extends Error {
   statusCode?: number;
@@ -18,19 +19,15 @@ export const errorHandler = (
   err: AppError,
   req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): void => {
   const statusCode = err.statusCode || 500;
   const isDevelopment = config.nodeEnv === "development";
 
-  console.error("Error:", {
-    message: err.message,
-    stack: err.stack,
-    statusCode,
-    path: req.path,
-    method: req.method,
-    timestamp: new Date().toISOString(),
-  });
+  logger.error(
+    { err: { message: err.message, stack: err.stack, statusCode }, req: { path: req.path, method: req.method } },
+    "Request error"
+  );
 
   if (!isDevelopment) {
     if (statusCode >= 500) {

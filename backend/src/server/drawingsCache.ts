@@ -45,6 +45,15 @@ export const createDrawingsCacheStore = (ttlMs: number) => {
     drawingsCache.clear();
   };
 
+  const invalidateDrawingsCacheForUser = (userId: string) => {
+    const prefix = `["${userId}",`;
+    for (const key of drawingsCache.keys()) {
+      if (key.startsWith(prefix)) {
+        drawingsCache.delete(key);
+      }
+    }
+  };
+
   setInterval(() => {
     const now = Date.now();
     for (const [key, entry] of drawingsCache.entries()) {
@@ -59,5 +68,6 @@ export const createDrawingsCacheStore = (ttlMs: number) => {
     getCachedDrawingsBody,
     cacheDrawingsResponse,
     invalidateDrawingsCache,
+    invalidateDrawingsCacheForUser,
   };
 };

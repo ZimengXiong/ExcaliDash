@@ -1,0 +1,27 @@
+# Cloudflare Tunnel overlay
+# Usage: docker compose -f docker-compose.yml -f docker-compose.cloudflared.yml up -d
+#
+# Requires:
+#   TUNNEL_TOKEN - Cloudflare Tunnel token (from dashboard or API)
+#   FRONTEND_URL - Public URL, e.g. https://excalidash.yourdomain.com
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:2025.2.1
+    container_name: excalidash-cloudflared
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    depends_on:
+      frontend:
+        condition: service_started
+    networks:
+      - excalidash-network
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: "0.5"
+
+  backend:
+    environment:
+      - TRUST_PROXY=1
+      - FRONTEND_URL=${FRONTEND_URL}

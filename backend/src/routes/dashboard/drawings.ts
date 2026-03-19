@@ -33,7 +33,7 @@ export const registerDrawingRoutes = (
     drawingUpdateSchema,
     respondWithValidationErrors,
     ensureTrashCollection,
-    invalidateDrawingsCache,
+    invalidateDrawingsCacheForUser,
     buildDrawingsCacheKey,
     getCachedDrawingsBody,
     cacheDrawingsResponse,
@@ -176,21 +176,18 @@ export const registerDrawingRoutes = (
       prisma.drawing.count({ where }),
     ]);
 
-    let responsePayload: any[] = drawings as any[];
-    if (shouldIncludeData) {
-      responsePayload = (drawings as any[]).map((d: any) => ({
-        ...d,
-        collectionId: toPublicTrashCollectionId(d.collectionId, req.user!.id),
-        elements: parseJsonField(d.elements, []),
-        appState: parseJsonField(d.appState, {}),
-        files: parseJsonField(d.files, {}),
-      }));
-    } else {
-      responsePayload = (drawings as any[]).map((d: any) => ({
-        ...d,
-        collectionId: toPublicTrashCollectionId(d.collectionId, req.user!.id),
-      }));
-    }
+    const responsePayload = shouldIncludeData
+      ? (drawings as any[]).map((d: any) => ({
+          ...d,
+          collectionId: toPublicTrashCollectionId(d.collectionId, req.user!.id),
+          elements: parseJsonField(d.elements, []),
+          appState: parseJsonField(d.appState, {}),
+          files: parseJsonField(d.files, {}),
+        }))
+      : (drawings as any[]).map((d: any) => ({
+          ...d,
+          collectionId: toPublicTrashCollectionId(d.collectionId, req.user!.id),
+        }));
 
     const finalResponse = {
       drawings: responsePayload,
@@ -296,20 +293,17 @@ export const registerDrawingRoutes = (
       };
     };
 
-    let responsePayload: any[] = drawings as any[];
-    if (shouldIncludeData) {
-      responsePayload = (drawings as any[]).map((d: any) => {
-        const normalized = normalize(d);
-        return {
-          ...normalized,
-          elements: parseJsonField(d.elements, []),
-          appState: parseJsonField(d.appState, {}),
-          files: parseJsonField(d.files, {}),
-        };
-      });
-    } else {
-      responsePayload = (drawings as any[]).map((d: any) => normalize(d));
-    }
+    const responsePayload = shouldIncludeData
+      ? (drawings as any[]).map((d: any) => {
+          const normalized = normalize(d);
+          return {
+            ...normalized,
+            elements: parseJsonField(d.elements, []),
+            appState: parseJsonField(d.appState, {}),
+            files: parseJsonField(d.files, {}),
+          };
+        })
+      : (drawings as any[]).map((d: any) => normalize(d));
 
     return res.json({
       drawings: responsePayload,
@@ -395,7 +389,7 @@ export const registerDrawingRoutes = (
         files: JSON.stringify(payload.files ?? {}),
       },
     });
-    invalidateDrawingsCache();
+    invalidateDrawingsCacheForUser(req.user.id);
 
     return res.json({
       ...newDrawing,
@@ -503,7 +497,7 @@ export const registerDrawingRoutes = (
     if (!updatedDrawing) {
       return res.status(404).json({ error: "Drawing not found" });
     }
-    invalidateDrawingsCache();
+    invalidateDrawingsCacheForUser(ownerUserId);
 
     return res.json({
       ...updatedDrawing,
@@ -528,7 +522,7 @@ export const registerDrawingRoutes = (
     if (deleteResult.count === 0) {
       return res.status(404).json({ error: "Drawing not found" });
     }
-    invalidateDrawingsCache();
+    invalidateDrawingsCacheForUser(req.user.id);
 
     if (config.enableAuditLogging) {
       await logAuditEvent({
@@ -567,7 +561,7 @@ export const registerDrawingRoutes = (
         version: 1,
       },
     });
-    invalidateDrawingsCache();
+    invalidateDrawingsCacheForUser(req.user.id);
 
     return res.json({
       ...newDrawing,
@@ -691,7 +685,7 @@ export const registerDrawingRoutes = (
       },
     });
 
-    invalidateDrawingsCache();
+    invalidateDrawingsCacheForUser(req.user.id);
 
     if (config.enableAuditLogging) {
       await logAuditEvent({
@@ -719,7 +713,7 @@ export const registerDrawingRoutes = (
     await prisma.drawingPermission.deleteMany({
       where: { id: permId, drawingId: id },
     });
-    invalidateDrawingsCache();
+    invalidateDrawingsCacheForUser(req.user.id);
 
     if (config.enableAuditLogging) {
       await logAuditEvent({
@@ -758,9 +752,9 @@ export const registerDrawingRoutes = (
     const maxTtlMs = resolveMaxTtlMs();
     const defaultTtlMs = resolveDefaultTtlMs(permission);
 
-    let expiresAt: Date | null = null;
     // View links can be truly non-expiring unless an explicit expiry is provided.
     // Edit links default to an expiry window when none is provided.
+    let expiresAt: Date | null;
     if (permission === "view" && !hasValidRequestedExpiry && expiresAtText.length === 0) {
       expiresAt = null;
     } else {

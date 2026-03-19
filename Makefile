@@ -1,6 +1,7 @@
 .PHONY: help install dev build test test-frontend test-backend test-e2e test-e2e-docker \
         lint lint-frontend lint-backend clean docker-build docker-run docker-down docker-logs \
-        release pre-release version-bump changelog changelog-open changelog-keep db-migrate db-reset
+        release pre-release version-bump changelog changelog-open changelog-keep db-migrate db-reset \
+        db-verify-backup health-check
 
 DOCKER_USERNAME := zimengxiong
 IMAGE_NAME := excalidash
@@ -24,6 +25,8 @@ help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -E '(release|version|changelog)' | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 	@echo "Database:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -E '(db-)' | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
+	@echo "Ops:"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -E '(health-check)' | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 	@echo "Current version: $(VERSION)"
 
 install: ## Install all dependencies (frontend, backend, e2e)
@@ -475,6 +478,12 @@ db-reset: ## Reset database (WARNING: destroys all data)
 db-studio: ## Open Prisma Studio (database GUI)
 	@echo "Opening Prisma Studio..."
 	cd backend && npx prisma studio
+
+db-verify-backup: ## Verify the latest backup is restorable
+	@./scripts/verify-backup.sh
+
+health-check: ## Run a one-shot health check
+	@./scripts/health-check.sh
 
 up: docker-run ## Alias: Start Docker containers
 down: docker-down ## Alias: Stop Docker containers

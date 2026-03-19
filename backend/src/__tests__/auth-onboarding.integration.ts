@@ -14,7 +14,7 @@ describe("Auth onboarding decision", () => {
   let csrfToken: string;
 
   beforeAll(async () => {
-    setupTestDb();
+    await setupTestDb();
     prisma = getTestPrisma();
 
     ({ app } = await import("../index"));

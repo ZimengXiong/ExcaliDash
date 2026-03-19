@@ -6,12 +6,16 @@ const path = require("path");
 const backendRoot = path.resolve(__dirname, "..");
 
 const resolveDatabaseUrl = (rawUrl) => {
-  const defaultDbPath = path.resolve(backendRoot, "prisma/dev.db");
-
   if (!rawUrl || String(rawUrl).trim().length === 0) {
-    return `file:${defaultDbPath}`;
+    return "postgresql://excalidash:excalidash@localhost:5432/excalidash";
   }
 
+  // PostgreSQL URLs pass through unchanged
+  if (String(rawUrl).startsWith("postgresql://") || String(rawUrl).startsWith("postgres://")) {
+    return String(rawUrl);
+  }
+
+  // Legacy SQLite file: URL support
   if (!String(rawUrl).startsWith("file:")) {
     return String(rawUrl);
   }
@@ -101,14 +105,21 @@ if (deploy.ok) {
   const stderr = deploy.stderr || "";
   const isP3005 = stderr.includes("P3005");
 
-  if (isNonProd && isFileDb && isP3005) {
-    const backupPath = backupDbIfPresent();
-    console.warn(
-      `[predev] Prisma migrate baseline required (P3005). Resetting local SQLite database.\n` +
-        `  DATABASE_URL=${databaseUrl}\n` +
-        (backupPath ? `  Backup: ${backupPath}\n` : "") +
-        `  If you need to preserve local data, restore the backup and baseline manually.`,
-    );
+  if (isNonProd && isP3005) {
+    if (isFileDb) {
+      const backupPath = backupDbIfPresent();
+      console.warn(
+        `[predev] Prisma migrate baseline required (P3005). Resetting local database.\n` +
+          `  DATABASE_URL=${databaseUrl}\n` +
+          (backupPath ? `  Backup: ${backupPath}\n` : "") +
+          `  If you need to preserve local data, restore the backup and baseline manually.`,
+      );
+    } else {
+      console.warn(
+        `[predev] Prisma migrate baseline required (P3005). Resetting database.\n` +
+          `  DATABASE_URL=${databaseUrl}\n`,
+      );
+    }
 
     run("npx prisma migrate reset --force --skip-seed");
   } else {

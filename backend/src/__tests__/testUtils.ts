@@ -1,89 +1,45 @@
 /**
  * Test utilities for backend integration tests
+ *
+ * With PostgreSQL, all test files share one database. Each file runs in
+ * its own sequential fork (fileParallelism: false + singleFork: false).
+ * We use TRUNCATE to reset data between files and a Proxy to prevent
+ * afterAll $disconnect() from tearing down the shared PrismaClient.
  */
 import { PrismaClient } from "../generated/client";
-import fs from "fs";
-import path from "path";
-import { execSync } from "child_process";
+import { prisma as appPrisma } from "../db/prisma";
+import { authModeService } from "../middleware/auth";
 
-const TEST_DB_FILENAME = `test.${process.pid}.${Math.random().toString(16).slice(2)}.db`;
-const TEST_DB_PATH = path.resolve(__dirname, "../../prisma", TEST_DB_FILENAME);
-const DB_PUSH_LOCK_PATH = path.resolve(__dirname, "../../prisma/.test-db-push.lock");
-
-const sleepSync = (ms: number) => {
-  const shared = new Int32Array(new SharedArrayBuffer(4));
-  Atomics.wait(shared, 0, 0, ms);
-};
-
-const withDbPushLock = (fn: () => void) => {
-  const start = Date.now();
-  let fd: number | null = null;
-  while (fd === null) {
-    try {
-      fd = fs.openSync(DB_PUSH_LOCK_PATH, "wx");
-      fs.writeFileSync(fd, String(process.pid));
-    } catch (error) {
-      const err = error as NodeJS.ErrnoException;
-      if (err.code !== "EEXIST") throw error;
-      if (Date.now() - start > 30_000) {
-        throw new Error("Timed out waiting for Prisma db push lock");
+/**
+ * Get a Prisma client for test data setup.
+ * Returns a proxy around the app's shared PrismaClient so that:
+ * - Tests and app share the same connection pool (no dual-client issues)
+ * - afterAll $disconnect() calls are safely ignored
+ */
+export const getTestPrisma = (): PrismaClient => {
+  return new Proxy(appPrisma, {
+    get(target, prop, receiver) {
+      if (prop === "$disconnect") {
+        return async () => {};
       }
-      sleepSync(50);
-    }
-  }
-
-  try {
-    fn();
-  } finally {
-    try {
-      fs.closeSync(fd);
-    } catch {
-    }
-    try {
-      fs.unlinkSync(DB_PUSH_LOCK_PATH);
-    } catch {
-    }
-  }
-};
-
-/**
- * Get a test Prisma client pointing to the test database
- */
-export const getTestPrisma = () => {
-  const databaseUrl = `file:${TEST_DB_PATH}`;
-  process.env.DATABASE_URL = databaseUrl;
-  return new PrismaClient({
-    datasources: {
-      db: {
-        url: databaseUrl,
-      },
+      return Reflect.get(target, prop, receiver);
     },
-  });
+  }) as unknown as PrismaClient;
 };
 
 /**
- * Setup the test database by running migrations
+ * Reset the test database by truncating all tables and clearing app caches.
+ * Uses the app's own PrismaClient to avoid connection pool issues.
  */
-export const setupTestDb = () => {
-  const databaseUrl = `file:${TEST_DB_PATH}`;
-  process.env.DATABASE_URL = databaseUrl;
-  
-  try {
-    withDbPushLock(() => {
-      execSync("npx prisma db push --skip-generate --force-reset", {
-        cwd: path.resolve(__dirname, "../../"),
-        env: {
-          ...process.env,
-          DATABASE_URL: databaseUrl,
-          RUST_LOG: "info",
-        },
-        stdio: "pipe",
-      });
-    });
-  } catch (error) {
-    console.error("Failed to setup test database:", error);
-    throw error;
-  }
+export const setupTestDb = async () => {
+  await appPrisma.$executeRawUnsafe(`
+    TRUNCATE TABLE
+      "AuditLog", "AuthIdentity", "RefreshToken", "PasswordResetToken",
+      "DrawingLinkShare", "DrawingPermission", "Drawing",
+      "Collection", "Library", "SystemConfig", "User"
+    CASCADE
+  `);
+  authModeService.clearAuthEnabledCache();
 };
 
 /**
@@ -100,7 +56,7 @@ export const cleanupTestDb = async (prisma: PrismaClient) => {
 export const createTestUser = async (prisma: PrismaClient, email: string = "test@example.com") => {
   const bcrypt = require("bcrypt");
   const passwordHash = await bcrypt.hash("testpassword", 10);
-  
+
   return await prisma.user.upsert({
     where: { email },
     update: {},
@@ -118,7 +74,7 @@ export const createTestUser = async (prisma: PrismaClient, email: string = "test
 export const initTestDb = async (prisma: PrismaClient) => {
   const testUser = await createTestUser(prisma);
   const trashCollectionId = `trash:${testUser.id}`;
-  
+
   const trash = await prisma.collection.findFirst({
     where: { id: trashCollectionId, userId: testUser.id },
   });
@@ -127,30 +83,28 @@ export const initTestDb = async (prisma: PrismaClient) => {
       data: { id: trashCollectionId, name: "Trash", userId: testUser.id },
     });
   }
-  
+
   return testUser;
 };
 
 /**
  * Generate a sample base64 PNG image data URL
- * This creates a small but valid PNG for testing
  */
 export const generateSampleImageDataUrl = (size: "small" | "medium" | "large" = "small"): string => {
   const smallPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
-  
+
   if (size === "small") {
     return `data:image/png;base64,${smallPng}`;
   }
-  
+
   const repetitions = size === "medium" ? 1000 : 10000;
   const paddedBase64 = smallPng.repeat(repetitions);
-  
+
   return `data:image/png;base64,${paddedBase64}`;
 };
 
 /**
  * Generate a large image data URL that exceeds the 10000 char limit
- * This is specifically designed to catch the truncation bug from issue #17
  */
 export const generateLargeImageDataUrl = (): string => {
   const baseImage = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
@@ -163,7 +117,7 @@ export const generateLargeImageDataUrl = (): string => {
  */
 export const createSampleFilesObject = (imageCount: number = 1, size: "small" | "large" = "small") => {
   const files: Record<string, any> = {};
-  
+
   for (let i = 0; i < imageCount; i++) {
     const fileId = `file-${i}-${Date.now()}`;
     files[fileId] = {
@@ -174,7 +128,7 @@ export const createSampleFilesObject = (imageCount: number = 1, size: "small" | 
       lastRetrieved: Date.now(),
     };
   }
-  
+
   return files;
 };
 
@@ -236,36 +190,36 @@ export const compareFilesObjects = (original: Record<string, any>, received: Rec
   differences: string[];
 } => {
   const differences: string[] = [];
-  
+
   const originalKeys = Object.keys(original);
   const receivedKeys = Object.keys(received);
-  
+
   if (originalKeys.length !== receivedKeys.length) {
     differences.push(`Key count mismatch: original=${originalKeys.length}, received=${receivedKeys.length}`);
   }
-  
+
   for (const key of originalKeys) {
     if (!(key in received)) {
       differences.push(`Missing key: ${key}`);
       continue;
     }
-    
+
     const origFile = original[key];
     const recvFile = received[key];
-    
+
     if (origFile.dataURL !== recvFile.dataURL) {
       differences.push(
         `DataURL mismatch for ${key}: ` +
         `original length=${origFile.dataURL?.length ?? 0}, ` +
         `received length=${recvFile.dataURL?.length ?? 0}`
       );
-      
+
       if (recvFile.dataURL && origFile.dataURL?.startsWith(recvFile.dataURL.substring(0, 100))) {
         differences.push(`TRUNCATION DETECTED: dataURL was cut short`);
       }
     }
   }
-  
+
   return {
     isEqual: differences.length === 0,
     differences,

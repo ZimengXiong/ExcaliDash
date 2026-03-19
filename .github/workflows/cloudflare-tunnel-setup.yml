@@ -1,0 +1,183 @@
+name: Cloudflare Tunnel Setup
+
+on:
+  workflow_dispatch:
+    inputs:
+      tunnel_name:
+        description: "Tunnel name"
+        required: true
+        default: "excalidash"
+      public_hostname:
+        description: "Public hostname (e.g. excalidash.yourdomain.com)"
+        required: true
+      enable_access_policy:
+        description: "Enable Zero Trust Access policy"
+        required: false
+        type: boolean
+        default: false
+
+env:
+  TUNNEL_NAME: ${{ inputs.tunnel_name }}
+  PUBLIC_HOSTNAME: ${{ inputs.public_hostname }}
+  CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  CF_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+
+jobs:
+  setup-tunnel:
+    name: Create Cloudflare Tunnel
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create or get tunnel
+        id: tunnel
+        run: |
+          # Check if tunnel already exists
+          EXISTING=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/cfd_tunnel?name=${TUNNEL_NAME}&is_deleted=false" \
+            -H "Authorization: Bearer ${CF_API_TOKEN}" \
+            -H "Content-Type: application/json")
+
+          TUNNEL_COUNT=$(echo "$EXISTING" | jq '.result | length')
+
+          if [ "$TUNNEL_COUNT" -gt "0" ]; then
+            TUNNEL_ID=$(echo "$EXISTING" | jq -r '.result[0].id')
+            echo "Reusing existing tunnel: $TUNNEL_ID"
+          else
+            TUNNEL_SECRET=$(openssl rand -base64 32)
+            PAYLOAD=$(jq -n --arg name "$TUNNEL_NAME" --arg secret "$TUNNEL_SECRET" \
+              '{name: $name, tunnel_secret: $secret}')
+
+            RESPONSE=$(curl -s -X POST \
+              "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/cfd_tunnel" \
+              -H "Authorization: Bearer ${CF_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data "$PAYLOAD")
+
+            TUNNEL_ID=$(echo "$RESPONSE" | jq -r '.result.id')
+            if [ "$TUNNEL_ID" = "null" ] || [ -z "$TUNNEL_ID" ]; then
+              echo "::error::Failed to create tunnel"
+              echo "$RESPONSE" | jq .
+              exit 1
+            fi
+            echo "Created tunnel: $TUNNEL_ID"
+          fi
+
+          echo "tunnel_id=$TUNNEL_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Get tunnel token
+        id: token
+        env:
+          TUNNEL_ID: ${{ steps.tunnel.outputs.tunnel_id }}
+        run: |
+          TOKEN_RESPONSE=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/cfd_tunnel/${TUNNEL_ID}/token" \
+            -H "Authorization: Bearer ${CF_API_TOKEN}" \
+            -H "Content-Type: application/json")
+
+          TUNNEL_TOKEN=$(echo "$TOKEN_RESPONSE" | jq -r '.result')
+          if [ "$TUNNEL_TOKEN" = "null" ] || [ -z "$TUNNEL_TOKEN" ]; then
+            echo "::error::Failed to get tunnel token"
+            exit 1
+          fi
+
+          echo "::add-mask::$TUNNEL_TOKEN"
+          echo "tunnel_token=$TUNNEL_TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Configure tunnel ingress
+        env:
+          TUNNEL_ID: ${{ steps.tunnel.outputs.tunnel_id }}
+        run: |
+          PAYLOAD=$(jq -n --arg hostname "$PUBLIC_HOSTNAME" '{
+            config: {
+              ingress: [
+                { hostname: $hostname, service: "http://frontend:80" },
+                { service: "http_status:404" }
+              ]
+            }
+          }')
+
+          curl -s -X PUT \
+            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/cfd_tunnel/${TUNNEL_ID}/configurations" \
+            -H "Authorization: Bearer ${CF_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data "$PAYLOAD" | jq .
+
+      - name: Create DNS CNAME record
+        env:
+          TUNNEL_ID: ${{ steps.tunnel.outputs.tunnel_id }}
+        run: |
+          # Check if record exists
+          EXISTING_DNS=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/dns_records?type=CNAME&name=${PUBLIC_HOSTNAME}" \
+            -H "Authorization: Bearer ${CF_API_TOKEN}" \
+            -H "Content-Type: application/json")
+
+          RECORD_COUNT=$(echo "$EXISTING_DNS" | jq '.result | length')
+          CNAME_TARGET="${TUNNEL_ID}.cfargotunnel.com"
+
+          DNS_PAYLOAD=$(jq -n --arg name "$PUBLIC_HOSTNAME" --arg content "$CNAME_TARGET" '{
+            type: "CNAME",
+            name: $name,
+            content: $content,
+            proxied: true
+          }')
+
+          if [ "$RECORD_COUNT" -gt "0" ]; then
+            RECORD_ID=$(echo "$EXISTING_DNS" | jq -r '.result[0].id')
+            curl -s -X PUT \
+              "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/dns_records/${RECORD_ID}" \
+              -H "Authorization: Bearer ${CF_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data "$DNS_PAYLOAD" | jq .
+            echo "Updated existing DNS record"
+          else
+            curl -s -X POST \
+              "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/dns_records" \
+              -H "Authorization: Bearer ${CF_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data "$DNS_PAYLOAD" | jq .
+            echo "Created DNS record"
+          fi
+
+      - name: Create Access policy
+        if: ${{ inputs.enable_access_policy }}
+        run: |
+          ACCESS_PAYLOAD=$(jq -n --arg name "ExcaliDash - ${PUBLIC_HOSTNAME}" --arg domain "$PUBLIC_HOSTNAME" '{
+            name: $name,
+            domain: $domain,
+            type: "self_hosted",
+            session_duration: "24h",
+            auto_redirect_to_identity: false
+          }')
+
+          curl -s -X POST \
+            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/access/apps" \
+            -H "Authorization: Bearer ${CF_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data "$ACCESS_PAYLOAD" | jq .
+
+      - name: Output summary
+        env:
+          TUNNEL_ID: ${{ steps.tunnel.outputs.tunnel_id }}
+          ENABLE_ACCESS: ${{ inputs.enable_access_policy }}
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## Cloudflare Tunnel Setup Complete
+
+          | Item | Value |
+          |------|-------|
+          | Tunnel ID | \`${TUNNEL_ID}\` |
+          | Hostname | \`${PUBLIC_HOSTNAME}\` |
+          | Access Policy | \`${ENABLE_ACCESS}\` |
+
+          ### Next Steps
+
+          1. Add the tunnel token as \`TUNNEL_TOKEN\` in your \`.env\` file or server environment
+          2. Start with cloudflared overlay:
+             \`\`\`bash
+             TUNNEL_TOKEN=<token> FRONTEND_URL=https://${PUBLIC_HOSTNAME} \\
+               docker compose -f docker-compose.yml -f docker-compose.cloudflared.yml up -d
+             \`\`\`
+          3. Verify at \`https://${PUBLIC_HOSTNAME}\`
+          EOF

@@ -33,9 +33,21 @@ import { createDrawingsCacheStore } from "./server/drawingsCache";
 import { registerCsrfProtection } from "./server/csrf";
 import { registerSocketHandlers } from "./server/socket";
 import { issueBootstrapSetupCodeIfRequired } from "./auth/bootstrapSetupCode";
+import { logger } from "./logger";
 
 const backendRoot = path.resolve(__dirname, "../");
-console.log("Resolved DATABASE_URL:", process.env.DATABASE_URL);
+
+const redactDatabaseUrl = (url?: string): string => {
+  if (!url) return "(not set)";
+  try {
+    const parsed = new URL(url);
+    if (parsed.password) parsed.password = "***";
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+};
+logger.info({ url: redactDatabaseUrl(process.env.DATABASE_URL) }, "Database URL");
 
 const normalizeOrigins = (rawOrigins?: string | null): string[] => {
   const fallback = "http://localhost:6767";
@@ -60,7 +72,7 @@ const normalizeOrigins = (rawOrigins?: string | null): string[] => {
 };
 
 const allowedOrigins = normalizeOrigins(config.frontendUrl);
-console.log("Allowed origins:", allowedOrigins);
+logger.info({ origins: allowedOrigins }, "Allowed origins");
 
 const isDev = (process.env.NODE_ENV || "development") !== "production";
 const isLocalDevOrigin = (origin: string): boolean => {
@@ -122,11 +134,7 @@ const trustProxyValue =
     : false;
 app.set("trust proxy", trustProxyValue);
 
-if (trustProxyValue === true) {
-  console.log("[config] trust proxy: enabled (handles multiple proxy layers)");
-} else {
-  console.log(`[config] trust proxy: ${trustProxyValue}`);
-}
+logger.info({ trustProxy: trustProxyValue }, "Trust proxy configured");
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
@@ -164,6 +172,7 @@ const {
   getCachedDrawingsBody,
   cacheDrawingsResponse,
   invalidateDrawingsCache,
+  invalidateDrawingsCacheForUser,
 } = createDrawingsCacheStore(DRAWINGS_CACHE_TTL_MS);
 
 const getUserTrashCollectionId = (userId: string): string => `trash:${userId}`;
@@ -308,22 +317,22 @@ app.use((req, res, next) => {
   const requestId = req.headers["x-request-id"] || "unknown";
   const contentLength = req.headers["content-length"];
   const userEmail = req.user?.email || "anonymous";
-  
+
   if (contentLength) {
     const sizeInMB = parseInt(contentLength, 10) / 1024 / 1024;
     if (sizeInMB > 10) {
-      console.log(
-        `[LARGE REQUEST] ${req.method} ${req.path} - ${sizeInMB.toFixed(
-          2
-        )}MB - User: ${userEmail} - RequestID: ${requestId}`
+      logger.warn(
+        { method: req.method, path: req.path, sizeMB: sizeInMB.toFixed(2), user: userEmail, requestId },
+        "Large request"
       );
     }
   }
-  
-  console.log(
-    `[REQUEST] ${req.method} ${req.path} - User: ${userEmail} - IP: ${req.ip} - RequestID: ${requestId}`
+
+  logger.info(
+    { method: req.method, path: req.path, user: userEmail, ip: req.ip, requestId },
+    "request"
   );
-  
+
   next();
 });
 
@@ -519,7 +528,7 @@ const verifyDatabaseIntegrityAsync = (filePath: string): Promise<boolean> => {
         workerData: { filePath },
       }
     );
-    let timeoutHandle: NodeJS.Timeout;
+    let timeoutHandle: NodeJS.Timeout; // eslint-disable-line prefer-const
     let settled = false;
 
     const finish = (result: boolean) => {
@@ -567,8 +576,13 @@ registerSocketHandlers({
   jwtSecret: config.jwtSecret,
 });
 
-app.get("/health", (req, res) => {
-  res.status(200).json({ status: "ok" });
+app.get("/health", async (req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.status(200).json({ status: "ok", db: "up" });
+  } catch {
+    res.status(503).json({ status: "degraded", db: "down" });
+  }
 });
 
 
@@ -653,6 +667,7 @@ registerDashboardRoutes(app, {
   collectionNameSchema,
   ensureTrashCollection,
   invalidateDrawingsCache,
+  invalidateDrawingsCacheForUser,
   buildDrawingsCacheKey,
   getCachedDrawingsBody,
   cacheDrawingsResponse,
@@ -690,7 +705,7 @@ app.use(errorHandler);
 export { app, httpServer };
 
 const isMain =
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+   
   typeof require !== "undefined" && require.main === module;
 
 if (isMain) {
@@ -706,8 +721,6 @@ if (isMain) {
     } catch (error) {
       console.error("Failed to issue bootstrap setup code:", error);
     }
-    console.log(`Server running on port ${PORT}`);
-    console.log(`Environment: ${config.nodeEnv}`);
-    console.log(`Frontend URL: ${config.frontendUrl}`);
+    logger.info({ port: PORT, env: config.nodeEnv, frontendUrl: config.frontendUrl }, "Server started");
   });
 }

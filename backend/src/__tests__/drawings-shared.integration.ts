@@ -13,7 +13,7 @@ describe("Drawings - Shared With Me", () => {
   let app: any;
 
   beforeAll(async () => {
-    setupTestDb();
+    await setupTestDb();
     prisma = getTestPrisma();
     ({ app } = await import("../index"));
 

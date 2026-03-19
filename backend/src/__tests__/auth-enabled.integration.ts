@@ -18,7 +18,7 @@ describe("Auth Enabled Toggle Authorization", () => {
   let adminUserToken: string;
 
   beforeAll(async () => {
-    setupTestDb();
+    await setupTestDb();
     prisma = getTestPrisma();
 
     ({ app } = await import("../index"));

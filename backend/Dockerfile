@@ -44,9 +44,8 @@ RUN apk add --no-cache --virtual .build-deps python3 make g++ && \
     npm cache clean --force && \
     apk del .build-deps
 
-# Copy prisma schema and migrations for runtime and hydration template
+# Copy prisma schema and migrations for runtime
 COPY prisma ./prisma/
-COPY prisma ./prisma_template/
 
 # Copy built application from builder
 COPY --from=builder /app/dist ./dist

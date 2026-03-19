@@ -11,6 +11,7 @@ import {
   getCsrfClientCookieValue,
   getCsrfValidationClientIds,
 } from "../security/csrfClient";
+import { logger } from "../logger";
 
 const CSRF_CLIENT_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
 const CSRF_RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
@@ -87,21 +88,17 @@ export const registerCsrfProtection = ({
     if (enableDebugLogging) {
       const validationCandidates = getCsrfValidationClientIds(req);
       const ip = req.ip || req.connection.remoteAddress || "unknown";
-      console.log("[CSRF DEBUG] getClientId", {
+      logger.debug({
         method: req.method,
         path: req.path,
         ip,
         remoteAddress: req.connection.remoteAddress,
-        "x-forwarded-for": req.headers["x-forwarded-for"],
-        "x-real-ip": req.headers["x-real-ip"],
         hasCsrfCookie: Boolean(getCsrfClientCookieValue(req)),
         clientIdPreview: clientId.slice(0, 60) + "...",
         trustProxySetting: req.app.get("trust proxy"),
         strategy,
-        validationCandidatesPreview: validationCandidates.map((candidate) =>
-          `${candidate.slice(0, 60)}...`
-        ),
-      });
+        validationCandidatesCount: validationCandidates.length,
+      }, "CSRF getClientId");
     }
 
     return clientId;

@@ -7,30 +7,81 @@ on:
     branches: [main]
 
 jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Lint frontend
+        run: cd frontend && npm ci && npm run lint
+
+      - name: Lint backend
+        run: cd backend && npm ci && npm run lint
+
+      - name: Audit dependencies
+        run: |
+          cd frontend && npm audit --audit-level=high --omit=dev || true
+          cd ../backend && npm audit --audit-level=high --omit=dev || true
+
+      - name: Type-check backend
+        run: cd backend && npx prisma generate && npx tsc --noEmit
+
+      - name: Type-check frontend
+        run: cd frontend && npx tsc -b --noEmit
+
   backend-tests:
     name: Backend Tests
     runs-on: ubuntu-latest
-    
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: excalidash
+          POSTGRES_PASSWORD: excalidash
+          POSTGRES_DB: excalidash_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U excalidash"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://excalidash:excalidash@localhost:5432/excalidash_test
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: backend/package-lock.json
-      
+
       - name: Install backend dependencies
         run: |
           cd backend
           npm ci
-      
+
       - name: Generate Prisma client
         run: |
           cd backend
           npx prisma generate
-      
+
+      - name: Run migrations
+        run: |
+          cd backend
+          npx prisma migrate deploy
+
       - name: Run backend tests
         run: |
           cd backend
@@ -39,22 +90,22 @@ jobs:
   frontend-unit-tests:
     name: Frontend Unit Tests
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
-      
+
       - name: Install frontend dependencies
         run: |
           cd frontend
           npm ci
-      
+
       - name: Run frontend tests
         run: |
           cd frontend
@@ -63,55 +114,71 @@ jobs:
   e2e-tests:
     name: E2E Browser Tests
     runs-on: ubuntu-latest
-    
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: excalidash
+          POSTGRES_PASSWORD: excalidash
+          POSTGRES_DB: excalidash_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U excalidash"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://excalidash:excalidash@localhost:5432/excalidash_e2e
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      
+
       - name: Install backend dependencies
         run: |
           cd backend
           npm ci
-      
+
       - name: Generate Prisma client
         run: |
           cd backend
           npx prisma generate
-      
+
       - name: Setup backend database
         run: |
           cd backend
           npx prisma migrate deploy
-        env:
-          DATABASE_URL: file:${{ github.workspace }}/backend/prisma/e2e-test.db
-      
+
       - name: Install frontend dependencies
         run: |
           cd frontend
           npm ci
-      
+
       - name: Install E2E test dependencies
         run: |
           cd e2e
           npm ci
-      
+
       - name: Install Playwright browsers
         run: |
           cd e2e
           npx playwright install chromium --with-deps
-      
+
       - name: Start servers and run E2E tests
         run: |
           # Start backend server in background
           cd backend
-          DATABASE_URL="file:${{ github.workspace }}/backend/prisma/e2e-test.db" FRONTEND_URL="http://localhost:6767" npm run dev &
+          FRONTEND_URL="http://localhost:6767" npm run dev &
           BACKEND_PID=$!
           cd ..
-          
+
           # Wait for backend to be ready
           echo "Waiting for backend server..."
           for i in {1..30}; do
@@ -122,13 +189,13 @@ jobs:
             echo "Attempt $i: Backend not ready yet..."
             sleep 2
           done
-          
+
           # Start frontend server in background
           cd frontend
           npm run dev -- --host &
           FRONTEND_PID=$!
           cd ..
-          
+
           # Wait for frontend to be ready
           echo "Waiting for frontend server..."
           for i in {1..30}; do
@@ -139,19 +206,17 @@ jobs:
             echo "Attempt $i: Frontend not ready yet..."
             sleep 2
           done
-          
+
           # Run E2E tests
           cd e2e
           NO_SERVER=true CI=true npx playwright test
           TEST_EXIT_CODE=$?
-          
+
           # Cleanup
           kill $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
-          
+
           exit $TEST_EXIT_CODE
-        env:
-          DATABASE_URL: file:${{ github.workspace }}/backend/prisma/e2e-test.db
-      
+
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
         if: always()
@@ -159,7 +224,7 @@ jobs:
           name: playwright-report
           path: e2e/playwright-report/
           retention-days: 7
-      
+
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: failure()
@@ -172,27 +237,50 @@ jobs:
   security-tests:
     name: Security Sanitization Tests
     runs-on: ubuntu-latest
-    
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: excalidash
+          POSTGRES_PASSWORD: excalidash
+          POSTGRES_DB: excalidash_security
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U excalidash"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://excalidash:excalidash@localhost:5432/excalidash_security
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: backend/package-lock.json
-      
+
       - name: Install backend dependencies
         run: |
           cd backend
           npm ci
-      
+
       - name: Generate Prisma client
         run: |
           cd backend
           npx prisma generate
-      
+
+      - name: Run migrations
+        run: |
+          cd backend
+          npx prisma migrate deploy
+
       - name: Run security tests
         run: |
           cd backend

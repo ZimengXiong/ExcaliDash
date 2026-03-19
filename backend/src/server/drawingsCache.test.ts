@@ -70,4 +70,38 @@ describe("drawings cache store", () => {
     invalidateDrawingsCache();
     expect(getCachedDrawingsBody(key)).toBeNull();
   });
+
+  it("invalidates only the target user's cache entries", () => {
+    const {
+      buildDrawingsCacheKey,
+      cacheDrawingsResponse,
+      getCachedDrawingsBody,
+      invalidateDrawingsCacheForUser,
+    } = createDrawingsCacheStore(10_000);
+
+    const keyUser1 = buildDrawingsCacheKey({
+      userId: "user-1",
+      searchTerm: "",
+      collectionFilter: "default",
+      includeData: false,
+      sortField: "updatedAt",
+      sortDirection: "desc",
+    });
+    const keyUser2 = buildDrawingsCacheKey({
+      userId: "user-2",
+      searchTerm: "",
+      collectionFilter: "default",
+      includeData: false,
+      sortField: "updatedAt",
+      sortDirection: "desc",
+    });
+
+    cacheDrawingsResponse(keyUser1, { drawings: [{ id: "d1" }], totalCount: 1 });
+    cacheDrawingsResponse(keyUser2, { drawings: [{ id: "d2" }], totalCount: 1 });
+
+    invalidateDrawingsCacheForUser("user-1");
+
+    expect(getCachedDrawingsBody(keyUser1)).toBeNull();
+    expect(getCachedDrawingsBody(keyUser2)).not.toBeNull();
+  });
 });

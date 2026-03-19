@@ -386,7 +386,7 @@ describe("Drawing API - Database Round-Trip", () => {
   let testUser: { id: string };
 
   beforeAll(async () => {
-    setupTestDb();
+    await setupTestDb();
     testUser = await initTestDb(prisma);
   });
 

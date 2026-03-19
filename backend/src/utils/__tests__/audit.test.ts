@@ -19,7 +19,7 @@ describe("Audit Logging", () => {
   let testUser: { id: string; email: string };
 
   beforeAll(async () => {
-    setupTestDb();
+    await setupTestDb();
     testUser = await initTestDb(prisma);
     setAuditPrismaProvider(() => prisma);
     process.env.ENABLE_AUDIT_LOGGING = "true";

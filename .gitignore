@@ -65,6 +65,9 @@ e2e/.playwright/
 # Docker volumes (if any temporary ones are created)
 docker-volumes/
 
+# Database backups
+backups/
+
 # Logs
 *.log
 logs/

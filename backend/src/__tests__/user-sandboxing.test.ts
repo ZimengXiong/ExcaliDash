@@ -22,7 +22,7 @@ describe("User Data Sandboxing", () => {
   let userB: { id: string; email: string };
 
   beforeAll(async () => {
-    setupTestDb();
+    await setupTestDb();
     prisma = getTestPrisma();
 
     const hashA = await bcrypt.hash("passwordA", 10);
