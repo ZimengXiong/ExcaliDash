@@ -4,7 +4,11 @@ import { config } from "../config";
 import { PrismaClient } from "../generated/client";
 import { prisma as defaultPrisma } from "../db/prisma";
 import { createAuthModeService, type AuthModeService } from "../auth/authMode";
-import { ACCESS_TOKEN_COOKIE_NAME, readCookie } from "../auth/cookies";
+import {
+  ACCESS_TOKEN_COOKIE_NAME,
+  REFRESH_TOKEN_COOKIE_NAME,
+  readCookie,
+} from "../auth/cookies";
 
 declare global {
   namespace Express {
@@ -21,6 +25,9 @@ declare global {
       principal?: {
         kind: "user";
         userId: string;
+      };
+      authError?: {
+        code: "INVALID_ACCESS_TOKEN" | "ACCESS_TOKEN_MISSING";
       };
     }
   }
@@ -59,6 +66,9 @@ const extractToken = (req: Request): string | null => {
 
   return readCookie(req, ACCESS_TOKEN_COOKIE_NAME);
 };
+
+const hasRefreshTokenCookie = (req: Request): boolean =>
+  readCookie(req, REFRESH_TOKEN_COOKIE_NAME) !== null;
 
 const verifyToken = (token: string): JwtPayload | null => {
   try {
@@ -227,12 +237,17 @@ export const createAuthMiddleware = ({
     const token = extractToken(req);
 
     if (!token) {
+      if (hasRefreshTokenCookie(req)) {
+        req.authError = { code: "ACCESS_TOKEN_MISSING" };
+        return next();
+      }
       return next();
     }
 
     const payload = verifyToken(token);
 
     if (!payload) {
+      req.authError = { code: "INVALID_ACCESS_TOKEN" };
       return next();
     }
 

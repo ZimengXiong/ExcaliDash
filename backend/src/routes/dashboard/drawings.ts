@@ -67,6 +67,19 @@ export const registerDrawingRoutes = (
     return 90 * 24 * 60 * 60 * 1000;
   };
 
+  const respondWithAuthErrorIfPresent = (
+    req: express.Request,
+    res: express.Response
+  ): boolean => {
+    if (!req.authError) return false;
+
+    res.status(401).json({
+      error: "Unauthorized",
+      message: "Invalid or expired token",
+    });
+    return true;
+  };
+
   app.get("/drawings", requireAuth, asyncHandler(async (req, res) => {
     if (!req.user) {
       return res.status(401).json({ error: "Unauthorized" });
@@ -325,6 +338,7 @@ export const registerDrawingRoutes = (
     const { id } = req.params;
     const access = await getDrawingAccess({ prisma, principal, drawingId: id });
     if (!canViewDrawing(access)) {
+      if (respondWithAuthErrorIfPresent(req, res)) return;
       return res.status(404).json({ error: "Drawing not found", message: "Drawing does not exist" });
     }
 
@@ -412,6 +426,7 @@ export const registerDrawingRoutes = (
     const { id } = req.params;
     const access = await getDrawingAccess({ prisma, principal, drawingId: id });
     if (!canEditDrawing(access)) {
+      if (respondWithAuthErrorIfPresent(req, res)) return;
       return res.status(404).json({ error: "Drawing not found" });
     }
 

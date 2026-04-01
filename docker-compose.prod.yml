@@ -26,12 +26,13 @@ services:
       - excalidash-network
     restart: unless-stopped
     healthcheck:
+      # Use IPv4 loopback explicitly to avoid IPv6 localhost resolution issues.
       test:
         [
           "CMD",
           "node",
           "-e",
-          "require('http').get('http://localhost:8000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))",
+          "require('http').get('http://127.0.0.1:8000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))",
         ]
       interval: 30s
       timeout: 10s
@@ -48,6 +49,7 @@ services:
       - excalidash-network
     restart: unless-stopped
     healthcheck:
+      # Use IPv4 loopback explicitly to avoid IPv6 localhost resolution issues.
       test:
         [
           "CMD",
@@ -55,7 +57,7 @@ services:
           "--quiet",
           "--tries=1",
           "--spider",
-          "http://localhost:80",
+          "http://127.0.0.1:80",
         ]
       interval: 30s
       timeout: 10s
