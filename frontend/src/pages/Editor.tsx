@@ -2,7 +2,12 @@ import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Download, Loader2, ChevronUp, ChevronDown, Share2 } from 'lucide-react';
 import clsx from 'clsx';
-import { Excalidraw, exportToSvg } from '@excalidraw/excalidraw';
+import {
+  Excalidraw,
+  convertToExcalidrawElements,
+  exportToSvg,
+  viewportCoordsToSceneCoords,
+} from '@excalidraw/excalidraw';
 import debounce from 'lodash/debounce';
 import throttle from 'lodash/throttle';
 import { Toaster, toast } from 'sonner';
@@ -32,10 +37,86 @@ interface Peer extends UserIdentity {
   isActive: boolean;
 }
 
+const MULTI_IMAGE_DROP_GAP = 25;
+
+type DroppedImageData = {
+  fileId: string;
+  mimeType: string;
+  dataURL: string;
+  created: number;
+  width: number;
+  height: number;
+};
+
 const toFiniteNumber = (value: any): number => {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
+};
+
+const createDroppedFileId = (): string =>
+  typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `dropped-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+const isSupportedDroppedImageFile = (file: File): boolean => {
+  if (typeof file?.type === "string" && file.type.startsWith("image/")) {
+    return true;
+  }
+
+  return /\.(avif|bmp|gif|jpe?g|png|svg|webp)$/i.test(file?.name || "");
+};
+
+const getDroppedImageFiles = (dataTransfer?: DataTransfer | null): File[] =>
+  Array.from(dataTransfer?.files || []).filter(isSupportedDroppedImageFile);
+
+const readFileAsDataURL = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error || new Error("Failed to read image file"));
+    reader.onload = () => {
+      if (typeof reader.result !== "string") {
+        reject(new Error("Failed to read image file"));
+        return;
+      }
+      resolve(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+
+const getImageDimensions = (file: File): Promise<{ width: number; height: number }> =>
+  new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve({
+        width: Math.max(1, Math.round(image.naturalWidth || image.width || 1)),
+        height: Math.max(1, Math.round(image.naturalHeight || image.height || 1)),
+      });
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Failed to decode dropped image"));
+    };
+    image.src = objectUrl;
+  });
+
+const loadDroppedImageData = async (file: File): Promise<DroppedImageData> => {
+  const [dataURL, dimensions] = await Promise.all([
+    readFileAsDataURL(file),
+    getImageDimensions(file),
+  ]);
+
+  return {
+    fileId: createDroppedFileId(),
+    mimeType: file.type || "application/octet-stream",
+    dataURL,
+    created: Date.now(),
+    width: dimensions.width,
+    height: dimensions.height,
+  };
 };
 
 // Content-based signature for detecting "live" changes even when Excalidraw doesn't
@@ -1401,6 +1482,78 @@ export const Editor: React.FC = () => {
 
   }, [debouncedSave, debouncedSavePreview, broadcastChanges, id, resolveSafeSnapshot, canEdit]);
 
+  const handleCanvasDropCapture = useCallback(
+    async (event: React.DragEvent<HTMLDivElement>) => {
+      if (!canEdit || !excalidrawAPI.current) return;
+
+      const allDroppedFiles = Array.from(event.dataTransfer?.files || []);
+      const droppedImages = getDroppedImageFiles(event.dataTransfer);
+      if (droppedImages.length <= 1 || droppedImages.length !== allDroppedFiles.length) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const appState = excalidrawAPI.current.getAppState?.();
+      if (!appState) return;
+
+      try {
+        const dropPoint = viewportCoordsToSceneCoords(
+          { clientX: event.clientX, clientY: event.clientY },
+          appState
+        );
+
+        const loadedImages = await Promise.all(droppedImages.map(loadDroppedImageData));
+        if (loadedImages.length === 0) return;
+
+        const fileRecords = loadedImages.map(({ fileId, mimeType, dataURL, created }) => ({
+          id: fileId,
+          mimeType,
+          dataURL,
+          created,
+        }));
+
+        let nextY = dropPoint.y;
+        const imageElements = convertToExcalidrawElements(
+          loadedImages.map((image, index) => {
+            const y = index === 0 ? dropPoint.y - image.height / 2 : nextY;
+            nextY = y + image.height + MULTI_IMAGE_DROP_GAP;
+
+            return {
+              type: "image" as const,
+              x: dropPoint.x - image.width / 2,
+              y,
+              width: image.width,
+              height: image.height,
+              fileId: image.fileId as any,
+              scale: [1, 1] as [number, number],
+              status: "saved" as const,
+            };
+          })
+        );
+
+        excalidrawAPI.current.addFiles(fileRecords);
+        excalidrawAPI.current.updateScene({
+          elements: [
+            ...excalidrawAPI.current.getSceneElementsIncludingDeleted(),
+            ...imageElements,
+          ],
+          appState: {
+            selectedElementIds: Object.fromEntries(
+              imageElements.map((element: any) => [element.id, true])
+            ),
+          },
+          commitToHistory: true,
+        });
+      } catch (err) {
+        console.error("[Editor] Failed to import dropped images", err);
+        toast.error("Failed to import dropped images");
+      }
+    },
+    [canEdit]
+  );
+
   useEffect(() => {
     if (!id || !isReady) return;
 
@@ -1651,6 +1804,7 @@ export const Editor: React.FC = () => {
 
       <div 
         className="flex-1 w-full relative transition-all duration-300" 
+        onDropCapture={handleCanvasDropCapture}
         style={{ 
           height: isHeaderVisible ? 'calc(100vh - 4rem)' : '100vh',
           marginTop: isHeaderVisible ? '4rem' : '0'
