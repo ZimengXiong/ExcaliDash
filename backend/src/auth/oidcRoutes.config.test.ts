@@ -55,6 +55,16 @@ describe("OIDC client configuration", () => {
       router,
       prisma: {} as any,
       ensureAuthEnabled: vi.fn(async () => true),
+      ensureSystemConfig: vi.fn(async () => ({
+        id: "default",
+        oidcJitProvisioningEnabled: null,
+        authEnabled: true,
+        authOnboardingCompleted: true,
+        registrationEnabled: false,
+        authLoginRateLimitEnabled: true,
+        authLoginRateLimitWindowMs: 900000,
+        authLoginRateLimitMax: 20,
+      })),
       sanitizeText: (input: unknown) => String(input ?? ""),
       generateTokens: vi.fn(() => ({
         accessToken: "access-token",
