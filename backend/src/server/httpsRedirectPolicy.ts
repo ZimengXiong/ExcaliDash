@@ -86,12 +86,8 @@ export const getHttpsRedirectUrl = (
 
   const rawHost = readHeader(req, "host")?.toLowerCase() ?? "";
   const protocols = rawHost ? policy.hostProtocols.get(rawHost) : undefined;
-
-  if (protocols?.has("http:")) {
-    return null;
-  }
-
-  const targetHost = protocols?.has("https:") ? rawHost : policy.canonicalHttpsHost;
+  const targetHost =
+    protocols?.has("https:") ? rawHost : protocols ? null : policy.canonicalHttpsHost;
   if (!targetHost) return null;
 
   const path = (req.originalUrl || req.url || "/").startsWith("/")

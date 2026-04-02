@@ -15,6 +15,11 @@ import {
   issueBootstrapSetupCodeIfRequired,
   verifyBootstrapSetupCode,
 } from "./bootstrapSetupCode";
+import {
+  getEffectiveOidcJitProvisioning,
+  getEffectiveRegistrationEnabled,
+} from "./accessPolicy";
+import { canUseLocalPasswordFlows } from "./localPassword";
 
 type RegisterCoreRoutesDeps = {
   router: express.Router;
@@ -118,15 +123,6 @@ export const registerCoreRoutes = (deps: RegisterCoreRoutesDeps) => {
     readRefreshTokenFromRequest,
   } = deps;
   const getUserTrashCollectionId = (userId: string): string => `trash:${userId}`;
-  const getEffectiveOidcJitProvisioning = (systemConfig: {
-    oidcJitProvisioningEnabled: boolean | null;
-  }): boolean =>
-    config.oidc.enabled
-      ? typeof systemConfig.oidcJitProvisioningEnabled === "boolean"
-        ? systemConfig.oidcJitProvisioningEnabled
-        : config.oidc.jitProvisioning
-      : false;
-
   const getAuthOnboardingStatus = async (systemConfig: {
     authEnabled: boolean;
     authOnboardingCompleted: boolean;
@@ -550,7 +546,7 @@ export const registerCoreRoutes = (deps: RegisterCoreRoutesDeps) => {
 
       // Some accounts (e.g. OIDC-provisioned) may not have a usable local password hash.
       // Treat these as invalid credentials rather than throwing (bcrypt can throw on invalid hashes).
-      if (!user.passwordHash || !user.passwordHash.startsWith("$2")) {
+      if (!canUseLocalPasswordFlows(user)) {
         return res.status(401).json({
           error: "Unauthorized",
           message: "Invalid email or password",
@@ -931,7 +927,13 @@ export const registerCoreRoutes = (deps: RegisterCoreRoutesDeps) => {
       const onboarding = await getAuthOnboardingStatus(systemConfig);
       const effectiveAuthEnabled =
         config.authMode !== "local" ? true : systemConfig.authEnabled;
-      const oidcJitProvisioningEnabled = getEffectiveOidcJitProvisioning(systemConfig);
+      const oidcJitProvisioningEnabled = getEffectiveOidcJitProvisioning(
+        {
+          oidcEnabled: config.oidc.enabled,
+          defaultJitProvisioningEnabled: config.oidc.jitProvisioning,
+        },
+        systemConfig
+      );
       const onboardingRequired = config.authMode === "local" ? onboarding.needsChoice : false;
       const onboardingMode = config.authMode === "local" ? onboarding.mode : null;
       if (!effectiveAuthEnabled) {
@@ -971,7 +973,10 @@ export const registerCoreRoutes = (deps: RegisterCoreRoutesDeps) => {
         oidcProvider: config.oidc.providerName,
         oidcJitProvisioningEnabled,
         authenticated: Boolean(req.user),
-        registrationEnabled: systemConfig.registrationEnabled,
+        registrationEnabled: getEffectiveRegistrationEnabled(
+          config.authMode,
+          systemConfig.registrationEnabled
+        ),
         bootstrapRequired,
         authOnboardingRequired: onboardingRequired,
         authOnboardingMode: onboardingMode,

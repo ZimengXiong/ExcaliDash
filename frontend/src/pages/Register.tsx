@@ -77,6 +77,10 @@ export const Register: React.FC = () => {
     }
   }, [authEnabled, authLoading, authOnboardingRequired, authStatusError, isAuthenticated, navigate, oidcEnforced]);
 
+  if (authStatusError) {
+    return <AuthStatusErrorPanel message={authStatusError} onRetry={retryAuthStatus} fullScreen />;
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -164,9 +168,6 @@ export const Register: React.FC = () => {
           )}
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {authStatusError && (
-            <AuthStatusErrorPanel message={authStatusError} onRetry={retryAuthStatus} />
-          )}
           {error && (
             <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-4">
               <div className="text-sm text-red-800 dark:text-red-200">{error}</div>

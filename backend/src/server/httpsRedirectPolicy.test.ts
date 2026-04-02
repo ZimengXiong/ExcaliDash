@@ -49,6 +49,19 @@ describe("https redirect policy", () => {
     );
   });
 
+  it("prefers https when the same host is configured for both http and https", () => {
+    const policy = createHttpsRedirectPolicy([
+      "http://app.example.com",
+      "https://app.example.com",
+    ]);
+    const req = createRequest({
+      host: "app.example.com",
+      path: "/login",
+    });
+
+    expect(getHttpsRedirectUrl(req, policy)).toBe("https://app.example.com/login");
+  });
+
   it("falls back to the canonical https host for unknown hosts", () => {
     const policy = createHttpsRedirectPolicy([
       "https://secure.example.com",

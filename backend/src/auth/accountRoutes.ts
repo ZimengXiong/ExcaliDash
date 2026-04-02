@@ -11,6 +11,7 @@ import {
   updateEmailSchema,
   updateProfileSchema,
 } from "./schemas";
+import { canUseLocalPasswordFlows } from "./localPassword";
 import { hashTokenForStorage } from "./tokenSecurity";
 
 type RegisterAccountRoutesDeps = {
@@ -79,7 +80,7 @@ export const registerAccountRoutes = (deps: RegisterAccountRoutesDeps) => {
       const { email } = parsed.data;
       const user = await prisma.user.findUnique({ where: { email } });
 
-      if (user && user.isActive) {
+      if (user && user.isActive && canUseLocalPasswordFlows(user)) {
         const resetToken = crypto.randomBytes(32).toString("hex");
         const expiresAt = new Date();
         expiresAt.setHours(expiresAt.getHours() + 1);
@@ -169,6 +170,16 @@ export const registerAccountRoutes = (deps: RegisterAccountRoutesDeps) => {
         return res.status(403).json({
           error: "Forbidden",
           message: "Account is inactive",
+        });
+      }
+      if (!canUseLocalPasswordFlows(resetToken.user)) {
+        await prisma.passwordResetToken.update({
+          where: { id: resetToken.id },
+          data: { used: true },
+        });
+        return res.status(400).json({
+          error: "Bad request",
+          message: "Password reset is not available for this account",
         });
       }
 
@@ -299,13 +310,7 @@ export const registerAccountRoutes = (deps: RegisterAccountRoutesDeps) => {
           message: "User account not found or inactive",
         });
       }
-      if (!user.passwordHash) {
-        return res.status(400).json({
-          error: "Bad request",
-          message: "Cannot change email for this account",
-        });
-      }
-      if (!user.passwordHash.startsWith("$2")) {
+      if (!canUseLocalPasswordFlows(user)) {
         return res.status(400).json({
           error: "Bad request",
           message: "Cannot change email for this account",
@@ -432,7 +437,7 @@ export const registerAccountRoutes = (deps: RegisterAccountRoutesDeps) => {
       }
 
       // OIDC-provisioned users may not have a usable local password hash until they set/reset one.
-      if (!user.passwordHash || !user.passwordHash.startsWith("$2")) {
+      if (!canUseLocalPasswordFlows(user)) {
         return res.status(400).json({
           error: "Bad request",
           message: "Cannot change password for this account",

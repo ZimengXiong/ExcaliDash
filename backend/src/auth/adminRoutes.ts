@@ -12,6 +12,7 @@ import {
   oidcJitProvisioningToggleSchema,
   registrationToggleSchema,
 } from "./schemas";
+import { getEffectiveOidcJitProvisioning } from "./accessPolicy";
 import { hashTokenForStorage } from "./tokenSecurity";
 
 type RegisterAdminRoutesDeps = {
@@ -103,15 +104,6 @@ export const registerAdminRoutes = (deps: RegisterAdminRoutesDeps) => {
     setAuthCookies,
     requireCsrf,
   } = deps;
-
-  const getEffectiveOidcJitProvisioning = (systemConfig: {
-    oidcJitProvisioningEnabled: boolean | null;
-  }): boolean =>
-    config.oidc.enabled
-      ? typeof systemConfig.oidcJitProvisioningEnabled === "boolean"
-        ? systemConfig.oidcJitProvisioningEnabled
-        : config.oidc.jitProvisioning
-      : false;
 
   const resolveImpersonationAdmin = async (req: Request, res: Response) => {
     if (!req.user) {
@@ -219,7 +211,13 @@ export const registerAdminRoutes = (deps: RegisterAdminRoutesDeps) => {
       });
 
       res.json({
-        oidcJitProvisioningEnabled: getEffectiveOidcJitProvisioning(updated),
+        oidcJitProvisioningEnabled: getEffectiveOidcJitProvisioning(
+          {
+            oidcEnabled: config.oidc.enabled,
+            defaultJitProvisioningEnabled: config.oidc.jitProvisioning,
+          },
+          updated
+        ),
       });
     } catch (error) {
       console.error("OIDC JIT provisioning toggle error:", error);
