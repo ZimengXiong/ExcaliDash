@@ -39,7 +39,6 @@ const main = async () => {
     for (const dirName of assetDirs) {
       const src = path.join(EXCALIDRAW_DIST_DIR, dirName);
       const destRoot = path.join(targetRoot, dirName);
-      const destNested = path.join(targetRoot, "dist", dirName);
 
       try {
         await fs.access(src);
@@ -49,7 +48,6 @@ const main = async () => {
       }
 
       await copyDir(src, destRoot);
-      await copyDir(src, destNested);
 
       console.log(`[copy-excalidraw-assets] Copied ${dirName} -> ${targetName}`);
     }
