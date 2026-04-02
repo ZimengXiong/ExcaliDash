@@ -32,6 +32,10 @@ import { prisma } from "./db/prisma";
 import { createDrawingsCacheStore } from "./server/drawingsCache";
 import { registerCsrfProtection } from "./server/csrf";
 import { registerSocketHandlers } from "./server/socket";
+import {
+  createHttpsRedirectPolicy,
+  getHttpsRedirectUrl,
+} from "./server/httpsRedirectPolicy";
 import { issueBootstrapSetupCodeIfRequired } from "./auth/bootstrapSetupCode";
 
 const backendRoot = path.resolve(__dirname, "../");
@@ -226,48 +230,12 @@ const shouldEnforceHttps =
   allowedOrigins.some((origin) => origin.toLowerCase().startsWith("https://"));
 
 if (shouldEnforceHttps) {
-  const httpsOrigins = allowedOrigins.filter((origin) =>
-    origin.toLowerCase().startsWith("https://")
-  );
-  const canonicalHttpsOrigin = httpsOrigins[0] || allowedOrigins[0] || null;
-  const allowedOriginHosts = new Set(
-    allowedOrigins
-      .map((origin) => {
-        try {
-          return new URL(origin).host.toLowerCase();
-        } catch {
-          return null;
-        }
-      })
-      .filter((host): host is string => Boolean(host))
-  );
+  const httpsRedirectPolicy = createHttpsRedirectPolicy(allowedOrigins);
 
   app.use((req, res, next) => {
-    if (req.header("x-forwarded-proto") !== "https") {
-      // Avoid Host-header based open redirects; prefer a configured canonical origin/host.
-      const rawHost = String(req.header("host") || "").trim().toLowerCase();
-      const safeHost = allowedOriginHosts.has(rawHost) ? rawHost : null;
-      const fallbackHost = (() => {
-        if (!canonicalHttpsOrigin) return null;
-        try {
-          return new URL(canonicalHttpsOrigin).host;
-        } catch {
-          return null;
-        }
-      })();
-
-      const targetHost = safeHost || fallbackHost;
-      if (!targetHost) {
-        return res.status(400).send("Invalid host");
-      }
-
-      const path = (req.originalUrl || req.url || "/").startsWith("/")
-        ? (req.originalUrl || req.url || "/")
-        : "/";
-      res.redirect(`https://${targetHost}${path}`);
-    } else {
-      next();
-    }
+    const redirectUrl = getHttpsRedirectUrl(req, httpsRedirectPolicy);
+    if (!redirectUrl) return next();
+    return res.redirect(redirectUrl);
   });
 }
 
