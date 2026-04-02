@@ -57,6 +57,7 @@ type RegisterOidcRoutesDeps = {
       clientId: string | null;
       clientSecret: string | null;
       redirectUri: string | null;
+      idTokenSignedResponseAlg: string;
       scopes: string;
       emailClaim: string;
       emailVerifiedClaim: string;
@@ -265,6 +266,7 @@ export const registerOidcRoutes = (deps: RegisterOidcRoutesDeps) => {
           redirect_uris: [config.oidc.redirectUri as string],
           response_types: ["code"],
           token_endpoint_auth_method: tokenEndpointAuthMethod,
+          id_token_signed_response_alg: config.oidc.idTokenSignedResponseAlg,
         };
 
         if (config.oidc.clientSecret) {

@@ -37,6 +37,7 @@ interface OidcConfig {
   clientId: string | null;
   clientSecret: string | null;
   redirectUri: string | null;
+  idTokenSignedResponseAlg: string;
   scopes: string;
   emailClaim: string;
   emailVerifiedClaim: string;
@@ -44,6 +45,22 @@ interface OidcConfig {
   jitProvisioning: boolean;
   firstUserAdmin: boolean;
 }
+
+const ALLOWED_OIDC_ID_TOKEN_ALGS = new Set([
+  "RS256",
+  "RS384",
+  "RS512",
+  "PS256",
+  "PS384",
+  "PS512",
+  "ES256",
+  "ES384",
+  "ES512",
+  "EdDSA",
+  "HS256",
+  "HS384",
+  "HS512",
+]);
 
 const getOptionalEnv = (key: string, defaultValue: string): string => {
   return process.env[key] || defaultValue;
@@ -54,6 +71,22 @@ const getOptionalTrimmedEnv = (key: string): string | null => {
   if (!raw) return null;
   const trimmed = raw.trim();
   return trimmed.length > 0 ? trimmed : null;
+};
+
+const getOptionalOidcSigningAlg = (key: string, defaultValue: string): string => {
+  const raw = process.env[key];
+  const normalized = (raw || defaultValue).trim();
+
+  if (normalized.length === 0 || normalized.toLowerCase() === "none") {
+    throw new Error(`${key} must not be empty or 'none'`);
+  }
+  if (!ALLOWED_OIDC_ID_TOKEN_ALGS.has(normalized)) {
+    throw new Error(
+      `${key} must be one of: ${Array.from(ALLOWED_OIDC_ID_TOKEN_ALGS).join(", ")}`
+    );
+  }
+
+  return normalized;
 };
 
 const resolveJwtSecret = (nodeEnv: string): string => {
@@ -164,6 +197,15 @@ const resolveOidcConfig = (authMode: AuthMode): OidcConfig => {
     }
   }
 
+  const idTokenSignedResponseAlg = enabled
+    ? getOptionalOidcSigningAlg("OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG", "RS256")
+    : "RS256";
+  if (enabled && /^HS/i.test(idTokenSignedResponseAlg) && !clientSecret) {
+    throw new Error(
+      "OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG using HS* requires OIDC_CLIENT_SECRET for a confidential client"
+    );
+  }
+
   return {
     enabled,
     enforced: authMode === "oidc_enforced",
@@ -172,6 +214,7 @@ const resolveOidcConfig = (authMode: AuthMode): OidcConfig => {
     clientId,
     clientSecret,
     redirectUri,
+    idTokenSignedResponseAlg,
     scopes: getOptionalEnv("OIDC_SCOPES", "openid profile email"),
     emailClaim: getOptionalEnv("OIDC_EMAIL_CLAIM", "email"),
     emailVerifiedClaim: getOptionalEnv("OIDC_EMAIL_VERIFIED_CLAIM", "email_verified"),
