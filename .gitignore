@@ -44,6 +44,12 @@ frontend/dist/
 frontend/build/
 backend/dist/
 
+# Generated Excalidraw assets (copied from node_modules for runtime)
+frontend/public/excalidraw-assets/
+frontend/public/excalidraw-assets-dev/
+frontend/public/dist/excalidraw-assets/
+frontend/public/dist/excalidraw-assets-dev/
+
 # E2E Testing
 e2e/node_modules/
 e2e/test-results/

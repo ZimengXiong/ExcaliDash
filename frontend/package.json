@@ -4,8 +4,8 @@
   "version": "0.4.28",
   "type": "module",
   "scripts": {
-    "dev": "vite --port 6767",
-    "build": "tsc -b && vite build",
+    "dev": "node scripts/copy-excalidraw-assets.mjs --public && vite --port 6767",
+    "build": "tsc -b && vite build && node scripts/copy-excalidraw-assets.mjs --dist",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
