@@ -9,6 +9,7 @@ import {
   impersonateSchema,
   loginRateLimitResetSchema,
   loginRateLimitUpdateSchema,
+  oidcJitProvisioningToggleSchema,
   registrationToggleSchema,
 } from "./schemas";
 import { hashTokenForStorage } from "./tokenSecurity";
@@ -21,6 +22,7 @@ type RegisterAdminRoutesDeps = {
   ensureAuthEnabled: (res: Response) => Promise<boolean>;
   ensureSystemConfig: () => Promise<{
     id: string;
+    oidcJitProvisioningEnabled: boolean | null;
     authLoginRateLimitEnabled: boolean;
     authLoginRateLimitWindowMs: number;
     authLoginRateLimitMax: number;
@@ -60,8 +62,14 @@ type RegisterAdminRoutesDeps = {
   ) => { accessToken: string; refreshToken: string };
   getRefreshTokenExpiresAt: () => Date;
   config: {
+    authMode: "local" | "hybrid" | "oidc_enforced";
     enableAuditLogging: boolean;
     enableRefreshTokenRotation: boolean;
+    oidc: {
+      enabled: boolean;
+      providerName: string;
+      jitProvisioning: boolean;
+    };
   };
   defaultSystemConfigId: string;
   setAuthCookies: (
@@ -95,6 +103,15 @@ export const registerAdminRoutes = (deps: RegisterAdminRoutesDeps) => {
     setAuthCookies,
     requireCsrf,
   } = deps;
+
+  const getEffectiveOidcJitProvisioning = (systemConfig: {
+    oidcJitProvisioningEnabled: boolean | null;
+  }): boolean =>
+    config.oidc.enabled
+      ? typeof systemConfig.oidcJitProvisioningEnabled === "boolean"
+        ? systemConfig.oidcJitProvisioningEnabled
+        : config.oidc.jitProvisioning
+      : false;
 
   const resolveImpersonationAdmin = async (req: Request, res: Response) => {
     if (!req.user) {
@@ -143,6 +160,13 @@ export const registerAdminRoutes = (deps: RegisterAdminRoutesDeps) => {
       if (!(await ensureAuthEnabled(res))) return;
       if (!requireCsrf(req, res)) return;
       if (!requireAdmin(req, res)) return;
+      if (config.authMode === "oidc_enforced") {
+        return res.status(409).json({
+          error: "Conflict",
+          message:
+            "Local self-sign-up is unavailable in OIDC enforced mode. Use invited users and the OIDC auto-provisioning setting instead.",
+        });
+      }
 
       const parsed = registrationToggleSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -161,6 +185,47 @@ export const registerAdminRoutes = (deps: RegisterAdminRoutesDeps) => {
       res.status(500).json({
         error: "Internal server error",
         message: "Failed to update registration setting",
+      });
+    }
+  });
+
+  router.post("/oidc/jit-provisioning", requireAuth, async (req: Request, res: Response) => {
+    try {
+      if (!(await ensureAuthEnabled(res))) return;
+      if (!requireCsrf(req, res)) return;
+      if (!requireAdmin(req, res)) return;
+
+      if (!config.oidc.enabled) {
+        return res.status(409).json({
+          error: "Conflict",
+          message: "OIDC is not enabled.",
+        });
+      }
+
+      const parsed = oidcJitProvisioningToggleSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res
+          .status(400)
+          .json({ error: "Bad request", message: "Invalid OIDC provisioning payload" });
+      }
+
+      const updated = await prisma.systemConfig.upsert({
+        where: { id: defaultSystemConfigId },
+        update: { oidcJitProvisioningEnabled: parsed.data.enabled },
+        create: {
+          id: defaultSystemConfigId,
+          oidcJitProvisioningEnabled: parsed.data.enabled,
+        },
+      });
+
+      res.json({
+        oidcJitProvisioningEnabled: getEffectiveOidcJitProvisioning(updated),
+      });
+    } catch (error) {
+      console.error("OIDC JIT provisioning toggle error:", error);
+      res.status(500).json({
+        error: "Internal server error",
+        message: "Failed to update OIDC provisioning setting",
       });
     }
   });
@@ -403,7 +468,8 @@ export const registerAdminRoutes = (deps: RegisterAdminRoutesDeps) => {
         });
       }
 
-      const { email, password, name, username, role, mustResetPassword, isActive } = parsed.data;
+      const { email, password, name, username, role, mustResetPassword, isActive, oidcOnly } =
+        parsed.data;
 
       const existingUser = await prisma.user.findUnique({ where: { email } });
       if (existingUser) {
@@ -426,8 +492,15 @@ export const registerAdminRoutes = (deps: RegisterAdminRoutesDeps) => {
         }
       }
 
-      const saltRounds = 10;
-      const passwordHash = await bcrypt.hash(password, saltRounds);
+      if (oidcOnly && !config.oidc.enabled) {
+        return res.status(409).json({
+          error: "Conflict",
+          message: "OIDC-only invited users require OIDC to be enabled.",
+        });
+      }
+
+      const passwordHash =
+        oidcOnly || !password ? "" : await bcrypt.hash(password, 10);
       const sanitizedName = sanitizeText(name, 100);
 
       const user = await prisma.user.create({
@@ -437,7 +510,7 @@ export const registerAdminRoutes = (deps: RegisterAdminRoutesDeps) => {
           passwordHash,
           name: sanitizedName,
           role: role ?? "USER",
-          mustResetPassword: mustResetPassword ?? false,
+          mustResetPassword: oidcOnly ? false : mustResetPassword ?? false,
           isActive: isActive ?? true,
         },
         select: {

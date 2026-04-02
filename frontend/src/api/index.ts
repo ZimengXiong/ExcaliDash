@@ -86,6 +86,7 @@ export interface AuthStatusResponse {
   oidcEnabled?: boolean;
   oidcEnforced?: boolean;
   oidcProvider?: string;
+  oidcJitProvisioningEnabled?: boolean;
   bootstrapRequired?: boolean;
   authOnboardingRequired?: boolean;
   authOnboardingMode?: "migration" | "fresh";

@@ -56,6 +56,7 @@ export const Admin: React.FC = () => {
   const [createName, setCreateName] = useState('');
   const [createUsername, setCreateUsername] = useState('');
   const [createPassword, setCreatePassword] = useState('');
+  const [createOidcOnly, setCreateOidcOnly] = useState(false);
   const [createRole, setCreateRole] = useState<'ADMIN' | 'USER'>('USER');
   const [createMustReset, setCreateMustReset] = useState(true);
   const [createActive, setCreateActive] = useState(true);
@@ -65,6 +66,10 @@ export const Admin: React.FC = () => {
   const [resetPasswordResult, setResetPasswordResult] = useState<{ email: string; tempPassword: string } | null>(null);
 
   const [registrationEnabled, setRegistrationEnabled] = useState<boolean | null>(null);
+  const [localRegistrationAllowed, setLocalRegistrationAllowed] = useState(true);
+  const [oidcEnabled, setOidcEnabled] = useState(false);
+  const [oidcJitProvisioningEnabled, setOidcJitProvisioningEnabled] = useState<boolean | null>(null);
+  const [oidcProviderName, setOidcProviderName] = useState<string | null>(null);
   const [registrationLoading, setRegistrationLoading] = useState(false);
 
   const [loginRateLimitLoading, setLoginRateLimitLoading] = useState(false);
@@ -137,8 +142,24 @@ export const Admin: React.FC = () => {
   const loadRegistrationStatus = async () => {
     setRegistrationLoading(true);
     try {
-      const response = await api.api.get<{ registrationEnabled: boolean }>('/auth/status');
+      const response = await api.api.get<{
+        registrationEnabled: boolean;
+        authMode?: 'local' | 'hybrid' | 'oidc_enforced';
+        oidcEnabled?: boolean;
+        oidcProvider?: string;
+        oidcJitProvisioningEnabled?: boolean;
+      }>('/auth/status');
       setRegistrationEnabled(Boolean(response.data.registrationEnabled));
+      setLocalRegistrationAllowed(response.data.authMode !== 'oidc_enforced');
+      setOidcEnabled(Boolean(response.data.oidcEnabled));
+      setOidcProviderName(
+        typeof response.data.oidcProvider === 'string' ? response.data.oidcProvider : null
+      );
+      setOidcJitProvisioningEnabled(
+        typeof response.data.oidcJitProvisioningEnabled === 'boolean'
+          ? response.data.oidcJitProvisioningEnabled
+          : null
+      );
     } catch (err: unknown) {
       let message = 'Failed to load registration status';
       if (api.isAxiosError(err)) {
@@ -151,7 +172,7 @@ export const Admin: React.FC = () => {
   };
 
   const toggleRegistration = async () => {
-    if (!isAdmin || registrationEnabled === null) return;
+    if (!isAdmin || registrationEnabled === null || !localRegistrationAllowed) return;
 
     setRegistrationLoading(true);
     setError('');
@@ -165,6 +186,35 @@ export const Admin: React.FC = () => {
       setSuccess(response.data.registrationEnabled ? 'Registration enabled' : 'Registration disabled');
     } catch (err: unknown) {
       let message = 'Failed to update registration setting';
+      if (api.isAxiosError(err)) {
+        message = err.response?.data?.message || err.response?.data?.error || message;
+      }
+      setError(message);
+    } finally {
+      setRegistrationLoading(false);
+    }
+  };
+
+  const toggleOidcJitProvisioning = async () => {
+    if (!isAdmin || !oidcEnabled || oidcJitProvisioningEnabled === null) return;
+
+    setRegistrationLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await api.api.post<{ oidcJitProvisioningEnabled: boolean }>(
+        '/auth/oidc/jit-provisioning',
+        { enabled: !oidcJitProvisioningEnabled }
+      );
+      setOidcJitProvisioningEnabled(Boolean(response.data.oidcJitProvisioningEnabled));
+      setSuccess(
+        response.data.oidcJitProvisioningEnabled
+          ? 'OIDC auto-provisioning enabled'
+          : 'OIDC access is now invite-only'
+      );
+    } catch (err: unknown) {
+      let message = 'Failed to update OIDC provisioning setting';
       if (api.isAxiosError(err)) {
         message = err.response?.data?.message || err.response?.data?.error || message;
       }
@@ -366,7 +416,7 @@ export const Admin: React.FC = () => {
     setError('');
     setSuccess('');
 
-    const passwordError = validatePassword(createPassword, passwordPolicy);
+    const passwordError = createOidcOnly ? null : validatePassword(createPassword, passwordPolicy);
     if (passwordError) {
       setError(passwordError);
       return;
@@ -377,9 +427,10 @@ export const Admin: React.FC = () => {
         email: createEmail.trim().toLowerCase(),
         name: createName.trim(),
         username: createUsername.trim() ? createUsername.trim() : undefined,
-        password: createPassword,
+        password: createOidcOnly ? undefined : createPassword,
+        oidcOnly: createOidcOnly,
         role: createRole,
-        mustResetPassword: createMustReset,
+        mustResetPassword: createOidcOnly ? false : createMustReset,
         isActive: createActive,
       };
 
@@ -390,6 +441,7 @@ export const Admin: React.FC = () => {
       setCreateName('');
       setCreateUsername('');
       setCreatePassword('');
+      setCreateOidcOnly(false);
       setCreateRole('USER');
       setCreateMustReset(true);
       setCreateActive(true);
@@ -569,23 +621,50 @@ export const Admin: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">Temporary Password</label>
-              <input
-                type="password"
-                value={createPassword}
-                onChange={e => setCreatePassword(e.target.value)}
-                minLength={passwordPolicy.minLength}
-                maxLength={passwordPolicy.maxLength}
-                pattern={passwordPolicy.patternHtml}
-                required
-                className="w-full px-4 py-3 bg-white dark:bg-neutral-800 border-2 border-slate-200 dark:border-neutral-700 rounded-xl text-slate-900 dark:text-white outline-none"
-              />
-              <PasswordRequirements
-                password={createPassword}
-                policy={passwordPolicy}
-                className="text-slate-600 dark:text-neutral-400"
-              />
+              <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">Account Type</label>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !createOidcOnly;
+                  setCreateOidcOnly(next);
+                  if (next) setCreateMustReset(false);
+                }}
+                disabled={!oidcEnabled}
+                className={`w-full px-4 py-3 rounded-xl border-2 font-bold transition-all text-sm ${
+                  createOidcOnly
+                    ? 'border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200'
+                    : 'border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-slate-600 dark:text-neutral-300'
+                } ${!oidcEnabled ? 'opacity-60 cursor-not-allowed' : ''}`}
+              >
+                {createOidcOnly ? 'OIDC-only invite' : 'Local password account'}
+              </button>
+              <p className="mt-2 text-xs text-slate-500 dark:text-neutral-400">
+                {createOidcOnly
+                  ? 'This user can sign in through OIDC when the IdP email matches. No local password is stored.'
+                  : 'This user can sign in with a local password.'}
+              </p>
             </div>
+
+            {!createOidcOnly && (
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">Temporary Password</label>
+                <input
+                  type="password"
+                  value={createPassword}
+                  onChange={e => setCreatePassword(e.target.value)}
+                  minLength={passwordPolicy.minLength}
+                  maxLength={passwordPolicy.maxLength}
+                  pattern={passwordPolicy.patternHtml}
+                  required
+                  className="w-full px-4 py-3 bg-white dark:bg-neutral-800 border-2 border-slate-200 dark:border-neutral-700 rounded-xl text-slate-900 dark:text-white outline-none"
+                />
+                <PasswordRequirements
+                  password={createPassword}
+                  policy={passwordPolicy}
+                  className="text-slate-600 dark:text-neutral-400"
+                />
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">Role</label>
@@ -604,14 +683,15 @@ export const Admin: React.FC = () => {
                 <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">Password Reset</label>
                 <button
                   type="button"
-                  onClick={() => setCreateMustReset(!createMustReset)}
+                  onClick={() => !createOidcOnly && setCreateMustReset(!createMustReset)}
+                  disabled={createOidcOnly}
                   className={`w-full px-4 py-3 rounded-xl border-2 font-bold transition-all text-sm ${
                     createMustReset
                       ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200'
                       : 'border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-slate-600 dark:text-neutral-300'
-                  }`}
+                  } ${createOidcOnly ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
-                  {createMustReset ? 'Must reset password' : 'No reset required'}
+                  {createOidcOnly ? 'Not used for OIDC-only' : createMustReset ? 'Must reset password' : 'No reset required'}
                 </button>
               </div>
               <div className="flex-1 w-full">
@@ -655,34 +735,83 @@ export const Admin: React.FC = () => {
             <UserPlus size={24} className="text-emerald-700 dark:text-emerald-300" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">User Registration</h2>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Access Control</h2>
             <p className="text-sm text-slate-600 dark:text-neutral-400 font-medium">
               {registrationEnabled === null
                 ? 'Loading…'
-                : registrationEnabled
-                  ? 'New users can create accounts.'
-                  : 'Registration is disabled.'}
+                : !localRegistrationAllowed
+                  ? 'Local self-sign-up is managed by OIDC-only mode.'
+                  : registrationEnabled
+                    ? 'New users can create local accounts.'
+                    : 'Local self-sign-up is disabled.'}
             </p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">Registration</label>
+            <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">Local self-sign-up</label>
             <button
               type="button"
               onClick={() => void toggleRegistration()}
-              disabled={registrationLoading || registrationEnabled === null}
+              disabled={registrationLoading || registrationEnabled === null || !localRegistrationAllowed}
               className={`w-full px-4 py-3 rounded-xl border-2 font-bold transition-all text-sm ${
-                registrationEnabled
+                !localRegistrationAllowed
+                  ? 'border-slate-200 dark:border-neutral-700 bg-slate-100 dark:bg-neutral-800 text-slate-500 dark:text-neutral-400'
+                  : registrationEnabled
                   ? 'border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
                   : 'border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-slate-600 dark:text-neutral-300'
               }`}
             >
-              {registrationEnabled === null ? 'Loading…' : registrationLoading ? 'Saving…' : registrationEnabled ? 'Enabled' : 'Disabled'}
+              {registrationEnabled === null
+                ? 'Loading…'
+                : !localRegistrationAllowed
+                  ? 'Managed by OIDC'
+                  : registrationLoading
+                    ? 'Saving…'
+                    : registrationEnabled
+                      ? 'Enabled'
+                      : 'Disabled'}
             </button>
           </div>
+          {oidcEnabled && (
+            <div>
+              <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">
+                {oidcProviderName || 'OIDC'} auto-provisioning
+              </label>
+              <button
+                type="button"
+                onClick={() => void toggleOidcJitProvisioning()}
+                disabled={registrationLoading || oidcJitProvisioningEnabled === null}
+                className={`w-full px-4 py-3 rounded-xl border-2 font-bold transition-all text-sm ${
+                  oidcJitProvisioningEnabled
+                    ? 'border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200'
+                    : 'border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-slate-600 dark:text-neutral-300'
+                }`}
+              >
+                {oidcJitProvisioningEnabled === null
+                  ? 'Loading…'
+                  : registrationLoading
+                    ? 'Saving…'
+                    : oidcJitProvisioningEnabled
+                      ? 'Enabled'
+                      : 'Invite-only'}
+              </button>
+            </div>
+          )}
         </div>
+        {oidcEnabled && oidcJitProvisioningEnabled !== null && (
+          <div className="mt-4 rounded-xl border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-900/20 p-4 text-sm text-blue-900 dark:text-blue-100">
+            <div className="font-semibold">
+              {oidcProviderName || 'OIDC'} access: {oidcJitProvisioningEnabled ? 'Auto-provisioning enabled' : 'Invite-only'}
+            </div>
+            <div className="mt-1">
+              {oidcJitProvisioningEnabled
+                ? 'Any successfully authenticated OIDC user can get an account on first sign-in.'
+                : 'Only users pre-created below can sign in through OIDC. Use OIDC-only invites for accounts that should not have a local password.'}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="mb-6 bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] p-4 sm:p-6">

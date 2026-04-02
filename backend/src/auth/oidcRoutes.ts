@@ -31,6 +31,10 @@ type RegisterOidcRoutesDeps = {
   router: express.Router;
   prisma: PrismaClient;
   ensureAuthEnabled: (res: Response) => Promise<boolean>;
+  ensureSystemConfig: () => Promise<{
+    id: string;
+    oidcJitProvisioningEnabled: boolean | null;
+  }>;
   sanitizeText: (input: unknown, maxLength?: number) => string;
   generateTokens: (
     userId: string,
@@ -189,7 +193,7 @@ const getOidcErrorMessage = (errorCode: string): string => {
     case "account_inactive":
       return "Your account is inactive.";
     case "provisioning_disabled":
-      return "No account found and automatic provisioning is disabled.";
+      return "No account found. Ask an admin to create your account or enable OIDC auto-provisioning.";
     case "callback_failed":
       return "OIDC callback validation failed.";
     default:
@@ -202,6 +206,7 @@ export const registerOidcRoutes = (deps: RegisterOidcRoutesDeps) => {
     router,
     prisma,
     ensureAuthEnabled,
+    ensureSystemConfig,
     sanitizeText,
     generateTokens,
     setAuthCookies,
@@ -442,6 +447,11 @@ export const registerOidcRoutes = (deps: RegisterOidcRoutesDeps) => {
         return redirectToLoginWithError(req, res, "missing_email", flow.returnTo);
       }
       const normalizedEmail = normalizeEmail(rawEmail);
+      const systemConfig = await ensureSystemConfig();
+      const jitProvisioningEnabled =
+        typeof systemConfig.oidcJitProvisioningEnabled === "boolean"
+          ? systemConfig.oidcJitProvisioningEnabled
+          : config.oidc.jitProvisioning;
 
       const emailVerified = readBooleanClaim(claims, config.oidc.emailVerifiedClaim);
       if (config.oidc.requireEmailVerified && emailVerified !== true) {
@@ -486,7 +496,7 @@ export const registerOidcRoutes = (deps: RegisterOidcRoutesDeps) => {
         if (existingUser) {
           resolvedUser = existingUser;
         } else {
-          if (!config.oidc.jitProvisioning) {
+          if (!jitProvisioningEnabled) {
             throw new Error("OIDC provisioning disabled");
           }
 

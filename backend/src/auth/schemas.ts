@@ -35,6 +35,10 @@ export const registrationToggleSchema = z.object({
   enabled: z.boolean(),
 });
 
+export const oidcJitProvisioningToggleSchema = z.object({
+  enabled: z.boolean(),
+});
+
 export const adminRoleUpdateSchema = z.object({
   identifier: z.string().trim().min(1).max(255),
   role: z.enum(["ADMIN", "USER"]),
@@ -51,11 +55,20 @@ export const authOnboardingChoiceSchema = z.object({
 export const adminCreateUserSchema = z.object({
   username: z.string().trim().min(3).max(50).optional(),
   email: z.string().email().toLowerCase().trim(),
-  password: passwordSchema,
+  password: passwordSchema.optional(),
+  oidcOnly: z.boolean().optional(),
   name: z.string().trim().min(1).max(100),
   role: z.enum(["ADMIN", "USER"]).optional(),
   mustResetPassword: z.boolean().optional(),
   isActive: z.boolean().optional(),
+}).superRefine((data, ctx) => {
+  if (!data.oidcOnly && !data.password) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["password"],
+      message: strongPasswordMessage,
+    });
+  }
 });
 
 export const adminUpdateUserSchema = z.object({

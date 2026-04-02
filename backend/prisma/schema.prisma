@@ -34,6 +34,7 @@ model SystemConfig {
   authEnabled                Boolean  @default(false)
   authOnboardingCompleted    Boolean  @default(false)
   registrationEnabled        Boolean  @default(false)
+  oidcJitProvisioningEnabled Boolean?
   authLoginRateLimitEnabled  Boolean  @default(true)
   authLoginRateLimitWindowMs Int      @default(900000) // 15 minutes
   authLoginRateLimitMax      Int      @default(20)

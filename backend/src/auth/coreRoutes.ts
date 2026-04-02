@@ -28,6 +28,7 @@ type RegisterCoreRoutesDeps = {
     authEnabled: boolean;
     authOnboardingCompleted: boolean;
     registrationEnabled: boolean;
+    oidcJitProvisioningEnabled: boolean | null;
   }>;
   findUserByIdentifier: (identifier: string) => Promise<{
     id: string;
@@ -57,6 +58,7 @@ type RegisterCoreRoutesDeps = {
       enabled: boolean;
       enforced: boolean;
       providerName: string;
+      jitProvisioning: boolean;
     };
     bootstrapSetupCodeTtlMs: number;
     bootstrapSetupCodeMaxAttempts: number;
@@ -116,6 +118,15 @@ export const registerCoreRoutes = (deps: RegisterCoreRoutesDeps) => {
     readRefreshTokenFromRequest,
   } = deps;
   const getUserTrashCollectionId = (userId: string): string => `trash:${userId}`;
+  const getEffectiveOidcJitProvisioning = (systemConfig: {
+    oidcJitProvisioningEnabled: boolean | null;
+  }): boolean =>
+    config.oidc.enabled
+      ? typeof systemConfig.oidcJitProvisioningEnabled === "boolean"
+        ? systemConfig.oidcJitProvisioningEnabled
+        : config.oidc.jitProvisioning
+      : false;
+
   const getAuthOnboardingStatus = async (systemConfig: {
     authEnabled: boolean;
     authOnboardingCompleted: boolean;
@@ -920,6 +931,7 @@ export const registerCoreRoutes = (deps: RegisterCoreRoutesDeps) => {
       const onboarding = await getAuthOnboardingStatus(systemConfig);
       const effectiveAuthEnabled =
         config.authMode !== "local" ? true : systemConfig.authEnabled;
+      const oidcJitProvisioningEnabled = getEffectiveOidcJitProvisioning(systemConfig);
       const onboardingRequired = config.authMode === "local" ? onboarding.needsChoice : false;
       const onboardingMode = config.authMode === "local" ? onboarding.mode : null;
       if (!effectiveAuthEnabled) {
@@ -931,6 +943,7 @@ export const registerCoreRoutes = (deps: RegisterCoreRoutesDeps) => {
           oidcEnabled: config.oidc.enabled,
           oidcEnforced: config.oidc.enforced,
           oidcProvider: config.oidc.providerName,
+          oidcJitProvisioningEnabled,
           registrationEnabled: false,
           bootstrapRequired: false,
           authOnboardingRequired: onboardingRequired,
@@ -956,6 +969,7 @@ export const registerCoreRoutes = (deps: RegisterCoreRoutesDeps) => {
         oidcEnabled: config.oidc.enabled,
         oidcEnforced: config.oidc.enforced,
         oidcProvider: config.oidc.providerName,
+        oidcJitProvisioningEnabled,
         authenticated: Boolean(req.user),
         registrationEnabled: systemConfig.registrationEnabled,
         bootstrapRequired,

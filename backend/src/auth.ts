@@ -445,6 +445,7 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
     router,
     prisma,
     ensureAuthEnabled,
+    ensureSystemConfig,
     sanitizeText,
     generateTokens,
     setAuthCookies,
