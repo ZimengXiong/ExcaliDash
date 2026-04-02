@@ -17,8 +17,14 @@ import {
 } from "./bootstrapSetupCode";
 import {
   getEffectiveOidcJitProvisioning,
-  getEffectiveRegistrationEnabled,
 } from "./accessPolicy";
+import {
+  buildAuthStatusPayload,
+  ensureBootstrapUserExists,
+  getAuthOnboardingStatus,
+  getBootstrapRequired,
+  upsertAuthModeState,
+} from "./coreRouteHelpers";
 import { canUseLocalPasswordFlows } from "./localPassword";
 
 type RegisterCoreRoutesDeps = {
@@ -123,49 +129,6 @@ export const registerCoreRoutes = (deps: RegisterCoreRoutesDeps) => {
     readRefreshTokenFromRequest,
   } = deps;
   const getUserTrashCollectionId = (userId: string): string => `trash:${userId}`;
-  const getAuthOnboardingStatus = async (systemConfig: {
-    authEnabled: boolean;
-    authOnboardingCompleted: boolean;
-  }) => {
-    const [activeUsers, drawingsCount, collectionsCount] = await Promise.all([
-      prisma.user.count({ where: { isActive: true } }),
-      prisma.drawing.count(),
-      prisma.collection.count(),
-    ]);
-    const hasLegacyData = drawingsCount > 0 || collectionsCount > 0;
-    const needsChoice =
-      !systemConfig.authEnabled &&
-      activeUsers === 0 &&
-      !systemConfig.authOnboardingCompleted;
-
-    return {
-      activeUsers,
-      hasLegacyData,
-      needsChoice,
-      mode: hasLegacyData ? "migration" : "fresh",
-    } as const;
-  };
-
-  const ensureBootstrapUserExists = async (): Promise<void> => {
-    const bootstrap = await prisma.user.findUnique({
-      where: { id: bootstrapUserId },
-      select: { id: true },
-    });
-    if (bootstrap) return;
-
-    await prisma.user.create({
-      data: {
-        id: bootstrapUserId,
-        email: "bootstrap@excalidash.local",
-        username: null,
-        passwordHash: "",
-        name: "Bootstrap Admin",
-        role: "ADMIN",
-        mustResetPassword: true,
-        isActive: false,
-      },
-    });
-  };
 
   router.post("/register", loginAttemptRateLimiter, async (req: Request, res: Response) => {
     try {
@@ -924,7 +887,7 @@ export const registerCoreRoutes = (deps: RegisterCoreRoutesDeps) => {
   router.get("/status", optionalAuth, async (req: Request, res: Response) => {
     try {
       const systemConfig = await ensureSystemConfig();
-      const onboarding = await getAuthOnboardingStatus(systemConfig);
+      const onboarding = await getAuthOnboardingStatus(prisma, systemConfig);
       const effectiveAuthEnabled =
         config.authMode !== "local" ? true : systemConfig.authEnabled;
       const oidcJitProvisioningEnabled = getEffectiveOidcJitProvisioning(
@@ -934,65 +897,32 @@ export const registerCoreRoutes = (deps: RegisterCoreRoutesDeps) => {
         },
         systemConfig
       );
-      const onboardingRequired = config.authMode === "local" ? onboarding.needsChoice : false;
-      const onboardingMode = config.authMode === "local" ? onboarding.mode : null;
-      if (!effectiveAuthEnabled) {
-        return res.json({
-          enabled: false,
-          authenticated: false,
-          authEnabled: false,
-          authMode: config.authMode,
-          oidcEnabled: config.oidc.enabled,
-          oidcEnforced: config.oidc.enforced,
-          oidcProvider: config.oidc.providerName,
-          oidcJitProvisioningEnabled,
-          registrationEnabled: false,
-          bootstrapRequired: false,
-          authOnboardingRequired: onboardingRequired,
-          authOnboardingMode: onboardingMode,
-          authOnboardingRecommended: onboardingRequired ? "enable" : null,
-          user: null,
-        });
-      }
 
       const bootstrapUser = await prisma.user.findUnique({
         where: { id: bootstrapUserId },
         select: { id: true, isActive: true },
       });
-      const bootstrapRequired =
-        !config.oidc.enforced &&
-        Boolean(bootstrapUser && bootstrapUser.isActive === false) &&
-        onboarding.activeUsers === 0;
-
-      res.json({
-        enabled: true,
-        authEnabled: true,
-        authMode: config.authMode,
-        oidcEnabled: config.oidc.enabled,
-        oidcEnforced: config.oidc.enforced,
-        oidcProvider: config.oidc.providerName,
-        oidcJitProvisioningEnabled,
-        authenticated: Boolean(req.user),
-        registrationEnabled: getEffectiveRegistrationEnabled(
-          config.authMode,
-          systemConfig.registrationEnabled
-        ),
-        bootstrapRequired,
-        authOnboardingRequired: onboardingRequired,
-        authOnboardingMode: onboardingMode,
-        authOnboardingRecommended: onboardingRequired ? "enable" : null,
-        user: req.user
-          ? {
-              id: req.user.id,
-              username: req.user.username ?? null,
-              email: req.user.email,
-              name: req.user.name,
-              role: req.user.role,
-              mustResetPassword: req.user.mustResetPassword ?? false,
-              impersonatorId: req.user.impersonatorId,
-            }
-          : null,
-      });
+      res.json(
+        buildAuthStatusPayload({
+          authMode: config.authMode,
+          oidc: {
+            enabled: config.oidc.enabled,
+            enforced: config.oidc.enforced,
+            providerName: config.oidc.providerName,
+          },
+          systemConfig,
+          effectiveAuthEnabled,
+          oidcJitProvisioningEnabled,
+          onboarding,
+          bootstrapRequired: getBootstrapRequired({
+            authEnabled: effectiveAuthEnabled,
+            oidcEnforced: config.oidc.enforced,
+            bootstrapUser,
+            activeUsers: onboarding.activeUsers,
+          }),
+          user: req.user,
+        })
+      );
     } catch (error) {
       console.error("Auth status error:", error);
       res.status(500).json({
@@ -1020,7 +950,7 @@ export const registerCoreRoutes = (deps: RegisterCoreRoutesDeps) => {
       }
 
       const systemConfig = await ensureSystemConfig();
-      const onboarding = await getAuthOnboardingStatus(systemConfig);
+      const onboarding = await getAuthOnboardingStatus(prisma, systemConfig);
       if (!onboarding.needsChoice) {
         return res.status(409).json({
           error: "Conflict",
@@ -1030,21 +960,14 @@ export const registerCoreRoutes = (deps: RegisterCoreRoutesDeps) => {
 
       const nextAuthEnabled = parsed.data.enableAuth;
       if (nextAuthEnabled) {
-        await ensureBootstrapUserExists();
+        await ensureBootstrapUserExists(prisma, bootstrapUserId);
       }
 
-      const updated = await prisma.systemConfig.upsert({
-        where: { id: defaultSystemConfigId },
-        update: {
-          authEnabled: nextAuthEnabled,
-          authOnboardingCompleted: true,
-        },
-        create: {
-          id: defaultSystemConfigId,
-          authEnabled: nextAuthEnabled,
-          authOnboardingCompleted: true,
-          registrationEnabled: systemConfig.registrationEnabled,
-        },
+      const updated = await upsertAuthModeState({
+        prisma,
+        defaultSystemConfigId,
+        registrationEnabled: systemConfig.registrationEnabled,
+        authEnabled: nextAuthEnabled,
       });
 
       clearAuthEnabledCache();
@@ -1108,30 +1031,15 @@ export const registerCoreRoutes = (deps: RegisterCoreRoutesDeps) => {
           select: { id: true },
         });
         if (!bootstrap) {
-          await prisma.user.create({
-            data: {
-              id: bootstrapUserId,
-              email: "bootstrap@excalidash.local",
-              username: null,
-              passwordHash: "",
-              name: "Bootstrap Admin",
-              role: "ADMIN",
-              mustResetPassword: true,
-              isActive: false,
-            },
-          });
+          await ensureBootstrapUserExists(prisma, bootstrapUserId);
         }
       }
 
-      const updated = await prisma.systemConfig.upsert({
-        where: { id: defaultSystemConfigId },
-        update: { authEnabled: next, authOnboardingCompleted: true },
-        create: {
-          id: defaultSystemConfigId,
-          authEnabled: next,
-          authOnboardingCompleted: true,
-          registrationEnabled: systemConfig.registrationEnabled,
-        },
+      const updated = await upsertAuthModeState({
+        prisma,
+        defaultSystemConfigId,
+        registrationEnabled: systemConfig.registrationEnabled,
+        authEnabled: next,
       });
       clearAuthEnabledCache();
       if (!current && next) {
@@ -1148,9 +1056,12 @@ export const registerCoreRoutes = (deps: RegisterCoreRoutesDeps) => {
         select: { id: true, isActive: true },
       });
       const activeUsers = await prisma.user.count({ where: { isActive: true } });
-      const bootstrapRequired =
-        Boolean(updated.authEnabled && bootstrapUser && bootstrapUser.isActive === false) &&
-        activeUsers === 0;
+      const bootstrapRequired = getBootstrapRequired({
+        authEnabled: updated.authEnabled,
+        oidcEnforced: config.oidc.enforced,
+        bootstrapUser,
+        activeUsers,
+      });
 
       res.json({ authEnabled: updated.authEnabled, bootstrapRequired });
     } catch (error) {
