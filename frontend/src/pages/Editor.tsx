@@ -1948,40 +1948,27 @@ export const Editor: React.FC = () => {
                 const elements = Array.isArray(snapshot.elements) ? snapshot.elements : [];
                 excalidrawAPI.current.updateScene({
                   elements,
-                  commitToHistory: false,
+                  captureUpdate: CaptureUpdateAction.NEVER,
                 });
               } else {
                 // Restore original state
                 if (previewBackup.current) {
                   excalidrawAPI.current.updateScene({
                     elements: previewBackup.current.elements as any[],
-                    commitToHistory: false,
+                    appState: previewBackup.current.appState,
+                    captureUpdate: CaptureUpdateAction.NEVER,
                   });
+                  if (previewBackup.current.files) {
+                    excalidrawAPI.current.addFiles(Object.values(previewBackup.current.files));
+                  }
                   previewBackup.current = null;
                 }
               }
             }}
-            onRestore={(snapshot) => {
-              // Clear preview backup since we're committing this change
+            onRestore={() => {
+              // Clear preview backup and reload page to get fresh state from server
               previewBackup.current = null;
-              if (excalidrawAPI.current && snapshot) {
-                const elements = Array.isArray(snapshot.elements) ? snapshot.elements : [];
-                const appState = snapshot.appState || {};
-                const files = snapshot.files || {};
-                excalidrawAPI.current.updateScene({
-                  elements,
-                  appState: { ...appState, collaborators: undefined },
-                  captureUpdate: CaptureUpdateAction.IMMEDIATELY,
-                });
-                if (files && Object.keys(files).length > 0) {
-                  excalidrawAPI.current.addFiles(
-                    Object.entries(files).map(([id, file]) => ({
-                      ...(file as Record<string, unknown>),
-                      id,
-                    })) as never[]
-                  );
-                }
-              }
+              window.location.reload();
             }}
           />
         </>
