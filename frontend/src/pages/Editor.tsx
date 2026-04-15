@@ -212,6 +212,7 @@ export const Editor: React.FC = () => {
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [langCode, setLangCode] = useState(getInitialLangCode);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const previewBackup = useRef<{ elements: readonly any[]; appState: any; files: any } | null>(null);
   const { isHeaderVisible, setIsHeaderVisible } = useEditorChrome({
     drawingName,
     autoHideEnabled,
@@ -1929,8 +1930,40 @@ export const Editor: React.FC = () => {
           <HistoryPanel
             drawingId={id}
             isOpen={isHistoryOpen}
-            onClose={() => setIsHistoryOpen(false)}
+            onClose={() => {
+              setIsHistoryOpen(false);
+            }}
+            onPreview={(snapshot) => {
+              if (!excalidrawAPI.current) return;
+              if (snapshot) {
+                // Save current state before first preview
+                if (!previewBackup.current) {
+                  previewBackup.current = {
+                    elements: excalidrawAPI.current.getSceneElementsIncludingDeleted(),
+                    appState: excalidrawAPI.current.getAppState(),
+                    files: excalidrawAPI.current.getFiles(),
+                  };
+                }
+                // Show snapshot on canvas (read-only preview)
+                const elements = Array.isArray(snapshot.elements) ? snapshot.elements : [];
+                excalidrawAPI.current.updateScene({
+                  elements,
+                  commitToHistory: false,
+                });
+              } else {
+                // Restore original state
+                if (previewBackup.current) {
+                  excalidrawAPI.current.updateScene({
+                    elements: previewBackup.current.elements as any[],
+                    commitToHistory: false,
+                  });
+                  previewBackup.current = null;
+                }
+              }
+            }}
             onRestore={(snapshot) => {
+              // Clear preview backup since we're committing this change
+              previewBackup.current = null;
               if (excalidrawAPI.current && snapshot) {
                 const elements = Array.isArray(snapshot.elements) ? snapshot.elements : [];
                 const appState = snapshot.appState || {};

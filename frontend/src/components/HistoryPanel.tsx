@@ -8,6 +8,7 @@ type Props = {
   isOpen: boolean;
   onClose: () => void;
   onRestore: (snapshot: api.DrawingSnapshotFull) => void;
+  onPreview: (snapshot: api.DrawingSnapshotFull | null) => void;
 };
 
 function timeAgo(dateStr: string): string {
@@ -28,6 +29,7 @@ export const HistoryPanel: React.FC<Props> = ({
   isOpen,
   onClose,
   onRestore,
+  onPreview,
 }) => {
   const [snapshots, setSnapshots] = useState<api.DrawingSnapshotSummary[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -57,13 +59,18 @@ export const HistoryPanel: React.FC<Props> = ({
       setPreviewId(null);
       setPreviewData(null);
       setConfirmRestore(null);
+    } else {
+      // Panel closed — restore current canvas
+      if (previewId) onPreview(null);
     }
-  }, [isOpen, loadHistory]);
+  }, [isOpen, loadHistory]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePreview = async (snapshotId: string) => {
     if (previewId === snapshotId) {
+      // Toggle off — restore current canvas
       setPreviewId(null);
       setPreviewData(null);
+      onPreview(null);
       return;
     }
     setPreviewId(snapshotId);
@@ -71,6 +78,7 @@ export const HistoryPanel: React.FC<Props> = ({
     try {
       const data = await api.getDrawingSnapshot(drawingId, snapshotId);
       setPreviewData(data);
+      onPreview(data);
     } catch {
       setPreviewData(null);
     } finally {
