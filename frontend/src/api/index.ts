@@ -606,6 +606,47 @@ export const duplicateDrawing = async (id: string) => {
   return deserializeDrawing(response.data);
 };
 
+// Drawing Version History
+export type DrawingSnapshotSummary = {
+  id: string;
+  version: number;
+  createdAt: string;
+};
+
+export type DrawingSnapshotFull = DrawingSnapshotSummary & {
+  drawingId: string;
+  elements: unknown[];
+  appState: Record<string, unknown>;
+  files: Record<string, unknown>;
+};
+
+export const getDrawingHistory = async (
+  drawingId: string,
+  options?: { limit?: number; offset?: number }
+): Promise<{ snapshots: DrawingSnapshotSummary[]; totalCount: number }> => {
+  const params: Record<string, number> = {};
+  if (options?.limit) params.limit = options.limit;
+  if (options?.offset) params.offset = options.offset;
+  const response = await api.get(`/drawings/${drawingId}/history`, { params });
+  return response.data;
+};
+
+export const getDrawingSnapshot = async (
+  drawingId: string,
+  snapshotId: string
+): Promise<DrawingSnapshotFull> => {
+  const response = await api.get(`/drawings/${drawingId}/history/${snapshotId}`);
+  return response.data;
+};
+
+export const restoreDrawingSnapshot = async (
+  drawingId: string,
+  snapshotId: string
+): Promise<Drawing> => {
+  const response = await api.post(`/drawings/${drawingId}/history/${snapshotId}/restore`);
+  return deserializeDrawing(response.data);
+};
+
 export const getCollections = async () => {
   const response = await api.get<Collection[]>("/collections");
   return response.data;

@@ -72,11 +72,26 @@ model Drawing {
   collection   Collection? @relation(fields: [collectionId], references: [id])
   permissions  DrawingPermission[]
   linkShares   DrawingLinkShare[]
+  snapshots    DrawingSnapshot[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
   @@index([userId, updatedAt])
   @@index([userId, collectionId, updatedAt])
+}
+
+model DrawingSnapshot {
+  id        String   @id @default(uuid())
+  drawingId String
+  drawing   Drawing  @relation(fields: [drawingId], references: [id], onDelete: Cascade)
+  version   Int
+  elements  String   // JSON string (state before update)
+  appState  String   // JSON string
+  files     String   @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([drawingId, createdAt])
+  @@index([createdAt])
 }
 
 model DrawingPermission {

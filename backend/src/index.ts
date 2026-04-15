@@ -662,6 +662,22 @@ const isMain =
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   typeof require !== "undefined" && require.main === module;
 
+// Snapshot cleanup: delete snapshots older than 2 days (runs hourly)
+const SNAPSHOT_RETENTION_MS = 2 * 24 * 60 * 60 * 1000;
+setInterval(async () => {
+  try {
+    const cutoff = new Date(Date.now() - SNAPSHOT_RETENTION_MS);
+    const result = await prisma.drawingSnapshot.deleteMany({
+      where: { createdAt: { lt: cutoff } },
+    });
+    if (result.count > 0) {
+      console.log(`[Cleanup] Deleted ${result.count} old drawing snapshots`);
+    }
+  } catch (err) {
+    console.error("[Cleanup] Snapshot cleanup failed:", err);
+  }
+}, 60 * 60 * 1000);
+
 if (isMain) {
   httpServer.listen(PORT, async () => {
     await initializeUploadDir();

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Download, Loader2, ChevronUp, ChevronDown, Share2 } from 'lucide-react';
+import { ArrowLeft, Download, Loader2, ChevronUp, ChevronDown, Share2, History } from 'lucide-react';
 import clsx from 'clsx';
 import {
   Excalidraw,
@@ -36,6 +36,7 @@ import type { ElementVersionInfo } from './editor/shared';
 import { useEditorChrome } from './editor/useEditorChrome';
 import { useEditorIdentity } from './editor/useEditorIdentity';
 import { ShareModal } from '../components/ShareModal';
+import { HistoryPanel } from '../components/HistoryPanel';
 
 interface Peer extends UserIdentity {
   isActive: boolean;
@@ -210,6 +211,7 @@ export const Editor: React.FC = () => {
   const [autoHideEnabled, setAutoHideEnabled] = useState(getStoredAutoHideEnabled);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [langCode, setLangCode] = useState(getInitialLangCode);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const { isHeaderVisible, setIsHeaderVisible } = useEditorChrome({
     drawingName,
     autoHideEnabled,
@@ -1763,6 +1765,15 @@ export const Editor: React.FC = () => {
               Read-only
             </span>
           ) : null}
+          {canEdit && id ? (
+            <button
+              onClick={() => setIsHistoryOpen(true)}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-lg text-gray-600 dark:text-gray-300 transition-colors"
+              title="Version History"
+            >
+              <History size={20} />
+            </button>
+          ) : null}
           {accessLevel === "owner" && id ? (
             <button
               onClick={() => setIsShareOpen(true)}
@@ -1908,12 +1919,39 @@ export const Editor: React.FC = () => {
       </div>
 
       {id ? (
-        <ShareModal
-          drawingId={id}
-          drawingName={drawingName}
-          isOpen={isShareOpen}
-          onClose={() => setIsShareOpen(false)}
-        />
+        <>
+          <ShareModal
+            drawingId={id}
+            drawingName={drawingName}
+            isOpen={isShareOpen}
+            onClose={() => setIsShareOpen(false)}
+          />
+          <HistoryPanel
+            drawingId={id}
+            isOpen={isHistoryOpen}
+            onClose={() => setIsHistoryOpen(false)}
+            onRestore={(snapshot) => {
+              if (excalidrawAPI.current && snapshot) {
+                const elements = Array.isArray(snapshot.elements) ? snapshot.elements : [];
+                const appState = snapshot.appState || {};
+                const files = snapshot.files || {};
+                excalidrawAPI.current.updateScene({
+                  elements,
+                  appState: { ...appState, collaborators: undefined },
+                  captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+                });
+                if (files && Object.keys(files).length > 0) {
+                  excalidrawAPI.current.addFiles(
+                    Object.entries(files).map(([id, file]) => ({
+                      ...(file as Record<string, unknown>),
+                      id,
+                    })) as never[]
+                  );
+                }
+              }
+            }}
+          />
+        </>
       ) : null}
     </div>
   );
