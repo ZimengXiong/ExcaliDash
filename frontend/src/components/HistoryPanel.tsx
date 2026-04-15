@@ -213,7 +213,7 @@ export const HistoryPanel: React.FC<Props> = ({
                             <span className="font-semibold">Elements:</span>{" "}
                             {Array.isArray(previewData.elements)
                               ? previewData.elements.filter(
-                                  (e: Record<string, unknown>) => !e.isDeleted
+                                  (e) => !(e as Record<string, unknown>).isDeleted
                                 ).length
                               : 0}
                           </div>
