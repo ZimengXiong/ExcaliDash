@@ -1,19 +1,6 @@
 <img src="readme-assets/logoExcaliDash.png" alt="ExcaliDash Logo" width="80" height="88">
 
-# ExcaliDash (Fork)
-
-> **This is a fork of [ZimengXiong/ExcaliDash](https://github.com/ZimengXiong/ExcaliDash)** with the following additions:
->
-> ### Drawing Version History
-> - Every scene update automatically snapshots the previous state
-> - View, preview, and restore past versions from the editor (History button)
-> - Snapshots are retained for 2 days, then auto-cleaned
-> - Backend: `DrawingSnapshot` model, `GET/POST /drawings/:id/history` endpoints
-> - Frontend: History panel in the editor toolbar
->
-> Built for use with [excalidraw-mcp](https://github.com/davifernan/excalidraw-mcp) which adds `board_history` and `restore_version` tools.
-
----
+# ExcaliDash
 
 ![License](https://img.shields.io/github/license/zimengxiong/ExcaliDash)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
@@ -46,6 +33,13 @@ A self-hosted dashboard and organizer for [Excalidraw](https://github.com/excali
 <summary>Real time collaboration</summary>
 
 ![](readme-assets/collabDemo.gif)
+
+</details>
+
+<details>
+<summary>Version history and restore</summary>
+
+Automatically retain recent drawing snapshots, preview past versions from the editor, and restore a previous state when needed.
 
 </details>
 

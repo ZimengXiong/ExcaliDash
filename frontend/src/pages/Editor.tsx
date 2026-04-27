@@ -1946,8 +1946,16 @@ export const Editor: React.FC = () => {
                 }
                 // Show snapshot on canvas (read-only preview)
                 const elements = Array.isArray(snapshot.elements) ? snapshot.elements : [];
+                const files = snapshot.files || {};
+                if (Object.keys(files).length > 0) {
+                  excalidrawAPI.current.addFiles(Object.values(files));
+                }
                 excalidrawAPI.current.updateScene({
                   elements,
+                  appState: {
+                    ...snapshot.appState,
+                    collaborators: undefined,
+                  },
                   captureUpdate: CaptureUpdateAction.NEVER,
                 });
               } else {

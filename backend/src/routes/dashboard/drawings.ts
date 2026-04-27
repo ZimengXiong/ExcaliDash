@@ -487,47 +487,69 @@ export const registerDrawingRoutes = (
       }
     }
 
-    // Snapshot previous state before scene updates (version history)
-    if (isSceneUpdate) {
-      await prisma.drawingSnapshot.create({
-        data: {
-          drawingId: id,
-          version: existingDrawing.version,
-          elements: existingDrawing.elements,
-          appState: existingDrawing.appState,
-          files: existingDrawing.files,
-        },
-      });
-    }
-
     const updateWhere: Prisma.DrawingWhereInput = { id };
     if (isSceneUpdate && payload.version !== undefined) {
       updateWhere.version = payload.version;
     }
 
-    const updateResult = await prisma.drawing.updateMany({
-      where: updateWhere,
-      data,
-    });
-    if (updateResult.count === 0) {
-      if (isSceneUpdate && payload.version !== undefined) {
+    const versionConflictError = new Error("VERSION_CONFLICT");
+    let updatedDrawing: typeof existingDrawing | null = null;
+
+    try {
+      if (isSceneUpdate) {
+        updatedDrawing = await prisma.$transaction(async (tx) => {
+          await tx.drawingSnapshot.create({
+            data: {
+              drawingId: id,
+              version: existingDrawing.version,
+              elements: existingDrawing.elements,
+              appState: existingDrawing.appState,
+              files: existingDrawing.files,
+            },
+          });
+
+          const updateResult = await tx.drawing.updateMany({
+            where: updateWhere,
+            data,
+          });
+          if (updateResult.count === 0) {
+            throw versionConflictError;
+          }
+
+          return tx.drawing.findFirst({ where: { id } });
+        });
+      } else {
+        const updateResult = await prisma.drawing.updateMany({
+          where: updateWhere,
+          data,
+        });
+        if (updateResult.count === 0) {
+          return res.status(404).json({ error: "Drawing not found" });
+        }
+        updatedDrawing = await prisma.drawing.findFirst({
+          where: { id },
+        });
+      }
+    } catch (error) {
+      if (
+        error === versionConflictError ||
+        (error instanceof Error && error.message === versionConflictError.message)
+      ) {
         const latestDrawing = await prisma.drawing.findFirst({
           where: { id },
           select: { version: true },
         });
-        return res.status(409).json({
-          error: "Conflict",
-          code: "VERSION_CONFLICT",
-          message: "Drawing has changed since this editor state was loaded.",
-          currentVersion: latestDrawing?.version ?? null,
-        });
+        if (isSceneUpdate && payload.version !== undefined) {
+          return res.status(409).json({
+            error: "Conflict",
+            code: "VERSION_CONFLICT",
+            message: "Drawing has changed since this editor state was loaded.",
+            currentVersion: latestDrawing?.version ?? null,
+          });
+        }
       }
-      return res.status(404).json({ error: "Drawing not found" });
+      throw error;
     }
-
-    const updatedDrawing = await prisma.drawing.findFirst({
-      where: { id },
-    });
     if (!updatedDrawing) {
       return res.status(404).json({ error: "Drawing not found" });
     }
