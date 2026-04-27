@@ -17,7 +17,7 @@
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/utilities": "^3.2.2",
-    "@excalidraw/excalidraw": "^0.18.0",
+    "@excalidraw/excalidraw": "^0.18.1",
     "@types/lodash": "^4.17.20",
     "axios": "^1.15.0",
     "clsx": "^2.1.1",
