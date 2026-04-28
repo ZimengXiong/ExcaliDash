@@ -3,14 +3,17 @@
  * This is the single interception point for all image uploads on the backend.
  */
 import type { PrismaClient } from "./generated/client";
-import { isS3Enabled, getS3Config, uploadBuffer, getPublicUrl } from "./s3";
-
-const FILE_KEY_PREFIX =
-  process.env.S3_KEY_PREFIX?.replace(/\/+$/, "") || "excalidash";
+import {
+  isS3Enabled,
+  getS3Config,
+  uploadBuffer,
+  getPublicUrl,
+  buildS3Key,
+} from "./s3";
 
 /**
  * Reject anything that could escape the per-user/per-drawing S3 prefix.
- * Same shape used by `/files/:fileId` validation.
+ * Same shape used by `/files/:drawingId/:fileId` validation.
  */
 const VALID_FILE_ID = /^[\w-]{1,200}$/;
 
@@ -84,19 +87,22 @@ export const processFilesForS3 = async (
     if (!decoded) return;
 
     const ext = MIME_TO_EXT[decoded.mimeType] ?? "bin";
-    const s3Key = `${FILE_KEY_PREFIX}/${userId}/${drawingId}/${fileId}.${ext}`;
+    const s3Key = buildS3Key(userId, drawingId, fileId, ext);
 
     await uploadBuffer(s3Key, decoded.buffer, decoded.mimeType);
 
-    // Determine the access URL for this file
+    // Drawing-scoped access URL: a file id alone would be ambiguous
+    // because the same content hash legitimately repeats across drawings.
     const accessUrl = cfg.publicUrl
       ? getPublicUrl(s3Key)
-      : `/api/files/${fileId}`;
+      : `/api/files/${drawingId}/${fileId}`;
 
-    // Persist the S3File record so private-bucket deployments can serve it
+    // Persist the S3File record so private-bucket deployments can serve it.
+    // Composite (drawingId, fileId) PK so re-uploading the same image into
+    // another drawing creates a separate row instead of overwriting.
     await prisma.s3File.upsert({
-      where: { id: fileId },
-      create: { id: fileId, userId, s3Key, mimeType: decoded.mimeType },
+      where: { drawingId_fileId: { drawingId, fileId } },
+      create: { drawingId, fileId, userId, s3Key, mimeType: decoded.mimeType },
       update: { s3Key, mimeType: decoded.mimeType },
     });
 

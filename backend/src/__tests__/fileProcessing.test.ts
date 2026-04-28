@@ -5,6 +5,12 @@ vi.mock("../s3", () => ({
   getS3Config: vi.fn(),
   uploadBuffer: vi.fn(),
   getPublicUrl: vi.fn(),
+  buildS3Key: (
+    userId: string,
+    drawingId: string,
+    fileId: string,
+    ext: string,
+  ) => `excalidash/${userId}/${drawingId}/${fileId}.${ext}`,
 }));
 
 import { processFilesForS3, decodeDataURL } from "../fileProcessing";
@@ -91,9 +97,10 @@ describe("processFilesForS3", () => {
       "image/png",
     );
     expect(prisma.s3File.upsert).toHaveBeenCalledWith({
-      where: { id: "file-1" },
+      where: { drawingId_fileId: { drawingId: "drawing-1", fileId: "file-1" } },
       create: {
-        id: "file-1",
+        drawingId: "drawing-1",
+        fileId: "file-1",
         userId: "user-1",
         s3Key: "excalidash/user-1/drawing-1/file-1.png",
         mimeType: "image/png",
@@ -144,18 +151,18 @@ describe("processFilesForS3", () => {
       "file-1": {
         id: "file-1",
         mimeType: "image/png",
-        dataURL: "/api/files/file-1",
+        dataURL: "/api/files/drawing-1/file-1",
       },
     };
 
     const result = await processFilesForS3(files, "user-1", "drawing-1", prisma as any);
 
-    expect(result["file-1"].dataURL).toBe("/api/files/file-1");
+    expect(result["file-1"].dataURL).toBe("/api/files/drawing-1/file-1");
     expect(mockUploadBuffer).not.toHaveBeenCalled();
     expect(prisma.s3File.upsert).not.toHaveBeenCalled();
   });
 
-  it("uses /api/files/:fileId when no publicUrl configured", async () => {
+  it("uses /api/files/:drawingId/:fileId when no publicUrl configured", async () => {
     mockIsS3Enabled.mockReturnValue(true);
     mockGetS3Config.mockReturnValue({
       bucket: "test-bucket",
@@ -171,7 +178,7 @@ describe("processFilesForS3", () => {
 
     const result = await processFilesForS3(files, "user-1", "drawing-1", prisma as any);
 
-    expect(result["file-1"].dataURL).toBe("/api/files/file-1");
+    expect(result["file-1"].dataURL).toBe("/api/files/drawing-1/file-1");
     expect(mockGetPublicUrl).not.toHaveBeenCalled();
   });
 
@@ -250,7 +257,7 @@ describe("processFilesForS3", () => {
       "file-api": {
         id: "file-api",
         mimeType: "image/png",
-        dataURL: "/api/files/file-api",
+        dataURL: "/api/files/drawing-1/file-api",
       },
     };
 
@@ -264,7 +271,7 @@ describe("processFilesForS3", () => {
     expect(result["file-s3"].dataURL).toBe(
       "https://cdn.example.com/excalidash/user-1/drawing-1/file-s3.png",
     );
-    expect(result["file-api"].dataURL).toBe("/api/files/file-api");
+    expect(result["file-api"].dataURL).toBe("/api/files/drawing-1/file-api");
 
     // Only one upload call for the base64 file
     expect(mockUploadBuffer).toHaveBeenCalledOnce();

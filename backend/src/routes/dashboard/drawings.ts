@@ -1,10 +1,12 @@
 import crypto from "crypto";
 import express from "express";
 import { Prisma } from "../../generated/client";
-import { isS3Enabled, listS3Objects, deleteS3Object } from "../../s3";
-
-const S3_FILE_KEY_PREFIX =
-  process.env.S3_KEY_PREFIX?.replace(/\/+$/, "") || "excalidash";
+import {
+  isS3Enabled,
+  listS3Objects,
+  deleteS3Object,
+  drawingS3Prefix,
+} from "../../s3";
 import { DashboardRouteDeps, SortDirection, SortField } from "./types";
 import {
   getUserTrashCollectionId,
@@ -642,10 +644,13 @@ export const registerDrawingRoutes = (
     invalidateDrawingsCache();
 
     // Best-effort S3 cleanup so the bucket and the S3File rows don't grow
-    // unboundedly with deleted-drawing remnants. Failures are logged but
-    // not surfaced — the drawing is already gone.
+    // unboundedly with deleted-drawing remnants. The S3File rows are
+    // (drawingId, fileId)-keyed and S3 objects sit under a per-drawing
+    // path, so this can never delete storage owned by another drawing
+    // (e.g. a duplicate that was made before this delete). Failures are
+    // logged but not surfaced — the drawing row is already gone.
     if (isS3Enabled()) {
-      const s3Prefix = `${S3_FILE_KEY_PREFIX}/${req.user.id}/${id}/`;
+      const s3Prefix = drawingS3Prefix(req.user.id, id);
       try {
         const objects = await listS3Objects(s3Prefix);
         for (const obj of objects) {
@@ -656,7 +661,7 @@ export const registerDrawingRoutes = (
           }
         }
         await prisma.s3File.deleteMany({
-          where: { s3Key: { startsWith: s3Prefix } },
+          where: { drawingId: id },
         });
       } catch (err) {
         console.error(`[drawings/delete] S3 cleanup failed for drawing ${id}`, err);
