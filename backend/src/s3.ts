@@ -8,6 +8,7 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
   ListObjectsV2Command,
+  CopyObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -231,6 +232,32 @@ export const listS3Objects = async (
   } while (continuationToken);
 
   return results;
+};
+
+/**
+ * Copy an object inside the same bucket (server-side copy — no
+ * download/re-upload). Used by the duplicate-drawing path so each
+ * drawing owns its own object under its own (drawingId) prefix.
+ */
+export const copyS3Object = async (
+  sourceKey: string,
+  destKey: string,
+  mimeType?: string,
+): Promise<void> => {
+  if (!s3Client || !s3Config) {
+    throw new Error("S3 is not configured");
+  }
+
+  const command = new CopyObjectCommand({
+    Bucket: s3Config.bucket,
+    Key: destKey,
+    CopySource: `${s3Config.bucket}/${sourceKey}`,
+    ContentType: mimeType,
+    CacheControl: "public, max-age=31536000, immutable",
+    MetadataDirective: mimeType ? "REPLACE" : "COPY",
+  });
+
+  await s3Client.send(command);
 };
 
 /**

@@ -5,6 +5,7 @@ import {
   isS3Enabled,
   listS3Objects,
   deleteS3Object,
+  copyS3Object,
   drawingS3Prefix,
 } from "../../s3";
 import { DashboardRouteDeps, SortDirection, SortField } from "./types";
@@ -705,6 +706,76 @@ export const registerDrawingRoutes = (
         version: 1,
       },
     });
+
+    // Copy S3 storage so the duplicate stops sharing objects with the
+    // original. Without this, deleting the original (which prunes the
+    // original's S3 prefix) would silently break every image in the
+    // duplicate's scene.
+    let duplicatedFilesJson = newDrawing.files;
+    if (isS3Enabled()) {
+      const sourceFiles = await prisma.s3File.findMany({
+        where: { drawingId: original.id },
+      });
+
+      if (sourceFiles.length > 0) {
+        const filesObj = parseJsonField<Record<string, any>>(
+          newDrawing.files,
+          {},
+        );
+
+        for (const src of sourceFiles) {
+          // Replace `/{originalId}/` with `/{newId}/` exactly once at
+          // the per-drawing folder boundary in the s3Key.
+          const destKey = src.s3Key.replace(
+            `/${original.id}/`,
+            `/${newDrawing.id}/`,
+          );
+
+          try {
+            await copyS3Object(src.s3Key, destKey, src.mimeType);
+          } catch (err) {
+            console.error(
+              `[drawings/duplicate] Failed to copy ${src.s3Key} -> ${destKey}`,
+              err,
+            );
+            continue;
+          }
+
+          await prisma.s3File.create({
+            data: {
+              drawingId: newDrawing.id,
+              fileId: src.fileId,
+              userId: req.user.id,
+              s3Key: destKey,
+              mimeType: src.mimeType,
+            },
+          });
+
+          // Rewrite dataURL so private-bucket redirects and public CDN
+          // links point at the new object instead of the original's.
+          const file = filesObj[src.fileId];
+          if (file && typeof file.dataURL === "string") {
+            const next = file.dataURL
+              .replace(
+                `/api/files/${original.id}/`,
+                `/api/files/${newDrawing.id}/`,
+              )
+              .replace(`/${original.id}/`, `/${newDrawing.id}/`);
+            if (next !== file.dataURL) {
+              filesObj[src.fileId] = { ...file, dataURL: next };
+            }
+          }
+        }
+
+        const serialised = JSON.stringify(filesObj);
+        await prisma.drawing.update({
+          where: { id: newDrawing.id },
+          data: { files: serialised },
+        });
+        duplicatedFilesJson = serialised;
+      }
+    }
+
     invalidateDrawingsCache();
 
     return res.json({
@@ -712,7 +783,7 @@ export const registerDrawingRoutes = (
       collectionId: toPublicTrashCollectionId(newDrawing.collectionId, req.user.id),
       elements: parseJsonField(newDrawing.elements, []),
       appState: parseJsonField(newDrawing.appState, {}),
-      files: parseJsonField(newDrawing.files, {}),
+      files: parseJsonField(duplicatedFilesJson, {}),
     });
   }));
 
