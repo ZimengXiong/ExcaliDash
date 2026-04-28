@@ -152,6 +152,11 @@ export const registerFileRoutes = (
         return res.status(501).json({ error: "S3 storage is not configured" });
       }
 
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
       const { fileId } = req.params;
       if (!isValidFileId(fileId)) {
         return res.status(400).json({ error: "Invalid fileId" });
@@ -165,12 +170,39 @@ export const registerFileRoutes = (
         return res.status(404).json({ error: "File not found" });
       }
 
-      // The fileId (UUID) acts as an unguessable capability token.  Any
-      // authenticated user who knows the fileId — which is only possible
-      // if they have access to a drawing that contains it — may obtain a
-      // presigned download URL.  We do not restrict access to the owner
-      // here because shared drawings would otherwise be broken for
-      // collaborators (they cannot load images they don't own).
+      // Excalidraw fileIds are SHA-1 hashes of the file bytes — anyone
+      // holding the original image can compute the id, so we cannot
+      // treat the id as an unguessable capability. Authorise instead:
+      //   - the uploader can always read; or
+      //   - the caller has access to a drawing that references this id
+      //     (own drawing OR one shared with the caller).
+      if (fileRecord.userId !== userId) {
+        const needle = `"${fileId}"`;
+        const accessibleDrawing = await prisma.drawing.findFirst({
+          where: {
+            OR: [
+              {
+                userId,
+                OR: [
+                  { files: { contains: needle } },
+                  { elements: { contains: needle } },
+                ],
+              },
+              {
+                permissions: { some: { granteeUserId: userId } },
+                OR: [
+                  { files: { contains: needle } },
+                  { elements: { contains: needle } },
+                ],
+              },
+            ],
+          },
+          select: { id: true },
+        });
+        if (!accessibleDrawing) {
+          return res.status(404).json({ error: "File not found" });
+        }
+      }
 
       const downloadUrl = await generatePresignedDownloadUrl(
         fileRecord.s3Key,
