@@ -27,6 +27,32 @@ let s3Client: S3Client | null = null;
 let s3Config: S3Config | null = null;
 
 /**
+ * Shared S3 object-key prefix. Reading the env var in one place avoids
+ * upload and cleanup code paths drifting onto different prefixes.
+ */
+export const FILE_KEY_PREFIX =
+  process.env.S3_KEY_PREFIX?.replace(/\/+$/, "") || "excalidash";
+
+/**
+ * Build the canonical S3 object key for a given drawing's image file.
+ * Layout: `{prefix}/{userId}/{drawingId}/{fileId}.{ext}`
+ *
+ * Including drawingId means duplicating a drawing always produces a
+ * separate object (and S3File row), so deleting the original cannot
+ * break the duplicate.
+ */
+export const buildS3Key = (
+  userId: string,
+  drawingId: string,
+  fileId: string,
+  ext: string,
+): string => `${FILE_KEY_PREFIX}/${userId}/${drawingId}/${fileId}.${ext}`;
+
+/** Prefix used when listing objects belonging to a single drawing. */
+export const drawingS3Prefix = (userId: string, drawingId: string): string =>
+  `${FILE_KEY_PREFIX}/${userId}/${drawingId}/`;
+
+/**
  * Initialize the S3 client. Called once on backend startup when S3 env vars are present.
  */
 export const initS3 = (cfg: S3Config): void => {

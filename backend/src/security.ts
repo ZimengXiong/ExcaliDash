@@ -546,8 +546,9 @@ export const sanitizeDrawingData = (data: {
                   } else {
                     file[key] = value;
                   }
-                } else if (/^\/api\/files\/[\w-]{1,200}$/.test(value)) {
-                  // Private-bucket redirect path — allow as-is.
+                } else if (/^\/api\/files\/[\w-]{1,200}\/[\w-]{1,200}$/.test(value)) {
+                  // Private-bucket redirect path /api/files/:drawingId/:fileId
+                  // — allow as-is.
                   file[key] = value;
                 } else {
                   file[key] = sanitizeText(value, 1000);

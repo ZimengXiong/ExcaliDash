@@ -186,14 +186,20 @@ model AuthIdentity {
   @@index([userId])
 }
 
-/// Tracks S3-uploaded image files so the backend can generate presigned
-/// download URLs for private-bucket deployments.
+/// Per-(drawing, fileId) S3 object record. Excalidraw fileIds are content
+/// hashes that legitimately repeat across drawings, so the primary key
+/// includes drawingId to keep each reference accounted for separately —
+/// a duplicated drawing has its own row + object, and trimming or
+/// deleting the original cannot delete the duplicate's storage.
 model S3File {
-  id        String   @id  // fileId (same ID used in Drawing.files)
-  userId    String        // owner who uploaded the file
-  s3Key     String        // full object key, e.g. "excalidash/userId/fileId.png"
+  drawingId String
+  fileId    String   // Excalidraw fileId (same id used in Drawing.files)
+  userId    String   // owner who uploaded the file
+  s3Key     String   // full object key, e.g. "excalidash/userId/drawingId/fileId.png"
   mimeType  String
   createdAt DateTime @default(now())
 
+  @@id([drawingId, fileId])
   @@index([userId])
+  @@index([drawingId])
 }
