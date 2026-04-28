@@ -630,7 +630,7 @@ if (config.s3.bucket) {
   console.log("[S3] Disabled — S3_BUCKET not configured. Images stored as base64 in SQLite.");
 }
 
-registerFileRoutes(app, { prisma, requireAuth, asyncHandler });
+registerFileRoutes(app, { prisma, requireAuth, optionalAuth, asyncHandler });
 
 registerDashboardRoutes(app, {
   prisma,

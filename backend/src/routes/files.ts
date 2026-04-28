@@ -45,6 +45,7 @@ const isValidFileId = (fileId: unknown): fileId is string =>
 export type FileRouteDeps = {
   prisma: PrismaClient;
   requireAuth: express.RequestHandler;
+  optionalAuth: express.RequestHandler;
   asyncHandler: <T = void>(
     fn: (req: express.Request, res: express.Response, next: express.NextFunction) => Promise<T>
   ) => express.RequestHandler;
@@ -54,7 +55,7 @@ export const registerFileRoutes = (
   app: express.Express,
   deps: FileRouteDeps
 ): void => {
-  const { prisma, requireAuth, asyncHandler } = deps;
+  const { prisma, requireAuth, optionalAuth, asyncHandler } = deps;
 
   // ------------------------------------------------------------------
   // GET /files/config
@@ -146,15 +147,10 @@ export const registerFileRoutes = (
   // ------------------------------------------------------------------
   app.get(
     "/files/:fileId",
-    requireAuth,
+    optionalAuth,
     asyncHandler(async (req, res) => {
       if (!isS3Enabled()) {
         return res.status(501).json({ error: "S3 storage is not configured" });
-      }
-
-      const userId = req.user?.id;
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
       }
 
       const { fileId } = req.params;
@@ -172,36 +168,63 @@ export const registerFileRoutes = (
 
       // Excalidraw fileIds are SHA-1 hashes of the file bytes — anyone
       // holding the original image can compute the id, so we cannot
-      // treat the id as an unguessable capability. Authorise instead:
-      //   - the uploader can always read; or
-      //   - the caller has access to a drawing that references this id
-      //     (own drawing OR one shared with the caller).
-      if (fileRecord.userId !== userId) {
-        const needle = `"${fileId}"`;
-        const accessibleDrawing = await prisma.drawing.findFirst({
-          where: {
+      // treat the id as an unguessable capability. Authorise instead by
+      // proving access to a drawing that references this id.
+      const userId = req.user?.id ?? null;
+      const needle = `"${fileId}"`;
+
+      // Owner of the upload always has access.
+      if (userId && fileRecord.userId === userId) {
+        const downloadUrl = await generatePresignedDownloadUrl(
+          fileRecord.s3Key,
+          DOWNLOAD_EXPIRES_IN
+        );
+        return res.redirect(302, downloadUrl);
+      }
+
+      // Build the access predicate: a drawing referencing this fileId
+      // that the caller is allowed to view.
+      // - authenticated: own drawing, or one shared via DrawingPermission,
+      //   or one with an active link-share (anyone with the link can view)
+      // - anonymous: only drawings with an active link-share
+      const referencesFile = {
+        OR: [
+          { files: { contains: needle } },
+          { elements: { contains: needle } },
+        ],
+      } as const;
+
+      const activeLinkShare = {
+        linkShares: {
+          some: {
+            revokedAt: null,
             OR: [
-              {
-                userId,
-                OR: [
-                  { files: { contains: needle } },
-                  { elements: { contains: needle } },
-                ],
-              },
-              {
-                permissions: { some: { granteeUserId: userId } },
-                OR: [
-                  { files: { contains: needle } },
-                  { elements: { contains: needle } },
-                ],
-              },
+              { expiresAt: null },
+              { expiresAt: { gt: new Date() } },
             ],
           },
-          select: { id: true },
+        },
+      } as const;
+
+      const orClauses: any[] = [
+        { ...referencesFile, ...activeLinkShare },
+      ];
+      if (userId) {
+        orClauses.push({ ...referencesFile, userId });
+        orClauses.push({
+          ...referencesFile,
+          permissions: { some: { granteeUserId: userId } },
         });
-        if (!accessibleDrawing) {
-          return res.status(404).json({ error: "File not found" });
-        }
+      }
+
+      const accessibleDrawing = await prisma.drawing.findFirst({
+        where: { OR: orClauses },
+        select: { id: true },
+      });
+      if (!accessibleDrawing) {
+        // 404 (not 401/403) so we don't leak existence to anyone who
+        // happens to know a fileId.
+        return res.status(404).json({ error: "File not found" });
       }
 
       const downloadUrl = await generatePresignedDownloadUrl(
