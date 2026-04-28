@@ -1,6 +1,10 @@
 import crypto from "crypto";
 import express from "express";
 import { Prisma } from "../../generated/client";
+import { isS3Enabled, listS3Objects, deleteS3Object } from "../../s3";
+
+const S3_FILE_KEY_PREFIX =
+  process.env.S3_KEY_PREFIX?.replace(/\/+$/, "") || "excalidash";
 import { DashboardRouteDeps, SortDirection, SortField } from "./types";
 import {
   getUserTrashCollectionId,
@@ -474,6 +478,46 @@ export const registerDrawingRoutes = (
     if (payload.elements !== undefined) data.elements = JSON.stringify(payload.elements);
     if (payload.appState !== undefined) data.appState = JSON.stringify(payload.appState);
     if (payload.files !== undefined) {
+      // Reject the upload upfront when the caller's expected version no
+      // longer matches reality. processFilesForS3 PUTs every base64 file
+      // straight to S3, which would otherwise leak as permanent orphans
+      // when the subsequent updateMany returns 0 rows on conflict.
+      if (isSceneUpdate && payload.version !== undefined) {
+        const latest = await prisma.drawing.findFirst({
+          where: { id },
+          select: { version: true },
+        });
+        if (!latest || latest.version !== payload.version) {
+          return res.status(409).json({
+            error: "Conflict",
+            code: "VERSION_CONFLICT",
+            message: "Drawing has changed since this editor state was loaded.",
+            currentVersion: latest?.version ?? null,
+          });
+        }
+      }
+
+      // Non-owner editors (link-share with edit permission, etc.) must
+      // not be able to add new file ids — they would write under the
+      // owner's S3 prefix and could be used to fill the owner's bucket.
+      // Existing fileIds may still appear (e.g. an unchanged scene save).
+      if (!isOwnerAccess(access)) {
+        const existingFiles = parseJsonField<Record<string, unknown>>(
+          existingDrawing.files,
+          {}
+        );
+        const existingIds = new Set(Object.keys(existingFiles));
+        for (const newId of Object.keys(payload.files)) {
+          if (!existingIds.has(newId)) {
+            return res.status(403).json({
+              error: "Forbidden",
+              message:
+                "Only the drawing owner can upload new images to this drawing.",
+            });
+          }
+        }
+      }
+
       const processedFiles = await processFilesForS3(
         payload.files as Record<string, any>,
         existingDrawing.userId,
@@ -596,6 +640,28 @@ export const registerDrawingRoutes = (
       return res.status(404).json({ error: "Drawing not found" });
     }
     invalidateDrawingsCache();
+
+    // Best-effort S3 cleanup so the bucket and the S3File rows don't grow
+    // unboundedly with deleted-drawing remnants. Failures are logged but
+    // not surfaced — the drawing is already gone.
+    if (isS3Enabled()) {
+      const s3Prefix = `${S3_FILE_KEY_PREFIX}/${req.user.id}/${id}/`;
+      try {
+        const objects = await listS3Objects(s3Prefix);
+        for (const obj of objects) {
+          try {
+            await deleteS3Object(obj.key);
+          } catch (err) {
+            console.error(`[drawings/delete] Failed to delete S3 object: ${obj.key}`, err);
+          }
+        }
+        await prisma.s3File.deleteMany({
+          where: { s3Key: { startsWith: s3Prefix } },
+        });
+      } catch (err) {
+        console.error(`[drawings/delete] S3 cleanup failed for drawing ${id}`, err);
+      }
+    }
 
     if (config.enableAuditLogging) {
       await logAuditEvent({
