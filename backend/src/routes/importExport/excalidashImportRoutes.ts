@@ -12,6 +12,7 @@ import {
   getUserTrashCollectionId,
   sanitizeDrawingData,
 } from "./shared";
+import { processFilesForS3 } from "../../fileProcessing";
 
 const isSafeMulterTempFilename = (value: string): boolean => /^[a-f0-9]{32}$/.test(value);
 
@@ -334,6 +335,17 @@ export const registerExcalidashImportRoutes = (deps: RegisterImportExportDeps) =
         throw error;
       }
 
+      // Process files for S3 upload before entering the transaction
+      const processedFilesMap = new Map<number, Record<string, any>>();
+      for (let i = 0; i < preparedDrawings.length; i++) {
+        const prepared = preparedDrawings[i];
+        const files = prepared.sanitized.files || {};
+        processedFilesMap.set(
+          i,
+          await processFilesForS3(files, req.user!.id, prepared.id, prisma),
+        );
+      }
+
       const result = await prisma.$transaction(async (tx) => {
         const trashCollectionId = getUserTrashCollectionId(req.user!.id);
         const collectionIdMap = new Map<string, string>();
@@ -390,7 +402,9 @@ export const registerExcalidashImportRoutes = (deps: RegisterImportExportDeps) =
           return collectionIdMap.get(collectionId) || null;
         };
 
-        for (const prepared of preparedDrawings) {
+        for (let i = 0; i < preparedDrawings.length; i++) {
+          const prepared = preparedDrawings[i];
+          const processedFiles = processedFilesMap.get(i) ?? {};
           const targetCollectionId = resolveCollectionId(prepared.collectionId);
           const existing = await tx.drawing.findUnique({ where: { id: prepared.id } });
           if (!existing) {
@@ -400,7 +414,7 @@ export const registerExcalidashImportRoutes = (deps: RegisterImportExportDeps) =
                 name: prepared.name,
                 elements: JSON.stringify(prepared.sanitized.elements),
                 appState: JSON.stringify(prepared.sanitized.appState),
-                files: JSON.stringify(prepared.sanitized.files || {}),
+                files: JSON.stringify(processedFiles),
                 preview: prepared.sanitized.preview ?? null,
                 version: prepared.version ?? 1,
                 userId: req.user!.id,
@@ -418,7 +432,7 @@ export const registerExcalidashImportRoutes = (deps: RegisterImportExportDeps) =
                 name: prepared.name,
                 elements: JSON.stringify(prepared.sanitized.elements),
                 appState: JSON.stringify(prepared.sanitized.appState),
-                files: JSON.stringify(prepared.sanitized.files || {}),
+                files: JSON.stringify(processedFiles),
                 preview: prepared.sanitized.preview ?? null,
                 version: prepared.version ?? existing.version,
                 collectionId: targetCollectionId,
@@ -435,7 +449,7 @@ export const registerExcalidashImportRoutes = (deps: RegisterImportExportDeps) =
               name: prepared.name,
               elements: JSON.stringify(prepared.sanitized.elements),
               appState: JSON.stringify(prepared.sanitized.appState),
-              files: JSON.stringify(prepared.sanitized.files || {}),
+              files: JSON.stringify(processedFiles),
               preview: prepared.sanitized.preview ?? null,
               version: prepared.version ?? 1,
               userId: req.user!.id,
