@@ -39,6 +39,7 @@ import {
 } from "./server/httpsRedirectPolicy";
 import { issueBootstrapSetupCodeIfRequired } from "./auth/bootstrapSetupCode";
 import { initS3 } from "./s3";
+import { processFilesForS3 } from "./fileProcessing";
 
 const backendRoot = path.resolve(__dirname, "../");
 console.log("Resolved DATABASE_URL:", process.env.DATABASE_URL);
@@ -652,6 +653,8 @@ registerDashboardRoutes(app, {
   MAX_PAGE_SIZE,
   config,
   logAuditEvent,
+  processFilesForS3: (files, userId, drawingId) =>
+    processFilesForS3(files, userId, drawingId, prisma),
 });
 
 registerImportExportRoutes({

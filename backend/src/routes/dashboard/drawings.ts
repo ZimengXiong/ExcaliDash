@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import express from "express";
 import { Prisma } from "../../generated/client";
 import { DashboardRouteDeps, SortDirection, SortField } from "./types";
@@ -40,6 +41,7 @@ export const registerDrawingRoutes = (
     MAX_PAGE_SIZE,
     config,
     logAuditEvent,
+    processFilesForS3,
   } = deps;
 
   const getRequestPrincipal = async (
@@ -398,15 +400,23 @@ export const registerDrawingRoutes = (
       await ensureTrashCollection(prisma, req.user.id);
     }
 
+    const drawingId = crypto.randomUUID();
+    const processedFiles = await processFilesForS3(
+      (payload.files ?? {}) as Record<string, any>,
+      req.user.id,
+      drawingId
+    );
+
     const newDrawing = await prisma.drawing.create({
       data: {
+        id: drawingId,
         name: drawingName,
         elements: JSON.stringify(payload.elements),
         appState: JSON.stringify(payload.appState),
         userId: req.user.id,
         collectionId: targetCollectionId,
         preview: payload.preview ?? null,
-        files: JSON.stringify(payload.files ?? {}),
+        files: JSON.stringify(processedFiles),
       },
     });
     invalidateDrawingsCache();
@@ -463,7 +473,14 @@ export const registerDrawingRoutes = (
     if (payload.name !== undefined) data.name = payload.name;
     if (payload.elements !== undefined) data.elements = JSON.stringify(payload.elements);
     if (payload.appState !== undefined) data.appState = JSON.stringify(payload.appState);
-    if (payload.files !== undefined) data.files = JSON.stringify(payload.files);
+    if (payload.files !== undefined) {
+      const processedFiles = await processFilesForS3(
+        payload.files as Record<string, any>,
+        existingDrawing.userId,
+        id
+      );
+      data.files = JSON.stringify(processedFiles);
+    }
     if (payload.preview !== undefined) data.preview = payload.preview;
 
     if (payload.collectionId !== undefined) {

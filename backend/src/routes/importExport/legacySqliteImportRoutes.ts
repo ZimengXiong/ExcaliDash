@@ -12,6 +12,7 @@ import {
   resolveSafeUploadedFilePath,
   sanitizeDrawingData,
 } from "./shared";
+import { processFilesForS3 } from "../../fileProcessing";
 
 export const registerLegacySqliteImportRoutes = (deps: RegisterImportExportDeps) => {
   const {
@@ -257,6 +258,20 @@ export const registerLegacySqliteImportRoutes = (deps: RegisterImportExportDeps)
           });
         }
 
+        // Process files for S3 upload before entering the transaction
+        const processedFilesMap = new Map<number, Record<string, any>>();
+        for (let i = 0; i < preparedDrawings.length; i++) {
+          const d = preparedDrawings[i];
+          const files = d.sanitized.files || {};
+          const drawingIdForS3 = d.importedId || uuidv4();
+          // Store generated ID so the transaction can reuse it
+          if (!d.importedId) d.importedId = drawingIdForS3;
+          processedFilesMap.set(
+            i,
+            await processFilesForS3(files, req.user!.id, drawingIdForS3, prisma),
+          );
+        }
+
         const result = await prisma.$transaction(async (tx) => {
           const trashCollectionId = getUserTrashCollectionId(req.user!.id);
           const hasTrash = importedDrawings.some((d) => String(d.collectionId || "") === "trash");
@@ -330,7 +345,9 @@ export const registerLegacySqliteImportRoutes = (deps: RegisterImportExportDeps)
             return null;
           };
 
-          for (const d of preparedDrawings) {
+          for (let i = 0; i < preparedDrawings.length; i++) {
+            const d = preparedDrawings[i];
+            const processedFiles = processedFilesMap.get(i) ?? {};
             const resolvedCollectionId = resolveImportedCollectionId(d.collectionIdRaw, d.collectionNameRaw);
             const existing = d.importedId ? await tx.drawing.findUnique({ where: { id: d.importedId } }) : null;
 
@@ -342,7 +359,7 @@ export const registerLegacySqliteImportRoutes = (deps: RegisterImportExportDeps)
                   name: d.name,
                   elements: JSON.stringify(d.sanitized.elements),
                   appState: JSON.stringify(d.sanitized.appState),
-                  files: JSON.stringify(d.sanitized.files || {}),
+                  files: JSON.stringify(processedFiles),
                   preview: d.sanitized.preview ?? null,
                   version: Number.isFinite(Number(d.versionRaw)) ? Number(d.versionRaw) : 1,
                   userId: req.user!.id,
@@ -360,7 +377,7 @@ export const registerLegacySqliteImportRoutes = (deps: RegisterImportExportDeps)
                   name: d.name,
                   elements: JSON.stringify(d.sanitized.elements),
                   appState: JSON.stringify(d.sanitized.appState),
-                  files: JSON.stringify(d.sanitized.files || {}),
+                  files: JSON.stringify(processedFiles),
                   preview: d.sanitized.preview ?? null,
                   version: Number.isFinite(Number(d.versionRaw)) ? Number(d.versionRaw) : existing.version,
                   collectionId: resolvedCollectionId ?? null,
@@ -377,7 +394,7 @@ export const registerLegacySqliteImportRoutes = (deps: RegisterImportExportDeps)
                 name: d.name,
                 elements: JSON.stringify(d.sanitized.elements),
                 appState: JSON.stringify(d.sanitized.appState),
-                files: JSON.stringify(d.sanitized.files || {}),
+                files: JSON.stringify(processedFiles),
                 preview: d.sanitized.preview ?? null,
                 version: Number.isFinite(Number(d.versionRaw)) ? Number(d.versionRaw) : 1,
                 userId: req.user!.id,

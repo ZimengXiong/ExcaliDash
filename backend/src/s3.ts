@@ -7,6 +7,7 @@ import {
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -142,6 +143,68 @@ export const getPublicUrl = (key: string): string => {
 
   // Standard AWS virtual-hosted-style URL.
   return `https://${s3Config.bucket}.s3.${s3Config.region}.amazonaws.com/${key}`;
+};
+
+/**
+ * Upload a Buffer directly to S3.
+ * Used by the backend to store image data without going through presigned URLs.
+ */
+export const uploadBuffer = async (
+  key: string,
+  body: Buffer,
+  mimeType: string
+): Promise<void> => {
+  if (!s3Client || !s3Config) {
+    throw new Error("S3 is not configured");
+  }
+
+  const command = new PutObjectCommand({
+    Bucket: s3Config.bucket,
+    Key: key,
+    Body: body,
+    ContentType: mimeType,
+    CacheControl: "public, max-age=31536000, immutable",
+  });
+
+  await s3Client.send(command);
+};
+
+/**
+ * List all objects under a given prefix. Handles pagination automatically.
+ */
+export const listS3Objects = async (
+  prefix: string
+): Promise<Array<{ key: string; size: number }>> => {
+  if (!s3Client || !s3Config) {
+    throw new Error("S3 is not configured");
+  }
+
+  const results: Array<{ key: string; size: number }> = [];
+  let continuationToken: string | undefined;
+
+  do {
+    const command = new ListObjectsV2Command({
+      Bucket: s3Config.bucket,
+      Prefix: prefix,
+      ContinuationToken: continuationToken,
+    });
+
+    const response = await s3Client.send(command);
+
+    if (response.Contents) {
+      for (const obj of response.Contents) {
+        if (obj.Key) {
+          results.push({ key: obj.Key, size: obj.Size ?? 0 });
+        }
+      }
+    }
+
+    continuationToken = response.IsTruncated
+      ? response.NextContinuationToken
+      : undefined;
+  } while (continuationToken);
+
+  return results;
 };
 
 /**

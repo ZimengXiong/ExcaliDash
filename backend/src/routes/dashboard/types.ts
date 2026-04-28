@@ -53,4 +53,9 @@ export type DashboardRouteDeps = {
     enableAuditLogging: boolean;
   };
   logAuditEvent: LogAuditEvent;
+  processFilesForS3: (
+    files: Record<string, any>,
+    userId: string,
+    drawingId: string,
+  ) => Promise<Record<string, any>>;
 };
