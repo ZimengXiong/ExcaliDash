@@ -492,6 +492,17 @@ export const sanitizeDrawingData = (data: {
 
       const MAX_DATAURL_SIZE = activeConfig.maxDataUrlSize;
 
+      // Drop entries whose key would not be safe to embed in an S3 object
+      // path. Backend file-storage code uses the fileId as a path segment,
+      // so a malicious key like "../../foo" must never reach the uploader
+      // or the database row. Same regex as backend/src/routes/files.ts.
+      const VALID_FILE_ID = /^[\w-]{1,200}$/;
+      for (const fileId in sanitizedFiles) {
+        if (!VALID_FILE_ID.test(fileId)) {
+          delete sanitizedFiles[fileId];
+        }
+      }
+
       for (const fileId in sanitizedFiles) {
         const file = sanitizedFiles[fileId];
         if (typeof file === "object" && file !== null) {
