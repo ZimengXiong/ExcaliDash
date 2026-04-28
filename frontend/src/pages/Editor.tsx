@@ -672,6 +672,13 @@ export const Editor: React.FC = () => {
       remoteFlushRafIdRef.current = requestAnimationFrame(flushRemoteUpdates);
     };
 
+    // Server-side mutations (storage trim, orphan delete) bypass the
+    // collaborative element-update channel — refetch so the open editor
+    // doesn't paper over the server change with its stale state.
+    socket.on("drawing-server-update", () => {
+      window.location.reload();
+    });
+
     socket.on(
       "element-update",
       ({
@@ -731,6 +738,7 @@ export const Editor: React.FC = () => {
       socket.off('error');
       socket.off('cursor-move');
       socket.off('element-update');
+      socket.off('drawing-server-update');
       socket.disconnect();
       if (remoteFlushRafIdRef.current !== null) {
         cancelAnimationFrame(remoteFlushRafIdRef.current);

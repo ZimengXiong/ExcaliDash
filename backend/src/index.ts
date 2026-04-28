@@ -640,6 +640,7 @@ registerStorageRoutes(app, {
   asyncHandler,
   parseJsonField,
   invalidateDrawingsCache,
+  io,
 });
 
 registerDashboardRoutes(app, {
