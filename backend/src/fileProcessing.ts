@@ -8,6 +8,12 @@ import { isS3Enabled, getS3Config, uploadBuffer, getPublicUrl } from "./s3";
 const FILE_KEY_PREFIX =
   process.env.S3_KEY_PREFIX?.replace(/\/+$/, "") || "excalidash";
 
+/**
+ * Reject anything that could escape the per-user/per-drawing S3 prefix.
+ * Same shape used by `/files/:fileId` validation.
+ */
+const VALID_FILE_ID = /^[\w-]{1,200}$/;
+
 const MIME_TO_EXT: Record<string, string> = {
   "image/png": "png",
   "image/jpeg": "jpg",
@@ -59,6 +65,15 @@ export const processFilesForS3 = async (
   const result: Record<string, any> = { ...files };
 
   const uploadTasks = Object.entries(files).map(async ([fileId, file]) => {
+    if (!VALID_FILE_ID.test(fileId)) {
+      // Reject path-traversal candidates rather than silently uploading
+      // them under a forged S3 key. Drop from output so the bad entry
+      // never reaches the database either.
+      console.warn(`[s3] Skipping file with invalid id: ${JSON.stringify(fileId)}`);
+      delete result[fileId];
+      return;
+    }
+
     const dataURL: unknown = file?.dataURL;
     if (typeof dataURL !== "string" || !dataURL.startsWith("data:")) {
       // Not a base64 data URL — leave unchanged (https://, /api/files/, etc.)

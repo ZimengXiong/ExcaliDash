@@ -175,6 +175,54 @@ describe("processFilesForS3", () => {
     expect(mockGetPublicUrl).not.toHaveBeenCalled();
   });
 
+  it("rejects file ids containing path traversal characters", async () => {
+    mockIsS3Enabled.mockReturnValue(true);
+    mockGetS3Config.mockReturnValue({
+      bucket: "test-bucket",
+      region: "us-east-1",
+      publicUrl: "https://cdn.example.com",
+    });
+    const prisma = makePrisma();
+
+    const files = {
+      "../../etc/passwd": {
+        id: "../../etc/passwd",
+        mimeType: "image/png",
+        dataURL: PNG_DATA_URL,
+      },
+      "good-id": {
+        id: "good-id",
+        mimeType: "image/png",
+        dataURL: PNG_DATA_URL,
+      },
+    };
+
+    mockUploadBuffer.mockResolvedValue(undefined);
+    mockGetPublicUrl.mockImplementation(
+      (key: string) => `https://cdn.example.com/${key}`,
+    );
+
+    const result = await processFilesForS3(
+      files,
+      "user-1",
+      "drawing-1",
+      prisma as any,
+    );
+
+    // Bad id is dropped from the output entirely.
+    expect(result["../../etc/passwd"]).toBeUndefined();
+    expect(result["good-id"]).toBeDefined();
+
+    // No upload was issued for the bad id.
+    expect(mockUploadBuffer).toHaveBeenCalledOnce();
+    expect(mockUploadBuffer).toHaveBeenCalledWith(
+      "excalidash/user-1/drawing-1/good-id.png",
+      expect.any(Buffer),
+      "image/png",
+    );
+    expect(prisma.s3File.upsert).toHaveBeenCalledOnce();
+  });
+
   it("handles multiple files, only uploading base64 ones", async () => {
     mockIsS3Enabled.mockReturnValue(true);
     mockGetS3Config.mockReturnValue({
