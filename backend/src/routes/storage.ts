@@ -244,13 +244,14 @@ export const registerStorageRoutes = (
         }
       }
 
-      // 7. Update drawing
+      // 7. Update drawing — bump version so concurrent editors get a VERSION_CONFLICT
+      // and reload, instead of having their newer version silently overwritten.
       await prisma.drawing.update({
         where: { id },
         data: {
           elements: JSON.stringify(activeElements),
           files: JSON.stringify(cleanedFiles),
-          version: 1,
+          version: { increment: 1 },
         },
       });
       invalidateDrawingsCache();
