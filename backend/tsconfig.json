@@ -15,5 +15,12 @@
     "allowJs": true,
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "prisma.config.ts"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "prisma.config.ts",
+    "src/**/*.test.ts",
+    "src/**/*.integration.ts",
+    "src/__tests__/**"
+  ]
 }
