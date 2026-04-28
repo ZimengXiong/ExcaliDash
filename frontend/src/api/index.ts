@@ -681,3 +681,64 @@ export const updateLibrary = async (items: LibraryItem[]): Promise<LibraryItem[]
   const response = await api.put<{ items: LibraryItem[] }>("/library", { items });
   return response.data.items;
 };
+
+// ---------------------------------------------------------------------------
+// S3 file upload helpers
+// ---------------------------------------------------------------------------
+
+/** Cache the result of the /files/config probe so we only call it once. */
+let s3EnabledCache: boolean | null = null;
+
+/**
+ * Returns true when the backend has S3 configured.
+ * The result is cached for the lifetime of the page.
+ */
+export const isS3Enabled = async (): Promise<boolean> => {
+  if (s3EnabledCache !== null) return s3EnabledCache;
+  try {
+    const response = await api.get<{ s3Enabled: boolean }>("/files/config");
+    s3EnabledCache = response.data.s3Enabled === true;
+  } catch {
+    s3EnabledCache = false;
+  }
+  return s3EnabledCache;
+};
+
+/**
+ * Ask the backend to issue a presigned S3 PUT URL for a new image file.
+ * Returns { uploadUrl, accessUrl }:
+ *   uploadUrl  – browser should PUT the raw file bytes here (directly to S3)
+ *   accessUrl  – URL to store as dataURL in the drawing; either a public S3/CDN
+ *                URL or an "/api/files/:fileId" path (private bucket).
+ */
+export const getS3UploadUrl = async (
+  fileId: string,
+  drawingId: string,
+  mimeType: string,
+  size?: number
+): Promise<{ uploadUrl: string; accessUrl: string }> => {
+  const response = await api.post<{ uploadUrl: string; accessUrl: string }>(
+    "/files/upload-url",
+    { fileId, drawingId, mimeType, size }
+  );
+  return response.data;
+};
+
+/**
+ * Upload a File directly to S3 using a presigned PUT URL.
+ * This request goes straight to S3 — no CSRF token, no auth cookie.
+ */
+export const uploadFileToS3 = async (
+  uploadUrl: string,
+  file: File
+): Promise<void> => {
+  const response = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": file.type },
+    body: file,
+  });
+  if (!response.ok) {
+    throw new Error(`S3 upload failed: ${response.status} ${response.statusText}`);
+  }
+};
+

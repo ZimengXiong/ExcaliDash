@@ -185,3 +185,15 @@ model AuthIdentity {
   @@unique([provider, userId])
   @@index([userId])
 }
+
+/// Tracks S3-uploaded image files so the backend can generate presigned
+/// download URLs for private-bucket deployments.
+model S3File {
+  id        String   @id  // fileId (same ID used in Drawing.files)
+  userId    String        // owner who uploaded the file
+  s3Key     String        // full object key, e.g. "excalidash/userId/fileId.png"
+  mimeType  String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}

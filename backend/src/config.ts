@@ -7,6 +7,16 @@ import path from "path";
 
 dotenv.config();
 
+interface S3Config {
+  bucket: string | null;
+  region: string;
+  endpoint: string | null;
+  publicUrl: string | null;
+  forcePathStyle: boolean;
+  accessKeyId: string | null;
+  secretAccessKey: string | null;
+}
+
 interface Config {
   port: number;
   nodeEnv: string;
@@ -26,6 +36,7 @@ interface Config {
   enforceHttpsRedirect: boolean;
   bootstrapSetupCodeTtlMs: number;
   bootstrapSetupCodeMaxAttempts: number;
+  s3: S3Config;
 }
 
 export type AuthMode = "local" | "hybrid" | "oidc_enforced";
@@ -299,6 +310,16 @@ const resolveOidcConfig = (authMode: AuthMode): OidcConfig => {
 
 const resolvedAuthMode = parseAuthMode(process.env.AUTH_MODE);
 
+const resolveS3Config = (): S3Config => ({
+  bucket: getOptionalTrimmedEnv("S3_BUCKET"),
+  region: getOptionalEnv("S3_REGION", "us-east-1"),
+  endpoint: getOptionalTrimmedEnv("S3_ENDPOINT"),
+  publicUrl: getOptionalTrimmedEnv("S3_PUBLIC_URL"),
+  forcePathStyle: getOptionalEnv("S3_FORCE_PATH_STYLE", "false").toLowerCase() === "true",
+  accessKeyId: getOptionalTrimmedEnv("AWS_ACCESS_KEY_ID"),
+  secretAccessKey: getOptionalTrimmedEnv("AWS_SECRET_ACCESS_KEY"),
+});
+
 export const config: Config = {
   port: getRequiredEnvNumber("PORT", 8000),
   nodeEnv: getOptionalEnv("NODE_ENV", "development"),
@@ -327,6 +348,7 @@ export const config: Config = {
     "BOOTSTRAP_SETUP_CODE_MAX_ATTEMPTS",
     10,
   ),
+  s3: resolveS3Config(),
 };
 
 if (config.nodeEnv === "production") {
