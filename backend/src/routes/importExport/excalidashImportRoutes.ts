@@ -335,15 +335,44 @@ export const registerExcalidashImportRoutes = (deps: RegisterImportExportDeps) =
         throw error;
       }
 
-      // Process files for S3 upload before entering the transaction
-      const processedFilesMap = new Map<number, Record<string, any>>();
+      // Resolve the final drawing id used for each prepared drawing
+      // BEFORE uploading. If the manifest id collides with a drawing
+      // owned by someone else, we will write under a fresh UUID inside
+      // the transaction — and S3 keys must match that final id, otherwise
+      // the uploaded objects become permanent orphans.
+      const finalDrawingIdMap = new Map<number, string>();
       for (let i = 0; i < preparedDrawings.length; i++) {
         const prepared = preparedDrawings[i];
-        const files = prepared.sanitized.files || {};
-        processedFilesMap.set(
-          i,
-          await processFilesForS3(files, req.user!.id, prepared.id, prisma),
-        );
+        const existing = await prisma.drawing.findUnique({
+          where: { id: prepared.id },
+          select: { userId: true },
+        });
+        const finalId =
+          existing && existing.userId !== req.user!.id ? uuidv4() : prepared.id;
+        finalDrawingIdMap.set(i, finalId);
+      }
+
+      // Process files for S3 upload before entering the transaction.
+      // Bounded concurrency keeps thousands-of-drawings imports from
+      // saturating S3 sockets or stalling the request to a reverse-proxy
+      // timeout.
+      const S3_UPLOAD_CONCURRENCY = 8;
+      const processedFilesMap = new Map<number, Record<string, any>>();
+      for (let start = 0; start < preparedDrawings.length; start += S3_UPLOAD_CONCURRENCY) {
+        const batch = preparedDrawings
+          .slice(start, start + S3_UPLOAD_CONCURRENCY)
+          .map((prepared, offset) => {
+            const i = start + offset;
+            const files = prepared.sanitized.files || {};
+            const finalId = finalDrawingIdMap.get(i)!;
+            return processFilesForS3(files, req.user!.id, finalId, prisma).then(
+              (processed) => ({ i, processed })
+            );
+          });
+        const results = await Promise.all(batch);
+        for (const { i, processed } of results) {
+          processedFilesMap.set(i, processed);
+        }
       }
 
       const result = await prisma.$transaction(async (tx) => {
@@ -407,10 +436,15 @@ export const registerExcalidashImportRoutes = (deps: RegisterImportExportDeps) =
           const processedFiles = processedFilesMap.get(i) ?? {};
           const targetCollectionId = resolveCollectionId(prepared.collectionId);
           const existing = await tx.drawing.findUnique({ where: { id: prepared.id } });
+          // Reuse the id we committed to before the S3 upload. If the
+          // pre-upload check disagrees with the in-transaction state
+          // (race), we still write under finalId so the file path
+          // matches what was uploaded.
+          const finalId = finalDrawingIdMap.get(i) ?? prepared.id;
           if (!existing) {
             await tx.drawing.create({
               data: {
-                id: prepared.id,
+                id: finalId,
                 name: prepared.name,
                 elements: JSON.stringify(prepared.sanitized.elements),
                 appState: JSON.stringify(prepared.sanitized.appState),
@@ -442,10 +476,9 @@ export const registerExcalidashImportRoutes = (deps: RegisterImportExportDeps) =
             continue;
           }
 
-          const newId = uuidv4();
           await tx.drawing.create({
             data: {
-              id: newId,
+              id: finalId,
               name: prepared.name,
               elements: JSON.stringify(prepared.sanitized.elements),
               appState: JSON.stringify(prepared.sanitized.appState),

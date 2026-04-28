@@ -258,18 +258,52 @@ export const registerLegacySqliteImportRoutes = (deps: RegisterImportExportDeps)
           });
         }
 
-        // Process files for S3 upload before entering the transaction
-        const processedFilesMap = new Map<number, Record<string, any>>();
+        // Resolve final drawing id BEFORE uploading. Three cases:
+        //  1) no importedId: generate UUID, use it for both S3 and DB.
+        //  2) importedId conflicts with another user's drawing: generate
+        //     UUID; the in-transaction conflict path will reuse it.
+        //  3) otherwise: keep importedId.
+        // Without this, a conflict (case 2) would upload to S3 under
+        // importedId but write the row under a fresh uuidv4(), leaving
+        // permanent S3 orphans.
+        const finalDrawingIdMap = new Map<number, string>();
         for (let i = 0; i < preparedDrawings.length; i++) {
           const d = preparedDrawings[i];
-          const files = d.sanitized.files || {};
-          const drawingIdForS3 = d.importedId || uuidv4();
-          // Store generated ID so the transaction can reuse it
-          if (!d.importedId) d.importedId = drawingIdForS3;
-          processedFilesMap.set(
-            i,
-            await processFilesForS3(files, req.user!.id, drawingIdForS3, prisma),
-          );
+          let finalId: string;
+          if (!d.importedId) {
+            finalId = uuidv4();
+            d.importedId = finalId;
+          } else {
+            const existing = await prisma.drawing.findUnique({
+              where: { id: d.importedId },
+              select: { userId: true },
+            });
+            finalId =
+              existing && existing.userId !== req.user!.id
+                ? uuidv4()
+                : d.importedId;
+          }
+          finalDrawingIdMap.set(i, finalId);
+        }
+
+        // Bounded concurrency to avoid stalling on large imports.
+        const S3_UPLOAD_CONCURRENCY = 8;
+        const processedFilesMap = new Map<number, Record<string, any>>();
+        for (let start = 0; start < preparedDrawings.length; start += S3_UPLOAD_CONCURRENCY) {
+          const batch = preparedDrawings
+            .slice(start, start + S3_UPLOAD_CONCURRENCY)
+            .map((d, offset) => {
+              const i = start + offset;
+              const files = d.sanitized.files || {};
+              const finalId = finalDrawingIdMap.get(i)!;
+              return processFilesForS3(files, req.user!.id, finalId, prisma).then(
+                (processed) => ({ i, processed })
+              );
+            });
+          const results = await Promise.all(batch);
+          for (const { i, processed } of results) {
+            processedFilesMap.set(i, processed);
+          }
         }
 
         const result = await prisma.$transaction(async (tx) => {
@@ -350,12 +384,14 @@ export const registerLegacySqliteImportRoutes = (deps: RegisterImportExportDeps)
             const processedFiles = processedFilesMap.get(i) ?? {};
             const resolvedCollectionId = resolveImportedCollectionId(d.collectionIdRaw, d.collectionNameRaw);
             const existing = d.importedId ? await tx.drawing.findUnique({ where: { id: d.importedId } }) : null;
+            // Always use the id we committed to before the S3 upload, so
+            // the row's S3 keys point to objects that actually exist.
+            const finalId = finalDrawingIdMap.get(i) ?? d.importedId ?? uuidv4();
 
             if (!existing) {
-              const idToUse = d.importedId || uuidv4();
               await tx.drawing.create({
                 data: {
-                  id: idToUse,
+                  id: finalId,
                   name: d.name,
                   elements: JSON.stringify(d.sanitized.elements),
                   appState: JSON.stringify(d.sanitized.appState),
@@ -387,10 +423,9 @@ export const registerLegacySqliteImportRoutes = (deps: RegisterImportExportDeps)
               continue;
             }
 
-            const newId = uuidv4();
             await tx.drawing.create({
               data: {
-                id: newId,
+                id: finalId,
                 name: d.name,
                 elements: JSON.stringify(d.sanitized.elements),
                 appState: JSON.stringify(d.sanitized.appState),
