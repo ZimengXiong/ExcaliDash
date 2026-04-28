@@ -22,6 +22,45 @@ export type StorageRouteDeps = {
     ) => Promise<T>
   ) => express.RequestHandler;
   parseJsonField: <T>(rawValue: string | null | undefined, fallback: T) => T;
+  invalidateDrawingsCache: () => void;
+};
+
+/**
+ * Returns the subset of fileIds still referenced by a drawing OTHER than
+ * `excludeDrawingId` and owned by `userId`. Those files must NOT be
+ * deleted from S3 / S3File when trimming this drawing.
+ *
+ * Uses a substring check on the JSON columns: fileIds are randomly
+ * generated identifiers (UUID/SHA-1), so false positives are negligible
+ * compared to the cost of parsing every drawing's full JSON.
+ */
+const findFileIdsStillReferencedElsewhere = async (
+  prisma: PrismaClient,
+  userId: string,
+  excludeDrawingId: string,
+  fileIds: string[]
+): Promise<Set<string>> => {
+  const stillReferenced = new Set<string>();
+  if (fileIds.length === 0) return stillReferenced;
+
+  for (const fileId of fileIds) {
+    // Wrap with quotes so we don't match a longer id that contains this
+    // one as a substring (`abc123` shouldn't match `abc1234`).
+    const needle = `"${fileId}"`;
+    const other = await prisma.drawing.findFirst({
+      where: {
+        userId,
+        id: { not: excludeDrawingId },
+        OR: [
+          { files: { contains: needle } },
+          { elements: { contains: needle } },
+        ],
+      },
+      select: { id: true },
+    });
+    if (other) stillReferenced.add(fileId);
+  }
+  return stillReferenced;
 };
 
 /**
@@ -59,7 +98,13 @@ export const registerStorageRoutes = (
   app: express.Express,
   deps: StorageRouteDeps
 ): void => {
-  const { prisma, requireAuth, asyncHandler, parseJsonField } = deps;
+  const {
+    prisma,
+    requireAuth,
+    asyncHandler,
+    parseJsonField,
+    invalidateDrawingsCache,
+  } = deps;
 
   // ------------------------------------------------------------------
   // POST /drawings/:id/trim
@@ -125,25 +170,50 @@ export const registerStorageRoutes = (
         // List actual S3 objects
         const s3Objects = await listS3Objects(s3Prefix);
 
-        // Collect all keys to potentially delete (union of records and actual objects)
-        const orphanedKeys = new Set<string>();
+        // Collect candidate orphan fileIds, then exclude any that another
+        // drawing of the same user still references (Excalidraw fileIds are
+        // content hashes, so the same image can appear in multiple drawings).
+        const candidateOrphans = new Map<string, Set<string>>(); // fileId -> s3Keys
+
+        const recordOrphan = (fileId: string, s3Key: string) => {
+          if (!candidateOrphans.has(fileId)) {
+            candidateOrphans.set(fileId, new Set());
+          }
+          candidateOrphans.get(fileId)!.add(s3Key);
+        };
 
         for (const record of s3FileRecords) {
-          const fileId = record.id;
-          if (!survivingFileIds.has(fileId)) {
-            orphanedKeys.add(record.s3Key);
+          if (!survivingFileIds.has(record.id)) {
+            recordOrphan(record.id, record.s3Key);
           }
         }
 
         for (const obj of s3Objects) {
           const fileId = fileIdFromS3Key(obj.key);
           if (fileId && !survivingFileIds.has(fileId)) {
-            orphanedKeys.add(obj.key);
+            recordOrphan(fileId, obj.key);
           }
         }
 
-        // Delete orphaned S3 objects and records
-        for (const key of orphanedKeys) {
+        const stillReferenced = await findFileIdsStillReferencedElsewhere(
+          prisma,
+          userId,
+          id,
+          Array.from(candidateOrphans.keys())
+        );
+
+        const trulyOrphanedKeys = new Set<string>();
+        const trulyOrphanedRecordIds: string[] = [];
+        for (const [fileId, keys] of candidateOrphans.entries()) {
+          if (stillReferenced.has(fileId)) continue;
+          for (const k of keys) trulyOrphanedKeys.add(k);
+          if (s3FileRecords.some((r) => r.id === fileId)) {
+            trulyOrphanedRecordIds.push(fileId);
+          }
+        }
+
+        // Delete S3 objects.
+        for (const key of trulyOrphanedKeys) {
           try {
             await deleteS3Object(key);
             s3ObjectsDeleted++;
@@ -153,14 +223,10 @@ export const registerStorageRoutes = (
           }
         }
 
-        // Delete orphaned S3File records
-        const orphanedRecordIds = s3FileRecords
-          .filter((r) => !survivingFileIds.has(r.id))
-          .map((r) => r.id);
-
-        if (orphanedRecordIds.length > 0) {
+        // Delete S3File rows for the truly-orphaned files.
+        if (trulyOrphanedRecordIds.length > 0) {
           await prisma.s3File.deleteMany({
-            where: { id: { in: orphanedRecordIds } },
+            where: { id: { in: trulyOrphanedRecordIds } },
           });
         }
       }
@@ -174,6 +240,7 @@ export const registerStorageRoutes = (
           version: 1,
         },
       });
+      invalidateDrawingsCache();
 
       return res.json({
         trimmed: {
@@ -329,10 +396,20 @@ export const registerStorageRoutes = (
       let deletedCount = 0;
       let errorCount = 0;
 
+      // Skip S3-side deletion for fileIds that any other drawing of the
+      // same user still references — those files must remain reachable.
+      const stillReferencedElsewhere = await findFileIdsStillReferencedElsewhere(
+        prisma,
+        userId,
+        id,
+        fileIds as string[]
+      );
+
       for (const fileId of fileIds as string[]) {
         try {
-          // Delete S3 object via S3File record
-          if (isS3Enabled()) {
+          // Delete S3 object via S3File record only when no other drawing
+          // owned by this user still references the file.
+          if (isS3Enabled() && !stillReferencedElsewhere.has(fileId)) {
             const s3Record = await prisma.s3File.findUnique({
               where: { id: fileId },
             });
@@ -342,7 +419,8 @@ export const registerStorageRoutes = (
             }
           }
 
-          // Remove from drawing.files JSON
+          // Remove from THIS drawing's files JSON regardless — the
+          // sibling drawing keeps its own entry pointing at the same key.
           delete files[fileId];
 
           deletedCount++;
@@ -370,14 +448,17 @@ export const registerStorageRoutes = (
         return true;
       });
 
-      // Update drawing with cleaned files and elements
+      // Update drawing with cleaned files and elements. Bump version so
+      // concurrent editors reload instead of silently overwriting.
       await prisma.drawing.update({
         where: { id },
         data: {
           files: JSON.stringify(files),
           elements: JSON.stringify(cleanedElements),
+          version: { increment: 1 },
         },
       });
+      invalidateDrawingsCache();
 
       return res.json({ deleted: deletedCount, errors: errorCount });
     })
