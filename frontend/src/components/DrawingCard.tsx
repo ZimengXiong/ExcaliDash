@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { PenTool, Trash2, FolderInput, ArrowRight, Check, Clock, Copy, Download, Loader2 } from 'lucide-react';
+import { PenTool, Trash2, FolderInput, ArrowRight, Check, Clock, Copy, Download, Loader2, HardDrive } from 'lucide-react';
 import type { DrawingSummary, Collection, Drawing } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import clsx from 'clsx';
@@ -9,6 +9,7 @@ import { exportDrawingToFile } from '../utils/exportUtils';
 import { previewHasEmbeddedImages } from '../utils/previewSvg';
 
 import * as api from '../api';
+import { StorageManageModal } from './StorageManageModal';
 
 type HydratedDrawingData = {
   elements: any[];
@@ -86,12 +87,18 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [showStorageModal, setShowStorageModal] = useState(false);
+  const [s3Enabled, setS3Enabled] = useState(false);
   const [fullData, setFullData] = useState<HydratedDrawingData | null>(null);
   const hasEmbeddedImages = previewHasEmbeddedImages(previewSvg);
 
   const fullDataRef = React.useRef(fullData);
   fullDataRef.current = fullData;
   const fullDataPromiseRef = React.useRef<Promise<HydratedDrawingData> | null>(null);
+
+  useEffect(() => {
+    api.isS3Enabled().then(setS3Enabled).catch(() => {});
+  }, []);
 
   useEffect(() => {
     setFullData(null);
@@ -491,6 +498,18 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
                 </div>
               )}
 
+              {!isShared && s3Enabled && (
+                <button
+                  onClick={() => {
+                    setShowStorageModal(true);
+                    setContextMenu(null);
+                  }}
+                  className="w-full px-3 py-2 text-sm text-left text-slate-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white flex items-center gap-2"
+                >
+                  <HardDrive size={14} /> Storage Management
+                </button>
+              )}
+
               {!isShared ? (
                 <>
                   <div className="border-t border-slate-50 dark:border-slate-700 my-1"></div>
@@ -509,6 +528,13 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
           </div>
         </ContextMenuPortal>
       )}
+
+      <StorageManageModal
+        isOpen={showStorageModal}
+        drawingId={drawing.id}
+        drawingName={drawing.name}
+        onClose={() => setShowStorageModal(false)}
+      />
     </>
   );
 };

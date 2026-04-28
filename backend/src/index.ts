@@ -29,6 +29,7 @@ import { registerDashboardRoutes } from "./routes/dashboard";
 import { registerImportExportRoutes } from "./routes/importExport";
 import { registerSystemRoutes } from "./routes/system";
 import { registerFileRoutes } from "./routes/files";
+import { registerStorageRoutes } from "./routes/storage";
 import { prisma } from "./db/prisma";
 import { createDrawingsCacheStore } from "./server/drawingsCache";
 import { registerCsrfProtection } from "./server/csrf";
@@ -632,6 +633,8 @@ if (config.s3.bucket) {
 }
 
 registerFileRoutes(app, { prisma, requireAuth, asyncHandler });
+
+registerStorageRoutes(app, { prisma, requireAuth, asyncHandler, parseJsonField });
 
 registerDashboardRoutes(app, {
   prisma,
