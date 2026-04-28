@@ -617,6 +617,7 @@ if (config.s3.bucket) {
     region: config.s3.region,
     endpoint: config.s3.endpoint ?? undefined,
     publicUrl: config.s3.publicUrl ?? undefined,
+    forcePathStyle: config.s3.forcePathStyle,
     accessKeyId: config.s3.accessKeyId ?? undefined,
     secretAccessKey: config.s3.secretAccessKey ?? undefined,
   });
