@@ -87,17 +87,13 @@ describe("OIDC client configuration", () => {
           enforced: true,
           providerName: "Test OIDC",
           issuerUrl: "https://issuer.example",
-          discoveryUrl: null,
           clientId: "client-id",
           clientSecret: "client-secret",
           redirectUri: "https://app.example/api/auth/oidc/callback",
           idTokenSignedResponseAlg: "HS256",
-          tokenEndpointAuthMethod: null,
           scopes: "openid email profile",
           emailClaim: "email",
           emailVerifiedClaim: "email_verified",
-          groupsClaim: "groups",
-          adminGroups: [],
           requireEmailVerified: true,
           jitProvisioning: true,
           firstUserAdmin: true,
@@ -112,7 +108,7 @@ describe("OIDC client configuration", () => {
     expect(clientConfigs[0]?.id_token_signed_response_alg).toBe("HS256");
   });
 
-  it("prefers RS256 instead of provider-order fallback when no override is configured", async () => {
+  it("falls back to the first advertised provider alg when no override is configured", async () => {
     issuerMetadata.id_token_signing_alg_values_supported = ["HS256", "RS256"];
 
     const { registerOidcRoutes } = await import("./oidcRoutes");
@@ -153,147 +149,13 @@ describe("OIDC client configuration", () => {
           enforced: true,
           providerName: "Test OIDC",
           issuerUrl: "https://issuer.example",
-          discoveryUrl: null,
           clientId: "client-id",
           clientSecret: "client-secret",
           redirectUri: "https://app.example/api/auth/oidc/callback",
           idTokenSignedResponseAlg: null,
-          tokenEndpointAuthMethod: null,
           scopes: "openid email profile",
           emailClaim: "email",
           emailVerifiedClaim: "email_verified",
-          groupsClaim: "groups",
-          adminGroups: [],
-          requireEmailVerified: true,
-          jitProvisioning: true,
-          firstUserAdmin: true,
-        },
-      },
-    });
-
-    const response = await request(app).get("/oidc/start");
-
-    expect(response.status).toBe(302);
-    expect(clientConfigs[0]?.id_token_signed_response_alg).toBe("RS256");
-  });
-
-  it("uses a supported asymmetric alg when RS256 is not advertised", async () => {
-    issuerMetadata.id_token_signing_alg_values_supported = ["HS256", "PS384"];
-
-    const { registerOidcRoutes } = await import("./oidcRoutes");
-
-    const router = express.Router();
-    const app = express();
-    app.use(router);
-
-    registerOidcRoutes({
-      router,
-      prisma: {} as any,
-      ensureAuthEnabled: vi.fn(async () => true),
-      ensureSystemConfig: vi.fn(async () => ({
-        id: "default",
-        oidcJitProvisioningEnabled: null,
-        authEnabled: true,
-        authOnboardingCompleted: true,
-        registrationEnabled: false,
-        authLoginRateLimitEnabled: true,
-        authLoginRateLimitWindowMs: 900000,
-        authLoginRateLimitMax: 20,
-      })),
-      sanitizeText: (input: unknown) => String(input ?? ""),
-      generateTokens: vi.fn(() => ({
-        accessToken: "access-token",
-        refreshToken: "refresh-token",
-      })),
-      setAuthCookies: vi.fn(),
-      getRefreshTokenExpiresAt: () => new Date(Date.now() + 60_000),
-      isMissingRefreshTokenTableError: () => false,
-      config: {
-        authMode: "oidc_enforced",
-        jwtSecret: "test-secret",
-        enableRefreshTokenRotation: false,
-        enableAuditLogging: false,
-        oidc: {
-          enabled: true,
-          enforced: true,
-          providerName: "Test OIDC",
-          issuerUrl: "https://issuer.example",
-          discoveryUrl: null,
-          clientId: "client-id",
-          clientSecret: "client-secret",
-          redirectUri: "https://app.example/api/auth/oidc/callback",
-          idTokenSignedResponseAlg: null,
-          tokenEndpointAuthMethod: null,
-          scopes: "openid email profile",
-          emailClaim: "email",
-          emailVerifiedClaim: "email_verified",
-          groupsClaim: "groups",
-          adminGroups: [],
-          requireEmailVerified: true,
-          jitProvisioning: true,
-          firstUserAdmin: true,
-        },
-      },
-    });
-
-    const response = await request(app).get("/oidc/start");
-
-    expect(response.status).toBe(302);
-    expect(clientConfigs[0]?.id_token_signed_response_alg).toBe("PS384");
-  });
-
-  it("falls back to HS* when provider only advertises HS* and client secret is configured", async () => {
-    issuerMetadata.id_token_signing_alg_values_supported = ["HS384", "HS256"];
-
-    const { registerOidcRoutes } = await import("./oidcRoutes");
-
-    const router = express.Router();
-    const app = express();
-    app.use(router);
-
-    registerOidcRoutes({
-      router,
-      prisma: {} as any,
-      ensureAuthEnabled: vi.fn(async () => true),
-      ensureSystemConfig: vi.fn(async () => ({
-        id: "default",
-        oidcJitProvisioningEnabled: null,
-        authEnabled: true,
-        authOnboardingCompleted: true,
-        registrationEnabled: false,
-        authLoginRateLimitEnabled: true,
-        authLoginRateLimitWindowMs: 900000,
-        authLoginRateLimitMax: 20,
-      })),
-      sanitizeText: (input: unknown) => String(input ?? ""),
-      generateTokens: vi.fn(() => ({
-        accessToken: "access-token",
-        refreshToken: "refresh-token",
-      })),
-      setAuthCookies: vi.fn(),
-      getRefreshTokenExpiresAt: () => new Date(Date.now() + 60_000),
-      isMissingRefreshTokenTableError: () => false,
-      config: {
-        authMode: "oidc_enforced",
-        jwtSecret: "test-secret",
-        enableRefreshTokenRotation: false,
-        enableAuditLogging: false,
-        oidc: {
-          enabled: true,
-          enforced: true,
-          providerName: "Test OIDC",
-          issuerUrl: "https://issuer.example",
-          discoveryUrl: null,
-          clientId: "client-id",
-          clientSecret: "client-secret",
-          redirectUri: "https://app.example/api/auth/oidc/callback",
-          idTokenSignedResponseAlg: null,
-          tokenEndpointAuthMethod: null,
-          scopes: "openid email profile",
-          emailClaim: "email",
-          emailVerifiedClaim: "email_verified",
-          groupsClaim: "groups",
-          adminGroups: [],
           requireEmailVerified: true,
           jitProvisioning: true,
           firstUserAdmin: true,

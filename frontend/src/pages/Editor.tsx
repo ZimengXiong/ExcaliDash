@@ -1,3 +1,4 @@
+import { CaptureUpdateAction } from "@excalidraw/excalidraw";
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Download, Loader2, ChevronUp, ChevronDown, Share2, History } from 'lucide-react';
@@ -264,6 +265,7 @@ export const Editor: React.FC = () => {
   const pendingRemoteElementOrderRef = useRef<string[] | null>(null);
   const remoteFlushScheduledRef = useRef(false);
   const remoteFlushRafIdRef = useRef<number | null>(null);
+  const editorContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setAutoHideEnabled(getStoredAutoHideEnabled());
@@ -719,7 +721,41 @@ export const Editor: React.FC = () => {
     document.addEventListener('mouseenter', onMouseEnter);
     document.addEventListener('mouseleave', onMouseLeave);
 
+    const container = editorContainerRef.current;
+    const handleWheel = (e: WheelEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target) return;
+      
+      const isCanvas = target.tagName?.toLowerCase() === 'canvas';
+      const isUI = target.closest('.layer-ui__wrapper') !== null || target.closest('.App-menu') !== null;
+      
+      if (isCanvas && !isUI && !e.ctrlKey && !e.metaKey && !(e as any)._isFakeZoom) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const fakeEvent = new WheelEvent('wheel', {
+          bubbles: true,
+          cancelable: true,
+          clientX: e.clientX,
+          clientY: e.clientY,
+          deltaX: e.deltaX,
+          deltaY: e.deltaY,
+          deltaMode: e.deltaMode,
+          ctrlKey: true,
+        });
+        (fakeEvent as any)._isFakeZoom = true;
+        target.dispatchEvent(fakeEvent);
+      }
+    };
+
+    if (container) {
+      container.addEventListener('wheel', handleWheel, { capture: true, passive: false });
+    }
+
     return () => {
+      if (container) {
+        container.removeEventListener('wheel', handleWheel, { capture: true });
+      }
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('blur', onBlur);
       document.removeEventListener('mouseenter', onMouseEnter);
@@ -1860,6 +1896,7 @@ export const Editor: React.FC = () => {
       </header>
 
       <div 
+        ref={editorContainerRef}
         className="flex-1 w-full relative transition-all duration-300" 
         onDropCapture={handleCanvasDropCapture}
         style={{ 

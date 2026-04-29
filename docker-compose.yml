@@ -30,7 +30,7 @@ services:
       # - OIDC_SCOPES=openid profile email
       # - OIDC_ADMIN_GROUPS=admins
     volumes:
-      - backend-data:/app/prisma
+      - ./data:/app/prisma
     networks:
       - excalidash-network
     restart: unless-stopped
@@ -81,6 +81,3 @@ services:
 networks:
   excalidash-network:
     driver: bridge
-
-volumes:
-  backend-data:

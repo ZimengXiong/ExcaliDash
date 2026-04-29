@@ -33,6 +33,9 @@ export default defineConfig(({ command }) => {
       'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
       'import.meta.env.VITE_APP_BUILD_LABEL': JSON.stringify(buildLabel),
     },
+    build: {
+      target: "es2022",
+    },
     optimizeDeps: {
       esbuildOptions: {
         define: processEnvDefines,

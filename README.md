@@ -8,10 +8,13 @@
 
 A self-hosted dashboard and organizer for [Excalidraw](https://github.com/excalidraw/excalidraw) with live collaboration features.
 
+> **This is a personal fork of [ZimengXiong/ExcaliDash](https://github.com/ZimengXiong/ExcaliDash).** See [Fork Customizations](#fork-customizations) for changes specific to this fork.
+
 ![](readme-assets/demo.gif)
 
 ## Table of Contents
 
+- [Fork Customizations](#fork-customizations)
 - [Features](#features)
 - [Upgrading](#upgrading)
 - [Installation](#installation)
@@ -19,6 +22,13 @@ A self-hosted dashboard and organizer for [Excalidraw](https://github.com/excali
   - [Advanced](#advanced)
 - [Development](#development)
 - [Credits](#credits)
+
+## Fork Customizations
+
+Changes made in this fork on top of the upstream repository:
+
+- **Mouse wheel zoom to cursor** — scrolling zooms toward the cursor position without needing to hold `Ctrl`/`Cmd`. This matches the behavior most users expect from design tools.
+- **Local data directory** — Docker Compose volumes are configured to store all persistent data (database, drawings, secrets) in a local `./data` folder that is git-ignored, making backups and migrations straightforward.
 
 ## Features
 
@@ -122,7 +132,7 @@ docker compose -f docker-compose.prod.yml down && \
 
 Notes:
 
-- Don’t add `-v` to `down` unless you intend to delete the persistent backend volume (your SQLite DB + secrets).
+- Don't add `-v` to `down` unless you intend to delete the persistent backend volume (your SQLite DB + secrets).
 - Only add `--remove-orphans` if you previously ran a different Compose file for the same project name and need to remove old/renamed services.
 
 # Installation
