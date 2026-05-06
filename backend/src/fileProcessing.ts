@@ -113,3 +113,47 @@ export const processFilesForS3 = async (
 
   return result;
 };
+
+/**
+ * Rewrite an Excalidraw preview SVG so any base64 dataURL that has just
+ * been uploaded to S3 is replaced by the resulting S3 / redirect URL.
+ *
+ * The frontend generates the preview SVG from the canvas state at save
+ * time, *before* the round-trip to the backend uploads the files; the
+ * SVG embeds whatever dataURL the file currently has in `Drawing.files`.
+ * Without this rewrite, every save produces a megabyte-scale preview
+ * with the full image base64 inlined, even though the image itself is
+ * already in S3 (the diff between Drawing.files's processed entries
+ * and the preview field gets ever larger over time).
+ *
+ * Best-effort string substitution: works because the same dataURL
+ * string is character-identical in both `files[fileId].dataURL` and
+ * the preview SVG's `<image href="...">` attribute. If frontend
+ * encoding ever diverges, the worst case is the preview is left as-is.
+ */
+export const rewritePreviewForS3 = (
+  preview: unknown,
+  originalFiles: Record<string, any>,
+  processedFiles: Record<string, any>,
+): unknown => {
+  if (typeof preview !== "string" || preview.length === 0) {
+    return preview;
+  }
+  let rewritten = preview;
+  for (const fileId of Object.keys(processedFiles)) {
+    const original = originalFiles[fileId];
+    const processed = processedFiles[fileId];
+    if (
+      !original ||
+      !processed ||
+      typeof original.dataURL !== "string" ||
+      typeof processed.dataURL !== "string" ||
+      original.dataURL === processed.dataURL ||
+      !original.dataURL.startsWith("data:")
+    ) {
+      continue;
+    }
+    rewritten = rewritten.split(original.dataURL).join(processed.dataURL);
+  }
+  return rewritten;
+};

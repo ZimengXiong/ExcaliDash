@@ -8,6 +8,7 @@ import {
   copyS3Object,
   drawingS3Prefix,
 } from "../../s3";
+import { rewritePreviewForS3 } from "../../fileProcessing";
 import { DashboardRouteDeps, SortDirection, SortField } from "./types";
 import {
   getUserTrashCollectionId,
@@ -408,11 +409,20 @@ export const registerDrawingRoutes = (
     }
 
     const drawingId = crypto.randomUUID();
+    const originalFiles = (payload.files ?? {}) as Record<string, any>;
     const processedFiles = await processFilesForS3(
-      (payload.files ?? {}) as Record<string, any>,
+      originalFiles,
       req.user.id,
       drawingId
     );
+    // Rewrite the preview SVG so it points at the just-uploaded S3 URLs
+    // instead of inlining the megabyte-scale base64 dataURL the frontend
+    // generated before the upload completed.
+    const processedPreview = rewritePreviewForS3(
+      payload.preview ?? null,
+      originalFiles,
+      processedFiles,
+    ) as string | null | undefined;
 
     const newDrawing = await prisma.drawing.create({
       data: {
@@ -422,7 +432,7 @@ export const registerDrawingRoutes = (
         appState: JSON.stringify(payload.appState),
         userId: req.user.id,
         collectionId: targetCollectionId,
-        preview: payload.preview ?? null,
+        preview: processedPreview ?? null,
         files: JSON.stringify(processedFiles),
       },
     });
@@ -521,14 +531,27 @@ export const registerDrawingRoutes = (
         }
       }
 
+      const originalFiles = payload.files as Record<string, any>;
       const processedFiles = await processFilesForS3(
-        payload.files as Record<string, any>,
+        originalFiles,
         existingDrawing.userId,
         id
       );
       data.files = JSON.stringify(processedFiles);
+
+      if (payload.preview !== undefined) {
+        // Rewrite preview so the SVG embeds the new S3 URLs instead of
+        // the original base64 dataURLs (the frontend generates the
+        // preview before this round-trip uploads the files).
+        data.preview = rewritePreviewForS3(
+          payload.preview,
+          originalFiles,
+          processedFiles,
+        ) as string | null | undefined;
+      }
+    } else if (payload.preview !== undefined) {
+      data.preview = payload.preview;
     }
-    if (payload.preview !== undefined) data.preview = payload.preview;
 
     if (payload.collectionId !== undefined) {
       if (!isOwnerAccess(access)) {
