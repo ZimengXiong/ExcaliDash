@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import express from "express";
 import request from "supertest";
+import { z } from "zod";
 import { registerDrawingRoutes } from "../routes/dashboard/drawings";
 
 /**
@@ -74,8 +75,8 @@ function buildApp() {
     asyncHandler: (fn: any) => (req: any, res: any, next: any) => Promise.resolve(fn(req, res, next)).catch(next),
     parseJsonField: (val: string, fallback: any) => { try { return JSON.parse(val); } catch { return fallback; } },
     validateImportedDrawing: vi.fn().mockReturnValue(true),
-    drawingCreateSchema: { safeParse: vi.fn().mockReturnValue({ success: true, data: {} }) },
-    drawingUpdateSchema: { safeParse: vi.fn() },
+    drawingCreateSchema: { safeParse: vi.fn().mockReturnValue({ success: true, data: {} }) } as unknown as z.ZodTypeAny,
+    drawingUpdateSchema: { safeParse: vi.fn() } as unknown as z.ZodTypeAny,
     respondWithValidationErrors: vi.fn(),
     ensureTrashCollection: vi.fn(),
     invalidateDrawingsCache: vi.fn(),
@@ -83,6 +84,8 @@ function buildApp() {
     getCachedDrawingsBody: vi.fn().mockReturnValue(null),
     cacheDrawingsResponse: vi.fn(),
     MAX_PAGE_SIZE: 100,
+    sanitizeText: (input: unknown, _maxLength?: number) => String(input ?? ""),
+    collectionNameSchema: { safeParse: vi.fn().mockReturnValue({ success: true, data: {} }) } as unknown as z.ZodTypeAny,
     config: { nodeEnv: "test", enableAuditLogging: false },
     logAuditEvent: vi.fn(),
   });

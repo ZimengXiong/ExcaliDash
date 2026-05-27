@@ -511,6 +511,9 @@ export const getDrawing = async (id: string) => {
   return deserializeDrawing(response.data);
 };
 
+export const getDrawingPreviewUrl = (id: string): string =>
+  `${API_URL}/drawings/${encodeURIComponent(id)}/preview`;
+
 export type ShareResolvedUser = { id: string; name: string; email: string };
 
 export const resolveShareUsers = async (drawingId: string, q: string): Promise<ShareResolvedUser[]> => {

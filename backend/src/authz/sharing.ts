@@ -165,7 +165,7 @@ export const canEditDrawing = (
 
 export const isOwnerAccess = (access: DrawingAccess): boolean => access === "owner";
 
-const getActiveLinkShareAccess = async (params: {
+export const getActiveLinkShareAccess = async (params: {
   prisma: PrismaClient;
   drawingId: string;
   nowMs: number;

@@ -6,7 +6,6 @@ import type { DrawingSummary, Collection, Drawing } from '../types';
 import { formatDistanceToNow } from 'date-fns';
 import clsx from 'clsx';
 import { exportDrawingToFile } from '../utils/exportUtils';
-import { previewHasEmbeddedImages } from '../utils/previewSvg';
 
 import * as api from '../api';
 
@@ -15,31 +14,6 @@ type HydratedDrawingData = {
   appState: any;
   files: Record<string, any>;
 };
-
-const normalizeImageElementsForPreview = (
-  elements: any[] = [],
-  files: Record<string, any> = {}
-): any[] =>
-  elements.map((element) => {
-    if (!element || element.type !== "image" || typeof element.fileId !== "string") {
-      return element;
-    }
-
-    const file = files[element.fileId];
-    const hasImageData =
-      typeof file?.dataURL === "string" &&
-      file.dataURL.startsWith("data:image/") &&
-      file.dataURL.length > 0;
-
-    if (!hasImageData || element.status === "saved") {
-      return element;
-    }
-
-    return {
-      ...element,
-      status: "saved",
-    };
-  });
 
 interface DrawingCardProps {
   drawing: DrawingSummary;
@@ -55,7 +29,6 @@ interface DrawingCardProps {
   onClick: (id: string, e: React.MouseEvent) => void;
   onDragStart?: (e: React.DragEvent, id: string) => void;
   onMouseDown?: (e: React.MouseEvent, id: string) => void;
-  onPreviewGenerated?: (id: string, preview: string) => void;
 }
 
 const ContextMenuPortal: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -76,26 +49,25 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
   onClick,
   onDragStart,
   onMouseDown,
-  onPreviewGenerated,
 }) => {
   const [isRenaming, setIsRenaming] = useState(false);
   const [showMoveSubmenu, setShowMoveSubmenu] = useState(false);
   const [showCollectionDropdown, setShowCollectionDropdown] = useState(false);
   const [newName, setNewName] = useState(drawing.name);
-  const [previewSvg, setPreviewSvg] = useState<string | null>(drawing.preview ?? null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [fullData, setFullData] = useState<HydratedDrawingData | null>(null);
-  const hasEmbeddedImages = previewHasEmbeddedImages(previewSvg);
+  const [imgError, setImgError] = useState(false);
 
   const fullDataRef = React.useRef(fullData);
   fullDataRef.current = fullData;
   const fullDataPromiseRef = React.useRef<Promise<HydratedDrawingData> | null>(null);
 
-  useEffect(() => {
+  React.useEffect(() => {
     setFullData(null);
     fullDataPromiseRef.current = null;
+    setImgError(false);
   }, [drawing.id]);
 
   const drawingIdRef = React.useRef(drawing.id);
@@ -126,55 +98,9 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
     return promise;
   }, []); // Stable identity - uses refs internally
 
-  useEffect(() => {
-    let cancelled = false;
-
-    if (drawing.preview) {
-      setPreviewSvg(drawing.preview);
-      return;
-    }
-
-    const generatePreview = async () => {
-      try {
-        const data = await ensureFullData();
-        if (cancelled) return;
-        if (!data?.elements || !data?.appState) return;
-
-        const { exportToSvg } = await import("@excalidraw/excalidraw");
-        
-        if (cancelled) return;
-
-        const svg = await exportToSvg({
-          elements: normalizeImageElementsForPreview(data.elements, data.files || {}),
-          appState: {
-            ...data.appState,
-            exportBackground: true,
-            viewBackgroundColor: data.appState.viewBackgroundColor || "#ffffff"
-          },
-          files: data.files || {},
-          exportPadding: 10
-        });
-        if (cancelled) return;
-        const previewHtml = svg.outerHTML;
-        setPreviewSvg(previewHtml);
-
-        // Don't persist previews from the dashboard: it causes background writes during scrolling,
-        // spams 403/404 in shared contexts, and can persist unintended content.
-        onPreviewGenerated?.(drawing.id, previewHtml);
-      } catch (e) {
-        if (!cancelled) {
-          console.error("Failed to generate preview", e);
-        }
-      }
-    };
-
-    generatePreview();
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drawing.id, drawing.preview, onPreviewGenerated]); // ensureFullData has stable identity via refs
+  // ensureFullData has stable identity via refs. Previews are now lazy-loaded
+  // via the native <img> tag pointing to the preview endpoint; no app-level
+  // full-drawing fetch or runtime SVG generation happens for dashboard cards.
 
   const handleExport = useCallback(async () => {
     try {
@@ -270,13 +196,14 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
         >
           <div className="absolute inset-0 opacity-[0.3] bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] [background-size:24px_24px]"></div>
 
-          {previewSvg ? (
-            <div
-              className={clsx(
-                "w-full h-full p-3 sm:p-4 lg:p-5 flex items-center justify-center [&>svg]:w-auto [&>svg]:h-auto [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:drop-shadow-sm transition-transform duration-500",
-                !hasEmbeddedImages && "dark:[&>svg]:invert dark:[&>svg_rect[fill='white']]:opacity-0 dark:[&>svg_rect[fill='#ffffff']]:opacity-0"
-              )}
-              dangerouslySetInnerHTML={{ __html: previewSvg }}
+          {!imgError ? (
+            <img
+              src={api.getDrawingPreviewUrl(drawing.id)}
+              loading="lazy"
+              alt={`Preview of ${drawing.name}`}
+              data-testid={`preview-img-${drawing.id}`}
+              className="w-full h-full p-3 sm:p-4 lg:p-5 object-contain drop-shadow-sm transition-transform duration-500"
+              onError={() => setImgError(true)}
             />
           ) : (
             <div className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 bg-white dark:bg-neutral-900 rounded-2xl shadow-sm flex items-center justify-center text-neutral-300 dark:text-neutral-400 border border-slate-100 dark:border-neutral-700 transform group-hover:scale-110 group-hover:rotate-3 transition-all duration-500">

@@ -616,10 +616,6 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  const handlePreviewGenerated = (id: string, preview: string) => {
-    setDrawings(prev => prev.map(d => d.id === id ? { ...d, preview } : d));
-  };
-
   const visibleCollections = React.useMemo(() => collections.filter(c => c.id !== 'trash'), [collections]);
 
   return (
@@ -991,7 +987,6 @@ export const Dashboard: React.FC = () => {
                   }}
                   onMouseDown={handleCardMouseDown}
                   onDragStart={handleCardDragStart}
-                  onPreviewGenerated={handlePreviewGenerated}
                 />
               ))
             )}

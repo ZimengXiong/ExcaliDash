@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import express from "express";
 import { Prisma } from "../../generated/client";
 import { DashboardRouteDeps, SortDirection, SortField } from "./types";
@@ -11,6 +12,7 @@ import {
   buildShareLinkToken,
   canEditDrawing,
   canViewDrawing,
+  getActiveLinkShareAccess,
   getDrawingAccess,
   hashShareLinkToken,
   isOwnerAccess,
@@ -41,6 +43,19 @@ export const registerDrawingRoutes = (
     config,
     logAuditEvent,
   } = deps;
+
+  const FULL_DATA_MAX_LIMIT = 20;
+
+  // Shared summary select excludes heavy fields (preview, elements, appState, files).
+  // Used by default /drawings and /drawings/shared list responses.
+  const summarySelect: Prisma.DrawingSelect = {
+    id: true,
+    name: true,
+    collectionId: true,
+    version: true,
+    createdAt: true,
+    updatedAt: true,
+  };
 
   const getRequestPrincipal = async (
     req: express.Request
@@ -78,6 +93,30 @@ export const registerDrawingRoutes = (
       message: "Invalid or expired token",
     });
     return true;
+  };
+
+  // Serve SVG preview with cache headers. Returns true if served (including 304).
+  const serveSvgPreview = (
+    res: express.Response,
+    req: express.Request,
+    preview: string,
+    updatedAt: Date
+  ): void => {
+    const etag = crypto
+      .createHash("sha1")
+      .update(preview)
+      .update(String(updatedAt.getTime()))
+      .digest("hex");
+
+    if (req.headers["if-none-match"] === `"${etag}"`) {
+      res.status(304).end();
+      return;
+    }
+
+    res.setHeader("Content-Type", "image/svg+xml; charset=utf-8");
+    res.setHeader("Cache-Control", "private, max-age=300");
+    res.setHeader("ETag", `"${etag}"`);
+    res.send(preview);
   };
 
   app.get("/drawings", requireAuth, asyncHandler(async (req, res) => {
@@ -138,12 +177,22 @@ export const registerDrawingRoutes = (
 
     const rawLimit = limit ? Number.parseInt(limit as string, 10) : undefined;
     const rawOffset = offset ? Number.parseInt(offset as string, 10) : undefined;
-    const parsedLimit =
+    let parsedLimit =
       rawLimit !== undefined && Number.isFinite(rawLimit)
         ? Math.min(Math.max(rawLimit, 1), MAX_PAGE_SIZE)
         : undefined;
     const parsedOffset =
       rawOffset !== undefined && Number.isFinite(rawOffset) ? Math.max(rawOffset, 0) : undefined;
+
+    if (shouldIncludeData) {
+      const effectiveLimit = parsedLimit ?? MAX_PAGE_SIZE;
+      if (effectiveLimit > FULL_DATA_MAX_LIMIT) {
+        return res.status(400).json({
+          error: "Invalid request",
+          message: `includeData=true requires an explicit limit <= ${FULL_DATA_MAX_LIMIT}. Use smaller pagination for full-data responses.`,
+        });
+      }
+    }
 
     const cacheKey =
       buildDrawingsCacheKey({
@@ -161,16 +210,6 @@ export const registerDrawingRoutes = (
       res.setHeader("Content-Type", "application/json");
       return res.send(cachedBody);
     }
-
-    const summarySelect: Prisma.DrawingSelect = {
-      id: true,
-      name: true,
-      collectionId: true,
-      preview: true,
-      version: true,
-      createdAt: true,
-      updatedAt: true,
-    };
 
     const orderBy: Prisma.DrawingOrderByWithRelationInput =
       parsedSortField === "name"
@@ -272,14 +311,8 @@ export const registerDrawingRoutes = (
       whereDrawing.name = { contains: searchTerm };
     }
 
-    const summarySelect: Prisma.DrawingSelect = {
-      id: true,
-      name: true,
-      collectionId: true,
-      preview: true,
-      version: true,
-      createdAt: true,
-      updatedAt: true,
+    const summarySelectShared: Prisma.DrawingSelect = {
+      ...summarySelect,
       userId: true,
       permissions: {
         where: { granteeUserId: req.user.id },
@@ -290,7 +323,7 @@ export const registerDrawingRoutes = (
     const queryOptions: Prisma.DrawingFindManyArgs = { where: whereDrawing, orderBy };
     if (parsedLimit !== undefined) queryOptions.take = parsedLimit;
     if (parsedOffset !== undefined) queryOptions.skip = parsedOffset;
-    if (!shouldIncludeData) queryOptions.select = summarySelect;
+    if (!shouldIncludeData) queryOptions.select = summarySelectShared;
 
     const [drawings, totalCount] = await Promise.all([
       prisma.drawing.findMany(queryOptions),
@@ -329,6 +362,90 @@ export const registerDrawingRoutes = (
       totalCount,
       limit: parsedLimit,
       offset: parsedOffset,
+    });
+  }));
+
+  // Preview endpoint — must be registered before `/drawings/:id` so Express
+  // matches `/drawings/:id/preview` before the generic `:id` pattern.
+  // Dynamic authorization: public/link-share drawings serve SVG without auth;
+  // private drawings require authenticated owner/collaborator access.
+  app.get("/drawings/:id/preview", optionalAuth, asyncHandler(async (req, res) => {
+    const principal = await getRequestPrincipal(req);
+    const { id } = req.params;
+
+    // Minimal first query: drawing privacy state only (userId for ownership check)
+    const drawingMeta = await prisma.drawing.findUnique({
+      where: { id },
+      select: {
+        userId: true,
+        preview: true,
+        version: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!drawingMeta) {
+      return res.status(404).json({ error: "Drawing not found" });
+    }
+
+    // Check active public/link-share policy first
+    const nowMs = Date.now();
+    const activeLinkPolicy = await getActiveLinkShareAccess({
+      prisma,
+      drawingId: id,
+      nowMs,
+    });
+
+    // Public/link-share: serve preview without requiring auth
+    if (activeLinkPolicy) {
+      if (!drawingMeta.preview) {
+        return res.status(404).json({ error: "No preview available" });
+      }
+      serveSvgPreview(res, req, drawingMeta.preview, drawingMeta.updatedAt);
+      return;
+    }
+
+    // Private drawing: require authenticated access
+    if (!principal) {
+      return res.status(401).json({
+        error: "Unauthorized",
+        message: "Authentication required to access this drawing preview",
+      });
+    }
+
+    // Owner: direct access
+    if (principal.userId === drawingMeta.userId) {
+      if (!drawingMeta.preview) {
+        return res.status(404).json({ error: "No preview available" });
+      }
+      serveSvgPreview(res, req, drawingMeta.preview, drawingMeta.updatedAt);
+      return;
+    }
+
+    // Collaborator check
+    const collabPerm = await prisma.drawingPermission.findUnique({
+      where: {
+        drawingId_granteeUserId: {
+          drawingId: id,
+          granteeUserId: principal.userId,
+        },
+      },
+      select: { permission: true },
+    });
+    const collabAccess = normalizeDrawingPermission(collabPerm?.permission);
+
+    if (collabAccess) {
+      if (!drawingMeta.preview) {
+        return res.status(404).json({ error: "No preview available" });
+      }
+      serveSvgPreview(res, req, drawingMeta.preview, drawingMeta.updatedAt);
+      return;
+    }
+
+    // Authenticated but not authorized — return 404 to avoid resource enumeration
+    return res.status(404).json({
+      error: "Not found",
+      message: "Drawing not found or you do not have permission to view this preview",
     });
   }));
 

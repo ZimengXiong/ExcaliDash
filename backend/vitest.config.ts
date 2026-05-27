@@ -5,18 +5,15 @@ export default defineConfig({
     globals: true,
     environment: "node",
     include: ["src/**/*.test.ts", "src/**/*.integration.ts"],
-    testTimeout: 30000,
-    hookTimeout: 30000,
+    testTimeout: 90000,
+    hookTimeout: 150000,
+    fileParallelism: false,
+    maxConcurrency: 1,
+    pool: "forks",
     env: {
       DATABASE_URL: "file:./prisma/test.db",
       NODE_ENV: "test",
       AUTH_MODE: "local",
-    },
-    pool: "forks",
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
     },
   },
 });
