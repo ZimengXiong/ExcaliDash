@@ -578,6 +578,40 @@ export const revokeLinkShare = async (drawingId: string, shareId: string): Promi
   return response.data;
 };
 
+// Collection sharing (named-user ACL; mirrors drawing permissions, no link shares)
+export const resolveCollectionShareUsers = async (collectionId: string, q: string): Promise<ShareResolvedUser[]> => {
+  const response = await api.get<{ users: ShareResolvedUser[] }>(`/collections/${collectionId}/share-resolve`, {
+    params: { q },
+  });
+  return response.data.users;
+};
+
+export const getCollectionSharing = async (collectionId: string): Promise<{ permissions: DrawingPermissionRow[] }> => {
+  const response = await api.get<{ permissions: DrawingPermissionRow[] }>(`/collections/${collectionId}/sharing`);
+  return response.data;
+};
+
+export const upsertCollectionPermission = async (
+  collectionId: string,
+  params: { granteeUserId: string; permission: "view" | "edit" }
+): Promise<{ permission: DrawingPermissionRow }> => {
+  const response = await api.post<{ permission: DrawingPermissionRow }>(`/collections/${collectionId}/permissions`, params);
+  return response.data;
+};
+
+export const revokeCollectionPermission = async (collectionId: string, permissionId: string): Promise<{ success: true }> => {
+  const response = await api.delete<{ success: true }>(`/collections/${collectionId}/permissions/${permissionId}`);
+  return response.data;
+};
+
+export const getCollectionDrawings = async (collectionId: string): Promise<PaginatedDrawings<DrawingSummary>> => {
+  const response = await api.get<PaginatedDrawings<DrawingSummary>>(`/collections/${collectionId}/drawings`);
+  return {
+    ...response.data,
+    drawings: response.data.drawings.map(deserializeDrawingSummary),
+  };
+};
+
 export const createDrawing = async (
   name?: string,
   collectionId?: string | null

@@ -1922,8 +1922,9 @@ export const Editor: React.FC = () => {
       {id ? (
         <>
           <ShareModal
-            drawingId={id}
-            drawingName={drawingName}
+            resourceType="drawing"
+            resourceId={id}
+            resourceName={drawingName}
             isOpen={isShareOpen}
             onClose={() => setIsShareOpen(false)}
           />

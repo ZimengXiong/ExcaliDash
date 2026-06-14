@@ -259,8 +259,10 @@ export const Dashboard: React.FC = () => {
 
   const isTrashView = selectedCollectionId === 'trash';
   const isSharedView = selectedCollectionId === 'shared';
+  const selectedCollection = collections.find((c) => c.id === selectedCollectionId);
+  const isReadOnlyCollection = selectedCollection?.accessLevel === 'view';
   const handleCreateDrawing = async () => {
-    if (isTrashView || isSharedView) return;
+    if (isTrashView || isSharedView || isReadOnlyCollection) return;
     try {
       const targetCollectionId = selectedCollectionId === undefined ? null : selectedCollectionId;
       const { id } = await api.createDrawing('Untitled Drawing', targetCollectionId);
@@ -271,7 +273,7 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleImportDrawings = async (files: FileList | null) => {
-    if (!files || isTrashView || isSharedView) return;
+    if (!files || isTrashView || isSharedView || isReadOnlyCollection) return;
 
     const fileArray = Array.from(files);
     const targetCollectionId = selectedCollectionId === undefined ? null : selectedCollectionId;
@@ -888,10 +890,10 @@ export const Dashboard: React.FC = () => {
 
           <button
             onClick={handleCreateDrawing}
-            disabled={isTrashView || isSharedView}
+            disabled={isTrashView || isSharedView || isReadOnlyCollection}
             className={clsx(
               "h-[42px] w-full sm:w-auto flex items-center justify-center gap-2 px-6 rounded-xl border-2 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] transition-all font-bold text-sm whitespace-nowrap",
-              isTrashView || isSharedView
+              isTrashView || isSharedView || isReadOnlyCollection
                 ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border-slate-300 dark:border-slate-700 shadow-none cursor-not-allowed"
                 : "bg-indigo-600 dark:bg-neutral-800 text-white hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-1 active:translate-y-0 active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:active:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)]"
             )}

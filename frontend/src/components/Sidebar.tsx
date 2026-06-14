@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutGrid, Folder, Plus, Trash2, Edit2, Archive, FolderOpen, Settings as SettingsIcon, User, LogOut, Shield } from 'lucide-react';
+import { LayoutGrid, Folder, Plus, Trash2, Edit2, Archive, FolderOpen, Settings as SettingsIcon, User, LogOut, Shield, Share2 } from 'lucide-react';
 import type { Collection } from '../types';
 import clsx from 'clsx';
 import { ConfirmModal } from './ConfirmModal';
+import { ShareModal } from './ShareModal';
 import { Logo } from './Logo';
 import { useAuth } from '../context/AuthContext';
 import { getInitialsFromName } from '../utils/user';
@@ -130,6 +131,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: 'item' | 'background'; id?: string } | null>(null);
   const [collectionToDelete, setCollectionToDelete] = useState<string | null>(null);
   const [isTrashDragOver, setIsTrashDragOver] = useState(false);
+  const [shareCollection, setShareCollection] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     const handleClickOutside = () => setContextMenu(null);
@@ -252,6 +254,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 isActive={selectedCollectionId === collection.id}
                 onClick={() => onSelectCollection(collection.id)}
                 onDoubleClick={() => {
+                  if (collection.accessLevel && collection.accessLevel !== 'owner') return;
                   setEditingId(collection.id);
                   setEditName(collection.name);
                 }}
@@ -376,31 +379,53 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             {contextMenu.type === 'item' && contextMenu.id ? (
-              <>
-                <button
-                  onClick={() => {
-                    const collection = collections.find(c => c.id === contextMenu.id);
-                    if (collection) {
-                      setEditingId(collection.id);
-                      setEditName(collection.name);
-                    }
-                    setContextMenu(null);
-                  }}
-                  className="w-full px-3 py-2 text-sm text-left text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-2"
-                >
-                  <Edit2 size={14} /> Rename Collection
-                </button>
+              (() => {
+                const ctxCollection = collections.find(c => c.id === contextMenu.id);
+                const ctxOwned = !ctxCollection?.accessLevel || ctxCollection.accessLevel === 'owner';
+                if (!ctxOwned) {
+                  return (
+                    <div className="px-3 py-2 text-sm text-left text-slate-400 dark:text-neutral-500 flex items-center gap-2">
+                      <Share2 size={14} /> Shared with you
+                    </div>
+                  );
+                }
+                return (
+                  <>
+                    <button
+                      onClick={() => {
+                        if (ctxCollection) setShareCollection({ id: ctxCollection.id, name: ctxCollection.name });
+                        setContextMenu(null);
+                      }}
+                      className="w-full px-3 py-2 text-sm text-left text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-2"
+                    >
+                      <Share2 size={14} /> Share Collection
+                    </button>
 
-                <button
-                  onClick={() => {
-                    setCollectionToDelete(contextMenu.id!);
-                    setContextMenu(null);
-                  }}
-                  className="w-full px-3 py-2 text-sm text-left text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30 flex items-center gap-2"
-                >
-                  <Trash2 size={14} /> Delete Collection
-                </button>
-              </>
+                    <button
+                      onClick={() => {
+                        if (ctxCollection) {
+                          setEditingId(ctxCollection.id);
+                          setEditName(ctxCollection.name);
+                        }
+                        setContextMenu(null);
+                      }}
+                      className="w-full px-3 py-2 text-sm text-left text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-2"
+                    >
+                      <Edit2 size={14} /> Rename Collection
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setCollectionToDelete(contextMenu.id!);
+                        setContextMenu(null);
+                      }}
+                      className="w-full px-3 py-2 text-sm text-left text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30 flex items-center gap-2"
+                    >
+                      <Trash2 size={14} /> Delete Collection
+                    </button>
+                  </>
+                );
+              })()
             ) : (
               <button
                 onClick={() => {
@@ -430,7 +455,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
         onCancel={() => setCollectionToDelete(null)}
       />
 
-
+      {shareCollection && (
+        <ShareModal
+          resourceType="collection"
+          resourceId={shareCollection.id}
+          resourceName={shareCollection.name}
+          isOpen={!!shareCollection}
+          onClose={() => setShareCollection(null)}
+        />
+      )}
     </>
   );
 };

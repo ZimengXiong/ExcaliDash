@@ -9,11 +9,12 @@ import {
 } from "./trash";
 import {
   buildShareLinkToken,
+  canEditCollection,
   canEditDrawing,
   canViewDrawing,
+  getCollectionAccess,
   getDrawingAccess,
   hashShareLinkToken,
-  isOwnerAccess,
   normalizeDrawingPermission,
   type DrawingPrincipal,
 } from "../../authz/sharing";
@@ -390,10 +391,12 @@ export const registerDrawingRoutes = (
       toInternalTrashCollectionId(targetCollectionIdRaw, req.user.id) ?? null;
 
     if (targetCollectionId && !isTrashCollectionId(targetCollectionId, req.user.id)) {
-      const collection = await prisma.collection.findFirst({
-        where: { id: targetCollectionId, userId: req.user.id },
+      const collectionAccess = await getCollectionAccess({
+        prisma,
+        principal: { kind: "user", userId: req.user.id },
+        collectionId: targetCollectionId,
       });
-      if (!collection) return res.status(404).json({ error: "Collection not found" });
+      if (!canEditCollection(collectionAccess)) return res.status(404).json({ error: "Collection not found" });
     } else if (targetCollectionIdRaw === "trash") {
       await ensureTrashCollection(prisma, req.user.id);
     }
@@ -467,7 +470,7 @@ export const registerDrawingRoutes = (
     if (payload.preview !== undefined) data.preview = payload.preview;
 
     if (payload.collectionId !== undefined) {
-      if (!isOwnerAccess(access)) {
+      if (req.user?.id !== ownerUserId) {
         return res.status(403).json({
           error: "Forbidden",
           message: "Only the owner can move drawings between collections",
@@ -477,10 +480,12 @@ export const registerDrawingRoutes = (
         await ensureTrashCollection(prisma, ownerUserId);
         (data as Prisma.DrawingUncheckedUpdateInput).collectionId = trashCollectionId;
       } else if (payload.collectionId) {
-        const collection = await prisma.collection.findFirst({
-          where: { id: payload.collectionId, userId: ownerUserId },
+        const targetAccess = await getCollectionAccess({
+          prisma,
+          principal: { kind: "user", userId: req.user!.id },
+          collectionId: payload.collectionId,
         });
-        if (!collection) return res.status(404).json({ error: "Collection not found" });
+        if (!canEditCollection(targetAccess)) return res.status(404).json({ error: "Collection not found" });
         (data as Prisma.DrawingUncheckedUpdateInput).collectionId = payload.collectionId;
       } else {
         (data as Prisma.DrawingUncheckedUpdateInput).collectionId = null;
