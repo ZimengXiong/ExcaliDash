@@ -50,6 +50,18 @@ fi
 
 export CSRF_SECRET
 
+# Check that only one of OIDC_CLIENT_SECRET and OIDC_CLIENT_SECRET_FILE is set
+if [ -n "${OIDC_CLIENT_SECRET}" ] && [ -f "${OIDC_CLIENT_SECRET_FILE}" ]; then
+    echo "ERROR: Both OIDC_CLIENT_SECRET and OIDC_CLIENT_SECRET_FILE are set. Use only one." >&2
+    exit 1
+fi
+
+# Read OIDC_CLIENT_SECRET if it is passed inside a file as OIDC_CLIENT_SECRET_FILE
+if [ -f "${OIDC_CLIENT_SECRET_FILE}" ]; then
+    OIDC_CLIENT_SECRET="$(tr -d '\r\n' < "${OIDC_CLIENT_SECRET_FILE}")"
+fi
+export OIDC_CLIENT_SECRET
+
 # 1. Ensure schema and migrations are present (Running as root)
 # Never copy the entire prisma directory, as that can unintentionally overwrite
 # persisted SQLite files or copy stray *.db artifacts into the volume.

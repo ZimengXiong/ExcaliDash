@@ -285,8 +285,9 @@ backend:
     # Keep OIDC_ISSUER_URL browser-routable; set OIDC_DISCOVERY_URL for backend-only access.
     # - OIDC_DISCOVERY_URL=http://auth-internal:9000/application/o/excalidash/
     - OIDC_CLIENT_ID=your-client-id
-    # Optional for public clients; required for confidential clients
+    # Optional for public clients; required for confidential clients. Only one can be set.
     # - OIDC_CLIENT_SECRET=your-client-secret
+    # - OIDC_CLIENT_SECRET_FILE=/path/to/secret
     # Optional token endpoint auth override (useful for some IdPs/HS setups)
     # - OIDC_TOKEN_ENDPOINT_AUTH_METHOD=client_secret_post
     # Optional override when your IdP client is configured for a non-default ID token alg
@@ -319,7 +320,7 @@ Notes:
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | OIDC-only (`oidc_enforced`) | You typically do not use local bootstrap admin registration; first admin can be created through your IdP depending on config. |
 | Reverse proxy               | Set `FRONTEND_URL` and `TRUST_PROXY` correctly or auth + websockets may fail.                                                 |
-| ID token algorithm          | ExcaliDash defaults to `RS256`. If your IdP client is explicitly configured for another signed ID-token algorithm such as `HS256`, set `OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG` to match that exact client setting. `none` is not allowed, and `HS*` requires `OIDC_CLIENT_SECRET`. |
+| ID token algorithm          | ExcaliDash defaults to `RS256`. If your IdP client is explicitly configured for another signed ID-token algorithm such as `HS256`, set `OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG` to match that exact client setting. `none` is not allowed, and `HS*` requires `OIDC_CLIENT_SECRET` or `OIDC_CLIENT_SECRET_FILE`. |
 | Keycloak issuer format      | Use realm issuer URL: `https://<keycloak-host>/realms/<realm>`.                                                               |
 | Authentik issuer format     | Use provider issuer URL: `https://<authentik-host>/application/o/<provider-slug>/`.                                           |
 | Authentik `email_verified`  | If Authentik does not emit `email_verified=true`, either add the scope mapping or set `OIDC_REQUIRE_EMAIL_VERIFIED=false`.   |
@@ -388,7 +389,9 @@ Base values are documented in `backend/.env.example`. Common ones to care about:
 | `FRONTEND_URL`           | `http://localhost:6767`   | Allowed frontend origin(s), comma-separated for multiple entries.                   |
 | `TRUST_PROXY`            | `false`                   | `false`, `true`, or hop count (for example `1`).                                    |
 | `JWT_SECRET`             | `change-this-secret...`   | Recommended in production so sessions remain stable across restarts and migrations. |
+| `JWT_SECRET_FILE`        | `/path/to/secret`         | Path to a mounted file that contains the secret.                                    |
 | `CSRF_SECRET`            | `change-this-secret`      | Recommended in production so CSRF validation remains stable across restarts.        |
+| `CSRF_SECRET_FILE`       | `/path/to/secret`         | Path to a mounted file that contains the secret.                                    |
 | `AUTH_MODE`              | `local`                   | `local`, `hybrid`, `oidc_enforced`.                                                 |
 | `ENFORCE_HTTPS_REDIRECT` | `true`                    | Set to `false` to disable the built-in HTTP→HTTPS redirect when your outer gateway handles it. |
 
