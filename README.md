@@ -287,7 +287,7 @@ backend:
     - OIDC_CLIENT_ID=your-client-id
     # Optional for public clients; required for confidential clients. Only one can be set.
     # - OIDC_CLIENT_SECRET=your-client-secret
-    # - OIDC_CLIENT_SECRET_FILE=/path/to/ecret
+    # - OIDC_CLIENT_SECRET_FILE=/path/to/secret
     # Optional token endpoint auth override (useful for some IdPs/HS setups)
     # - OIDC_TOKEN_ENDPOINT_AUTH_METHOD=client_secret_post
     # Optional override when your IdP client is configured for a non-default ID token alg
