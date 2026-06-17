@@ -348,6 +348,7 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
   };
 
   const requireCsrf = (req: Request, res: Response): boolean => {
+    if (req.isServicePrincipal) return true;
     const origin = req.headers["origin"];
     const referer = req.headers["referer"];
     const originValue = Array.isArray(origin) ? origin[0] : origin;
