@@ -19,4 +19,5 @@ export interface Collection {
   id: string;
   name: string;
   createdAt: number;
+  accessLevel?: "view" | "edit" | "owner";
 }

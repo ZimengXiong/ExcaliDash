@@ -18,8 +18,9 @@ import * as api from "../api";
 import { useAuth } from "../context/AuthContext";
 
 type Props = {
-  drawingId: string;
-  drawingName: string;
+  resourceType: "drawing" | "collection";
+  resourceId: string;
+  resourceName: string;
   isOpen: boolean;
   onClose: () => void;
 };
@@ -140,9 +141,10 @@ const CustomSelect: React.FC<{
   );
 };
 
-export const ShareModal: React.FC<Props> = ({ drawingId, drawingName, isOpen, onClose }) => {
+export const ShareModal: React.FC<Props> = ({ resourceType, resourceId, resourceName, isOpen, onClose }) => {
   const { user } = useAuth();
   const currentUserId = user?.id || null;
+  const isCollection = resourceType === "collection";
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -161,7 +163,7 @@ export const ShareModal: React.FC<Props> = ({ drawingId, drawingName, isOpen, on
   const [isCopied, setIsCopied] = useState(false);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const shareableEditorUrl = `${origin}/shared/${drawingId}`;
+  const shareableEditorUrl = `${origin}/shared/${resourceId}`;
 
   const activeLink = useMemo(() => {
     const now = Date.now();
@@ -194,8 +196,13 @@ export const ShareModal: React.FC<Props> = ({ drawingId, drawingName, isOpen, on
     setIsLoading(true);
     setError(null);
     try {
-      const data = await api.getDrawingSharing(drawingId);
-      setSharing(data);
+      const data = isCollection
+        ? await api.getCollectionSharing(resourceId)
+        : await api.getDrawingSharing(resourceId);
+      setSharing({
+        permissions: data.permissions,
+        linkShares: (data as { linkShares?: api.DrawingLinkShareRow[] }).linkShares ?? [],
+      });
     } catch (err: unknown) {
       let message = "Failed to load sharing settings";
       if (api.isAxiosError(err)) {
@@ -206,7 +213,7 @@ export const ShareModal: React.FC<Props> = ({ drawingId, drawingName, isOpen, on
     } finally {
       setIsLoading(false);
     }
-  }, [drawingId]);
+  }, [resourceId, isCollection]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -230,7 +237,9 @@ export const ShareModal: React.FC<Props> = ({ drawingId, drawingName, isOpen, on
     let cancelled = false;
     const run = async () => {
       try {
-        const users = await api.resolveShareUsers(drawingId, q);
+        const users = isCollection
+          ? await api.resolveCollectionShareUsers(resourceId, q)
+          : await api.resolveShareUsers(resourceId, q);
         const filtered = currentUserId ? users.filter((u) => u.id !== currentUserId) : users;
         if (!cancelled) setUserResults(filtered);
       } catch {
@@ -242,7 +251,7 @@ export const ShareModal: React.FC<Props> = ({ drawingId, drawingName, isOpen, on
       cancelled = true;
       window.clearTimeout(t);
     };
-  }, [currentUserId, drawingId, isOpen, userQuery]);
+  }, [currentUserId, resourceId, isOpen, userQuery, isCollection]);
 
   const handleCopy = async (text: string) => {
     if (!text) return;
@@ -271,7 +280,7 @@ export const ShareModal: React.FC<Props> = ({ drawingId, drawingName, isOpen, on
     setIsLoading(true);
     setError(null);
     try {
-      await api.upsertDrawingPermission(drawingId, { granteeUserId: uId, permission: userPermission });
+      await (isCollection ? api.upsertCollectionPermission : api.upsertDrawingPermission)(resourceId, { granteeUserId: uId, permission: userPermission });
       await refresh();
       setUserQuery("");
       setUserResults([]);
@@ -291,7 +300,7 @@ export const ShareModal: React.FC<Props> = ({ drawingId, drawingName, isOpen, on
     setIsLoading(true);
     setError(null);
     try {
-      await api.revokeDrawingPermission(drawingId, permissionId);
+      await (isCollection ? api.revokeCollectionPermission : api.revokeDrawingPermission)(resourceId, permissionId);
       await refresh();
     } catch {
       setError("Failed to revoke access");
@@ -305,14 +314,14 @@ export const ShareModal: React.FC<Props> = ({ drawingId, drawingName, isOpen, on
     setError(null);
     try {
       if (activeLink) {
-        await api.revokeLinkShare(drawingId, activeLink.id);
+        await api.revokeLinkShare(resourceId, activeLink.id);
       }
       
       const perm = newPermission ?? linkPermission;
       setLinkPermission(perm);
       const expiresAt = newExpiry ?? calculateExpiresAt(expiryOption, customExpiry);
       
-      await api.createLinkShare(drawingId, {
+      await api.createLinkShare(resourceId, {
         permission: perm,
         expiresAt,
       });
@@ -336,7 +345,7 @@ export const ShareModal: React.FC<Props> = ({ drawingId, drawingName, isOpen, on
     setIsLoading(true);
     setError(null);
     try {
-      await api.revokeLinkShare(drawingId, activeLink.id);
+      await api.revokeLinkShare(resourceId, activeLink.id);
       await refresh();
     } catch {
       setError("Failed to revoke link");
@@ -355,8 +364,8 @@ export const ShareModal: React.FC<Props> = ({ drawingId, drawingName, isOpen, on
       
       <div className="relative w-full max-w-[420px] bg-white dark:bg-neutral-900 rounded-[20px] border-2 border-black dark:border-neutral-700 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:shadow-[6px_6px_0px_0px_rgba(255,255,255,0.05)] flex flex-col animate-in fade-in zoom-in-95 duration-200">
         <div className="px-5 py-3.5 flex items-center justify-between border-b-2 border-black dark:border-neutral-700">
-          <h2 className="text-base font-black text-slate-800 dark:text-neutral-100 truncate pr-4" title={drawingName}>
-            Share "{drawingName}"
+          <h2 className="text-base font-black text-slate-800 dark:text-neutral-100 truncate pr-4" title={resourceName}>
+            Share "{resourceName}"
           </h2>
           <button
             onClick={onClose}
@@ -442,7 +451,7 @@ export const ShareModal: React.FC<Props> = ({ drawingId, drawingName, isOpen, on
                         if (val === "remove") {
                           await handleRevokeUser(p.id);
                         } else {
-                          await api.upsertDrawingPermission(drawingId, { granteeUserId: p.granteeUserId, permission: val as any });
+                          await (isCollection ? api.upsertCollectionPermission : api.upsertDrawingPermission)(resourceId, { granteeUserId: p.granteeUserId, permission: val as any });
                           void refresh();
                         }
                       }}
@@ -459,6 +468,7 @@ export const ShareModal: React.FC<Props> = ({ drawingId, drawingName, isOpen, on
             </div>
           </section>
 
+          {!isCollection && (
           <section className="pt-5 border-t-2 border-black dark:border-neutral-700">
             <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-neutral-500 px-1 mb-3">General access</h3>
             
@@ -554,9 +564,11 @@ export const ShareModal: React.FC<Props> = ({ drawingId, drawingName, isOpen, on
               </div>
             </div>
           </section>
+          )}
         </div>
 
         <div className="px-5 py-5 flex items-center justify-between border-t-2 border-black dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800/50 rounded-b-[18px]">
+          {isCollection ? <div /> : (
           <button
             onClick={() => handleCopy(currentLinkUrl)}
             disabled={!activeLink}
@@ -571,7 +583,8 @@ export const ShareModal: React.FC<Props> = ({ drawingId, drawingName, isOpen, on
             {isCopied ? <Check size={16} strokeWidth={3} /> : <LinkIcon size={16} strokeWidth={3} />}
             {isCopied ? "COPIED!" : "COPY LINK"}
           </button>
-          
+          )}
+
           <button
             onClick={onClose}
             className="px-8 py-2.5 rounded-xl bg-indigo-600 dark:bg-indigo-500 text-white border-2 border-black font-black text-[10px] uppercase tracking-[0.2em] hover:-translate-y-0.5 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0 active:shadow-none transition-all shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]"

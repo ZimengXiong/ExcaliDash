@@ -22,6 +22,7 @@ model User {
   drawings            Drawing[]
   collections         Collection[]
   drawingPermissions  DrawingPermission[]
+  collectionPermissions CollectionPermission[]
   passwordResetTokens PasswordResetToken[]
   refreshTokens       RefreshToken[]
   auditLogs           AuditLog[]
@@ -52,6 +53,7 @@ model Collection {
   userId    String
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   drawings  Drawing[]
+  permissions CollectionPermission[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
@@ -108,6 +110,22 @@ model DrawingPermission {
   @@unique([drawingId, granteeUserId], name: "drawingId_granteeUserId")
   @@index([granteeUserId])
   @@index([drawingId])
+}
+
+model CollectionPermission {
+  id           String   @id @default(uuid())
+  collectionId String
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  granteeUserId String
+  granteeUser  User     @relation(fields: [granteeUserId], references: [id], onDelete: Cascade)
+  permission   String // "view" | "edit"
+  createdByUserId String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([collectionId, granteeUserId], name: "collectionId_granteeUserId")
+  @@index([granteeUserId])
+  @@index([collectionId])
 }
 
 model DrawingLinkShare {

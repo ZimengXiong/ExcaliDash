@@ -125,7 +125,7 @@ export const getDrawingAccess = async (params: {
   if (params.principal?.kind === "user") {
     const drawing = await params.prisma.drawing.findUnique({
       where: { id: params.drawingId },
-      select: { userId: true },
+      select: { userId: true, collectionId: true },
     });
     if (!drawing) return "none";
     if (drawing.userId === params.principal.userId) return "owner";
@@ -140,6 +140,16 @@ export const getDrawingAccess = async (params: {
       select: { permission: true },
     });
     baseAccess = normalizeDrawingPermission(perm?.permission) ?? baseAccess;
+
+    // A drawing inherits the access the principal has on its containing collection.
+    if (drawing.collectionId) {
+      const collectionAccess = await getCollectionAccess({
+        prisma: params.prisma,
+        principal: params.principal,
+        collectionId: drawing.collectionId,
+      });
+      baseAccess = maxAccess(baseAccess, collectionAccess);
+    }
   }
 
   // Google Docs-style link policy: applies regardless of whether the visitor is signed in.
@@ -164,6 +174,41 @@ export const canEditDrawing = (
   access === "edit" || access === "owner";
 
 export const isOwnerAccess = (access: DrawingAccess): boolean => access === "owner";
+
+export type CollectionAccess = DrawingAccess;
+
+export const getCollectionAccess = async (params: {
+  prisma: PrismaClient;
+  principal: DrawingPrincipal | null;
+  collectionId: string;
+}): Promise<CollectionAccess> => {
+  if (params.principal?.kind !== "user") return "none";
+
+  const collection = await params.prisma.collection.findUnique({
+    where: { id: params.collectionId },
+    select: { userId: true },
+  });
+  if (!collection) return "none";
+  if (collection.userId === params.principal.userId) return "owner";
+
+  const perm = await params.prisma.collectionPermission.findUnique({
+    where: {
+      collectionId_granteeUserId: {
+        collectionId: params.collectionId,
+        granteeUserId: params.principal.userId,
+      },
+    },
+    select: { permission: true },
+  });
+  return normalizeDrawingPermission(perm?.permission) ?? "none";
+};
+
+export const canViewCollection = (access: CollectionAccess): boolean => access !== "none";
+
+export const canEditCollection = (access: CollectionAccess): boolean =>
+  access === "edit" || access === "owner";
+
+export const isCollectionOwner = (access: CollectionAccess): boolean => access === "owner";
 
 const getActiveLinkShareAccess = async (params: {
   prisma: PrismaClient;

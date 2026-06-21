@@ -37,6 +37,10 @@ export const useDashboardData = ({
     setIsLoading(true);
     try {
       const isSharedView = selectedCollectionId === "shared";
+      const isCollectionView =
+        typeof selectedCollectionId === "string" &&
+        selectedCollectionId !== "shared" &&
+        selectedCollectionId !== "trash";
       const drawingsPromise = isSharedView
         ? api.getSharedDrawings(debouncedSearch, {
             limit: pageSize,
@@ -44,6 +48,8 @@ export const useDashboardData = ({
             sortField,
             sortDirection,
           })
+        : isCollectionView
+        ? api.getCollectionDrawings(selectedCollectionId as string)
         : api.getDrawings(debouncedSearch, selectedCollectionId, {
             limit: pageSize,
             offset: 0,
@@ -92,6 +98,12 @@ export const useDashboardData = ({
     setIsFetchingMore(true);
     try {
       const isSharedView = selectedCollectionId === "shared";
+      const isCollectionView =
+        typeof selectedCollectionId === "string" &&
+        selectedCollectionId !== "shared" &&
+        selectedCollectionId !== "trash";
+      // Collection browse returns the full set in one request; nothing more to page.
+      if (isCollectionView) return;
       const drawingsRes = await (isSharedView
         ? api.getSharedDrawings(debouncedSearch, {
             limit: pageSize,
