@@ -17,24 +17,32 @@ services:
       # Recommended to set explicitly for portability and multi-instance setups.
       - JWT_SECRET=${JWT_SECRET}
       - CSRF_SECRET=${CSRF_SECRET}
-      # Optional OIDC settings (required for AUTH_MODE=hybrid or oidc_enforced)
-      # - OIDC_PROVIDER_NAME=Authentik
-      # - OIDC_ISSUER_URL=https://auth.example.com/application/o/excalidash/
-      # - OIDC_CLIENT_ID=your-client-id
-      # - OIDC_CLIENT_SECRET=your-client-secret
-      # - OIDC_REDIRECT_URI=https://excalidash.example.com/api/auth/oidc/callback
+      # # Local OIDC settings for dev compose.
+      # - OIDC_PROVIDER_NAME=Keycloak
+      # # Browser-facing issuer URL.
+      # - OIDC_ISSUER_URL=http://localhost:8080/realms/excalidash/
+      # # Backend-only discovery URL on the shared container network.
+      # - OIDC_DISCOVERY_URL=http://keycloak:8080/realms/excalidash/
+      # - OIDC_CLIENT_ID=excalidash
+      # # Local OIDC test secret; align with oidc/keycloak/realm-excalidash.json.
+      # - OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG=RS256
+      # - OIDC_CLIENT_SECRET=excalidash-dev-secret
+      # - OIDC_REDIRECT_URI=http://localhost:6767/api/auth/oidc/callback
+      # - OIDC_SCOPES=openid profile email
+      # - OIDC_ADMIN_GROUPS=admins
     volumes:
       - backend-data:/app/prisma
     networks:
       - excalidash-network
     restart: unless-stopped
     healthcheck:
+      # Use IPv4 loopback explicitly to avoid IPv6 localhost resolution issues.
       test:
         [
           "CMD",
           "node",
           "-e",
-          "require('http').get('http://localhost:8000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))",
+          "require('http').get('http://127.0.0.1:8000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))",
         ]
       interval: 30s
       timeout: 10s
@@ -57,6 +65,7 @@ services:
       - excalidash-network
     restart: unless-stopped
     healthcheck:
+      # Use IPv4 loopback explicitly to avoid IPv6 localhost resolution issues.
       test:
         [
           "CMD",
@@ -64,7 +73,7 @@ services:
           "--quiet",
           "--tries=1",
           "--spider",
-          "http://localhost:80",
+          "http://127.0.0.1:80",
         ]
       interval: 30s
       timeout: 10s

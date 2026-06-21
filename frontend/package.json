@@ -1,11 +1,11 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "0.4.27",
+  "version": "0.5.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port 6767",
-    "build": "tsc -b && vite build",
+    "dev": "node scripts/copy-excalidraw-assets.mjs --public && vite --port 6767",
+    "build": "tsc -b && vite build && node scripts/copy-excalidraw-assets.mjs --dist",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
@@ -17,13 +17,13 @@
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/utilities": "^3.2.2",
-    "@excalidraw/excalidraw": "0.17.6",
+    "@excalidraw/excalidraw": "^0.18.1",
     "@types/lodash": "^4.17.20",
-    "axios": "^1.13.2",
+    "axios": "^1.15.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "jszip": "^3.10.1",
-    "lodash": "^4.17.23",
+    "lodash": "^4.18.1",
     "lucide-react": "^0.554.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -47,13 +47,13 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
-    "happy-dom": "^20.0.11",
+    "happy-dom": "^20.8.9",
     "jsdom": "^27.2.0",
-    "postcss": "^8.4.35",
+    "postcss": "^8.5.10",
     "tailwindcss": "^3.4.1",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.3",
-    "vite": "^7.2.2",
+    "vite": "^7.3.2",
     "vitest": "^4.0.15"
   }
 }

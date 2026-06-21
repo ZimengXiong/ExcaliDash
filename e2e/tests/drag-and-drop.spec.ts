@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import {
   createDrawing,
   deleteDrawing,
+  getDrawing,
   listDrawings,
   createCollection,
   deleteCollection,
@@ -209,5 +210,113 @@ test.describe("Drag and Drop - File Import", () => {
 
     const importedCards = page.locator("[id^='drawing-card-']");
     await expect(importedCards.first()).toBeVisible();
+  });
+});
+
+test.describe("Drag and Drop - Editor Image Import", () => {
+  let createdDrawingIds: string[] = [];
+
+  test.afterEach(async ({ request }) => {
+    for (const id of createdDrawingIds) {
+      try {
+        await deleteDrawing(request, id);
+      } catch {
+      }
+    }
+    createdDrawingIds = [];
+  });
+
+  test("should import multiple dropped images onto the editor canvas", async ({
+    page,
+    request,
+  }) => {
+    const drawing = await createDrawing(request, {
+      name: `MultiImageDrop_${Date.now()}`,
+    });
+    createdDrawingIds.push(drawing.id);
+
+    await page.goto(`/editor/${drawing.id}`);
+    await page.waitForFunction(() => Boolean((window as any).__EXCALIDASH_EXCALIDRAW_API__));
+
+    const firstImageBase64 =
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
+    const secondImageBase64 =
+      "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR42mNk+M9QzwAEYBxVSFUAAN0HA3D1Ko9eAAAAAElFTkSuQmCC";
+
+    await page.evaluate(
+      async ({ firstImageBase64, secondImageBase64 }) => {
+        const makeFile = (name: string, base64Data: string) =>
+          new File(
+            [Uint8Array.from(atob(base64Data), (char) => char.charCodeAt(0))],
+            name,
+            { type: "image/png" }
+          );
+
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(makeFile("one.png", firstImageBase64));
+        dataTransfer.items.add(makeFile("two.png", secondImageBase64));
+
+        const target = document.querySelector(".excalidraw");
+        if (!target) {
+          throw new Error("Missing Excalidraw container");
+        }
+
+        target.dispatchEvent(
+          new DragEvent("dragenter", {
+            bubbles: true,
+            cancelable: true,
+            dataTransfer,
+          })
+        );
+        target.dispatchEvent(
+          new DragEvent("dragover", {
+            bubbles: true,
+            cancelable: true,
+            dataTransfer,
+          })
+        );
+        target.dispatchEvent(
+          new DragEvent("drop", {
+            bubbles: true,
+            cancelable: true,
+            dataTransfer,
+          })
+        );
+      },
+      { firstImageBase64, secondImageBase64 }
+    );
+
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(() => {
+            const api = (window as any).__EXCALIDASH_EXCALIDRAW_API__;
+            const imageElements = api
+              .getSceneElementsIncludingDeleted()
+              .filter((element: any) => !element.isDeleted && element.type === "image");
+
+            return {
+              imageCount: imageElements.length,
+              fileCount: Object.keys(api.getFiles() || {}).length,
+            };
+          }),
+        { timeout: 15000 }
+      )
+      .toEqual({ imageCount: 2, fileCount: 2 });
+
+    await expect
+      .poll(
+        async () => {
+          const saved = await getDrawing(request, drawing.id);
+          return {
+            imageCount: (saved.elements || []).filter(
+              (element: any) => !element.isDeleted && element.type === "image"
+            ).length,
+            fileCount: Object.keys(saved.files || {}).length,
+          };
+        },
+        { timeout: 15000 }
+      )
+      .toEqual({ imageCount: 2, fileCount: 2 });
   });
 });

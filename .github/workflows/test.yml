@@ -85,7 +85,7 @@ jobs:
       - name: Setup backend database
         run: |
           cd backend
-          npx prisma migrate deploy
+          node scripts/provider-prisma.cjs migrate deploy
         env:
           DATABASE_URL: file:${{ github.workspace }}/backend/prisma/e2e-test.db
       

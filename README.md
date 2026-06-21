@@ -37,6 +37,13 @@ A self-hosted dashboard and organizer for [Excalidraw](https://github.com/excali
 </details>
 
 <details>
+<summary>Version history and restore</summary>
+
+Automatically retain recent drawing snapshots, preview past versions from the editor, and restore a previous state when needed.
+
+</details>
+
+<details>
 <summary>(Optional) Multi User Authentication, OIDC Support</summary>
 
 ### Sign in with OIDC
@@ -182,11 +189,12 @@ docker compose up -d
 
 When running ExcaliDash behind Traefik, Nginx, or another reverse proxy, configure both containers so that API + WebSocket calls resolve correctly:
 
-| Variable       | Purpose                                                                                                                                                                   |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `FRONTEND_URL` | Backend allowed origin(s). Must match the public URL users access (for example `https://excalidash.example.com`). Supports comma-separated values for multiple addresses. |
-| `TRUST_PROXY`  | Set to `1` when traffic passes through one trusted reverse-proxy hop (for example frontend nginx -> backend) and headers are sanitized.                                   |
-| `BACKEND_URL`  | Frontend container-to-backend target used by Nginx. Override when backend host differs from default service DNS/host.                                                     |
+| Variable                 | Purpose                                                                                                                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FRONTEND_URL`           | Backend allowed origin(s). Must match the public URL users access (for example `https://excalidash.example.com`). Supports comma-separated values for multiple addresses. |
+| `TRUST_PROXY`            | Set to `1` when traffic passes through one trusted reverse-proxy hop (for example frontend nginx -> backend) and headers are sanitized.                                   |
+| `BACKEND_URL`            | Frontend container-to-backend target used by Nginx. Override when backend host differs from default service DNS/host.                                                     |
+| `ENFORCE_HTTPS_REDIRECT` | When `FRONTEND_URL` uses `https://`, the backend automatically redirects plain-HTTP requests to HTTPS. Set to `false` if your outer gateway already enforces HTTPS and you want to disable the built-in redirect (avoids redirect loops when `X-Forwarded-Proto` is not forwarded). Default: `true`. |
 
 ```yaml
 # docker-compose.yml example
@@ -198,6 +206,9 @@ backend:
     - TRUST_PROXY=1
     # Or multiple URLs (comma-separated) for local + network access
     # - FRONTEND_URL=http://localhost:6767,http://192.168.1.100:6767,http://nas.local:6767
+    # If your outer gateway enforces HTTPS and X-Forwarded-Proto is not forwarded,
+    # disable the built-in redirect to prevent redirect loops:
+    # - ENFORCE_HTTPS_REDIRECT=false
 frontend:
   environment:
     # For standard Docker Compose (default)
@@ -270,12 +281,37 @@ backend:
     - AUTH_MODE=oidc_enforced
     - OIDC_PROVIDER_NAME=Authentik
     - OIDC_ISSUER_URL=https://auth.example.com/application/o/excalidash/
+    # Optional split-horizon setup when backend reaches IdP via internal DNS.
+    # Keep OIDC_ISSUER_URL browser-routable; set OIDC_DISCOVERY_URL for backend-only access.
+    # - OIDC_DISCOVERY_URL=http://auth-internal:9000/application/o/excalidash/
     - OIDC_CLIENT_ID=your-client-id
     # Optional for public clients; required for confidential clients
     # - OIDC_CLIENT_SECRET=your-client-secret
+    # Optional token endpoint auth override (useful for some IdPs/HS setups)
+    # - OIDC_TOKEN_ENDPOINT_AUTH_METHOD=client_secret_post
+    # Optional override when your IdP client is configured for a non-default ID token alg
+    # - OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG=HS256
     - OIDC_REDIRECT_URI=https://excalidash.example.com/api/auth/oidc/callback
     - OIDC_SCOPES=openid profile email
+    # Optional: path to groups/roles claim in ID token/user claims (supports dot path)
+    - OIDC_GROUPS_CLAIM=groups
+    # Optional: comma-separated group names that should be ADMIN in ExcaliDash
+    - OIDC_ADMIN_GROUPS=excalidash-admins,platform-admins
 ```
+
+Quick preflight check (recommended before starting backend):
+
+```bash
+cd backend
+npm run oidc:doctor
+```
+
+Provider-specific env templates for existing IdPs:
+
+- `backend/.env.oidc.keycloak.example`
+- `backend/.env.oidc.authentik.example`
+
+Copy one to `backend/.env`, update issuer/client/redirect values, then run `npm run oidc:doctor`.
 
 Notes:
 
@@ -283,6 +319,14 @@ Notes:
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | OIDC-only (`oidc_enforced`) | You typically do not use local bootstrap admin registration; first admin can be created through your IdP depending on config. |
 | Reverse proxy               | Set `FRONTEND_URL` and `TRUST_PROXY` correctly or auth + websockets may fail.                                                 |
+| ID token algorithm          | ExcaliDash defaults to `RS256`. If your IdP client is explicitly configured for another signed ID-token algorithm such as `HS256`, set `OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG` to match that exact client setting. `none` is not allowed, and `HS*` requires `OIDC_CLIENT_SECRET`. |
+| Keycloak issuer format      | Use realm issuer URL: `https://<keycloak-host>/realms/<realm>`.                                                               |
+| Authentik issuer format     | Use provider issuer URL: `https://<authentik-host>/application/o/<provider-slug>/`.                                           |
+| Authentik `email_verified`  | If Authentik does not emit `email_verified=true`, either add the scope mapping or set `OIDC_REQUIRE_EMAIL_VERIFIED=false`.   |
+| Redirect URI                | Must be exact callback: `https://<excalidash-host>/api/auth/oidc/callback`.                                                   |
+| Split-horizon IdP networking | Set `OIDC_ISSUER_URL` to the browser-reachable issuer and optionally `OIDC_DISCOVERY_URL` to a backend-reachable internal URL. |
+| OIDC admin mapping          | If `OIDC_ADMIN_GROUPS` is set, admin role is reconciled on each authenticated request for OIDC users: users in those groups are promoted to `ADMIN`, users not in those groups are demoted to `USER`. |
+| Legacy sessions             | Users with old sessions (issued before group claims were embedded) should sign out/in once so OIDC group claims are refreshed. |
 
 </details>
 
@@ -318,6 +362,8 @@ Configure ExcaliDash backend for hybrid OIDC:
 ```bash
 cd backend
 cp .env.oidc.example .env
+# If backend runs in Docker and Keycloak issuer is localhost for browser, set:
+# OIDC_DISCOVERY_URL=http://keycloak:8080/realms/excalidash
 # Ensure OIDC_REDIRECT_URI matches where your frontend is running:
 # - http://localhost:6767/api/auth/oidc/callback (repo frontend dev default)
 # - https://excalidash.example.com/api/auth/oidc/callback (production)
@@ -336,15 +382,16 @@ docker compose -f docker-compose.oidc.yml down
 
 Base values are documented in `backend/.env.example`. Common ones to care about:
 
-| Variable            | Default / Example         | Description                                                                         |
-| ------------------- | ------------------------- | ----------------------------------------------------------------------------------- |
-| `DATABASE_PROVIDER` | `sqlite`                 | Database provider: `sqlite` or `postgresql`. See [Database Provider](#database-provider) for details. |
-| `DATABASE_URL`      | `file:/app/prisma/dev.db` | SQLite file or external DB URL.                                                     |
-| `FRONTEND_URL`      | `http://localhost:6767`   | Allowed frontend origin(s), comma-separated for multiple entries.                   |
-| `TRUST_PROXY`       | `false`                   | `false`, `true`, or hop count (for example `1`).                                    |
-| `JWT_SECRET`        | `change-this-secret...`   | Recommended in production so sessions remain stable across restarts and migrations. |
-| `CSRF_SECRET`       | `change-this-secret`      | Recommended in production so CSRF validation remains stable across restarts.        |
-| `AUTH_MODE`         | `local`                   | `local`, `hybrid`, `oidc_enforced`.                                                 |
+| Variable                 | Default / Example         | Description                                                                         |
+| ------------------------ | ------------------------- | ----------------------------------------------------------------------------------- |
+| `DATABASE_PROVIDER`      | `sqlite`                  | Database provider: `sqlite` or `postgresql`. See [Database Provider](#database-provider) for details. |
+| `DATABASE_URL`           | `file:/app/prisma/dev.db` | SQLite file or external DB URL.                                                     |
+| `FRONTEND_URL`           | `http://localhost:6767`   | Allowed frontend origin(s), comma-separated for multiple entries.                   |
+| `TRUST_PROXY`            | `false`                   | `false`, `true`, or hop count (for example `1`).                                    |
+| `JWT_SECRET`             | `change-this-secret...`   | Recommended in production so sessions remain stable across restarts and migrations. |
+| `CSRF_SECRET`            | `change-this-secret`      | Recommended in production so CSRF validation remains stable across restarts.        |
+| `AUTH_MODE`              | `local`                   | `local`, `hybrid`, `oidc_enforced`.                                                 |
+| `ENFORCE_HTTPS_REDIRECT` | `true`                    | Set to `false` to disable the built-in HTTP to HTTPS redirect when your outer gateway handles it. |
 
 </details>
 
@@ -353,7 +400,7 @@ Base values are documented in `backend/.env.example`. Common ones to care about:
 
 ## Database Provider
 
-ExcaliDash supports both **SQLite** (default) and **PostgreSQL** as database providers. The provider is controlled by the `DATABASE_PROVIDER` environment variable.
+ExcaliDash supports both **SQLite** (default) and **PostgreSQL** as database providers. Docker startup uses `DATABASE_PROVIDER` to select the runtime provider and materialize a provider-specific Prisma schema before running Prisma commands.
 
 ### SQLite (Default)
 
@@ -385,28 +432,20 @@ services:
 
 2. **Generate PostgreSQL migrations:**
 
-The repository includes SQLite migrations by default. To use PostgreSQL, you need to generate migrations for the PostgreSQL provider:
+The repository includes provider-specific migration folders. Use the migration helper when changing the schema so the checked-in Prisma schema remains valid for local and CI Prisma commands:
 
 ```bash
-# 1. Set the provider in your local environment
-export DATABASE_PROVIDER=postgresql
 export DATABASE_URL="postgresql://user:password@localhost:5432/excalidash"
-
-# 2. Remove existing SQLite migrations
-rm -rf backend/prisma/migrations/postgresql
-
-# 3. Generate initial migration for PostgreSQL
-cd backend
-npx prisma migrate dev --name init
+./scripts/generate-migrations.sh --dev init
 ```
-
-This creates a new `backend/prisma/migrations/postgresql/` folder with PostgreSQL-specific migrations.
 
 **Note:** When switching database providers, you cannot migrate existing data. The new database will start empty.
 
 </details>
 
 # Development
+
+For contributor workflow, `make dev` starts the app in local single-user mode so you can reproduce editor bugs without going through login/onboarding. Use `make dev-auth` if you need to test local auth or OIDC flows from your `backend/.env`.
 
 <details>
 <summary>Clone the Repository</summary>
@@ -519,8 +558,8 @@ Common flags:
 </details>
 
 # Credits
-
+If you find ExcaliDash useful, please consider [sponsoring](https://github.com/sponsors/ZimengXiong)
 - Example designs from:
-  - https://github.com/Prakash-sa/system-design-ultimatum/tree/main
-  - https://github.com/kitsteam/excalidraw-examples/tree/main
+  - <https://github.com/Prakash-sa/system-design-ultimatum/tree/main>
+  - <https://github.com/kitsteam/excalidraw-examples/tree/main>
 - [The amazing work of Excalidraw & contributors](https://www.npmjs.com/package/@excalidraw/excalidraw)

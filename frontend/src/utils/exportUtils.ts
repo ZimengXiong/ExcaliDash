@@ -23,6 +23,8 @@ export const exportDrawingToFile = (
     elements: drawing.elements || [],
     appState: {
       gridSize: drawing.appState?.gridSize ?? null,
+      ...(drawing.appState?.gridStep != null && { gridStep: drawing.appState.gridStep }),
+      ...(drawing.appState?.gridModeEnabled != null && { gridModeEnabled: drawing.appState.gridModeEnabled }),
       viewBackgroundColor: drawing.appState?.viewBackgroundColor ?? "#ffffff",
     },
     files: drawing.files || {},
@@ -58,6 +60,8 @@ export const exportFromEditor = (
     elements: Array.from(elements),
     appState: {
       gridSize: appState?.gridSize ?? null,
+      ...(appState?.gridStep != null && { gridStep: appState.gridStep }),
+      ...(appState?.gridModeEnabled != null && { gridModeEnabled: appState.gridModeEnabled }),
       viewBackgroundColor: appState?.viewBackgroundColor ?? "#ffffff",
     },
     files: files || {},

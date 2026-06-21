@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
-const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const { runPrisma } = require("./provider-prisma.cjs");
 
 const backendRoot = path.resolve(__dirname, "..");
 
@@ -34,10 +34,9 @@ process.env.DATABASE_URL = databaseUrl;
 
 const nodeEnv = process.env.NODE_ENV || "development";
 
-const runCapture = (cmd) => {
+const runCapture = (args) => {
   try {
-    const stdout = execSync(cmd, {
-      cwd: backendRoot,
+    const stdout = runPrisma(args, {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, DATABASE_URL: databaseUrl },
@@ -61,9 +60,8 @@ const runCapture = (cmd) => {
   }
 };
 
-const run = (cmd) => {
-  execSync(cmd, {
-    cwd: backendRoot,
+const run = (args) => {
+  runPrisma(args, {
     stdio: "inherit",
     env: { ...process.env, DATABASE_URL: databaseUrl },
   });
@@ -90,28 +88,72 @@ const backupDbIfPresent = () => {
 
 const isNonProd = nodeEnv !== "production";
 const isFileDb = databaseUrl.startsWith("file:");
+const shouldForceSingleUserDev =
+  isNonProd &&
+  process.env.AUTH_MODE !== "hybrid" &&
+  process.env.AUTH_MODE !== "oidc_enforced" &&
+  /^(1|true|yes)$/i.test(process.env.EXCALIDASH_DEV_SINGLE_USER || "");
 
-const deploy = runCapture("npx prisma migrate deploy");
-if (deploy.ok) {
-  if (deploy.stdout) process.stdout.write(deploy.stdout);
-} else {
-  if (deploy.stdout) process.stdout.write(deploy.stdout);
-  if (deploy.stderr) process.stderr.write(deploy.stderr);
+const forceSingleUserDevMode = async () => {
+  const { PrismaClient } = require("../src/generated/client");
+  const prisma = new PrismaClient();
 
-  const stderr = deploy.stderr || "";
-  const isP3005 = stderr.includes("P3005");
+  try {
+    await prisma.systemConfig.upsert({
+      where: { id: "default" },
+      update: {
+        authEnabled: false,
+        authOnboardingCompleted: true,
+      },
+      create: {
+        id: "default",
+        authEnabled: false,
+        authOnboardingCompleted: true,
+        registrationEnabled: false,
+        authLoginRateLimitEnabled: true,
+        authLoginRateLimitWindowMs: 15 * 60 * 1000,
+        authLoginRateLimitMax: 20,
+      },
+    });
 
-  if (isNonProd && isFileDb && isP3005) {
-    const backupPath = backupDbIfPresent();
-    console.warn(
-      `[predev] Prisma migrate baseline required (P3005). Resetting local SQLite database.\n` +
-        `  DATABASE_URL=${databaseUrl}\n` +
-        (backupPath ? `  Backup: ${backupPath}\n` : "") +
-        `  If you need to preserve local data, restore the backup and baseline manually.`,
-    );
-
-    run("npx prisma migrate reset --force --skip-seed");
-  } else {
-    throw deploy.error;
+    console.log("[predev] Forced local development into single-user mode (no login required).");
+  } finally {
+    await prisma.$disconnect();
   }
-}
+};
+
+const main = async () => {
+  const deploy = runCapture(["migrate", "deploy"]);
+  if (deploy.ok) {
+    if (deploy.stdout) process.stdout.write(deploy.stdout);
+  } else {
+    if (deploy.stdout) process.stdout.write(deploy.stdout);
+    if (deploy.stderr) process.stderr.write(deploy.stderr);
+
+    const stderr = deploy.stderr || "";
+    const isP3005 = stderr.includes("P3005");
+
+    if (isNonProd && isFileDb && isP3005) {
+      const backupPath = backupDbIfPresent();
+      console.warn(
+        `[predev] Prisma migrate baseline required (P3005). Resetting local SQLite database.\n` +
+          `  DATABASE_URL=${databaseUrl}\n` +
+          (backupPath ? `  Backup: ${backupPath}\n` : "") +
+        `  If you need to preserve local data, restore the backup and baseline manually.`,
+      );
+
+      run(["migrate", "reset", "--force", "--skip-seed"]);
+    } else {
+      throw deploy.error;
+    }
+  }
+
+  if (shouldForceSingleUserDev) {
+    await forceSingleUserDevMode();
+  }
+};
+
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

@@ -11,6 +11,11 @@ export default defineConfig({
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     testTimeout: 10000,
     css: true,
+    server: {
+      deps: {
+        inline: ["@excalidraw/excalidraw"],
+      },
+    },
   },
   resolve: {
     alias: {

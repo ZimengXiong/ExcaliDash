@@ -3,8 +3,8 @@
 require("dotenv").config();
 
 const path = require("path");
-const { execSync } = require("child_process");
 const { PrismaClient } = require("../src/generated/client");
+const { runPrisma } = require("./provider-prisma.cjs");
 
 const BOOTSTRAP_USER_ID = "bootstrap-admin";
 const DEFAULT_SYSTEM_CONFIG_ID = "default";
@@ -106,8 +106,7 @@ const nodeEnv = process.env.NODE_ENV || "development";
 
   if (nodeEnv !== "production") {
     const runDeploy = () =>
-      execSync("npx prisma migrate deploy", {
-        cwd: backendRoot,
+      runPrisma(["migrate", "deploy"], {
         stdio: "pipe",
         env: {
           ...process.env,
@@ -141,17 +140,13 @@ const nodeEnv = process.env.NODE_ENV || "development";
         throw error;
       }
 
-      execSync(
-        "npx prisma migrate resolve --applied 20260210153000_add_auth_onboarding_completed",
-        {
-          cwd: backendRoot,
-          stdio: "pipe",
-          env: {
-            ...process.env,
-            DATABASE_URL: process.env.DATABASE_URL,
-          },
-        }
-      );
+      runPrisma(["migrate", "resolve", "--applied", "20260210153000_add_auth_onboarding_completed"], {
+        stdio: "pipe",
+        env: {
+          ...process.env,
+          DATABASE_URL: process.env.DATABASE_URL,
+        },
+      });
       runDeploy();
     }
   }

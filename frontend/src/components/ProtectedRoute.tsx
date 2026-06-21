@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { startOidcSignIn } from '../api';
+import { AuthStatusErrorPanel } from './AuthStatusErrorPanel';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -13,6 +14,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     isAuthenticated,
     loading,
     authEnabled,
+    authStatusError,
+    retryAuthStatus,
     oidcEnforced,
     bootstrapRequired,
     authOnboardingRequired,
@@ -32,6 +35,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   };
 
   if (loading || authEnabled === null) {
+    if (authStatusError) {
+      return <AuthStatusErrorPanel message={authStatusError} onRetry={retryAuthStatus} fullScreen />;
+    }
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-gray-600 dark:text-gray-400">Loading...</div>

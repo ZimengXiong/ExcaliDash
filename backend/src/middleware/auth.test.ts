@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { config } from "../config";
 import { createAuthMiddleware } from "./auth";
 import { BOOTSTRAP_USER_ID } from "../auth/authMode";
@@ -24,6 +24,10 @@ const createDeps = () => {
   const prisma = {
     user: {
       findUnique: vi.fn(),
+      update: vi.fn(),
+    },
+    authIdentity: {
+      findUnique: vi.fn(),
     },
   } as any;
 
@@ -35,7 +39,11 @@ const createDeps = () => {
   return { prisma, authModeService };
 };
 
-const makeAccessToken = (payload?: { userId?: string; email?: string; impersonatorId?: string }) =>
+const makeAccessToken = (payload?: {
+  userId?: string;
+  email?: string;
+  impersonatorId?: string;
+}) =>
   jwt.sign(
     {
       userId: payload?.userId ?? "user-1",
@@ -43,7 +51,24 @@ const makeAccessToken = (payload?: { userId?: string; email?: string; impersonat
       type: "access",
       impersonatorId: payload?.impersonatorId,
     },
-    config.jwtSecret
+    config.jwtSecret,
+  );
+
+const makeOidcAccessToken = (payload?: {
+  userId?: string;
+  email?: string;
+  oidcGroups?: string[];
+  authProvider?: "local" | "oidc";
+}) =>
+  jwt.sign(
+    {
+      userId: payload?.userId ?? "user-1",
+      email: payload?.email ?? "user-1@test.local",
+      type: "access",
+      authProvider: payload?.authProvider ?? "oidc",
+      oidcGroups: payload?.oidcGroups ?? [],
+    },
+    config.jwtSecret,
   );
 
 const makeRefreshToken = () =>
@@ -53,10 +78,20 @@ const makeRefreshToken = () =>
       email: "user-1@test.local",
       type: "refresh",
     },
-    config.jwtSecret
+    config.jwtSecret,
   );
 
 describe("auth middleware", () => {
+  const originalAdminGroups = [...config.oidc.adminGroups];
+
+  beforeEach(() => {
+    config.oidc.adminGroups = [];
+  });
+
+  afterEach(() => {
+    config.oidc.adminGroups = [...originalAdminGroups];
+  });
+
   it("treats requests as bootstrap user when auth is disabled", async () => {
     const { prisma, authModeService } = createDeps();
     authModeService.getAuthEnabled.mockResolvedValue(false);
@@ -97,7 +132,7 @@ describe("auth middleware", () => {
 
     expect(res.status).toHaveBeenCalledWith(401);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ message: "Authentication token required" })
+      expect.objectContaining({ message: "Authentication token required" }),
     );
     expect(next).not.toHaveBeenCalled();
   });
@@ -119,7 +154,7 @@ describe("auth middleware", () => {
 
     expect(res.status).toHaveBeenCalledWith(401);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ message: "Invalid or expired token" })
+      expect.objectContaining({ message: "Invalid or expired token" }),
     );
     expect(next).not.toHaveBeenCalled();
   });
@@ -184,7 +219,7 @@ describe("auth middleware", () => {
 
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ code: "MUST_RESET_PASSWORD" })
+      expect.objectContaining({ code: "MUST_RESET_PASSWORD" }),
     );
     expect(next).not.toHaveBeenCalled();
   });
@@ -217,5 +252,151 @@ describe("auth middleware", () => {
 
     expect(next).toHaveBeenCalledTimes(1);
     expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it("promotes OIDC user to ADMIN when token groups include configured admin group", async () => {
+    config.oidc.adminGroups = ["excalidash-admins"];
+
+    const { prisma, authModeService } = createDeps();
+    authModeService.getAuthEnabled.mockResolvedValue(true);
+    prisma.user.findUnique.mockResolvedValue({
+      id: "user-1",
+      username: "user1",
+      email: "user-1@test.local",
+      name: "User One",
+      role: "USER",
+      mustResetPassword: false,
+      isActive: true,
+    });
+    prisma.user.update.mockResolvedValue({
+      id: "user-1",
+      username: "user1",
+      email: "user-1@test.local",
+      name: "User One",
+      role: "ADMIN",
+      mustResetPassword: false,
+      isActive: true,
+    });
+
+    const { requireAuth } = createAuthMiddleware({ prisma, authModeService });
+    const req = createRequest({
+      headers: {
+        authorization: `Bearer ${makeOidcAccessToken({ oidcGroups: ["excalidash-admins"] })}`,
+      },
+    });
+    const res = createResponse();
+    const next = vi.fn() as NextFunction;
+
+    await requireAuth(req, res, next);
+
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "user-1" },
+        data: { role: "ADMIN" },
+      }),
+    );
+    expect(req.user?.role).toBe("ADMIN");
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it("demotes OIDC user to USER when configured admin group is missing", async () => {
+    config.oidc.adminGroups = ["excalidash-admins"];
+
+    const { prisma, authModeService } = createDeps();
+    authModeService.getAuthEnabled.mockResolvedValue(true);
+    prisma.user.findUnique.mockResolvedValue({
+      id: "user-1",
+      username: "user1",
+      email: "user-1@test.local",
+      name: "User One",
+      role: "ADMIN",
+      mustResetPassword: false,
+      isActive: true,
+    });
+    prisma.user.update.mockResolvedValue({
+      id: "user-1",
+      username: "user1",
+      email: "user-1@test.local",
+      name: "User One",
+      role: "USER",
+      mustResetPassword: false,
+      isActive: true,
+    });
+
+    const { requireAuth } = createAuthMiddleware({ prisma, authModeService });
+    const req = createRequest({
+      headers: {
+        authorization: `Bearer ${makeOidcAccessToken({ oidcGroups: ["designers"] })}`,
+      },
+    });
+    const res = createResponse();
+    const next = vi.fn() as NextFunction;
+
+    await requireAuth(req, res, next);
+
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "user-1" },
+        data: { role: "USER" },
+      }),
+    );
+    expect(req.user?.role).toBe("USER");
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it("demotes legacy OIDC session without claims when admin mapping is enabled", async () => {
+    config.oidc.adminGroups = ["excalidash-admins"];
+
+    const { prisma, authModeService } = createDeps();
+    authModeService.getAuthEnabled.mockResolvedValue(true);
+    prisma.user.findUnique.mockResolvedValue({
+      id: "user-1",
+      username: "user1",
+      email: "user-1@test.local",
+      name: "User One",
+      role: "ADMIN",
+      mustResetPassword: false,
+      isActive: true,
+    });
+    prisma.authIdentity.findUnique.mockResolvedValue({ id: "identity-1" });
+    prisma.user.update.mockResolvedValue({
+      id: "user-1",
+      username: "user1",
+      email: "user-1@test.local",
+      name: "User One",
+      role: "USER",
+      mustResetPassword: false,
+      isActive: true,
+    });
+
+    const { requireAuth } = createAuthMiddleware({ prisma, authModeService });
+    const req = createRequest({
+      headers: {
+        authorization: `Bearer ${makeAccessToken()}`,
+      },
+    });
+    const res = createResponse();
+    const next = vi.fn() as NextFunction;
+
+    await requireAuth(req, res, next);
+
+    expect(prisma.authIdentity.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          provider_userId: {
+            provider: "oidc",
+            userId: "user-1",
+          },
+        },
+      }),
+    );
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "user-1" },
+        data: { role: "USER" },
+      }),
+    );
+    expect(req.user?.role).toBe("USER");
+    expect(next).toHaveBeenCalledTimes(1);
   });
 });

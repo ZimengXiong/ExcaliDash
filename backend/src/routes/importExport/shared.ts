@@ -240,15 +240,30 @@ export const openReadonlySqliteDb = (filePath: string): any => {
 export const getCurrentLatestPrismaMigrationName = async (
   backendRoot: string
 ): Promise<string | null> => {
-  try {
-    const migrationsDir = path.resolve(backendRoot, "prisma/migrations");
+  const readMigrationDirs = async (migrationsDir: string): Promise<string[]> => {
     const entries = await fsPromises.readdir(migrationsDir, { withFileTypes: true });
-    const dirs = entries
+    return entries
       .filter((e) => e.isDirectory())
       .map((e) => e.name)
-      .filter((name) => !name.startsWith("."));
+      .filter((name) => /^\d{14}_.+/.test(name))
+      .sort();
+  };
+
+  try {
+    const providerMigrationsDir = path.resolve(backendRoot, "prisma/migrations/sqlite");
+
+    let dirs: string[] = [];
+    try {
+      dirs = await readMigrationDirs(providerMigrationsDir);
+    } catch {
+      dirs = [];
+    }
+
+    if (dirs.length === 0) {
+      dirs = await readMigrationDirs(path.resolve(backendRoot, "prisma/migrations"));
+    }
+
     if (dirs.length === 0) return null;
-    dirs.sort();
     return dirs[dirs.length - 1] || null;
   } catch {
     return null;

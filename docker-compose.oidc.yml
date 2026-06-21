@@ -14,8 +14,21 @@ services:
     environment:
       - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN:-admin}
       - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD in your shell or .env (do not commit it)}
+      # Browser-facing hostname for local development.
+      - KC_HOSTNAME=localhost
+      # Allow backend backchannel endpoints (token/jwks) to use internal request host.
+      - KC_HOSTNAME_BACKCHANNEL_DYNAMIC=true
+      - KC_HOSTNAME_STRICT=false
     ports:
       - "8080:8080"
     volumes:
-      - ./oidc/keycloak/realm-excalidash.json:/opt/keycloak/data/import/realm-excalidash.json:ro
+      - ./oidc/keycloak/realm-excalidash.json:/opt/keycloak/data/import/realm-excalidash.json:ro,Z
+    networks:
+      - excalidash-network
     restart: unless-stopped
+
+networks:
+  excalidash-network:
+    # Reuse the app network so backend can resolve "keycloak" directly.
+    name: excalidash_excalidash-network
+    external: true

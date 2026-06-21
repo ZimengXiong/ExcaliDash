@@ -1,0 +1,100 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.5
+    command: ["start-dev"]
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin123!
+    ports:
+      - "18081:8080"
+    networks:
+      - oidc-shared
+    restart: unless-stopped
+
+  backend-local:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=file:/app/prisma/dev.db
+      - PORT=8000
+      - NODE_ENV=production
+      - AUTH_MODE=local
+      - FRONTEND_URL=http://localhost:1000
+      - TRUST_PROXY=false
+      - JWT_SECRET=local-auth-jwt-secret-32-char-min-0001
+      - CSRF_SECRET=local-auth-csrf-secret-32-char-min-0001
+    volumes:
+      - backend-local-data:/app/prisma
+    networks:
+      - local-net
+    restart: unless-stopped
+
+  frontend-local:
+    build:
+      context: ..
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "1000:80"
+    environment:
+      - BACKEND_URL=backend-local:8000
+    depends_on:
+      - backend-local
+    networks:
+      - local-net
+    restart: unless-stopped
+
+  backend-oidc:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=file:/app/prisma/dev.db
+      - PORT=8000
+      - NODE_ENV=development
+      - AUTH_MODE=oidc_enforced
+      - FRONTEND_URL=http://localhost:1001
+      - TRUST_PROXY=false
+      - JWT_SECRET=oidc-auth-jwt-secret-32-char-min-0002
+      - CSRF_SECRET=oidc-auth-csrf-secret-32-char-min-0002
+      - OIDC_PROVIDER_NAME=Keycloak
+      - OIDC_ISSUER_URL=http://host.docker.internal:18081/realms/excalidash
+      - OIDC_CLIENT_ID=excalidash
+      - OIDC_CLIENT_SECRET=excalidash-secret
+      - OIDC_REDIRECT_URI=http://localhost:1001/api/auth/oidc/callback
+      - OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG=HS256
+      - OIDC_REQUIRE_EMAIL_VERIFIED=false
+    volumes:
+      - backend-oidc-data:/app/prisma
+    depends_on:
+      - keycloak
+    networks:
+      - oidc-net
+      - oidc-shared
+    restart: unless-stopped
+
+  frontend-oidc:
+    build:
+      context: ..
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "1001:80"
+    environment:
+      - BACKEND_URL=backend-oidc:8000
+    depends_on:
+      - backend-oidc
+    networks:
+      - oidc-net
+    restart: unless-stopped
+
+networks:
+  local-net:
+    driver: bridge
+  oidc-net:
+    driver: bridge
+  oidc-shared:
+    driver: bridge
+
+volumes:
+  backend-local-data:
+  backend-oidc-data:

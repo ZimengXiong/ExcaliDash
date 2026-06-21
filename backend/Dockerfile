@@ -17,7 +17,7 @@ RUN npm ci && npm cache clean --force
 COPY prisma ./prisma/
 
 # Set default provider for build-time Prisma generation (runtime can override via DATABASE_PROVIDER)
-RUN sed -i 's/provider = env("[^"]*")/provider = "sqlite"/' prisma/schema.prisma
+RUN sed -i '/datasource db {/,/}/ s/provider = env("[^"]*")/provider = "sqlite"/; /datasource db {/,/}/ s/provider = "[^"]*"/provider = "sqlite"/' prisma/schema.prisma
 
 # Generate Prisma Client at build time (for TypeScript compilation)
 # Runtime will regenerate if DATABASE_PROVIDER differs

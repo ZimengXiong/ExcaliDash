@@ -225,6 +225,7 @@ Backend base variables:
 - `ENABLE_PASSWORD_RESET` (`true` to enable)
 - `ENABLE_REFRESH_TOKEN_ROTATION` (`true`/`false`, default `true`)
 - `ENABLE_AUDIT_LOGGING` (`true`/`false`, default `false`)
+- `ENFORCE_HTTPS_REDIRECT` (`true`/`false`, default `true`) — when `FRONTEND_URL` uses `https://`, the backend auto-redirects plain-HTTP requests; set to `false` when the outer gateway already enforces HTTPS to avoid redirect loops
 - `BOOTSTRAP_SETUP_CODE_TTL_MS` (default `900000`)
 - `BOOTSTRAP_SETUP_CODE_MAX_ATTEMPTS` (default `10`)
 - `UPDATE_CHECK_OUTBOUND` (`true`/`false`/`1`/`yes`, default `true`)
@@ -271,6 +272,7 @@ E2E variables:
 - `ENABLE_PASSWORD_RESET`: enable/disable password reset flow.
 - `ENABLE_REFRESH_TOKEN_ROTATION`: control refresh-token rotation behavior.
 - `ENABLE_AUDIT_LOGGING`: enable/disable audit event logging.
+- `ENFORCE_HTTPS_REDIRECT`: disable built-in HTTP→HTTPS redirect when outer gateway handles it (set to `false`; default `true`).
 - `UPDATE_CHECK_OUTBOUND`: disable outbound version check traffic.
 - `DISABLE_ONBOARDING_GATE`: bypass first-run onboarding guard (not recommended in production).
 - `RUN_MIGRATIONS`: run migrations in backend container startup (`true` default).

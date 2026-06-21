@@ -1,0 +1,146 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.5
+    command: ["start-dev", "--import-realm"]
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin123!
+    ports:
+      - "18080:8080"
+    volumes:
+      - ./local/oidc/realm-excalidash-local.json:/opt/keycloak/data/import/realm-excalidash.json:ro
+    networks:
+      - oidc-shared-net
+    restart: unless-stopped
+
+  backend-basic:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=file:/app/prisma/dev.db
+      - PORT=8000
+      - NODE_ENV=production
+      - AUTH_MODE=local
+      - FRONTEND_URL=http://localhost:1001
+      - TRUST_PROXY=false
+      - JWT_SECRET=local-basic-jwt-secret-32-chars-min-0001
+      - CSRF_SECRET=local-basic-csrf-secret-32-chars-0001
+    volumes:
+      - backend-basic-data:/app/prisma
+    networks:
+      - basic-net
+    restart: unless-stopped
+
+  frontend-basic:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "1001:80"
+    environment:
+      - BACKEND_URL=backend-basic:8000
+    depends_on:
+      - backend-basic
+    networks:
+      - basic-net
+    restart: unless-stopped
+
+  backend-oidc:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=file:/app/prisma/dev.db
+      - PORT=8000
+      - NODE_ENV=development
+      - AUTH_MODE=oidc_enforced
+      - FRONTEND_URL=http://localhost:1002
+      - TRUST_PROXY=false
+      - JWT_SECRET=local-oidc-jwt-secret-32-chars-min-0002
+      - CSRF_SECRET=local-oidc-csrf-secret-32-chars-0002
+      - OIDC_PROVIDER_NAME=Keycloak
+      - OIDC_ISSUER_URL=http://host.docker.internal:18080/realms/excalidash
+      - OIDC_CLIENT_ID=excalidash
+      - OIDC_CLIENT_SECRET=excalidash-secret
+      - OIDC_REDIRECT_URI=http://localhost:1002/api/auth/oidc/callback
+      - OIDC_REQUIRE_EMAIL_VERIFIED=false
+    volumes:
+      - backend-oidc-data:/app/prisma
+    depends_on:
+      - keycloak
+    networks:
+      - oidc-net
+      - oidc-shared-net
+    restart: unless-stopped
+
+  frontend-oidc:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "1002:80"
+    environment:
+      - BACKEND_URL=backend-oidc:8000
+    depends_on:
+      - backend-oidc
+    networks:
+      - oidc-net
+    restart: unless-stopped
+
+  backend-hybrid:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=file:/app/prisma/dev.db
+      - PORT=8000
+      - NODE_ENV=development
+      - AUTH_MODE=hybrid
+      - FRONTEND_URL=http://localhost:1003
+      - TRUST_PROXY=false
+      - JWT_SECRET=local-hybrid-jwt-secret-32-chars-min-0003
+      - CSRF_SECRET=local-hybrid-csrf-secret-32-chars-0003
+      - OIDC_PROVIDER_NAME=Keycloak
+      - OIDC_ISSUER_URL=http://host.docker.internal:18080/realms/excalidash
+      - OIDC_CLIENT_ID=excalidash
+      - OIDC_CLIENT_SECRET=excalidash-secret
+      - OIDC_REDIRECT_URI=http://localhost:1003/api/auth/oidc/callback
+      - OIDC_REQUIRE_EMAIL_VERIFIED=false
+    volumes:
+      - backend-hybrid-data:/app/prisma
+    depends_on:
+      - keycloak
+    networks:
+      - hybrid-net
+      - oidc-shared-net
+    restart: unless-stopped
+
+  frontend-hybrid:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "1003:80"
+    environment:
+      - BACKEND_URL=backend-hybrid:8000
+    depends_on:
+      - backend-hybrid
+    networks:
+      - hybrid-net
+    restart: unless-stopped
+
+networks:
+  basic-net:
+    driver: bridge
+  oidc-net:
+    driver: bridge
+  hybrid-net:
+    driver: bridge
+  oidc-shared-net:
+    driver: bridge
+
+volumes:
+  backend-basic-data:
+  backend-oidc-data:
+  backend-hybrid-data:

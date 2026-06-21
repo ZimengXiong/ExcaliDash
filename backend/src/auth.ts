@@ -40,17 +40,30 @@ interface JwtPayload {
   email: string;
   type: "access" | "refresh";
   impersonatorId?: string;
+  authProvider?: "local" | "oidc";
+  oidcGroups?: string[];
 }
+
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((entry) => typeof entry === "string");
 
 const isJwtPayload = (decoded: unknown): decoded is JwtPayload => {
   if (typeof decoded !== "object" || decoded === null) {
     return false;
   }
   const payload = decoded as Record<string, unknown>;
+  const authProviderOk =
+    typeof payload.authProvider === "undefined" ||
+    payload.authProvider === "local" ||
+    payload.authProvider === "oidc";
+  const oidcGroupsOk =
+    typeof payload.oidcGroups === "undefined" || isStringArray(payload.oidcGroups);
   return (
     typeof payload.userId === "string" &&
     typeof payload.email === "string" &&
-    (payload.type === "access" || payload.type === "refresh")
+    (payload.type === "access" || payload.type === "refresh") &&
+    authProviderOk &&
+    oidcGroupsOk
   );
 };
 
@@ -393,14 +406,38 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
   const generateTokens = (
     userId: string,
     email: string,
-    options?: { impersonatorId?: string }
+    options?: {
+      impersonatorId?: string;
+      authProvider?: "local" | "oidc";
+      oidcGroups?: string[];
+    }
   ) => {
+    const authProvider = options?.authProvider ?? "local";
+    const sanitizedOidcGroups =
+      authProvider === "oidc"
+        ? Array.from(
+            new Set(
+              (options?.oidcGroups ?? [])
+                .map((group) => group.trim())
+                .filter((group) => group.length > 0)
+            )
+          ).slice(0, 100)
+        : undefined;
+
+    const tokenPayload = {
+      userId,
+      email,
+      impersonatorId: options?.impersonatorId,
+      authProvider,
+      oidcGroups: sanitizedOidcGroups,
+    };
+
     const signOptions: SignOptions = {
       expiresIn: config.jwtAccessExpiresIn as StringValue,
       jwtid: crypto.randomUUID(),
     };
     const accessToken = jwt.sign(
-      { userId, email, type: "access", impersonatorId: options?.impersonatorId },
+      { ...tokenPayload, type: "access" },
       config.jwtSecret,
       signOptions
     );
@@ -410,7 +447,7 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
       jwtid: crypto.randomUUID(),
     };
     const refreshToken = jwt.sign(
-      { userId, email, type: "refresh", impersonatorId: options?.impersonatorId },
+      { ...tokenPayload, type: "refresh" },
       config.jwtSecret,
       refreshSignOptions
     );
@@ -445,6 +482,7 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
     router,
     prisma,
     ensureAuthEnabled,
+    ensureSystemConfig,
     sanitizeText,
     generateTokens,
     setAuthCookies,

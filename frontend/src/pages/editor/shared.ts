@@ -1,9 +1,122 @@
+import { applyElementOrder, reconcileElements } from "../../utils/sync";
+
 export interface ElementVersionInfo {
   version: number;
   versionNonce: number;
   updated: number;
   contentSig: string;
 }
+
+/**
+ * Matches CaptureUpdateAction.NEVER from @excalidraw/excalidraw.
+ * Kept as a local constant so that shared.ts doesn't pull in the full
+ * excalidraw UI bundle, which breaks jsdom-based unit tests.
+ */
+const CAPTURE_UPDATE_NEVER = "NEVER" as const;
+
+type RemoteSceneUpdate =
+  | {
+      collaborators: Map<string, any>;
+      captureUpdate: typeof CAPTURE_UPDATE_NEVER;
+    }
+  | {
+      elements: any[];
+      files?: Record<string, any>;
+      captureUpdate: typeof CAPTURE_UPDATE_NEVER;
+    }
+  | {
+      files: Record<string, any>;
+      captureUpdate: typeof CAPTURE_UPDATE_NEVER;
+    };
+
+type BuildRemoteSceneUpdateInput = {
+  collaborators?: Map<string, any>;
+  localElements?: readonly any[];
+  pendingElements?: readonly any[];
+  elementOrder?: readonly string[] | null;
+  lastSyncedFiles?: Record<string, any>;
+  incomingFiles?: Record<string, any>;
+};
+
+export const getPersistedAppState = (appState: Record<string, any> | null | undefined) => {
+  const base: Record<string, any> = {
+    viewBackgroundColor: appState?.viewBackgroundColor ?? "#ffffff",
+    gridSize: appState?.gridSize ?? null,
+  };
+  if (appState?.gridStep != null) base.gridStep = appState.gridStep;
+  if (appState?.gridModeEnabled != null) base.gridModeEnabled = appState.gridModeEnabled;
+  return base;
+};
+
+export const buildRemoteSceneUpdate = ({
+  collaborators,
+  localElements = [],
+  pendingElements = [],
+  elementOrder = null,
+  lastSyncedFiles = {},
+  incomingFiles = {},
+}: BuildRemoteSceneUpdateInput): {
+  sceneUpdate: RemoteSceneUpdate | null;
+  mergedElements: any[] | null;
+  nextFiles: Record<string, any>;
+  shouldUpdateFiles: boolean;
+} => {
+  if (collaborators) {
+    return {
+      sceneUpdate: {
+        collaborators,
+        captureUpdate: CAPTURE_UPDATE_NEVER,
+      },
+      mergedElements: null,
+      nextFiles: lastSyncedFiles,
+      shouldUpdateFiles: false,
+    };
+  }
+
+  const shouldUpdateFiles = Object.keys(incomingFiles).length > 0;
+  const nextFiles = shouldUpdateFiles
+    ? { ...lastSyncedFiles, ...incomingFiles }
+    : lastSyncedFiles;
+  const hasElementOrder = Array.isArray(elementOrder) && elementOrder.length > 0;
+  const shouldUpdateElements = pendingElements.length > 0 || hasElementOrder;
+
+  if (shouldUpdateElements) {
+    let mergedElements = reconcileElements(localElements, pendingElements);
+    if (hasElementOrder) {
+      mergedElements = applyElementOrder(mergedElements, elementOrder);
+    }
+
+    return {
+      sceneUpdate: {
+        elements: mergedElements,
+        ...(shouldUpdateFiles ? { files: nextFiles } : {}),
+        captureUpdate: CAPTURE_UPDATE_NEVER,
+      },
+      mergedElements,
+      nextFiles,
+      shouldUpdateFiles,
+    };
+  }
+
+  if (shouldUpdateFiles) {
+    return {
+      sceneUpdate: {
+        files: nextFiles,
+        captureUpdate: CAPTURE_UPDATE_NEVER,
+      },
+      mergedElements: null,
+      nextFiles,
+      shouldUpdateFiles,
+    };
+  }
+
+  return {
+    sceneUpdate: null,
+    mergedElements: null,
+    nextFiles,
+    shouldUpdateFiles,
+  };
+};
 
 export const haveSameElements = (a: readonly any[] = [], b: readonly any[] = []) => {
   if (!a || !b) return false;
@@ -111,10 +224,10 @@ export const UIOptions = {
   canvasActions: {
     saveToActiveFile: false,
     loadScene: false,
-    export: { saveFileToDisk: false },
+    export: false,
     toggleTheme: true,
   },
-};
+} as const;
 
 export { getInitialsFromName } from "../../utils/user";
 

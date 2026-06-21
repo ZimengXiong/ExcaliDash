@@ -32,6 +32,10 @@ import { prisma } from "./db/prisma";
 import { createDrawingsCacheStore } from "./server/drawingsCache";
 import { registerCsrfProtection } from "./server/csrf";
 import { registerSocketHandlers } from "./server/socket";
+import {
+  createHttpsRedirectPolicy,
+  getHttpsRedirectUrl,
+} from "./server/httpsRedirectPolicy";
 import { issueBootstrapSetupCodeIfRequired } from "./auth/bootstrapSetupCode";
 
 const backendRoot = path.resolve(__dirname, "../");
@@ -223,56 +227,16 @@ app.use((req, res, next) => {
 
 const shouldEnforceHttps =
   config.nodeEnv === "production" &&
+  config.enforceHttpsRedirect &&
   allowedOrigins.some((origin) => origin.toLowerCase().startsWith("https://"));
 
 if (shouldEnforceHttps) {
-  const httpsOrigins = allowedOrigins.filter((origin) =>
-    origin.toLowerCase().startsWith("https://")
-  );
-  const canonicalHttpsOrigin = httpsOrigins[0] || allowedOrigins[0] || null;
-  const allowedOriginHosts = new Set(
-    allowedOrigins
-      .map((origin) => {
-        try {
-          return new URL(origin).host.toLowerCase();
-        } catch {
-          return null;
-        }
-      })
-      .filter((host): host is string => Boolean(host))
-  );
+  const httpsRedirectPolicy = createHttpsRedirectPolicy(allowedOrigins);
 
   app.use((req, res, next) => {
-    // Skip HTTPS redirect for health check endpoint (for Kubernetes probes)
-    if (req.path === "/health") {
-      return next();
-    }
-
-    if (req.header("x-forwarded-proto") !== "https") {
-      // Avoid Host-header based open redirects; prefer a configured canonical origin/host.
-      const rawHost = String(req.header("host") || "").trim().toLowerCase();
-      const safeHost = allowedOriginHosts.has(rawHost) ? rawHost : null;
-      const fallbackHost = (() => {
-        if (!canonicalHttpsOrigin) return null;
-        try {
-          return new URL(canonicalHttpsOrigin).host;
-        } catch {
-          return null;
-        }
-      })();
-
-      const targetHost = safeHost || fallbackHost;
-      if (!targetHost) {
-        return res.status(400).send("Invalid host");
-      }
-
-      const path = (req.originalUrl || req.url || "/").startsWith("/")
-        ? (req.originalUrl || req.url || "/")
-        : "/";
-      res.redirect(`https://${targetHost}${path}`);
-    } else {
-      next();
-    }
+    const redirectUrl = getHttpsRedirectUrl(req, httpsRedirectPolicy);
+    if (!redirectUrl) return next();
+    return res.redirect(redirectUrl);
   });
 }
 
@@ -697,6 +661,22 @@ export { app, httpServer };
 const isMain =
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   typeof require !== "undefined" && require.main === module;
+
+// Snapshot cleanup: delete snapshots older than 2 days (runs hourly)
+const SNAPSHOT_RETENTION_MS = 2 * 24 * 60 * 60 * 1000;
+setInterval(async () => {
+  try {
+    const cutoff = new Date(Date.now() - SNAPSHOT_RETENTION_MS);
+    const result = await prisma.drawingSnapshot.deleteMany({
+      where: { createdAt: { lt: cutoff } },
+    });
+    if (result.count > 0) {
+      console.log(`[Cleanup] Deleted ${result.count} old drawing snapshots`);
+    }
+  } catch (err) {
+    console.error("[Cleanup] Snapshot cleanup failed:", err);
+  }
+}, 60 * 60 * 1000);
 
 if (isMain) {
   httpServer.listen(PORT, async () => {

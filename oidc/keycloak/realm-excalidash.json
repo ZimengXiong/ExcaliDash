@@ -13,7 +13,8 @@
       "name": "ExcaliDash",
       "protocol": "openid-connect",
       "enabled": true,
-      "publicClient": true,
+      "publicClient": false,
+      "secret": "excalidash-dev-secret",
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": true,
       "redirectUris": [

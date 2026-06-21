@@ -6,6 +6,7 @@ import * as api from '../api';
 import { USER_KEY } from '../utils/impersonation';
 import { getPasswordPolicy, validatePassword } from '../utils/passwordPolicy';
 import { PasswordRequirements } from '../components/PasswordRequirements';
+import { AuthStatusErrorPanel } from '../components/AuthStatusErrorPanel';
 
 export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -18,6 +19,9 @@ export const Login: React.FC = () => {
     login,
     logout,
     authEnabled,
+    registrationEnabled,
+    authStatusError,
+    retryAuthStatus,
     oidcEnabled,
     oidcEnforced,
     oidcProvider,
@@ -42,6 +46,7 @@ export const Login: React.FC = () => {
   }, [oidcErrorCode, oidcErrorMessage]);
 
   useEffect(() => {
+    if (authStatusError) return;
     if (authLoading || authEnabled === null) return;
     if (authOnboardingRequired) {
       navigate('/auth-setup', { replace: true });
@@ -69,6 +74,7 @@ export const Login: React.FC = () => {
     authEnabled,
     authLoading,
     authOnboardingRequired,
+    authStatusError,
     bootstrapRequired,
     isAuthenticated,
     mustReset,
@@ -77,6 +83,10 @@ export const Login: React.FC = () => {
     oidcErrorCode,
     oidcReturnTo,
   ]);
+
+  if (authStatusError) {
+    return <AuthStatusErrorPanel message={authStatusError} onRetry={retryAuthStatus} fullScreen />;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,7 +160,7 @@ export const Login: React.FC = () => {
                 ? `Sign in with ${oidcProvider || 'OIDC'}`
                 : 'Sign in to your account'}
           </h2>
-          {!mustReset && !oidcEnforced ? (
+          {!mustReset && !oidcEnforced && registrationEnabled ? (
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
               Or{' '}
               <Link
@@ -159,6 +169,10 @@ export const Login: React.FC = () => {
               >
                 create a new account
               </Link>
+            </p>
+          ) : !mustReset && !oidcEnforced ? (
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              Sign in with an existing account.
             </p>
           ) : mustReset ? (
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">

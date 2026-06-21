@@ -1,0 +1,51 @@
+{
+  "realm": "excalidash",
+  "enabled": true,
+  "displayName": "ExcaliDash (Local Multi Stack)",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "sslRequired": "none",
+  "clients": [
+    {
+      "clientId": "excalidash",
+      "name": "ExcaliDash",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "excalidash-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://localhost:1002/*",
+        "http://localhost:1003/*",
+        "http://localhost:5173/*",
+        "http://localhost:6767/*"
+      ],
+      "webOrigins": [
+        "http://localhost:1002",
+        "http://localhost:1003",
+        "http://localhost:5173",
+        "http://localhost:6767"
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "alice@example.com",
+      "firstName": "Alice",
+      "lastName": "Example",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "alicepass",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

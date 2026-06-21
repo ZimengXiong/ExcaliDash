@@ -314,7 +314,7 @@ describe("Import compatibility (legacy exports)", () => {
     expect(res.body.drawings).toBe(2);
     expect(res.body.collections).toBe(1);
     expect(res.body.latestMigration).toBe("20240104000000_initial");
-    expect(typeof res.body.currentLatestMigration === "string").toBe(true);
+    expect(res.body.currentLatestMigration).toMatch(/^\d{14}_.+/);
   });
 
   it("merge-imports a legacy SQLite export into the current account without replacing the database", async () => {

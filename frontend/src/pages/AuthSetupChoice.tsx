@@ -4,6 +4,7 @@ import { AlertTriangle, Shield, ShieldOff } from 'lucide-react';
 import { Logo } from '../components/Logo';
 import { useAuth } from '../context/AuthContext';
 import * as api from '../api';
+import { AuthStatusErrorPanel } from '../components/AuthStatusErrorPanel';
 
 type Step = 'choice' | 'confirm-disable';
 
@@ -12,6 +13,8 @@ export const AuthSetupChoice: React.FC = () => {
   const {
     loading: authLoading,
     authEnabled,
+    authStatusError,
+    retryAuthStatus,
     bootstrapRequired,
     isAuthenticated,
     authOnboardingRequired,
@@ -23,6 +26,7 @@ export const AuthSetupChoice: React.FC = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (authStatusError) return;
     if (authLoading || authEnabled === null) return;
     if (authOnboardingRequired) return;
 
@@ -46,6 +50,7 @@ export const AuthSetupChoice: React.FC = () => {
     authEnabled,
     authLoading,
     authOnboardingRequired,
+    authStatusError,
     bootstrapRequired,
     isAuthenticated,
     navigate,
@@ -77,6 +82,9 @@ export const AuthSetupChoice: React.FC = () => {
   };
 
   if (authLoading || authEnabled === null || !authOnboardingRequired) {
+    if (authStatusError) {
+      return <AuthStatusErrorPanel message={authStatusError} onRetry={retryAuthStatus} fullScreen />;
+    }
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
         <div className="text-gray-600 dark:text-gray-400">Loading...</div>

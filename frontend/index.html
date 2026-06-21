@@ -10,6 +10,15 @@
 
 <body>
   <div id="root"></div>
+  <script>
+    (function () {
+      if (typeof window.EXCALIDRAW_ASSET_PATH === "string" && window.EXCALIDRAW_ASSET_PATH.length > 0) return;
+      var base = "%BASE_URL%";
+      if (base === "%BASE_URL%") base = "/";
+      if (base && base[base.length - 1] !== "/") base += "/";
+      window.EXCALIDRAW_ASSET_PATH = new URL(base || "/", window.location.origin).toString();
+    })();
+  </script>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 
