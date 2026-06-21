@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: excalidash-backend
     environment:
+      - DATABASE_PROVIDER=sqlite
       - DATABASE_URL=file:/app/prisma/dev.db
       - PORT=8000
       - NODE_ENV=production

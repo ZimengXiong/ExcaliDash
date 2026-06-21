@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
-const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const { runPrisma } = require("./provider-prisma.cjs");
 
 const backendRoot = path.resolve(__dirname, "..");
 
@@ -34,10 +34,9 @@ process.env.DATABASE_URL = databaseUrl;
 
 const nodeEnv = process.env.NODE_ENV || "development";
 
-const runCapture = (cmd) => {
+const runCapture = (args) => {
   try {
-    const stdout = execSync(cmd, {
-      cwd: backendRoot,
+    const stdout = runPrisma(args, {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, DATABASE_URL: databaseUrl },
@@ -61,9 +60,8 @@ const runCapture = (cmd) => {
   }
 };
 
-const run = (cmd) => {
-  execSync(cmd, {
-    cwd: backendRoot,
+const run = (args) => {
+  runPrisma(args, {
     stdio: "inherit",
     env: { ...process.env, DATABASE_URL: databaseUrl },
   });
@@ -125,7 +123,7 @@ const forceSingleUserDevMode = async () => {
 };
 
 const main = async () => {
-  const deploy = runCapture("npx prisma migrate deploy");
+  const deploy = runCapture(["migrate", "deploy"]);
   if (deploy.ok) {
     if (deploy.stdout) process.stdout.write(deploy.stdout);
   } else {
@@ -141,10 +139,10 @@ const main = async () => {
         `[predev] Prisma migrate baseline required (P3005). Resetting local SQLite database.\n` +
           `  DATABASE_URL=${databaseUrl}\n` +
           (backupPath ? `  Backup: ${backupPath}\n` : "") +
-          `  If you need to preserve local data, restore the backup and baseline manually.`,
+        `  If you need to preserve local data, restore the backup and baseline manually.`,
       );
 
-      run("npx prisma migrate reset --force --skip-seed");
+      run(["migrate", "reset", "--force", "--skip-seed"]);
     } else {
       throw deploy.error;
     }

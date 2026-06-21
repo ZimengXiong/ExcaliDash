@@ -50,25 +50,47 @@ fi
 
 export CSRF_SECRET
 
-# 1. Ensure schema and migrations are present (Running as root)
-# Never copy the entire prisma directory, as that can unintentionally overwrite
-# persisted SQLite files or copy stray *.db artifacts into the volume.
-if [ ! -f "/app/prisma/schema.prisma" ]; then
-    echo "Mount appears empty (missing schema.prisma). Bootstrapping schema and migrations..."
-else
-    # Volume exists but may be missing new migrations from an upgrade.
-    echo "Syncing schema and migrations from template..."
+# Set default DATABASE_PROVIDER if not set
+if [ -z "${DATABASE_PROVIDER:-}" ]; then
+    echo "DATABASE_PROVIDER not set, defaulting to sqlite"
+    DATABASE_PROVIDER="sqlite"
 fi
 
+# Validate DATABASE_PROVIDER
+if [ "${DATABASE_PROVIDER}" != "sqlite" ] && [ "${DATABASE_PROVIDER}" != "postgresql" ]; then
+    echo "ERROR: DATABASE_PROVIDER must be 'sqlite' or 'postgresql', got '${DATABASE_PROVIDER}'"
+    exit 1
+fi
+
+# Ensure migrations directory exists
 mkdir -p /app/prisma/migrations
+
+# Copy schema.prisma from template
 cp /app/prisma_template/schema.prisma /app/prisma/schema.prisma
-cp -R /app/prisma_template/migrations/. /app/prisma/migrations/
+
+# Clear and copy provider-specific migrations folder
+echo "Copying ${DATABASE_PROVIDER} migrations..."
+rm -rf /app/prisma/migrations/*
+cp -R /app/prisma_template/migrations/"${DATABASE_PROVIDER}"/. /app/prisma/migrations/
+
+# Update schema.prisma with the runtime provider (handles both env() and static values)
+echo "Configuring Prisma for provider: ${DATABASE_PROVIDER}"
+sed -i '/datasource db {/,/}/ s/provider = env("[^"]*")/provider = "'"${DATABASE_PROVIDER}"'"/' /app/prisma/schema.prisma
+sed -i '/datasource db {/,/}/ s/provider = "[^"]*"/provider = "'"${DATABASE_PROVIDER}"'"/' /app/prisma/schema.prisma
+
+# Generate Prisma Client at runtime (run as root since schema is owned by root)
+echo "Generating Prisma Client..."
+npx prisma generate --schema=/app/prisma/schema.prisma
+
+# Copy generated client to the expected location for the application
+mkdir -p /app/dist/generated
+cp -r /app/src/generated/* /app/dist/generated/
 
 # 2. Fix permissions unconditionally (Running as root)
 echo "Fixing filesystem permissions..."
-chown -R nodejs:nodejs /app/uploads
-chown -R nodejs:nodejs /app/prisma
+chown -R nodejs:nodejs /app/uploads /app/prisma /app/dist/generated
 chmod 755 /app/uploads
+chmod -R 755 /app/dist/generated
 chmod 600 "${JWT_SECRET_FILE}"
 chmod 600 "${CSRF_SECRET_FILE}"
 

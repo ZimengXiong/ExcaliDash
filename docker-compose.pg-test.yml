@@ -1,0 +1,43 @@
+services:
+  # PostgreSQL database for testing
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=excalidash
+      - POSTGRES_PASSWORD=test123
+      - POSTGRES_DB=excalidash
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U excalidash"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Backend with PostgreSQL
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_URL=postgresql://excalidash:test123@postgres:5432/excalidash
+      - FRONTEND_URL=http://localhost:6767
+      - JWT_SECRET=test-secret-pg-min-32-chars-long
+      - CSRF_SECRET=test-secret-pg
+      - AUTH_MODE=local
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - uploads:/app/uploads
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  uploads:

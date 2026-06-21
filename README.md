@@ -228,7 +228,7 @@ Why:
 
 | Area          | Limitation                                                                                                                                                                                                                                                                                        |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Database      | The backend uses a local **SQLite file** database by default (`DATABASE_URL=file:/.../dev.db`). Running multiple backend replicas either creates split-brain state (separate DB files/volumes) or requires sharing a single SQLite file across hosts, which is not a reliable deployment pattern. |
+| Database      | The backend uses **SQLite** by default. For production deployments requiring high availability, use **PostgreSQL** (`DATABASE_PROVIDER=postgresql`). SQLite still works for single-instance deployments but is not recommended for multi-replica setups. |
 | Collaboration | Real-time presence state is tracked **in-memory** in the backend process, so multiple replicas will fragment presence/collaboration unless a shared Socket.IO adapter is added.                                                                                                                   |
 
 Recommended deployment pattern:
@@ -384,13 +384,62 @@ Base values are documented in `backend/.env.example`. Common ones to care about:
 
 | Variable                 | Default / Example         | Description                                                                         |
 | ------------------------ | ------------------------- | ----------------------------------------------------------------------------------- |
+| `DATABASE_PROVIDER`      | `sqlite`                  | Database provider: `sqlite` or `postgresql`. See [Database Provider](#database-provider) for details. |
 | `DATABASE_URL`           | `file:/app/prisma/dev.db` | SQLite file or external DB URL.                                                     |
 | `FRONTEND_URL`           | `http://localhost:6767`   | Allowed frontend origin(s), comma-separated for multiple entries.                   |
 | `TRUST_PROXY`            | `false`                   | `false`, `true`, or hop count (for example `1`).                                    |
 | `JWT_SECRET`             | `change-this-secret...`   | Recommended in production so sessions remain stable across restarts and migrations. |
 | `CSRF_SECRET`            | `change-this-secret`      | Recommended in production so CSRF validation remains stable across restarts.        |
 | `AUTH_MODE`              | `local`                   | `local`, `hybrid`, `oidc_enforced`.                                                 |
-| `ENFORCE_HTTPS_REDIRECT` | `true`                    | Set to `false` to disable the built-in HTTP→HTTPS redirect when your outer gateway handles it. |
+| `ENFORCE_HTTPS_REDIRECT` | `true`                    | Set to `false` to disable the built-in HTTP to HTTPS redirect when your outer gateway handles it. |
+
+</details>
+
+<details>
+<summary>Database Provider</summary>
+
+## Database Provider
+
+ExcaliDash supports both **SQLite** (default) and **PostgreSQL** as database providers. Docker startup uses `DATABASE_PROVIDER` to select the runtime provider and materialize a provider-specific Prisma schema before running Prisma commands.
+
+### SQLite (Default)
+
+SQLite is the default and works out of the box without additional configuration:
+
+```yaml
+# docker-compose.prod.yml
+services:
+  backend:
+    environment:
+      - DATABASE_PROVIDER=sqlite
+      - DATABASE_URL=file:/app/prisma/dev.db
+```
+
+### PostgreSQL
+
+To use PostgreSQL instead of SQLite:
+
+1. **Set the environment variables:**
+
+```yaml
+# docker-compose.prod.yml
+services:
+  backend:
+    environment:
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_URL=postgresql://user:password@host:5432/excalidash
+```
+
+2. **Generate PostgreSQL migrations:**
+
+The repository includes provider-specific migration folders. Use the migration helper when changing the schema so the checked-in Prisma schema remains valid for local and CI Prisma commands:
+
+```bash
+export DATABASE_URL="postgresql://user:password@localhost:5432/excalidash"
+./scripts/generate-migrations.sh --dev init
+```
+
+**Note:** When switching database providers, you cannot migrate existing data. The new database will start empty.
 
 </details>
 
