@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import { config } from "../config";
 import { PrismaClient } from "../generated/client";
 import { prisma as defaultPrisma } from "../db/prisma";
@@ -13,6 +14,7 @@ import {
 declare global {
   namespace Express {
     interface Request {
+      isServicePrincipal?: boolean;
       user?: {
         id: string;
         username?: string | null;
@@ -97,6 +99,21 @@ const verifyToken = (token: string): JwtPayload | null => {
     return decoded;
   } catch {
     return null;
+  }
+};
+
+// A static service token for machine-to-machine admin access (e.g. an external
+// user-provisioning service). Constant-time comparison; disabled unless
+// SERVICE_API_TOKEN is configured with at least 16 characters.
+const isServiceToken = (provided: string): boolean => {
+  const expected = config.serviceApiToken;
+  if (!expected || expected.length < 16 || provided.length !== expected.length) {
+    return false;
+  }
+  try {
+    return crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
+  } catch {
+    return false;
   }
 };
 
@@ -236,6 +253,20 @@ export const createAuthMiddleware = ({
         message: "Authentication token required",
       });
       return;
+    }
+
+    // Service token: machine-to-machine admin (no user session, no CSRF). Maps
+    // to a synthetic admin principal so the admin routes work unchanged.
+    if (isServiceToken(token)) {
+      req.user = {
+        id: "service",
+        username: null,
+        email: "service@local",
+        name: "Service",
+        role: "ADMIN",
+      };
+      req.isServicePrincipal = true;
+      return next();
     }
 
     const payload = verifyToken(token);

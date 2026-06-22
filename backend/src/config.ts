@@ -26,6 +26,7 @@ interface Config {
   enforceHttpsRedirect: boolean;
   bootstrapSetupCodeTtlMs: number;
   bootstrapSetupCodeMaxAttempts: number;
+  serviceApiToken: string;
 }
 
 export type AuthMode = "local" | "hybrid" | "oidc_enforced";
@@ -306,6 +307,7 @@ export const config: Config = {
   frontendUrl: parseFrontendUrl(process.env.FRONTEND_URL),
   authMode: resolvedAuthMode,
   jwtSecret: resolveJwtSecret(getOptionalEnv("NODE_ENV", "development")),
+  serviceApiToken: getOptionalEnv("SERVICE_API_TOKEN", ""),
   jwtAccessExpiresIn: getOptionalEnv("JWT_ACCESS_EXPIRES_IN", "15m"),
   jwtRefreshExpiresIn: getOptionalEnv("JWT_REFRESH_EXPIRES_IN", "7d"),
   rateLimitMaxRequests: getRequiredEnvNumber("RATE_LIMIT_MAX_REQUESTS", 1000),
