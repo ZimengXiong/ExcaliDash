@@ -4,6 +4,7 @@ import { getInitialLangCode } from "../components/LanguageSelector";
 import type { UserIdentity } from "../utils/identity";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
+import { usePreference } from "../context/PreferencesContext";
 import { getFilesDelta } from "./editor/shared";
 import { useEditorChrome } from "./editor/useEditorChrome";
 import { useEditorAutoHide } from "./editor/useEditorAutoHide";
@@ -19,6 +20,8 @@ import { useEditorCanvasHandlers } from "./editor/useEditorCanvasHandlers";
 import { useEditorCommands } from "./editor/useEditorCommands";
 import { useEditorElementTracking } from "./editor/useEditorElementTracking";
 import { useEditorBroadcast } from "./editor/useEditorBroadcast";
+import { useEditorGridStep } from "./editor/useEditorGridStep";
+import { DEFAULT_GRID_STEP } from "../components/GridStepSelector";
 export const Editor: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -38,7 +41,8 @@ export const Editor: React.FC = () => {
   const [isSavingOnLeave, setIsSavingOnLeave] = useState(false);
   const { autoHideEnabled, setAutoHideEnabled } = useEditorAutoHide(id);
   const [isShareOpen, setIsShareOpen] = useState(false);
-  const [langCode, setLangCode] = useState(getInitialLangCode);
+  const [langCode, setLangCode] = usePreference("language", getInitialLangCode());
+  const [gridStep, setGridStep] = usePreference("gridStep", DEFAULT_GRID_STEP);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const previewBackup = useRef<{
     elements: readonly any[];
@@ -181,6 +185,7 @@ export const Editor: React.FC = () => {
     [emitFilesDeltaIfNeeded, id, isSyncing],
   );
   useLibraryImportFromUrl({ excalidrawAPIRef: excalidrawAPI, isReady, user });
+  useEditorGridStep({ excalidrawAPI, isReady, gridStep });
   const persistenceRefs = React.useMemo(
     () => ({
       currentDrawingVersion: currentDrawingVersionRef,
@@ -372,6 +377,8 @@ export const Editor: React.FC = () => {
         onRenameSubmit={handleRenameSubmit}
         onSetExcalidrawAPI={setExcalidrawAPI}
         onSetLangCode={setLangCode}
+        gridStep={gridStep}
+        onSetGridStep={setGridStep}
         onShareOpen={() => setIsShareOpen(true)}
         onHistoryOpen={() => setIsHistoryOpen(true)}
         onToggleAutoHide={handleToggleAutoHide}

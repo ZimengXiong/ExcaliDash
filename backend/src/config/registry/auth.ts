@@ -5,9 +5,9 @@ export const authEnv: readonly EnvVarSpec[] = [
     name: "AUTH_MODE",
     group: "Authentication",
     kind: "enum",
-    values: ["local", "hybrid", "oidc_enforced"],
+    values: ["local", "hybrid", "oidc_enforced", "disabled"],
     default: "local",
-    doc: "Authentication mode: local credentials, hybrid, or OIDC-enforced.",
+    doc: "Authentication mode: local credentials, hybrid, OIDC-enforced, or disabled (no login; every request runs as a single shared local user — do not expose such an instance to untrusted networks).",
   },
   {
     name: "JWT_SECRET",

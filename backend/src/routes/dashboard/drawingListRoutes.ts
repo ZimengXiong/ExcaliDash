@@ -315,6 +315,8 @@ export const registerDrawingListRoutes = (
         permissions: {
           some: {
             granteeUserId: req.user.id,
+            // Recipients can hide a shared drawing from their own list.
+            hidden: false,
           },
         },
         // Exclude drawings already accessible via a shared collection

@@ -1,12 +1,22 @@
+import React from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../../api";
+import { PreferencesProvider } from "../../context/PreferencesContext";
 import { useDashboardSort } from "./useDashboardSort";
 
 vi.mock("../../api", () => ({
   getUserPreferences: vi.fn(),
   updateUserPreferences: vi.fn(),
 }));
+
+vi.mock("../../context/AuthContext", () => ({
+  useAuth: () => ({ user: null }),
+}));
+
+const wrapper = ({ children }: { children: React.ReactNode }) => (
+  <PreferencesProvider>{children}</PreferencesProvider>
+);
 
 describe("useDashboardSort", () => {
   const getPrefsMock = vi.mocked(api.getUserPreferences);
@@ -40,7 +50,7 @@ describe("useDashboardSort", () => {
       dashboardSortDirection: "asc",
     });
 
-    const { result } = renderHook(() => useDashboardSort());
+    const { result } = renderHook(() => useDashboardSort(), { wrapper });
 
     // Let the GET settle and hydration apply.
     await waitFor(() => {
@@ -50,7 +60,7 @@ describe("useDashboardSort", () => {
       });
     });
 
-    // The write-effect must never have PUT the local default before/at mount,
+    // The write path must never have PUT the local default before/at mount,
     // and must not echo the freshly fetched server value back.
     expect(updatePrefsMock).not.toHaveBeenCalled();
   });
@@ -58,7 +68,7 @@ describe("useDashboardSort", () => {
   it("does not PUT when the server has no stored sort", async () => {
     getPrefsMock.mockResolvedValue({});
 
-    const { result } = renderHook(() => useDashboardSort());
+    const { result } = renderHook(() => useDashboardSort(), { wrapper });
 
     await waitFor(() => {
       expect(getPrefsMock).toHaveBeenCalledTimes(1);
@@ -78,7 +88,7 @@ describe("useDashboardSort", () => {
   it("persists to the server on a user-initiated sort change", async () => {
     getPrefsMock.mockResolvedValue({});
 
-    const { result } = renderHook(() => useDashboardSort());
+    const { result } = renderHook(() => useDashboardSort(), { wrapper });
 
     await waitFor(() => {
       expect(getPrefsMock).toHaveBeenCalledTimes(1);
@@ -99,8 +109,12 @@ describe("useDashboardSort", () => {
       });
     });
     expect(updatePrefsMock).toHaveBeenCalledTimes(1);
-    expect(window.localStorage.getItem("excalidash-dashboard-sort")).toBe(
-      JSON.stringify({ field: "name", direction: "asc" }),
+    const stored = JSON.parse(
+      window.localStorage.getItem("excalidash-preferences") ?? "{}",
     );
+    expect(stored).toMatchObject({
+      dashboardSortField: "name",
+      dashboardSortDirection: "asc",
+    });
   });
 });

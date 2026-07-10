@@ -138,4 +138,6 @@ export const userPreferencesSchema = z.object({
   theme: z.enum(["light", "dark"]).optional(),
   dashboardSortField: z.enum(["name", "createdAt", "updatedAt"]).optional(),
   dashboardSortDirection: z.enum(["asc", "desc"]).optional(),
+  language: z.string().trim().min(1).max(35).optional(),
+  gridStep: z.number().int().min(1).max(100).optional(),
 }).strict();

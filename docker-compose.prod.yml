@@ -24,8 +24,16 @@ services:
       # - OIDC_CLIENT_ID=your-client-id
       # - OIDC_CLIENT_SECRET=your-client-secret
       # - OIDC_REDIRECT_URI=https://excalidash.example.com/api/auth/oidc/callback
+      # Optional scheduled SQLite backups (see docs/DEPLOYMENT.md > Backups).
+      # BACKUP_SCHEDULE is a 5- or 6-field cron expression; unset disables it.
+      # Uncomment these together with the backup-data volume mount below.
+      # - BACKUP_SCHEDULE=0 0 4 * * *
+      # - BACKUP_DIR=/app/backups
+      # - BACKUP_RETENTION_DAYS=14
     volumes:
       - backend-data:/app/prisma
+      # Persist scheduled backups outside the container (pairs with BACKUP_DIR).
+      # - backup-data:/app/backups
     networks:
       - excalidash-network
     restart: unless-stopped
@@ -73,3 +81,5 @@ networks:
 
 volumes:
   backend-data:
+  # Uncomment to persist scheduled backups (see the backend service above).
+  # backup-data:

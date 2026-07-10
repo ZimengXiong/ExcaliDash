@@ -87,7 +87,9 @@ interface Config {
   updateCheck: UpdateCheckConfig;
 }
 
-export type AuthMode = "local" | "hybrid" | "oidc_enforced";
+export type AuthMode = "local" | "hybrid" | "oidc_enforced" | "disabled";
+// True only for env-enforced (OIDC-backed) modes; `local` uses the runtime toggle, `disabled` turns auth off.
+export const authModeEnablesAuth = (mode: AuthMode): boolean => mode === "hybrid" || mode === "oidc_enforced";
 
 interface OidcConfig {
   enabled: boolean;
@@ -228,12 +230,13 @@ const parseAuthMode = (rawValue: string | undefined): AuthMode => {
   if (
     normalized === "local" ||
     normalized === "hybrid" ||
-    normalized === "oidc_enforced"
+    normalized === "oidc_enforced" ||
+    normalized === "disabled"
   ) {
     return normalized;
   }
   throw new Error(
-    "Invalid AUTH_MODE. Expected one of: local, hybrid, oidc_enforced",
+    "Invalid AUTH_MODE. Expected one of: local, hybrid, oidc_enforced, disabled",
   );
 };
 
@@ -257,7 +260,7 @@ const resolveOidcConfig = (authMode: AuthMode): OidcConfig => {
     );
   }
 
-  const enabled = authMode !== "local";
+  const enabled = authModeEnablesAuth(authMode);
   const missingRequired = Object.entries(requiredWhenEnabled)
     .filter(([, value]) => !value)
     .map(([key]) => key);
@@ -273,7 +276,7 @@ const resolveOidcConfig = (authMode: AuthMode): OidcConfig => {
       adminGroups.length > 0;
     if (hasOidcVars) {
       console.warn(
-        "[config] AUTH_MODE=local; ignoring OIDC_* provider settings.",
+        `[config] AUTH_MODE=${authMode}; ignoring OIDC_* provider settings.`,
       );
     }
   }

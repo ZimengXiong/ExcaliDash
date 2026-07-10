@@ -217,6 +217,7 @@ Base values are documented in `backend/.env.example`. Common ones to care about:
 | `PASSWORD_MIN_LENGTH` | `12` | Local-auth password minimum length. Combine with `PASSWORD_REQUIRE_*` flags to relax or enforce complexity. |
 | `BACKUP_SCHEDULE` | unset | Optional 5- or 6-field cron expression for scheduled SQLite backups, e.g. `0 0 4 * * *`. |
 | `BACKUP_DIR` | `/app/backups` | Directory where scheduled SQLite backup files are written. Mount this to persistent storage. |
+| `BACKUP_RETENTION_DAYS` | `14` | Age (in days) after which older backup files are pruned. |
 
 </details>
 

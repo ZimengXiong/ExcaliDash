@@ -18,6 +18,7 @@ A self-hosted dashboard and organizer for [Excalidraw](https://github.com/excali
   - [Quickstart](#quickstart)
   - [Advanced](#advanced)
 - [Development](#development)
+- [Community \& Integrations](#community--integrations)
 - [Credits](#credits)
 
 ## Features
@@ -305,6 +306,12 @@ Common flags:
 | `--disable-login-rate-limit`  | Temporarily disable login throttling for this operation. |
 
 </details>
+
+# Community & Integrations
+
+Third-party projects that build on ExcaliDash. These are community-maintained and not part of this repository:
+
+- [excalidash-mcp](https://github.com/davifernan/excalidash-mcp) — an MCP server that lets AI agents draw and edit ExcaliDash boards live over Socket.IO, with high-level tools and a compact scene DSL.
 
 # Credits
 If you find ExcaliDash useful, please consider [sponsoring](https://github.com/sponsors/ZimengXiong)

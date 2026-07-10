@@ -15,6 +15,7 @@ import { Toaster } from "sonner";
 import {
   LanguageSelector,
 } from "../../components/LanguageSelector";
+import { GridStepSelector } from "../../components/GridStepSelector";
 import type { UserIdentity } from "../../utils/identity";
 import { UIOptions } from "./shared";
 
@@ -54,6 +55,8 @@ type EditorViewProps = {
   onRenameSubmit: (event: React.FormEvent) => void;
   onSetExcalidrawAPI: (api: any) => void;
   onSetLangCode: (langCode: string) => void;
+  gridStep: number;
+  onSetGridStep: (gridStep: number) => void;
   onShareOpen: () => void;
   onHistoryOpen: () => void;
   onToggleAutoHide: () => void;
@@ -116,6 +119,8 @@ export const EditorView: React.FC<EditorViewProps> = ({
   onRenameSubmit,
   onSetExcalidrawAPI,
   onSetLangCode,
+  gridStep,
+  onSetGridStep,
   onShareOpen,
   onHistoryOpen,
   onToggleAutoHide,
@@ -275,6 +280,9 @@ export const EditorView: React.FC<EditorViewProps> = ({
             <MainMenu.DefaultItems.ChangeCanvasBackground />
             <MainMenu.DefaultItems.Help />
             <MainMenu.Separator />
+            <MainMenu.ItemCustom>
+              <GridStepSelector gridStep={gridStep} onChange={onSetGridStep} />
+            </MainMenu.ItemCustom>
             <MainMenu.ItemCustom>
               <LanguageSelector langCode={langCode} onChange={onSetLangCode} />
             </MainMenu.ItemCustom>

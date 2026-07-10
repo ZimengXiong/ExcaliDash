@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { PrismaClient } from "../generated/client";
+import { config, authModeEnablesAuth } from "../config";
 import {
   BOOTSTRAP_USER_ID,
   DEFAULT_SYSTEM_CONFIG_ID,
@@ -132,6 +133,49 @@ describe("authMode service", () => {
     expect(result).toMatchObject({ id: DEFAULT_SYSTEM_CONFIG_ID, authEnabled: true });
     expect(findUnique).toHaveBeenCalledTimes(1);
     expect(upsert).not.toHaveBeenCalled();
+  });
+
+  describe("AUTH_MODE=disabled", () => {
+    let originalAuthMode: typeof config.authMode;
+
+    beforeEach(() => {
+      originalAuthMode = config.authMode;
+    });
+
+    afterEach(() => {
+      (config as { authMode: typeof config.authMode }).authMode = originalAuthMode;
+    });
+
+    it("forces authEnabled false without reading the database", async () => {
+      (config as { authMode: typeof config.authMode }).authMode = "disabled";
+      const prisma = createPrismaMock();
+      const findUnique = prisma.systemConfig.findUnique as unknown as ReturnType<typeof vi.fn>;
+      const upsert = prisma.systemConfig.upsert as unknown as ReturnType<typeof vi.fn>;
+
+      const service = createAuthModeService(prisma);
+
+      await expect(service.getAuthEnabled()).resolves.toBe(false);
+      expect(findUnique).not.toHaveBeenCalled();
+      expect(upsert).not.toHaveBeenCalled();
+    });
+
+    it("still forces auth on for the OIDC-backed modes", async () => {
+      (config as { authMode: typeof config.authMode }).authMode = "hybrid";
+      const prisma = createPrismaMock();
+      const findUnique = prisma.systemConfig.findUnique as unknown as ReturnType<typeof vi.fn>;
+
+      const service = createAuthModeService(prisma);
+
+      await expect(service.getAuthEnabled()).resolves.toBe(true);
+      expect(findUnique).not.toHaveBeenCalled();
+    });
+  });
+
+  it("authModeEnablesAuth is true only for the OIDC-backed modes", () => {
+    expect(authModeEnablesAuth("hybrid")).toBe(true);
+    expect(authModeEnablesAuth("oidc_enforced")).toBe(true);
+    expect(authModeEnablesAuth("local")).toBe(false);
+    expect(authModeEnablesAuth("disabled")).toBe(false);
   });
 
   it("ensures system config defaults", async () => {

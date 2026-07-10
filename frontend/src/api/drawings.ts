@@ -195,6 +195,19 @@ export const revokeDrawingPermission = async (
   return response.data;
 };
 
+// Recipient-scoped: hide/unhide a drawing shared with the current user from
+// their own "Shared with me" list. Does not affect the owner or other grantees.
+export const setSharedDrawingHidden = async (
+  drawingId: string,
+  hidden: boolean,
+): Promise<{ success: true; hidden: boolean }> => {
+  const response = await api.patch<{ success: true; hidden: boolean }>(
+    `/drawings/${drawingId}/shared-visibility`,
+    { hidden },
+  );
+  return response.data;
+};
+
 export const createLinkShare = async (
   drawingId: string,
   params: { permission: "view" | "edit"; expiresAt?: string | null; passphrase?: string },

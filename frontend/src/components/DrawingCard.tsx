@@ -20,6 +20,7 @@ interface DrawingCardProps {
   onToggleSelection: (e: React.MouseEvent) => void;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
+  onHide?: (id: string) => void;
   onMoveToCollection: (id: string, collectionId: string | null) => void;
   onDuplicate: (id: string) => void;
   onClick: (id: string, e: React.MouseEvent) => void;
@@ -38,6 +39,7 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
   onToggleSelection,
   onRename,
   onDelete,
+  onHide,
   onMoveToCollection,
   onDuplicate,
   onClick,
@@ -276,6 +278,7 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
           onMoveToCollection={onMoveToCollection}
           onDuplicate={onDuplicate}
           onDelete={onDelete}
+          onHide={onHide}
           onManageStorage={() => {
             setShowStorageModal(true);
             setContextMenu(null);

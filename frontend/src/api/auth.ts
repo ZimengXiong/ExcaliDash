@@ -54,6 +54,8 @@ export interface UserPreferences {
   theme?: "light" | "dark";
   dashboardSortField?: DrawingSortField;
   dashboardSortDirection?: SortDirection;
+  language?: string;
+  gridStep?: number;
 }
 
 export interface ApiKeyMetadata {

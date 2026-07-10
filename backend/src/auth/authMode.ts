@@ -1,5 +1,5 @@
 import { PrismaClient } from "../generated/client";
-import { config } from "../config";
+import { config, authModeEnablesAuth } from "../config";
 
 export const BOOTSTRAP_USER_ID = "bootstrap-admin";
 export const DEFAULT_SYSTEM_CONFIG_ID = "default";
@@ -42,7 +42,7 @@ export const createAuthModeService = (
       update: {},
       create: {
         id: DEFAULT_SYSTEM_CONFIG_ID,
-        authEnabled: config.authMode !== "local",
+        authEnabled: authModeEnablesAuth(config.authMode),
         authOnboardingCompleted: false,
         registrationEnabled: false,
         oidcJitProvisioningEnabled: null,
@@ -54,10 +54,14 @@ export const createAuthModeService = (
   };
 
   const getAuthEnabled = async (): Promise<boolean> => {
+    // Non-local modes are resolved purely from AUTH_MODE and never consult the
+    // runtime toggle: hybrid/oidc_enforced force auth on, `disabled` forces it
+    // off (every request runs as the shared bootstrap acting user).
     if (config.authMode !== "local") {
       const now = Date.now();
-      authEnabledCache = { value: true, fetchedAt: now };
-      return true;
+      const value = authModeEnablesAuth(config.authMode);
+      authEnabledCache = { value, fetchedAt: now };
+      return value;
     }
 
     const now = Date.now();

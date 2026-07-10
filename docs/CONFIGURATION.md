@@ -31,7 +31,7 @@ This file and `backend/.env.example` are generated from that registry; do not ed
 
 | Variable | Default | Required | Description |
 | --- | --- | --- | --- |
-| `AUTH_MODE` | `local` | No | Authentication mode: local credentials, hybrid, or OIDC-enforced. Allowed: local, hybrid, oidc_enforced. |
+| `AUTH_MODE` | `local` | No | Authentication mode: local credentials, hybrid, OIDC-enforced, or disabled (no login; every request runs as a single shared local user — do not expose such an instance to untrusted networks). Allowed: local, hybrid, oidc_enforced, disabled. |
 | `JWT_SECRET` | _(none — secret)_ | In production | Secret used to sign JWTs; an ephemeral random secret is generated in dev when unset. |
 | `JWT_ACCESS_EXPIRES_IN` | `15m` | No | Access-token lifetime (vercel/ms style duration). |
 | `JWT_REFRESH_EXPIRES_IN` | `7d` | No | Refresh-token lifetime (vercel/ms style duration). |

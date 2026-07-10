@@ -105,6 +105,9 @@ model DrawingPermission {
   granteeUserId   String
   granteeUser     User     @relation(fields: [granteeUserId], references: [id], onDelete: Cascade)
   permission      String
+  // Per-recipient flag so a grantee can hide a shared drawing from their own
+  // "Shared with me" list without affecting the owner or other recipients.
+  hidden          Boolean  @default(false)
   createdByUserId String
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

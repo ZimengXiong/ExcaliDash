@@ -1,7 +1,15 @@
+import React from "react";
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../api";
+import { PreferencesProvider } from "./PreferencesContext";
 import { ThemeProvider, useTheme } from "./ThemeContext";
+
+const wrapper = ({ children }: { children: React.ReactNode }) => (
+  <PreferencesProvider>
+    <ThemeProvider>{children}</ThemeProvider>
+  </PreferencesProvider>
+);
 
 const state = vi.hoisted(() => ({
   user: null as { id: string } | null,
@@ -49,7 +57,7 @@ describe("ThemeContext", () => {
     getPrefsMock.mockResolvedValueOnce({ theme: "dark" });
 
     const { result, rerender } = renderHook(() => useTheme(), {
-      wrapper: ThemeProvider,
+      wrapper,
     });
 
     await waitFor(() => {
@@ -74,7 +82,7 @@ describe("ThemeContext", () => {
     getPrefsMock.mockResolvedValue({ theme: "dark" });
 
     const { rerender } = renderHook(() => useTheme(), {
-      wrapper: ThemeProvider,
+      wrapper,
     });
 
     await waitFor(() => {
