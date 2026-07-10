@@ -22,6 +22,17 @@ import type { DrawingRouteContext } from "./drawingRouteContext";
 // roll back before any snapshot/write happens.
 const opsValidationError = new Error("OPS_VALIDATION_FAILED");
 
+// The semantic ops applier and the structural read paths parse excalidraw
+// elements. A tldraw drawing has an incompatible record-store scene, so every
+// agent endpoint refuses one up front with a stable, machine-readable code
+// (409) instead of misparsing the scene.
+const engineMismatchBody = {
+  error: "Engine mismatch",
+  code: "ENGINE_MISMATCH",
+  engine: "tldraw",
+  message: "Agent operations support excalidraw drawings only",
+} as const;
+
 export const registerDrawingAgentRoutes = (
   app: express.Express,
   context: DrawingRouteContext,
@@ -71,6 +82,14 @@ export const registerDrawingAgentRoutes = (
         return res
           .status(canViewDrawing(access) ? 403 : 404)
           .json({ error: canViewDrawing(access) ? "Forbidden" : "Drawing not found" });
+      }
+
+      const engineRow = await prisma.drawing.findUnique({
+        where: { id },
+        select: { engine: true },
+      });
+      if (engineRow?.engine === "tldraw") {
+        return res.status(409).json(engineMismatchBody);
       }
 
       const parsed = opsBatchSchema.safeParse(req.body);
@@ -219,6 +238,9 @@ export const registerDrawingAgentRoutes = (
 
       const drawing = await prisma.drawing.findUnique({ where: { id } });
       if (!drawing) return res.status(404).json({ error: "Drawing not found" });
+      if (drawing.engine === "tldraw") {
+        return res.status(409).json(engineMismatchBody);
+      }
 
       const summary = buildStructuralSummary({
         name: drawing.name,
@@ -248,6 +270,9 @@ export const registerDrawingAgentRoutes = (
 
       const drawing = await prisma.drawing.findUnique({ where: { id } });
       if (!drawing) return res.status(404).json({ error: "Drawing not found" });
+      if (drawing.engine === "tldraw") {
+        return res.status(409).json(engineMismatchBody);
+      }
 
       const elements = parseJsonField<any[]>(drawing.elements, []);
       const element = elements.find((el) => el?.id === elementId && !el?.isDeleted);

@@ -76,11 +76,14 @@ export const registerExcalidashExportRoute = (deps: RegisterImportExportDeps) =>
         ? folderByCollectionId.get(drawing.collectionId) || unorganizedFolder
         : unorganizedFolder;
       const fileNameBase = sanitizePathSegment(drawing.name, "Untitled");
-      const fileName = `${fileNameBase}__${drawing.id.slice(0, 8)}.excalidraw`;
+      const engine = drawing.engine === "tldraw" ? "tldraw" : "excalidraw";
+      const ext = engine === "tldraw" ? "tldraw" : "excalidraw";
+      const fileName = `${fileNameBase}__${drawing.id.slice(0, 8)}.${ext}`;
       return {
         id: drawing.id,
         name: drawing.name,
         filePath: `${folder}/${fileName}`,
+        engine,
         collectionId: toPublicTrashCollectionId(drawing.collectionId, req.user!.id),
         version: drawing.version,
         createdAt: drawing.createdAt.toISOString(),
@@ -143,19 +146,34 @@ export const registerExcalidashExportRoute = (deps: RegisterImportExportDeps) =>
     for (const drawing of drawings) {
       const meta = drawingsManifestById.get(drawing.id);
       if (!meta) continue;
-      const drawingData = {
-        type: "excalidraw" as const,
-        version: 2 as const,
-        source: exportSource,
-        elements: parseJsonField(drawing.elements, [] as unknown[]),
-        appState: parseJsonField(drawing.appState, {} as Record<string, unknown>),
-        files: parseJsonField(drawing.files, {} as Record<string, unknown>),
-        excalidash: {
-          drawingId: drawing.id,
-          collectionId: drawing.collectionId ?? null,
-          exportedAt,
-        },
+      const excalidashMeta = {
+        drawingId: drawing.id,
+        collectionId: drawing.collectionId ?? null,
+        exportedAt,
       };
+      // A tldraw row's `elements` column holds the document object
+      // ({ store, schema }), not an excalidraw elements array. Preserve that
+      // shape verbatim under `document` so import can round-trip it, instead of
+      // stuffing an object into a `type:"excalidraw"` scene's `elements` field.
+      const drawingData =
+        meta.engine === "tldraw"
+          ? {
+              type: "tldraw" as const,
+              version: 2 as const,
+              source: exportSource,
+              document: parseJsonField(drawing.elements, {} as Record<string, unknown>),
+              appState: parseJsonField(drawing.appState, {} as Record<string, unknown>),
+              excalidash: excalidashMeta,
+            }
+          : {
+              type: "excalidraw" as const,
+              version: 2 as const,
+              source: exportSource,
+              elements: parseJsonField(drawing.elements, [] as unknown[]),
+              appState: parseJsonField(drawing.appState, {} as Record<string, unknown>),
+              files: parseJsonField(drawing.files, {} as Record<string, unknown>),
+              excalidash: excalidashMeta,
+            };
       assertSafeArchivePath(meta.filePath);
       archive.append(JSON.stringify(drawingData, null, 2), { name: meta.filePath });
     }

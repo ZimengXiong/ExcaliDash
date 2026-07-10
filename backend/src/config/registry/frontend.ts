@@ -29,4 +29,11 @@ export const frontendEnv: readonly EnvVarSpec[] = [
     docsOnly: true,
     doc: "Optional self-hosted WOFF2 URL for the display font; when set, a matching @font-face is injected for VITE_EXCALIDASH_UI_FONT_FAMILY.",
   },
+  {
+    name: "VITE_TLDRAW_LICENSE_KEY",
+    group: "Frontend (build-time)",
+    kind: "string",
+    docsOnly: true,
+    doc: "Optional tldraw SDK license key passed to the tldraw editor. Unset by default: the free tldraw 3.x license keeps the on-canvas \"Made with tldraw\" watermark (which must not be hidden). Deployers who purchase a key can set it here to remove the watermark. Only affects tldraw-engine drawings; excalidraw is unaffected.",
+  },
 ];

@@ -8,7 +8,6 @@ import {
   Copy,
   Folder,
   Inbox,
-  Plus,
   Search,
   Square,
   Trash2,
@@ -16,7 +15,8 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import type { DrawingSortField, SortDirection } from "../../api";
-import type { Collection } from "../../types";
+import type { Collection, DrawingEngine } from "../../types";
+import { NewDrawingControl } from "./NewDrawingControl";
 
 type SortOption = {
   field: DrawingSortField;
@@ -51,7 +51,7 @@ type DashboardToolbarProps = {
   onShowBulkMoveMenuChange: (value: boolean) => void;
   onBulkMove: (collectionId: string | null) => void;
   onImportDrawings: (files: FileList | null) => void;
-  onCreateDrawing: () => void;
+  onCreateDrawing: (engine: DrawingEngine) => void;
   onViewerActionError: (message: string) => void;
 };
 
@@ -317,18 +317,17 @@ export const DashboardToolbar: React.FC<DashboardToolbarProps> = ({
         >
           <Upload size={18} strokeWidth={2.5} /> Import
         </button>
-        <button
-          onClick={onCreateDrawing}
+        <NewDrawingControl
           disabled={isTrashView || isSharedView}
-          className={clsx(
-            "h-[42px] w-full sm:w-auto flex items-center justify-center gap-2 px-6 rounded-xl border-2 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] transition-all font-bold text-sm whitespace-nowrap",
-            isTrashView || isSharedView
-              ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border-slate-300 dark:border-slate-700 shadow-none cursor-not-allowed"
-              : "bg-indigo-600 dark:bg-neutral-800 text-white hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-1 active:translate-y-0 active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:active:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)]",
-          )}
-        >
-          <Plus size={18} strokeWidth={2.5} /> New Drawing
-        </button>
+          onCreate={onCreateDrawing}
+          canCreate={() => {
+            if (isSharedCollection && currentCollection?.sharedRole !== "edit") {
+              onViewerActionError("Viewers can't create new drawings");
+              return false;
+            }
+            return true;
+          }}
+        />
       </div>
     </div>
   );

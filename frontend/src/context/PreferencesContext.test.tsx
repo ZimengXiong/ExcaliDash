@@ -114,6 +114,52 @@ describe("PreferencesContext", () => {
     expect(stored.language).toBe("es-ES");
   });
 
+  it("hydrates and persists the defaultEngine preference", async () => {
+    getPrefsMock.mockResolvedValue({ defaultEngine: "tldraw" });
+
+    const { result } = renderHook(
+      () => usePreference("defaultEngine", "excalidraw"),
+      { wrapper },
+    );
+
+    await waitFor(() => {
+      expect(result.current[0]).toBe("tldraw");
+    });
+
+    act(() => {
+      result.current[1]("excalidraw");
+    });
+
+    await waitFor(() => {
+      expect(updatePrefsMock).toHaveBeenCalledWith({
+        defaultEngine: "excalidraw",
+      });
+    });
+  });
+
+  it("clears defaultEngine by persisting null", async () => {
+    getPrefsMock.mockResolvedValue({ defaultEngine: "tldraw" });
+
+    const { result } = renderHook(
+      () => usePreference("defaultEngine", "excalidraw"),
+      { wrapper },
+    );
+
+    await waitFor(() => {
+      expect(result.current[0]).toBe("tldraw");
+    });
+
+    act(() => {
+      result.current[1](null);
+    });
+
+    await waitFor(() => {
+      expect(updatePrefsMock).toHaveBeenCalledWith({ defaultEngine: null });
+    });
+    // The default fallback re-applies once the stored value is nulled.
+    expect(result.current[0]).toBe("excalidraw");
+  });
+
   it("refetches when the authenticated user id changes", async () => {
     getPrefsMock.mockResolvedValueOnce({});
     getPrefsMock.mockResolvedValueOnce({ language: "it-IT" });

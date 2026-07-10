@@ -151,4 +151,8 @@ export const userPreferencesSchema = z.object({
   dashboardSortDirection: z.enum(["asc", "desc"]).optional(),
   language: z.string().trim().min(1).max(35).optional(),
   gridStep: z.number().int().min(1).max(100).optional(),
+  // Preferred engine for newly created drawings. Unset (or explicitly null,
+  // which clears a prior choice) means "ask on every create". Immutable per
+  // drawing once created — this only seeds the creation dialog's default.
+  defaultEngine: z.enum(["excalidraw", "tldraw"]).nullable().optional(),
 }).strict();

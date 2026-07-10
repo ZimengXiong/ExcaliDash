@@ -66,6 +66,13 @@ export const serverEnv: readonly EnvVarSpec[] = [
     default: "100",
     doc: "Maximum size (in MB) of a single image accepted by the raw file-upload endpoint (PUT /api/drawings/:id/files/:fileId); the only per-image cap.",
   },
+  {
+    name: "TLDRAW_MAX_SCENE_MB",
+    group: "Server",
+    kind: "number",
+    default: "15",
+    doc: "Maximum serialized size (in MB) of a tldraw drawing's scene document (its inline data-URL assets included), enforced on create and update; excalidraw drawings are unaffected.",
+  },
 ];
 
 export const databaseEnv: readonly EnvVarSpec[] = [

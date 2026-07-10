@@ -69,6 +69,10 @@ model Collection {
 model Drawing {
   id           String      @id @default(uuid())
   name         String
+  // Rendering engine for this drawing. "excalidraw" (default) or "tldraw".
+  // Immutable after creation; the update path validates incoming scenes against
+  // the stored engine and never accepts an engine change.
+  engine       String      @default("excalidraw")
   elements     String
   appState     String
   files        String      @default("{}")

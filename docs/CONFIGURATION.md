@@ -18,6 +18,7 @@ This file and `backend/.env.example` are generated from that registry; do not ed
 | `UPLOAD_MAX_MB` | `100` | No | Maximum size (in MB) of a single uploaded file accepted by multer (imports, database restores). |
 | `BODY_LIMIT_MB` | `50` | No | Maximum request body size (in MB) for scene JSON/urlencoded payloads and the Socket.IO buffer; images no longer travel in the scene body (see FILE_UPLOAD_MAX_MB), so this bounds scene JSON only. |
 | `FILE_UPLOAD_MAX_MB` | `100` | No | Maximum size (in MB) of a single image accepted by the raw file-upload endpoint (PUT /api/drawings/:id/files/:fileId); the only per-image cap. |
+| `TLDRAW_MAX_SCENE_MB` | `15` | No | Maximum serialized size (in MB) of a tldraw drawing's scene document (its inline data-URL assets included), enforced on create and update; excalidraw drawings are unaffected. |
 
 ## Database
 
@@ -140,3 +141,4 @@ This file and `backend/.env.example` are generated from that registry; do not ed
 | `VITE_API_URL` | `/api` | No | Base URL the frontend uses to reach the backend API. Keep /api so requests stay same-origin (proxied by Vite in dev and nginx in production), avoiding CORS. Consumed outside the backend; documented only. |
 | `VITE_EXCALIDASH_UI_FONT_FAMILY` | `Excalifont` | No | Optional app-shell display font family override. Falls back to Excalifont when unset. Consumed outside the backend; documented only. |
 | `VITE_EXCALIDASH_UI_FONT_URL` | — | No | Optional self-hosted WOFF2 URL for the display font; when set, a matching @font-face is injected for VITE_EXCALIDASH_UI_FONT_FAMILY. Consumed outside the backend; documented only. |
+| `VITE_TLDRAW_LICENSE_KEY` | — | No | Optional tldraw SDK license key passed to the tldraw editor. Unset by default: the free tldraw 3.x license keeps the on-canvas "Made with tldraw" watermark (which must not be hidden). Deployers who purchase a key can set it here to remove the watermark. Only affects tldraw-engine drawings; excalidraw is unaffected. Consumed outside the backend; documented only. |

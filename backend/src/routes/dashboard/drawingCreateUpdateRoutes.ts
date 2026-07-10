@@ -15,6 +15,14 @@ import {
 } from "./trash";
 import type { DrawingRouteContext } from "./drawingRouteContext";
 import { applySceneUpdateTx, isVersionConflict } from "./sceneUpdate";
+import { sanitizeSvg } from "../../security";
+import {
+  engineCreateFieldSchema,
+  tldrawCreateSchema,
+  tldrawUpdateSchema,
+  tldrawSceneExceedsCap,
+  tldrawSceneTooLargeBody,
+} from "./tldrawScene";
 
 export const registerDrawingCreateUpdateRoutes = (
   app: express.Express,
@@ -43,8 +51,17 @@ export const registerDrawingCreateUpdateRoutes = (
     asyncHandler(async (req, res) => {
       if (!req.user) return res.status(401).json({ error: "Unauthorized" });
 
+      const engineResult = engineCreateFieldSchema.safeParse(req.body?.engine);
+      if (!engineResult.success) {
+        return respondWithValidationErrors(res, engineResult.error.issues);
+      }
+      const engine = engineResult.data;
+      const isTldraw = engine === "tldraw";
+
       const isImportedDrawing = req.headers["x-imported-file"] === "true";
-      if (isImportedDrawing && !validateImportedDrawing(req.body)) {
+      // The imported-file validator is excalidraw-shaped; tldraw import is
+      // deferred, so the header is ignored for tldraw create.
+      if (!isTldraw && isImportedDrawing && !validateImportedDrawing(req.body)) {
         return res.status(400).json({
           error: "Invalid imported drawing file",
           message:
@@ -52,7 +69,9 @@ export const registerDrawingCreateUpdateRoutes = (
         });
       }
 
-      const parsed = drawingCreateSchema.safeParse(req.body);
+      const parsed = (
+        isTldraw ? tldrawCreateSchema : drawingCreateSchema
+      ).safeParse(req.body);
       if (!parsed.success) {
         return respondWithValidationErrors(res, parsed.error.issues);
       }
@@ -60,11 +79,20 @@ export const registerDrawingCreateUpdateRoutes = (
       const payload = parsed.data as {
         name?: string;
         collectionId?: string | null;
-        elements: unknown[];
+        elements: unknown;
         appState: Record<string, unknown>;
         preview?: string | null;
         files?: Record<string, unknown>;
       };
+
+      if (
+        isTldraw &&
+        tldrawSceneExceedsCap(payload.elements, config.tldrawMaxSceneBytes)
+      ) {
+        return res
+          .status(413)
+          .json(tldrawSceneTooLargeBody(config.tldrawMaxSceneBytes));
+      }
       const drawingName = payload.name ?? "Untitled Drawing";
       const targetCollectionIdRaw =
         payload.collectionId === undefined ? null : payload.collectionId;
@@ -100,27 +128,41 @@ export const registerDrawingCreateUpdateRoutes = (
       }
 
       const newDrawingId = uuidv4();
-      const originalFiles = payload.files ?? {};
-      const processedFiles = await internDrawingFiles(
-        originalFiles,
-        req.user.id,
-        newDrawingId,
-      );
-      const processedPreview = rewritePreviewForInternedFiles(
-        payload.preview ?? null,
-        originalFiles,
-        processedFiles,
-      );
+      let processedFiles: Record<string, unknown>;
+      let processedPreview: string | null;
+      if (isTldraw) {
+        // tldraw scenes carry no interned files; assets stay inline in the
+        // store. Previews still flow through sanitizeSvg (injected HTML).
+        processedFiles = {};
+        processedPreview =
+          typeof payload.preview === "string"
+            ? sanitizeSvg(payload.preview)
+            : null;
+      } else {
+        const originalFiles = payload.files ?? {};
+        processedFiles = await internDrawingFiles(
+          originalFiles,
+          req.user.id,
+          newDrawingId,
+        );
+        const rewritten = rewritePreviewForInternedFiles(
+          payload.preview ?? null,
+          originalFiles,
+          processedFiles,
+        );
+        processedPreview = typeof rewritten === "string" ? rewritten : null;
+      }
 
       const newDrawing = await prisma.drawing.create({
         data: {
           id: newDrawingId,
           name: drawingName,
+          engine,
           elements: JSON.stringify(payload.elements),
           appState: JSON.stringify(payload.appState),
           userId: req.user.id,
           collectionId: targetCollectionId,
-          preview: typeof processedPreview === "string" ? processedPreview : null,
+          preview: processedPreview,
           files: JSON.stringify(processedFiles),
         },
       });
@@ -132,7 +174,7 @@ export const registerDrawingCreateUpdateRoutes = (
           newDrawing.collectionId,
           req.user.id,
         ),
-        elements: parseJsonField(newDrawing.elements, []),
+        elements: parseJsonField(newDrawing.elements, isTldraw ? {} : []),
         appState: parseJsonField(newDrawing.appState, {}),
         files: parseJsonField(newDrawing.files, {}),
       });
@@ -165,7 +207,14 @@ export const registerDrawingCreateUpdateRoutes = (
       if (!existingDrawing)
         return res.status(404).json({ error: "Drawing not found" });
 
-      const parsed = drawingUpdateSchema.safeParse(req.body);
+      // The stored row's engine — never the request body — decides validation.
+      // A client can't smuggle a tldraw payload into an excalidraw row (its
+      // object `elements` fails elementSchema.array()) or vice versa, and
+      // `engine` is never read from the body, so it stays immutable.
+      const isTldraw = existingDrawing.engine === "tldraw";
+      const parsed = (
+        isTldraw ? tldrawUpdateSchema : drawingUpdateSchema
+      ).safeParse(req.body);
       if (!parsed.success) {
         if (config.nodeEnv === "development") {
           console.error("[API] Validation failed", {
@@ -179,12 +228,21 @@ export const registerDrawingCreateUpdateRoutes = (
       const payload = parsed.data as {
         name?: string;
         collectionId?: string | null;
-        elements?: unknown[];
+        elements?: unknown;
         appState?: Record<string, unknown>;
         preview?: string | null;
         files?: Record<string, unknown>;
         version?: number;
       };
+
+      if (
+        isTldraw &&
+        tldrawSceneExceedsCap(payload.elements, config.tldrawMaxSceneBytes)
+      ) {
+        return res
+          .status(413)
+          .json(tldrawSceneTooLargeBody(config.tldrawMaxSceneBytes));
+      }
       const ownerUserId = existingDrawing.userId;
       const trashCollectionId = getUserTrashCollectionId(ownerUserId);
       const isSceneUpdate =
@@ -209,6 +267,8 @@ export const registerDrawingCreateUpdateRoutes = (
         data.elements = JSON.stringify(payload.elements);
       if (payload.appState !== undefined)
         data.appState = JSON.stringify(payload.appState);
+      // tldraw rows never intern files (schema normalizes files to undefined),
+      // so this block only runs for excalidraw.
       let processedFilesForUpdate: Record<string, unknown> | undefined;
       if (payload.files !== undefined) {
         processedFilesForUpdate = await internDrawingFiles(
@@ -221,9 +281,19 @@ export const registerDrawingCreateUpdateRoutes = (
         // concurrent client's files are never whole-replaced away.
       }
       if (payload.preview !== undefined) {
-        const processedPreview = processedFilesForUpdate
-          ? rewritePreviewForInternedFiles(payload.preview, payload.files ?? {}, processedFilesForUpdate)
-          : payload.preview;
+        let processedPreview: unknown;
+        if (isTldraw) {
+          // The tldraw schema does not sanitize; the preview is injected HTML,
+          // so it must still pass through sanitizeSvg exactly like excalidraw.
+          processedPreview =
+            typeof payload.preview === "string"
+              ? sanitizeSvg(payload.preview)
+              : payload.preview;
+        } else {
+          processedPreview = processedFilesForUpdate
+            ? rewritePreviewForInternedFiles(payload.preview, payload.files ?? {}, processedFilesForUpdate)
+            : payload.preview;
+        }
         data.preview = typeof processedPreview === "string" ? processedPreview : null;
       }
 
@@ -304,7 +374,7 @@ export const registerDrawingCreateUpdateRoutes = (
           updatedDrawing.collectionId,
           ownerUserId,
         ),
-        elements: parseJsonField(updatedDrawing.elements, []),
+        elements: parseJsonField(updatedDrawing.elements, isTldraw ? {} : []),
         appState: parseJsonField(updatedDrawing.appState, {}),
         files: parseJsonField(updatedDrawing.files, {}),
         accessLevel: access,

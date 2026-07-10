@@ -75,6 +75,7 @@ interface Config {
   bodyLimitMb: number;
   fileUploadMaxMb: number;
   fileUploadMaxBytes: number;
+  tldrawMaxSceneBytes: number;
   csrfSecret: string | null;
   debugCsrf: boolean;
   apiKeyHashPepper: string;
@@ -371,6 +372,7 @@ export const config: Config = {
   bodyLimitMb: readNumber("BODY_LIMIT_MB", 50),
   fileUploadMaxMb,
   fileUploadMaxBytes: fileUploadMaxMb * 1024 * 1024,
+  tldrawMaxSceneBytes: readNumber("TLDRAW_MAX_SCENE_MB", 15) * 1024 * 1024,
   csrfSecret: readRaw("CSRF_SECRET") || null,
   debugCsrf: readRaw("DEBUG_CSRF") === "true",
   apiKeyHashPepper: readRaw("API_KEY_HASH_PEPPER") || "api-key-hash-pepper",

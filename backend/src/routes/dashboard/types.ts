@@ -52,6 +52,7 @@ export type DashboardRouteDeps = {
   config: {
     nodeEnv: string;
     enableAuditLogging: boolean;
+    tldrawMaxSceneBytes: number;
   };
   logAuditEvent: LogAuditEvent;
   internDrawingFiles: (

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useRef } from "react";
+import React, { Suspense, useCallback, useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { getInitialLangCode } from "../components/LanguageSelector";
 import type { UserIdentity } from "../utils/identity";
@@ -24,7 +24,28 @@ import { useEditorFileUploads } from "./editor/useEditorFileUploads";
 import { useEditorSceneApi } from "./editor/useEditorSceneApi";
 import { useEditorGridStep } from "./editor/useEditorGridStep";
 import { DEFAULT_GRID_STEP } from "../components/GridStepSelector";
+import { useEngineGate } from "./editor/useEngineGate";
+import { EditorLoading } from "./editor/TldrawUnavailable";
+
+// Code-split: excalidraw-only users download zero tldraw bytes (~1.6MB).
+const TldrawEditorPage = React.lazy(() => import("./tldraw/TldrawEditorPage"));
+
+// Dispatcher: resolve the drawing's engine before mounting the (heavy,
+// excalidraw-specific) editor, so a tldraw row never initializes excalidraw.
 export const Editor: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const gate = useEngineGate(id);
+  if (gate.status === "loading") return <EditorLoading />;
+  if (gate.engine === "tldraw")
+    return (
+      <Suspense fallback={<EditorLoading />}>
+        <TldrawEditorPage />
+      </Suspense>
+    );
+  return <ExcalidrawEditor />;
+};
+
+const ExcalidrawEditor: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();

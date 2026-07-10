@@ -37,7 +37,6 @@ export const registerDrawingListRoutes = (
     if (parsed === undefined || !Number.isFinite(parsed)) return DEFAULT_PAGE_SIZE;
     return Math.min(Math.max(parsed, 1), MAX_PAGE_SIZE);
   };
-
   const clampOffset = (raw: string | undefined): number => {
     const parsed = raw ? Number.parseInt(raw, 10) : undefined;
     if (parsed === undefined || !Number.isFinite(parsed)) return 0;
@@ -157,6 +156,7 @@ export const registerDrawingListRoutes = (
       const summarySelect: Prisma.DrawingSelect = {
         id: true,
         name: true,
+        engine: true,
         collectionId: true,
         version: true,
         createdAt: true,
@@ -333,6 +333,7 @@ export const registerDrawingListRoutes = (
       const summarySelect: Prisma.DrawingSelect = {
         id: true,
         name: true,
+        engine: true,
         collectionId: true,
         version: true,
         createdAt: true,

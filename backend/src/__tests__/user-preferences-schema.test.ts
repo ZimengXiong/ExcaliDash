@@ -71,4 +71,32 @@ describe("userPreferencesSchema", () => {
     const parsed = userPreferencesSchema.safeParse({ bogus: true });
     expect(parsed.success).toBe(false);
   });
+
+  it("accepts a defaultEngine of excalidraw or tldraw", () => {
+    expect(
+      userPreferencesSchema.partial().safeParse({ defaultEngine: "excalidraw" })
+        .success,
+    ).toBe(true);
+    expect(
+      userPreferencesSchema.partial().safeParse({ defaultEngine: "tldraw" })
+        .success,
+    ).toBe(true);
+  });
+
+  it("accepts a null defaultEngine (clears the stored choice)", () => {
+    const parsed = userPreferencesSchema
+      .partial()
+      .safeParse({ defaultEngine: null });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.defaultEngine).toBeNull();
+    }
+  });
+
+  it("rejects an unknown defaultEngine value", () => {
+    expect(
+      userPreferencesSchema.partial().safeParse({ defaultEngine: "figma" })
+        .success,
+    ).toBe(false);
+  });
 });

@@ -13,6 +13,7 @@ A self-hosted dashboard and organizer for [Excalidraw](https://github.com/excali
 ## Table of Contents
 
 - [Features](#features)
+- [Drawing engines](#drawing-engines)
 - [Upgrading](#upgrading)
 - [Installation](#installation)
   - [Quickstart](#quickstart)
@@ -41,6 +42,13 @@ A self-hosted dashboard and organizer for [Excalidraw](https://github.com/excali
 <summary>Version history and restore</summary>
 
 Automatically retain recent drawing snapshots, preview past versions from the editor, and restore a previous state when needed.
+
+</details>
+
+<details>
+<summary>Two canvas engines: Excalidraw and tldraw</summary>
+
+Create each drawing with either the default Excalidraw canvas or a [tldraw](https://tldraw.dev) canvas. The engine is chosen when the drawing is created and is fixed for that drawing's lifetime — existing drawings are unaffected and Excalidraw stays the default everywhere. See [Drawing engines](#drawing-engines) for the license terms that apply to the tldraw canvas.
 
 </details>
 
@@ -93,6 +101,32 @@ Automatically retain recent drawing snapshots, preview past versions from the ed
 ![](readme-assets/backupsImport.gif)
 
 </details>
+
+## Drawing engines
+
+Every drawing is backed by one of two canvas engines, chosen when the drawing is created:
+
+- **Excalidraw** — the default. Nothing about existing drawings or the default new-drawing flow changes; if you never opt into tldraw you can ignore this section entirely.
+- **tldraw** — an alternative canvas powered by the [tldraw SDK](https://tldraw.dev).
+
+The engine is immutable after creation. There is no in-place conversion between the two (the underlying scene models differ fundamentally), so the editor, history, and export always interpret a drawing through the engine it was created with. On the dashboard, tldraw drawings carry a small engine badge; Excalidraw drawings are unbadged because they are the default.
+
+### tldraw license and the "Made with tldraw" watermark
+
+ExcaliDash pins **tldraw SDK 3.x**, which is distributed under the [tldraw SDK 3.x license](https://tldraw.dev/legal/tldraw-sdk-3-x-license). That license permits free commercial and non-commercial use **as long as the on-canvas "Made with tldraw" watermark stays visible.** ExcaliDash keeps the watermark on by default, and you must not hide or remove it unless you hold a license that permits doing so — removing it without a key is a license violation.
+
+If you purchase a tldraw license key, set it at build time to remove the watermark:
+
+```bash
+# frontend build-time env var (see docs/CONFIGURATION.md)
+VITE_TLDRAW_LICENSE_KEY=your-key-here
+```
+
+The key is passed to the tldraw editor only; it has no effect on Excalidraw drawings, and leaving it unset is fully supported (you simply keep the watermark).
+
+> **Note on tldraw 4.x:** the current tldraw 4.x line requires a per-deployment license key even for its free tier, which is a poor fit for a self-hosted app that must run without any external registration. ExcaliDash therefore stays on the watermark-based 3.x line for now; upgrading to 4.x is deferred until that key requirement can be handled cleanly.
+
+The size of a tldraw scene (its inline image assets included) is capped by `TLDRAW_MAX_SCENE_MB` (default 15 MB); see [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
 # Upgrading
 

@@ -221,14 +221,19 @@ export const HistoryPanel: React.FC<Props> = ({
                         </span>
                       ) : previewData ? (
                         <div className="text-[11px] text-neutral-500 dark:text-neutral-400 space-y-1 font-semibold">
-                          <div>
-                            <span className="font-bold text-neutral-600 dark:text-neutral-300">Active Elements:</span>{" "}
-                            {Array.isArray(previewData.elements)
-                              ? previewData.elements.filter(
-                                  (e) => !(e as Record<string, unknown>).isDeleted
-                                ).length
-                              : 0}
-                          </div>
+                          {Array.isArray(previewData.elements) ? (
+                            <div>
+                              <span className="font-bold text-neutral-600 dark:text-neutral-300">Active Elements:</span>{" "}
+                              {previewData.elements.filter(
+                                (e) => !(e as Record<string, unknown>).isDeleted
+                              ).length}
+                            </div>
+                          ) : (
+                            // Non-array scenes (e.g. a tldraw document snapshot) have no
+                            // flat element list to count; show a neutral note instead of a
+                            // misleading "0 elements".
+                            <div>Snapshot captured for this version.</div>
+                          )}
                         </div>
                       ) : (
                         <span className="text-[10px] font-bold text-red-500">

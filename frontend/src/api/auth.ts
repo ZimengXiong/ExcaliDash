@@ -1,4 +1,5 @@
 import { cachePasswordPolicy, type PasswordPolicyResponse } from "../utils/passwordPolicy";
+import type { DrawingEngine } from "../types";
 import { API_URL, api, axios } from "./client";
 import type { DrawingSortField, SortDirection } from "./drawings";
 
@@ -56,6 +57,8 @@ export interface UserPreferences {
   dashboardSortDirection?: SortDirection;
   language?: string;
   gridStep?: number;
+  // Preferred engine for new drawings. Undefined or null means "ask on create".
+  defaultEngine?: DrawingEngine | null;
 }
 
 export interface ApiKeyMetadata {

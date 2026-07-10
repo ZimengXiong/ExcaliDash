@@ -174,6 +174,14 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
           )}
         >
           <div className="absolute inset-0 opacity-[0.25] bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] [background-size:24px_24px]"></div>
+          {drawing.engine === "tldraw" && (
+            <span
+              className="absolute top-2.5 left-2.5 z-20 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide bg-white/90 dark:bg-neutral-900/90 text-slate-600 dark:text-neutral-300 border border-slate-300 dark:border-neutral-600 shadow-sm"
+              title="tldraw canvas"
+            >
+              tldraw
+            </span>
+          )}
           {previewSvg ? (
             <div
               className={clsx(

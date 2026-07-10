@@ -1,4 +1,4 @@
-import type { Drawing, DrawingSummary } from "../types";
+import type { Drawing, DrawingEngine, DrawingSummary } from "../types";
 import { normalizePreviewSvg } from "../utils/previewSvg";
 import { api, isAxiosError } from "./client";
 
@@ -326,12 +326,20 @@ export const revokeAgentToken = async (
   return response.data;
 };
 
-export const createDrawing = async (name?: string, collectionId?: string | null) => {
+export const createDrawing = async (
+  name?: string,
+  collectionId?: string | null,
+  engine: DrawingEngine = "excalidraw",
+) => {
+  // Excalidraw scenes are a flat element array; tldraw scenes are a document
+  // snapshot ({store, schema}) — an empty one is the minimal valid shape.
+  const isTldraw = engine === "tldraw";
   const response = await api.post<{ id: string }>("/drawings", {
     name: name || "Untitled Drawing",
     collectionId: collectionId ?? null,
-    elements: [],
     appState: {},
+    ...(isTldraw ? { engine: "tldraw" } : {}),
+    elements: isTldraw ? { store: {}, schema: {} } : [],
   });
   return response.data;
 };
