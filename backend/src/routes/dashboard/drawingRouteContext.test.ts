@@ -26,14 +26,16 @@ describe("drawing route context", () => {
 
   it("fails duplicate S3 cloning when an object copy fails", async () => {
     const prisma = {
-      s3File: {
+      drawingFile: {
         findMany: vi.fn().mockResolvedValue([
           {
             drawingId: "source-drawing",
             fileId: "file-1",
-            userId: "user-1",
+            storage: "s3",
             s3Key: "excalidash/user-1/source-drawing/file-1.png",
+            data: null,
             mimeType: "image/png",
+            sizeBytes: 0,
           },
         ]),
         upsert: vi.fn(),
@@ -57,6 +59,6 @@ describe("drawing route context", () => {
         },
       ),
     ).rejects.toThrow("copy failed");
-    expect(prisma.s3File.upsert).not.toHaveBeenCalled();
+    expect(prisma.drawingFile.upsert).not.toHaveBeenCalled();
   });
 });

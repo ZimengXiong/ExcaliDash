@@ -13,7 +13,7 @@ vi.mock("../s3", () => ({
   ) => `excalidash/${userId}/${drawingId}/${fileId}.${ext}`,
 }));
 
-import { processFilesForS3, decodeDataURL } from "../fileProcessing";
+import { internDrawingFiles, decodeDataURL } from "../fileProcessing";
 import { isS3Enabled, getS3Config, uploadBuffer, getPublicUrl } from "../s3";
 
 const mockIsS3Enabled = vi.mocked(isS3Enabled);
@@ -27,7 +27,7 @@ const TINY_PNG_B64 =
 const PNG_DATA_URL = `data:image/png;base64,${TINY_PNG_B64}`;
 
 const makePrisma = () => ({
-  s3File: {
+  drawingFile: {
     upsert: vi.fn().mockResolvedValue({}),
   },
 });
@@ -52,8 +52,8 @@ describe("decodeDataURL", () => {
   });
 });
 
-describe("processFilesForS3", () => {
-  it("returns files unchanged when S3 is not enabled", async () => {
+describe("internDrawingFiles — database-bytes mode (S3 disabled)", () => {
+  it("stores inline dataURLs in DrawingFile.data and rewrites to a ref", async () => {
     mockIsS3Enabled.mockReturnValue(false);
     const prisma = makePrisma();
 
@@ -61,14 +61,55 @@ describe("processFilesForS3", () => {
       "file-1": { id: "file-1", mimeType: "image/png", dataURL: PNG_DATA_URL },
     };
 
-    const result = await processFilesForS3(files, "user-1", "drawing-1", prisma as any);
+    const result = await internDrawingFiles(
+      files,
+      "user-1",
+      "drawing-1",
+      prisma as any,
+    );
 
-    expect(result).toBe(files); // exact same reference
+    // dataURL is rewritten to the drawing-scoped ref.
+    expect(result["file-1"].dataURL).toBe("/api/files/drawing-1/file-1");
+    // No S3 upload happened.
     expect(mockUploadBuffer).not.toHaveBeenCalled();
-    expect(prisma.s3File.upsert).not.toHaveBeenCalled();
+    // Bytes were persisted with storage="db".
+    expect(prisma.drawingFile.upsert).toHaveBeenCalledOnce();
+    const call = prisma.drawingFile.upsert.mock.calls[0][0];
+    expect(call.where).toEqual({
+      drawingId_fileId: { drawingId: "drawing-1", fileId: "file-1" },
+    });
+    expect(call.create.storage).toBe("db");
+    expect(call.create.s3Key).toBeNull();
+    expect(Buffer.isBuffer(call.create.data)).toBe(true);
+    expect(call.create.sizeBytes).toBeGreaterThan(0);
   });
 
-  it("uploads base64 files and replaces dataURL with S3 public URL", async () => {
+  it("leaves already-interned refs untouched", async () => {
+    mockIsS3Enabled.mockReturnValue(false);
+    const prisma = makePrisma();
+
+    const files = {
+      "file-1": {
+        id: "file-1",
+        mimeType: "image/png",
+        dataURL: "/api/files/drawing-1/file-1",
+      },
+    };
+
+    const result = await internDrawingFiles(
+      files,
+      "user-1",
+      "drawing-1",
+      prisma as any,
+    );
+
+    expect(result["file-1"].dataURL).toBe("/api/files/drawing-1/file-1");
+    expect(prisma.drawingFile.upsert).not.toHaveBeenCalled();
+  });
+});
+
+describe("internDrawingFiles — S3 mode", () => {
+  it("uploads base64 files and replaces dataURL with the ref", async () => {
     mockIsS3Enabled.mockReturnValue(true);
     mockGetS3Config.mockReturnValue({
       bucket: "test-bucket",
@@ -76,19 +117,22 @@ describe("processFilesForS3", () => {
       publicUrl: "https://cdn.example.com",
     });
     mockUploadBuffer.mockResolvedValue(undefined);
-    mockGetPublicUrl.mockReturnValue(
-      "https://cdn.example.com/excalidash/user-1/drawing-1/file-1.png",
-    );
     const prisma = makePrisma();
 
     const files = {
       "file-1": { id: "file-1", mimeType: "image/png", dataURL: PNG_DATA_URL },
     };
 
-    const result = await processFilesForS3(files, "user-1", "drawing-1", prisma as any);
+    const result = await internDrawingFiles(
+      files,
+      "user-1",
+      "drawing-1",
+      prisma as any,
+    );
 
+    // With a publicUrl configured the stored ref is the public URL.
     expect(result["file-1"].dataURL).toBe(
-      "https://cdn.example.com/excalidash/user-1/drawing-1/file-1.png",
+      getPublicUrl("excalidash/user-1/drawing-1/file-1.png"),
     );
     expect(mockUploadBuffer).toHaveBeenCalledOnce();
     expect(mockUploadBuffer).toHaveBeenCalledWith(
@@ -96,19 +140,14 @@ describe("processFilesForS3", () => {
       expect.any(Buffer),
       "image/png",
     );
-    expect(prisma.s3File.upsert).toHaveBeenCalledWith({
-      where: { drawingId_fileId: { drawingId: "drawing-1", fileId: "file-1" } },
-      create: {
-        drawingId: "drawing-1",
-        fileId: "file-1",
-        userId: "user-1",
-        s3Key: "excalidash/user-1/drawing-1/file-1.png",
-        mimeType: "image/png",
-      },
-      update: {
-        s3Key: "excalidash/user-1/drawing-1/file-1.png",
-        mimeType: "image/png",
-      },
+    const call = prisma.drawingFile.upsert.mock.calls[0][0];
+    expect(call.create).toMatchObject({
+      drawingId: "drawing-1",
+      fileId: "file-1",
+      storage: "s3",
+      s3Key: "excalidash/user-1/drawing-1/file-1.png",
+      data: null,
+      mimeType: "image/png",
     });
   });
 
@@ -129,13 +168,18 @@ describe("processFilesForS3", () => {
       },
     };
 
-    const result = await processFilesForS3(files, "user-1", "drawing-1", prisma as any);
+    const result = await internDrawingFiles(
+      files,
+      "user-1",
+      "drawing-1",
+      prisma as any,
+    );
 
     expect(result["file-1"].dataURL).toBe(
       "https://cdn.example.com/excalidash/user-1/drawing-1/file-1.png",
     );
     expect(mockUploadBuffer).not.toHaveBeenCalled();
-    expect(prisma.s3File.upsert).not.toHaveBeenCalled();
+    expect(prisma.drawingFile.upsert).not.toHaveBeenCalled();
   });
 
   it("skips files with /api/files/ URLs", async () => {
@@ -155,11 +199,16 @@ describe("processFilesForS3", () => {
       },
     };
 
-    const result = await processFilesForS3(files, "user-1", "drawing-1", prisma as any);
+    const result = await internDrawingFiles(
+      files,
+      "user-1",
+      "drawing-1",
+      prisma as any,
+    );
 
     expect(result["file-1"].dataURL).toBe("/api/files/drawing-1/file-1");
     expect(mockUploadBuffer).not.toHaveBeenCalled();
-    expect(prisma.s3File.upsert).not.toHaveBeenCalled();
+    expect(prisma.drawingFile.upsert).not.toHaveBeenCalled();
   });
 
   it("uses /api/files/:drawingId/:fileId when no publicUrl configured", async () => {
@@ -176,7 +225,12 @@ describe("processFilesForS3", () => {
       "file-1": { id: "file-1", mimeType: "image/png", dataURL: PNG_DATA_URL },
     };
 
-    const result = await processFilesForS3(files, "user-1", "drawing-1", prisma as any);
+    const result = await internDrawingFiles(
+      files,
+      "user-1",
+      "drawing-1",
+      prisma as any,
+    );
 
     expect(result["file-1"].dataURL).toBe("/api/files/drawing-1/file-1");
     expect(mockGetPublicUrl).not.toHaveBeenCalled();
@@ -209,7 +263,7 @@ describe("processFilesForS3", () => {
       (key: string) => `https://cdn.example.com/${key}`,
     );
 
-    const result = await processFilesForS3(
+    const result = await internDrawingFiles(
       files,
       "user-1",
       "drawing-1",
@@ -227,7 +281,7 @@ describe("processFilesForS3", () => {
       expect.any(Buffer),
       "image/png",
     );
-    expect(prisma.s3File.upsert).toHaveBeenCalledOnce();
+    expect(prisma.drawingFile.upsert).toHaveBeenCalledOnce();
   });
 
   it("handles multiple files, only uploading base64 ones", async () => {
@@ -261,9 +315,14 @@ describe("processFilesForS3", () => {
       },
     };
 
-    const result = await processFilesForS3(files, "user-1", "drawing-1", prisma as any);
+    const result = await internDrawingFiles(
+      files,
+      "user-1",
+      "drawing-1",
+      prisma as any,
+    );
 
-    // base64 file was uploaded and replaced
+    // base64 file was uploaded and replaced with its public URL
     expect(result["file-b64"].dataURL).toBe(
       "https://cdn.example.com/excalidash/user-1/drawing-1/file-b64.png",
     );
@@ -275,6 +334,6 @@ describe("processFilesForS3", () => {
 
     // Only one upload call for the base64 file
     expect(mockUploadBuffer).toHaveBeenCalledOnce();
-    expect(prisma.s3File.upsert).toHaveBeenCalledOnce();
+    expect(prisma.drawingFile.upsert).toHaveBeenCalledOnce();
   });
 });

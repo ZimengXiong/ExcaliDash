@@ -227,18 +227,25 @@ model AuthIdentity {
   @@index([userId])
 }
 
-/// Per-(drawing, fileId) S3 object record. Excalidraw fileIds are content
+/// Per-(drawing, fileId) image blob record. Excalidraw fileIds are content
 /// hashes that legitimately repeat across drawings, so the primary key
 /// includes drawingId to keep each reference accounted for separately.
-model S3File {
+///
+/// Two storage backends share this one table:
+///   - storage = "db": bytes live in `data` (sqlite BLOB / postgres BYTEA).
+///   - storage = "s3": bytes live in S3 at `s3Key`; `data` is null.
+/// (drawingId, fileId) is content-addressed and immutable, so uploads are
+/// idempotent — no version/merge concerns for blobs.
+model DrawingFile {
   drawingId String
   fileId    String   // Excalidraw fileId (same id used in Drawing.files)
-  userId    String   // owner who uploaded the file
-  s3Key     String   // full object key, e.g. "excalidash/userId/drawingId/fileId.png"
   mimeType  String
+  sizeBytes Int      @default(0)
+  storage   String   // "db" | "s3"
+  s3Key     String?  // set when storage = "s3"; full object key
+  data      Bytes?   // set when storage = "db"; raw image bytes
   createdAt DateTime @default(now())
 
   @@id([drawingId, fileId])
-  @@index([userId])
   @@index([drawingId])
 }

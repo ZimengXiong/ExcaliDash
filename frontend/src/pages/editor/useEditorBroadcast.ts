@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { MutableRefObject } from "react";
-import { getFilesDelta } from "./shared";
+import { applyUploadedFileRefs, getFilesDelta } from "./shared";
+import type { UploadedFileRefs } from "./shared";
 
 type UseEditorBroadcastParams = {
   drawingId: string | undefined;
@@ -12,6 +13,7 @@ type UseEditorBroadcastParams = {
   latestFilesRef: MutableRefObject<any>;
   socketMeRef: MutableRefObject<{ id: string }>;
   socketRef: MutableRefObject<any>;
+  uploadedRefs: MutableRefObject<UploadedFileRefs>;
   debouncedSave: (
     drawingId: string,
     elements: readonly any[],
@@ -39,6 +41,7 @@ export const useEditorBroadcast = ({
   latestFilesRef,
   socketMeRef,
   socketRef,
+  uploadedRefs,
   debouncedSave,
   debouncedSavePreview,
   computeElementOrderSig,
@@ -85,10 +88,14 @@ export const useEditorBroadcast = ({
       if (changes.length > 0 || shouldSyncFiles || shouldSyncOrder) {
         setHasSceneChangesSinceLoad();
         lastLocalChangeAtRef.current = new Date().getTime();
+        // Peers receive refs for any uploaded image (KB, not MB over the
+        // socket); their rehydrate path already fetches `/api/files/...` refs.
         socketRef.current.emit("element-update", {
           drawingId,
           elements: changes.length > 0 ? changes : [],
-          files: shouldSyncFiles ? filesDelta : undefined,
+          files: shouldSyncFiles
+            ? applyUploadedFileRefs(filesDelta, uploadedRefs.current)
+            : undefined,
           elementOrder: shouldSyncOrder
             ? normalizedElements.map((el: any) => el?.id).filter(Boolean)
             : undefined,
@@ -118,6 +125,7 @@ export const useEditorBroadcast = ({
       setHasSceneChangesSinceLoad,
       socketRef,
       socketMeRef,
+      uploadedRefs,
     ],
   );
 

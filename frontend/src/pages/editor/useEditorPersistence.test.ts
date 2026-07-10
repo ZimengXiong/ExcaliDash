@@ -34,6 +34,7 @@ const makeRefs = () => ({
   latestFiles: { current: {} as any },
   saveQueue: { current: Promise.resolve() },
   suspiciousBlankLoad: { current: false },
+  uploadedRefs: { current: {} as Record<string, string> },
 });
 
 const params = (refs: ReturnType<typeof makeRefs>) => ({
@@ -75,6 +76,73 @@ describe("useEditorPersistence autosave indicator", () => {
       await result.current.enqueueSceneSave("d1", els, {}, {});
     });
     await waitFor(() => expect(result.current.autosaveFailing).toBe(false));
+  });
+});
+
+describe("useEditorPersistence file ref substitution", () => {
+  const updateDrawing = vi.mocked(api.updateDrawing);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    updateDrawing.mockResolvedValue({ version: 2 } as any);
+  });
+
+  const inlineFiles = (id: string) => ({
+    [id]: {
+      id,
+      mimeType: "image/webp",
+      created: 1,
+      dataURL: "data:image/webp;base64,QUJD",
+    },
+  });
+
+  const bodyOf = () => updateDrawing.mock.calls[0][1] as any;
+
+  it("ships an uploaded file as a ref and drops the base64 bytes", async () => {
+    const refs = makeRefs();
+    refs.uploadedRefs.current = { a: "/api/files/d1/a" };
+    const { result } = renderHook(() => useEditorPersistence(params(refs)));
+
+    await act(async () => {
+      await result.current.enqueueSceneSave("d1", els, {}, inlineFiles("a"), {
+        suppressErrors: false,
+      });
+    });
+
+    expect(updateDrawing).toHaveBeenCalledTimes(1);
+    expect(bodyOf().files.a.dataURL).toBe("/api/files/d1/a");
+    expect(bodyOf().files.a.dataURL.startsWith("data:")).toBe(false);
+    // lastPersistedFiles records the ref-shaped entry it actually sent.
+    expect(refs.lastPersistedFiles.current.a.dataURL).toBe("/api/files/d1/a");
+  });
+
+  it("keeps inline bytes for a file that has not been uploaded", async () => {
+    const refs = makeRefs(); // uploadedRefs empty
+    const { result } = renderHook(() => useEditorPersistence(params(refs)));
+
+    await act(async () => {
+      await result.current.enqueueSceneSave("d1", els, {}, inlineFiles("a"), {
+        suppressErrors: false,
+      });
+    });
+
+    expect(bodyOf().files.a.dataURL.startsWith("data:")).toBe(true);
+  });
+
+  it("falls back to inline when uploads are unsupported (old server)", async () => {
+    // When the per-file upload endpoint 404s, the upload hook never records a
+    // ref, so uploadedRefs stays empty and the scene PUT keeps the inline bytes
+    // exactly as today's behavior — the server interns them.
+    const refs = makeRefs();
+    const { result } = renderHook(() => useEditorPersistence(params(refs)));
+
+    await act(async () => {
+      await result.current.enqueueSceneSave("d1", els, {}, inlineFiles("a"), {
+        suppressErrors: false,
+      });
+    });
+
+    expect(bodyOf().files.a.dataURL.startsWith("data:")).toBe(true);
   });
 });
 

@@ -137,8 +137,19 @@ describe("Drawing file save-merge (B2)", () => {
     });
     expect(res.status).toBe(200);
 
+    // In database-bytes mode the incoming inline dataURL is interned: the
+    // files entry is rewritten to a drawing-scoped ref, and the new bytes
+    // land in the DrawingFile row (lazy migration).
     const files = await readFiles(drawing.id);
-    expect(files["file-a"].dataURL).toBe("data:image/png;base64,NEW=");
+    expect(files["file-a"].dataURL).toBe(`/api/files/${drawing.id}/file-a`);
+
+    const row = await prisma.drawingFile.findUnique({
+      where: {
+        drawingId_fileId: { drawingId: drawing.id, fileId: "file-a" },
+      },
+    });
+    expect(row?.storage).toBe("db");
+    expect(Buffer.from(row!.data as Uint8Array).equals(Buffer.from("NEW=", "base64"))).toBe(true);
   });
 
   it("does not let a blank (tombstoned) incoming entry erase existing content", async () => {

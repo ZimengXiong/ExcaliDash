@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   filesNeedRehydration,
   rehydrateFilesFromUrls,
+  rehydrateFilesProgressive,
 } from "../rehydrateFiles";
 
 const blobFor = (mime: string, bytes = [1, 2, 3]) =>
@@ -113,5 +114,90 @@ describe("rehydrateFilesFromUrls", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(out.inline.dataURL).toBe("data:image/png;base64,AAAA");
     expect(out.remote.dataURL.startsWith("data:image/png;base64,")).toBe(true);
+  });
+});
+
+describe("rehydrateFilesProgressive", () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("does nothing (no fetch, no callback) when nothing needs rehydration", async () => {
+    const onReady = vi.fn();
+    await rehydrateFilesProgressive(
+      { a: { dataURL: "data:image/png;base64,AAAA" } },
+      onReady,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(onReady).not.toHaveBeenCalled();
+  });
+
+  it("invokes onFileReady per completed fetch with an inlined data URL", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      blob: async () => blobFor("image/png"),
+    });
+    const onReady = vi.fn();
+    await rehydrateFilesProgressive(
+      {
+        inline: { dataURL: "data:image/png;base64,AAAA" },
+        r1: { dataURL: "/api/files/d1/r1", mimeType: "image/png" },
+        r2: { dataURL: "/api/files/d1/r2", mimeType: "image/png" },
+      },
+      onReady,
+    );
+    // Only the two references were fetched; the inline entry was skipped.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(onReady).toHaveBeenCalledTimes(2);
+    const byId = Object.fromEntries(
+      onReady.mock.calls.map(([id, file]) => [id, file]),
+    );
+    expect(byId.r1.dataURL.startsWith("data:image/png;base64,")).toBe(true);
+    expect(byId.r2.dataURL.startsWith("data:image/png;base64,")).toBe(true);
+    expect(byId.inline).toBeUndefined();
+  });
+
+  it("skips onFileReady for a file whose fetch fails, leaving others intact", async () => {
+    fetchMock.mockImplementation((url: string) =>
+      url.endsWith("bad")
+        ? Promise.resolve({ ok: false })
+        : Promise.resolve({ ok: true, blob: async () => blobFor("image/png") }),
+    );
+    const onReady = vi.fn();
+    await rehydrateFilesProgressive(
+      {
+        good: { dataURL: "/api/files/d1/good", mimeType: "image/png" },
+        bad: { dataURL: "/api/files/d1/bad", mimeType: "image/png" },
+      },
+      onReady,
+    );
+    expect(onReady).toHaveBeenCalledTimes(1);
+    expect(onReady.mock.calls[0][0]).toBe("good");
+  });
+
+  it("stops dispatching and does not call back once isCancelled flips true", async () => {
+    let cancelled = false;
+    fetchMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          // Cancel before the (single, held) fetch resolves.
+          cancelled = true;
+          resolve({ ok: true, blob: async () => blobFor("image/png") });
+        }),
+    );
+    const onReady = vi.fn();
+    await rehydrateFilesProgressive(
+      { r1: { dataURL: "/api/files/d1/r1", mimeType: "image/png" } },
+      onReady,
+      () => cancelled,
+    );
+    expect(onReady).not.toHaveBeenCalled();
   });
 });

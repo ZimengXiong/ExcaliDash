@@ -24,6 +24,7 @@ const makeRefs = () => ({
   saveData: { current: vi.fn() as any },
   savePreview: { current: vi.fn() as any },
   suspiciousBlankLoad: { current: false },
+  uploadedRefs: { current: {} as Record<string, string> },
 });
 
 const baseParams = (over: Record<string, any> = {}) => ({

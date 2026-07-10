@@ -266,6 +266,78 @@ The credentials baked into that file are for local testing only; supply your own
 </details>
 
 <details>
+<summary>Storage quickstarts</summary>
+
+ExcaliDash has two independent storage choices: the **database** (sqlite or postgres, via `DATABASE_URL`/`DATABASE_PROVIDER`) and where **image blobs** live (database bytes by default, or S3 when `S3_BUCKET` is set). On startup the backend prints a single `STORAGE` block (see the sample at the end) so you can confirm both at a glance.
+
+### Migrate sqlite → postgres
+
+Switching the Prisma provider does **not** copy your data — the two databases are separate installs. Move data with the portable ExcaliDash archive (the same format the dashboard's Export/Import uses), then point the backend at postgres:
+
+1. On the running sqlite instance, export a full archive: `GET /api/export/excalidash` (Dashboard → Export all). Save the downloaded archive.
+2. Stand up the postgres database. The Docker entrypoint copies the matching migration folder from `backend/prisma/migrations/postgresql/` and applies it on boot, so start the backend once with the new env to create the schema:
+   ```yaml
+   backend:
+     environment:
+       - DATABASE_PROVIDER=postgresql
+       - DATABASE_URL=postgresql://user:password@postgres:5432/excalidash
+   ```
+3. Import the archive into the fresh postgres instance: `POST /api/import/excalidash` (Dashboard → Import). Optionally dry-run first with `POST /api/import/excalidash/verify`.
+
+Image blobs travel inside the archive, so this also carries database-stored images across. (`docker-compose.pg-test.yml` is a ready-made local postgres target for rehearsing the import.)
+
+### Migrate local (database bytes) → S3
+
+Set the S3 variables and restart — no script or downtime. For **AWS**, the bucket + credentials are enough:
+
+```yaml
+backend:
+  environment:
+    - S3_BUCKET=excalidash-images
+    - AWS_ACCESS_KEY_ID=...
+    - AWS_SECRET_ACCESS_KEY=...
+    # - S3_REGION=us-east-1   # optional, defaults to us-east-1
+```
+
+For **MinIO / Cloudflare R2** and other S3-compatible services, add the endpoint, path-style (MinIO), and a public base URL:
+
+```yaml
+backend:
+  environment:
+    - S3_BUCKET=excalidash-images
+    - S3_ENDPOINT=https://minio.example.com
+    - S3_FORCE_PATH_STYLE=true          # MinIO; leave unset for R2/OSS virtual-hosted
+    - S3_PUBLIC_URL=https://cdn.example.com   # public base URL of the bucket/CDN
+    - AWS_ACCESS_KEY_ID=...
+    - AWS_SECRET_ACCESS_KEY=...
+```
+
+Existing drawings migrate **lazily**: each drawing's images move to S3 the next time that drawing is saved (its inline blobs are interned to S3 and rewritten to refs on the next scene save). There is no backfill script and no downtime — untouched drawings keep serving their existing images until they are next edited. Half-configuring S3 (any `S3_*`/`AWS_*` variable without `S3_BUCKET`) fails fast at startup with an actionable message, so you cannot silently keep writing to the database while thinking S3 is on.
+
+### Sample healthy STORAGE block
+
+```
++------------------------------------------------------------------------+
+| STORAGE                                                                |
+| -------                                                                |
+| Database:      postgresql (postgres:5432/excalidash)                   |
+| File storage:  s3                                                      |
+|   Bucket:      excalidash-images                                       |
+|   Region:      us-east-1                                               |
+|   Endpoint:    https://minio.example.com                              |
+|   Public URL:  https://cdn.example.com                                |
+|   Path style:  on                                                      |
+|   Reachable:   yes (HeadBucket ok)                                     |
+| Limits:        FILE_UPLOAD_MAX_MB=100 (per image), BODY_LIMIT_MB=50 ...|
+| Backups:       off                                                     |
++------------------------------------------------------------------------+
+```
+
+For the default single-instance setup the same block reads `Database: sqlite (...)` and `File storage: database (default)`. A `Reachable: NO` line (or a `custom S3_ENDPOINT set without S3_PUBLIC_URL` warning) flags a misconfiguration without crashing startup.
+
+</details>
+
+<details>
 <summary>Offline / No-network deployments</summary>
 
 ExcaliDash packages the Excalidraw runtime assets into the frontend image and sets `window.EXCALIDRAW_ASSET_PATH` to the local origin, so browser operations such as inserting images and exporting drawings do not need `unpkg.com` or other public CDNs. The production Nginx CSP is intentionally self-hosted for scripts, styles, and fonts.

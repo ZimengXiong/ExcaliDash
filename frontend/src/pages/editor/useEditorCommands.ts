@@ -4,7 +4,12 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import * as api from "../../api";
 import { exportFromEditor } from "../../utils/exportUtils";
-import { getPersistedAppState, hasRenderableElements } from "./shared";
+import {
+  applyUploadedFileRefs,
+  getPersistedAppState,
+  hasRenderableElements,
+} from "./shared";
+import type { UploadedFileRefs } from "./shared";
 import { saveDrawingKeepalive } from "./keepaliveSave";
 
 type EditorCommandRefs = {
@@ -31,6 +36,7 @@ type EditorCommandRefs = {
     | null
   >;
   suspiciousBlankLoad: MutableRefObject<boolean>;
+  uploadedRefs: MutableRefObject<UploadedFileRefs>;
 };
 
 type UseEditorCommandsParams = {
@@ -145,7 +151,9 @@ export const useEditorCommands = ({
       saveDrawingKeepalive(drawingId, {
         elements: Array.from(safeElements),
         appState: getPersistedAppState(appState),
-        files,
+        // Same slimmed shape as the debounced save: uploaded images ship as a
+        // ref, un-uploaded ones stay inline (server interns them on receipt).
+        files: applyUploadedFileRefs(files, refs.uploadedRefs.current),
         version: refs.currentDrawingVersion.current ?? undefined,
       });
     };

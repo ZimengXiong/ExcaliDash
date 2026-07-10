@@ -251,6 +251,56 @@ export const getFilesDelta = (
   return delta;
 };
 
+/**
+ * Map of Excalidraw fileId → stored ref URL (`/api/files/<drawingId>/<fileId>`)
+ * for images that have been uploaded out-of-band via the per-file upload
+ * endpoint. Consumed by {@link applyUploadedFileRefs}.
+ */
+export type UploadedFileRefs = Record<string, string>;
+
+/**
+ * Replace the inline base64 dataURL of any already-uploaded file with a small
+ * metadata + ref entry so scene PUTs and socket emits carry KB, not MB.
+ *
+ * Only entries that (a) have a recorded ref and (b) still carry an inline
+ * `data:` URL are rewritten — entries not yet uploaded keep their inline bytes
+ * (the server interns them, so an upload race never loses data), and entries
+ * already ref-shaped pass through untouched. Returns the input unchanged when
+ * nothing was substituted.
+ */
+export const applyUploadedFileRefs = (
+  files: Record<string, any> | null | undefined,
+  uploadedRefs: UploadedFileRefs | null | undefined,
+): Record<string, any> => {
+  if (!files || typeof files !== "object") return files ?? {};
+  if (!uploadedRefs || Object.keys(uploadedRefs).length === 0) return files;
+
+  let changed = false;
+  const result: Record<string, any> = {};
+  for (const [fileId, file] of Object.entries(files)) {
+    const refUrl = uploadedRefs[fileId];
+    const dataURL = (file as any)?.dataURL;
+    if (
+      refUrl &&
+      file &&
+      typeof dataURL === "string" &&
+      dataURL.startsWith("data:")
+    ) {
+      changed = true;
+      result[fileId] = {
+        id: (file as any).id ?? fileId,
+        mimeType: (file as any).mimeType,
+        created: (file as any).created,
+        lastRetrieved: (file as any).lastRetrieved ?? Date.now(),
+        dataURL: refUrl,
+      };
+    } else {
+      result[fileId] = file;
+    }
+  }
+  return changed ? result : files;
+};
+
 export const UIOptions = {
   canvasActions: {
     saveToActiveFile: false,

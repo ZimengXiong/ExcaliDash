@@ -1,6 +1,6 @@
 import express from "express";
 import { v4 as uuidv4 } from "uuid";
-import { rewritePreviewForS3 } from "../../fileProcessing";
+import { rewritePreviewForInternedFiles } from "../../fileProcessing";
 import {
   getUserTrashCollectionId,
   isTrashCollectionId,
@@ -97,7 +97,7 @@ export const registerDrawingDeleteDuplicateRoutes = (
         req.user.id,
         originalFiles,
       );
-      const duplicatedPreview = rewritePreviewForS3(
+      const duplicatedPreview = rewritePreviewForInternedFiles(
         original.preview ?? null,
         originalFiles,
         duplicatedFiles,

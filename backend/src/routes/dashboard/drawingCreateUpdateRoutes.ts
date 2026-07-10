@@ -6,7 +6,7 @@ import {
   getDrawingAccess,
   isOwnerAccess,
 } from "../../authz/sharing";
-import { rewritePreviewForS3 } from "../../fileProcessing";
+import { rewritePreviewForInternedFiles } from "../../fileProcessing";
 import {
   getUserTrashCollectionId,
   isTrashCollectionId,
@@ -64,7 +64,7 @@ export const registerDrawingCreateUpdateRoutes = (
     ensureTrashCollection,
     invalidateDrawingsCache,
     config,
-    processFilesForS3,
+    internDrawingFiles,
     parseJsonField,
     getRequestPrincipal,
     respondWithAuthErrorIfPresent,
@@ -133,12 +133,12 @@ export const registerDrawingCreateUpdateRoutes = (
 
       const newDrawingId = uuidv4();
       const originalFiles = payload.files ?? {};
-      const processedFiles = await processFilesForS3(
+      const processedFiles = await internDrawingFiles(
         originalFiles,
         req.user.id,
         newDrawingId,
       );
-      const processedPreview = rewritePreviewForS3(
+      const processedPreview = rewritePreviewForInternedFiles(
         payload.preview ?? null,
         originalFiles,
         processedFiles,
@@ -243,7 +243,7 @@ export const registerDrawingCreateUpdateRoutes = (
         data.appState = JSON.stringify(payload.appState);
       let processedFilesForUpdate: Record<string, unknown> | undefined;
       if (payload.files !== undefined) {
-        processedFilesForUpdate = await processFilesForS3(
+        processedFilesForUpdate = await internDrawingFiles(
           payload.files,
           ownerUserId,
           id,
@@ -254,7 +254,7 @@ export const registerDrawingCreateUpdateRoutes = (
       }
       if (payload.preview !== undefined) {
         const processedPreview = processedFilesForUpdate
-          ? rewritePreviewForS3(payload.preview, payload.files ?? {}, processedFilesForUpdate)
+          ? rewritePreviewForInternedFiles(payload.preview, payload.files ?? {}, processedFilesForUpdate)
           : payload.preview;
         data.preview = typeof processedPreview === "string" ? processedPreview : null;
       }

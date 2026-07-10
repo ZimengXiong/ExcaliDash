@@ -9,6 +9,7 @@ import {
   DeleteObjectCommand,
   ListObjectsV2Command,
   CopyObjectCommand,
+  HeadBucketCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { config } from "./config";
@@ -115,9 +116,10 @@ export const generatePresignedDownloadUrl = async (
  * Falls back to the standard virtual-hosted-style S3 URL when S3_PUBLIC_URL is not set.
  *
  * NOTE: When using a custom S3-compatible endpoint (MinIO, R2, etc.) without
- * setting S3_PUBLIC_URL, this function logs a warning and returns a best-effort
- * AWS-style URL that will likely not resolve correctly.  Always set S3_PUBLIC_URL
- * when using non-AWS endpoints.
+ * setting S3_PUBLIC_URL, this returns a best-effort AWS-style URL that will
+ * likely not resolve correctly. Always set S3_PUBLIC_URL when using non-AWS
+ * endpoints. The startup storage doctor surfaces this misconfiguration once
+ * (see server/storageDoctor.ts) rather than warning on every request.
  */
 export const getPublicUrl = (key: string): string => {
   if (!s3Config) {
@@ -131,18 +133,43 @@ export const getPublicUrl = (key: string): string => {
     return `${base}/${key}`;
   }
 
-  if (s3Config.endpoint) {
-    // Custom endpoint without S3_PUBLIC_URL is ambiguous — the URL format
-    // varies between MinIO, Cloudflare R2, and other services.
-    console.warn(
-      "[S3] S3_PUBLIC_URL is not set but a custom S3_ENDPOINT is configured. " +
-        "Public image URLs may not resolve correctly. Set S3_PUBLIC_URL to the " +
-        "public base URL of your bucket or CDN."
-    );
+  // Standard AWS virtual-hosted-style URL. When a custom endpoint is set
+  // without S3_PUBLIC_URL this is ambiguous, but the storage doctor already
+  // warns about that case at startup instead of on every request.
+  return `https://${s3Config.bucket}.s3.${s3Config.region}.amazonaws.com/${key}`;
+};
+
+/**
+ * Best-effort reachability probe used by the startup storage doctor.
+ * Sends a HeadBucket request with a hard timeout so a hung endpoint cannot
+ * stall startup. Never throws — resolves with `{ ok: false, error }` on any
+ * failure so the caller can render a non-fatal warning.
+ */
+export const checkBucketReachable = async (
+  timeoutMs = 3000
+): Promise<{ ok: true } | { ok: false; error: string }> => {
+  if (!s3Client || !s3Config) {
+    return { ok: false, error: "S3 is not configured" };
   }
 
-  // Standard AWS virtual-hosted-style URL.
-  return `https://${s3Config.bucket}.s3.${s3Config.region}.amazonaws.com/${key}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    await s3Client.send(new HeadBucketCommand({ Bucket: s3Config.bucket }), {
+      abortSignal: controller.signal,
+    });
+    return { ok: true };
+  } catch (error) {
+    const message =
+      controller.signal.aborted
+        ? `timed out after ${timeoutMs}ms`
+        : error instanceof Error
+          ? error.message
+          : String(error);
+    return { ok: false, error: message };
+  } finally {
+    clearTimeout(timer);
+  }
 };
 
 /**

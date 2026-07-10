@@ -11,6 +11,7 @@ import {
   validatePasswordAgainstPolicy,
 } from "./config/passwordPolicy";
 import { validateProductionConfig } from "./config/production";
+import { resolveFileUploadMaxMb, validateS3Configuration } from "./config/storageValidation";
 import {
   readBoolean,
   readCsv,
@@ -69,6 +70,8 @@ interface Config {
   snapshotRetentionMs: number;
   uploadMaxBytes: number;
   bodyLimitMb: number;
+  fileUploadMaxMb: number;
+  fileUploadMaxBytes: number;
   csrfSecret: string | null;
   debugCsrf: boolean;
   apiKeyHashPepper: string;
@@ -321,7 +324,6 @@ const resolveOidcConfig = (authMode: AuthMode): OidcConfig => {
   };
 };
 
-
 const resolveBackupConfig = (): BackupConfig => {
   const backupDir = readOptionalString("BACKUP_DIR") || path.resolve(__dirname, "../backups");
   return {
@@ -333,6 +335,8 @@ const resolveBackupConfig = (): BackupConfig => {
 
 const resolvedAuthMode = parseAuthMode(readRaw("AUTH_MODE"));
 const resolvedNodeEnv = readString("NODE_ENV", "development");
+validateS3Configuration();
+const fileUploadMaxMb = resolveFileUploadMaxMb();
 
 const resolveS3Config = (): S3Config => ({
   bucket: readOptionalString("S3_BUCKET"),
@@ -365,6 +369,8 @@ export const config: Config = {
   snapshotRetentionMs: readNumber("SNAPSHOT_RETENTION_DAYS", 2) * 24 * 60 * 60 * 1000,
   uploadMaxBytes: readNumber("UPLOAD_MAX_MB", 100) * 1024 * 1024,
   bodyLimitMb: readNumber("BODY_LIMIT_MB", 50),
+  fileUploadMaxMb,
+  fileUploadMaxBytes: fileUploadMaxMb * 1024 * 1024,
   csrfSecret: readRaw("CSRF_SECRET") || null,
   debugCsrf: readRaw("DEBUG_CSRF") === "true",
   apiKeyHashPepper: readRaw("API_KEY_HASH_PEPPER") || "api-key-hash-pepper",
@@ -377,14 +383,8 @@ export const config: Config = {
   enableAuditLogging: readBoolean("ENABLE_AUDIT_LOGGING", false),
   enforceHttpsRedirect: readBoolean("ENFORCE_HTTPS_REDIRECT", true),
   disableOnboardingGate: readRaw("DISABLE_ONBOARDING_GATE") === "true",
-  bootstrapSetupCodeTtlMs: readNumber(
-    "BOOTSTRAP_SETUP_CODE_TTL_MS",
-    15 * 60 * 1000,
-  ),
-  bootstrapSetupCodeMaxAttempts: readNumber(
-    "BOOTSTRAP_SETUP_CODE_MAX_ATTEMPTS",
-    10,
-  ),
+  bootstrapSetupCodeTtlMs: readNumber("BOOTSTRAP_SETUP_CODE_TTL_MS", 900000),
+  bootstrapSetupCodeMaxAttempts: readNumber("BOOTSTRAP_SETUP_CODE_MAX_ATTEMPTS", 10),
   passwordPolicy: resolvePasswordPolicyConfig(),
   backups: resolveBackupConfig(),
   s3: resolveS3Config(),

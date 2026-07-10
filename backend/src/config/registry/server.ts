@@ -57,7 +57,14 @@ export const serverEnv: readonly EnvVarSpec[] = [
     group: "Server",
     kind: "number",
     default: "50",
-    doc: "Maximum request body size (in MB) for JSON/urlencoded payloads and the Socket.IO buffer.",
+    doc: "Maximum request body size (in MB) for scene JSON/urlencoded payloads and the Socket.IO buffer; images no longer travel in the scene body (see FILE_UPLOAD_MAX_MB), so this bounds scene JSON only.",
+  },
+  {
+    name: "FILE_UPLOAD_MAX_MB",
+    group: "Server",
+    kind: "number",
+    default: "100",
+    doc: "Maximum size (in MB) of a single image accepted by the raw file-upload endpoint (PUT /api/drawings/:id/files/:fileId); the only per-image cap.",
   },
 ];
 

@@ -3,7 +3,7 @@ import type { NavigateFunction } from "react-router-dom";
 import type { MutableRefObject } from "react";
 import { toast } from "sonner";
 import * as api from "../../api";
-import { rehydrateFilesFromUrls } from "../../utils/rehydrateFiles";
+import { rehydrateFilesProgressive } from "../../utils/rehydrateFiles";
 import { getPersistedAppState, hasRenderableElements } from "./shared";
 
 type AccessLevel = "none" | "view" | "edit" | "owner";
@@ -23,6 +23,7 @@ type SceneLoaderParams = {
     latestElements: MutableRefObject<readonly any[]>;
     initialSceneElements: MutableRefObject<readonly any[]>;
     latestFiles: MutableRefObject<any>;
+    isSyncing: MutableRefObject<boolean>;
     lastSyncedFiles: MutableRefObject<Record<string, any>>;
     lastSyncedElementOrderSig: MutableRefObject<string>;
     lastPersistedFiles: MutableRefObject<Record<string, any>>;
@@ -42,6 +43,10 @@ type SceneLoaderParams = {
   setIsSceneLoading: (loading: boolean) => void;
   setLoadError: (error: string | null) => void;
   recordElementVersion: (element: any) => void;
+  normalizeImageElementStatus: (
+    elements?: readonly any[],
+    files?: Record<string, any> | null,
+  ) => readonly any[];
 };
 
 const buildEmptyScene = () => ({
@@ -68,6 +73,7 @@ export const useEditorSceneLoader = ({
   setIsSceneLoading,
   setLoadError,
   recordElementVersion,
+  normalizeImageElementStatus,
 }: SceneLoaderParams) => {
   const resetRefs = useCallback(() => {
     refs.isBootstrappingScene.current = true;
@@ -135,13 +141,17 @@ export const useEditorSceneLoader = ({
             ? data.accessLevel
             : "owner",
         );
-        const elements = data.elements || [];
-        // In S3 mode the loaded files carry `/api/files/...` (or public S3)
-        // references rather than inline data: URLs. Re-inline them before they
-        // reach Excalidraw so SVGs render and exports embed the real bytes. In
-        // non-S3 mode this is a synchronous no-op (all dataURLs already data:).
-        const files = await rehydrateFilesFromUrls(data.files || {});
-        if (cancelled) return;
+        const rawElements = data.elements || [];
+        // Paint first, stream images in. In S3 (or db-ref) mode the loaded
+        // files carry `/api/files/...` (or public S3) references rather than
+        // inline data: URLs. We no longer await re-inlining before the first
+        // paint — the scene renders immediately with whatever is inline and the
+        // referenced files stream into the canvas as each fetch lands. Inline
+        // image elements are flipped to `saved` so they render at once; ref-only
+        // elements stay non-saved and show Excalidraw's own loading state until
+        // their bytes arrive.
+        const files: Record<string, any> = data.files || {};
+        const elements = normalizeImageElementStatus(rawElements, files);
         const hasPreview =
           typeof data.preview === "string" && data.preview.trim().length > 0;
         const loadedRenderable = hasRenderableElements(elements);
@@ -169,6 +179,73 @@ export const useEditorSceneLoader = ({
           scrollToContent: true,
           libraryItems,
         });
+
+        // Stream referenced files into the canvas as they land. Each hydrated
+        // dataURL is written into latestFiles AND lastSyncedFiles/
+        // lastPersistedFiles for the same fileId in the same step: this mirrors
+        // how compressedFilesResult is handled in useEditorPersistence, so the
+        // freshly-inlined bytes are never diffed by getFilesDelta as a "changed
+        // file" and re-uploaded/re-saved. `isSyncing` wraps the addFiles push so
+        // it doesn't trigger the broadcast/save loop. Every callback bails when
+        // the effect is cancelled (stale-load guard); files that resolve before
+        // the Excalidraw API is registered queue and flush once it appears.
+        const pendingCanvasFiles: Record<string, any>[] = [];
+        let flushScheduled = false;
+        const pushToCanvas = (batch: Record<string, any>[]): boolean => {
+          const excalidrawApi = refs.excalidrawAPI.current;
+          if (!excalidrawApi || typeof excalidrawApi.addFiles !== "function") {
+            return false;
+          }
+          refs.isSyncing.current = true;
+          try {
+            excalidrawApi.addFiles(batch);
+          } finally {
+            refs.isSyncing.current = false;
+          }
+          return true;
+        };
+        const flushPendingCanvasFiles = () => {
+          flushScheduled = false;
+          if (cancelled || pendingCanvasFiles.length === 0) return;
+          if (pushToCanvas(pendingCanvasFiles)) {
+            pendingCanvasFiles.length = 0;
+            return;
+          }
+          if (!flushScheduled) {
+            flushScheduled = true;
+            setTimeout(flushPendingCanvasFiles, 50);
+          }
+        };
+        const handleFileReady = (
+          fileId: string,
+          hydratedFile: Record<string, any>,
+        ) => {
+          if (cancelled) return;
+          refs.latestFiles.current = {
+            ...refs.latestFiles.current,
+            [fileId]: hydratedFile,
+          };
+          refs.lastSyncedFiles.current = {
+            ...refs.lastSyncedFiles.current,
+            [fileId]: hydratedFile,
+          };
+          refs.lastPersistedFiles.current = {
+            ...refs.lastPersistedFiles.current,
+            [fileId]: hydratedFile,
+          };
+          if (!pushToCanvas([hydratedFile])) {
+            pendingCanvasFiles.push(hydratedFile);
+            if (!flushScheduled) {
+              flushScheduled = true;
+              setTimeout(flushPendingCanvasFiles, 50);
+            }
+          }
+        };
+        void rehydrateFilesProgressive(
+          files,
+          handleFileReady,
+          () => cancelled,
+        );
       } catch (err) {
         if (cancelled) return;
         console.error("Failed to load drawing", err);
@@ -224,6 +301,7 @@ export const useEditorSceneLoader = ({
     location.pathname,
     location.search,
     navigate,
+    normalizeImageElementStatus,
     recordElementVersion,
     refs,
     resetRefs,

@@ -5,7 +5,6 @@ import type { UserIdentity } from "../utils/identity";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { usePreference } from "../context/PreferencesContext";
-import { getFilesDelta } from "./editor/shared";
 import { useEditorChrome } from "./editor/useEditorChrome";
 import { useEditorAutoHide } from "./editor/useEditorAutoHide";
 import { useEditorIdentity } from "./editor/useEditorIdentity";
@@ -20,6 +19,8 @@ import { useEditorCanvasHandlers } from "./editor/useEditorCanvasHandlers";
 import { useEditorCommands } from "./editor/useEditorCommands";
 import { useEditorElementTracking } from "./editor/useEditorElementTracking";
 import { useEditorBroadcast } from "./editor/useEditorBroadcast";
+import { useEditorFileUploads } from "./editor/useEditorFileUploads";
+import { useEditorSceneApi } from "./editor/useEditorSceneApi";
 import { useEditorGridStep } from "./editor/useEditorGridStep";
 import { DEFAULT_GRID_STEP } from "../components/GridStepSelector";
 export const Editor: React.FC = () => {
@@ -71,6 +72,8 @@ export const Editor: React.FC = () => {
   const lastSyncedFilesRef = useRef<Record<string, any>>({});
   const lastSyncedElementOrderSigRef = useRef<string>("");
   const lastPersistedFilesRef = useRef<Record<string, any>>({});
+  // fileId -> stored ref URL for images uploaded via the per-file endpoint.
+  const uploadedFileRefsRef = useRef<Record<string, string>>({});
   const latestAppStateRef = useRef<any>(null);
   const debouncedSaveRef = useRef<
     | ((
@@ -84,7 +87,6 @@ export const Editor: React.FC = () => {
   const currentDrawingVersionRef = useRef<number | null>(null);
   const lastPersistedElementsRef = useRef<readonly any[]>([]);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const patchedAddFilesApisRef = useRef<WeakSet<object>>(new WeakSet());
   const suspiciousBlankLoadRef = useRef(false);
   const hasSceneChangesSinceLoadRef = useRef(false);
   const lastLocalChangeAtRef = useRef<number>(0);
@@ -123,67 +125,30 @@ export const Editor: React.FC = () => {
       recordElementVersion,
       onAccessDenied: handleSocketAccessDenied,
     });
-  const emitFilesDeltaIfNeeded = useCallback(
-    (nextFiles: Record<string, any>) => {
-      if (!socketRef.current || !id) return false;
-      const filesDelta = getFilesDelta(
-        lastSyncedFilesRef.current,
-        nextFiles || {},
-      );
-      if (Object.keys(filesDelta).length === 0) return false;
-      latestFilesRef.current = nextFiles;
-      lastSyncedFilesRef.current = nextFiles;
-      socketRef.current.emit("element-update", {
-        drawingId: id,
-        elements: [],
-        files: filesDelta,
-        userId: socketMeRef.current.id,
-      });
-      return true;
-    },
-    [id, socketMeRef, socketRef],
-  );
-  const setExcalidrawAPI = useCallback(
-    (api: any) => {
-      excalidrawAPI.current = api;
-      if (import.meta.env.DEV) {
-        (window as any).__EXCALIDASH_EXCALIDRAW_API__ = api;
-      }
-      if (
-        api &&
-        typeof api.addFiles === "function" &&
-        !patchedAddFilesApisRef.current.has(api as object)
-      ) {
-        patchedAddFilesApisRef.current.add(api as object);
-        const originalAddFiles = api.addFiles.bind(api);
-        api.addFiles = (filesInput: Record<string, any> | any[]) => {
-          const normalizedFiles = Array.isArray(filesInput)
-            ? filesInput
-            : Object.values(filesInput || {});
-          originalAddFiles(normalizedFiles);
-          if (isSyncing.current) return;
-          const nextFiles = api.getFiles?.() || {};
-          const didEmit = emitFilesDeltaIfNeeded(nextFiles);
-          if (
-            didEmit &&
-            id &&
-            latestAppStateRef.current &&
-            debouncedSaveRef.current
-          ) {
-            hasSceneChangesSinceLoadRef.current = true;
-            debouncedSaveRef.current(
-              id,
-              latestElementsRef.current,
-              latestAppStateRef.current,
-              latestFilesRef.current || {},
-            );
-          }
-        };
-      }
-      setIsReady(true);
-    },
-    [emitFilesDeltaIfNeeded, id, isSyncing],
-  );
+  const { scanNow: scanFileUploads } = useEditorFileUploads({
+    drawingId: id,
+    isReady,
+    excalidrawAPI,
+    isSyncing,
+    latestFiles: latestFilesRef,
+    uploadedRefs: uploadedFileRefsRef,
+  });
+  const { emitFilesDeltaIfNeeded, setExcalidrawAPI } = useEditorSceneApi({
+    drawingId: id,
+    excalidrawAPIRef: excalidrawAPI,
+    isSyncing,
+    socketRef,
+    socketMeRef,
+    lastSyncedFilesRef,
+    latestFilesRef,
+    latestElementsRef,
+    latestAppStateRef,
+    debouncedSaveRef,
+    hasSceneChangesSinceLoadRef,
+    uploadedRefs: uploadedFileRefsRef,
+    scanFileUploads,
+    setIsReady,
+  });
   useLibraryImportFromUrl({ excalidrawAPIRef: excalidrawAPI, isReady, user });
   useEditorGridStep({ excalidrawAPI, isReady, gridStep });
   const persistenceRefs = React.useMemo(
@@ -202,6 +167,7 @@ export const Editor: React.FC = () => {
       latestFiles: latestFilesRef,
       saveQueue: saveQueueRef,
       suspiciousBlankLoad: suspiciousBlankLoadRef,
+      uploadedRefs: uploadedFileRefsRef,
     }),
     [isSyncing],
   );
@@ -232,6 +198,7 @@ export const Editor: React.FC = () => {
     latestFilesRef,
     socketMeRef,
     socketRef,
+    uploadedRefs: uploadedFileRefsRef,
     debouncedSave,
     debouncedSavePreview,
     computeElementOrderSig,
@@ -247,6 +214,7 @@ export const Editor: React.FC = () => {
       latestElements: latestElementsRef,
       initialSceneElements: initialSceneElementsRef,
       latestFiles: latestFilesRef,
+      isSyncing,
       lastSyncedFiles: lastSyncedFilesRef,
       lastSyncedElementOrderSig: lastSyncedElementOrderSigRef,
       lastPersistedFiles: lastPersistedFilesRef,
@@ -259,7 +227,7 @@ export const Editor: React.FC = () => {
       isBootstrappingScene,
       hasHydratedInitialScene,
     }),
-    [elementVersionMap],
+    [elementVersionMap, isSyncing],
   );
   useEditorSceneLoader({
     id,
@@ -274,6 +242,7 @@ export const Editor: React.FC = () => {
     setIsSceneLoading,
     setLoadError,
     recordElementVersion,
+    normalizeImageElementStatus,
   });
   const canvasHandlerRefs = React.useMemo(
     () => ({
@@ -313,6 +282,7 @@ export const Editor: React.FC = () => {
       saveData: saveDataRef,
       savePreview: savePreviewRef,
       suspiciousBlankLoad: suspiciousBlankLoadRef,
+      uploadedRefs: uploadedFileRefsRef,
     }),
     [saveDataRef, savePreviewRef],
   );

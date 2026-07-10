@@ -16,7 +16,8 @@ This file and `backend/.env.example` are generated from that registry; do not ed
 | `DRAWINGS_CACHE_TTL_MS` | `5000` | No | In-memory drawings list cache TTL in milliseconds. |
 | `SNAPSHOT_RETENTION_DAYS` | `2` | No | Number of days to retain drawing snapshots before the hourly sweep prunes them. |
 | `UPLOAD_MAX_MB` | `100` | No | Maximum size (in MB) of a single uploaded file accepted by multer (imports, database restores). |
-| `BODY_LIMIT_MB` | `50` | No | Maximum request body size (in MB) for JSON/urlencoded payloads and the Socket.IO buffer. |
+| `BODY_LIMIT_MB` | `50` | No | Maximum request body size (in MB) for scene JSON/urlencoded payloads and the Socket.IO buffer; images no longer travel in the scene body (see FILE_UPLOAD_MAX_MB), so this bounds scene JSON only. |
+| `FILE_UPLOAD_MAX_MB` | `100` | No | Maximum size (in MB) of a single image accepted by the raw file-upload endpoint (PUT /api/drawings/:id/files/:fileId); the only per-image cap. |
 
 ## Database
 

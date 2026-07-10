@@ -33,7 +33,10 @@ const buildApp = (opts: {
       }),
       updateMany,
     },
-    s3File: { findMany: vi.fn().mockResolvedValue([]), deleteMany: vi.fn() },
+    drawingFile: {
+      findMany: vi.fn().mockResolvedValue([]),
+      deleteMany: vi.fn(),
+    },
   } as any;
 
   const app = express();

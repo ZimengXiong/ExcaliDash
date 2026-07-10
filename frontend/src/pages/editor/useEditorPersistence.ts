@@ -7,10 +7,12 @@ import * as api from "../../api";
 import { reloadAndReconcile } from "./reconcileSave";
 import { compressExcalidrawFiles } from "../../utils/imageCompression";
 import {
+  applyUploadedFileRefs,
   getFilesDelta,
   getPersistedAppState,
   hasRenderableElements,
 } from "./shared";
+import type { UploadedFileRefs } from "./shared";
 
 class DrawingSaveConflictError extends Error {
   constructor(message = "Drawing version conflict") {
@@ -42,6 +44,7 @@ type PersistenceRefs = {
   latestFiles: MutableRefObject<any>;
   saveQueue: MutableRefObject<Promise<void>>;
   suspiciousBlankLoad: MutableRefObject<boolean>;
+  uploadedRefs: MutableRefObject<UploadedFileRefs>;
 };
 
 type UseEditorPersistenceParams = {
@@ -146,15 +149,22 @@ export const useEditorPersistence = ({
         refs.latestFiles.current = persistableFiles;
         refs.lastSyncedFiles.current = persistableFiles;
       }
+      // Swap inline bytes for a ref on any file already uploaded out-of-band so
+      // the PUT ships KB, not MB. Files not yet uploaded keep their inline
+      // dataURL and the server interns them — no data loss on an upload race.
+      const filesToPersist = applyUploadedFileRefs(
+        persistableFiles,
+        refs.uploadedRefs.current,
+      );
       const filesChangedSincePersist =
         Object.keys(
           getFilesDelta(
             refs.lastPersistedFiles.current || {},
-            persistableFiles || {},
+            filesToPersist || {},
           ),
         ).length > 0;
       const normalizedElementsForSave = Array.from(
-        normalizeImageElementStatus(persistableElements, persistableFiles),
+        normalizeImageElementStatus(persistableElements, filesToPersist),
       );
       const persistScene = async (
         attempt: number,
@@ -196,7 +206,7 @@ export const useEditorPersistence = ({
       await persistScene(
         0,
         normalizedElementsForSave,
-        persistableFiles,
+        filesToPersist,
         filesChangedSincePersist,
       );
     } catch (err) {

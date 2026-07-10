@@ -53,7 +53,7 @@ export type DashboardRouteDeps = {
     enableAuditLogging: boolean;
   };
   logAuditEvent: LogAuditEvent;
-  processFilesForS3: (
+  internDrawingFiles: (
     files: Record<string, any>,
     userId: string,
     drawingId: string,

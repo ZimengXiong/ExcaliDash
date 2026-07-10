@@ -15,7 +15,7 @@ import {
 } from "../s3";
 import {
   VALID_STORAGE_FILE_ID,
-  type S3FileRecord,
+  type StoredFileRecord,
   type S3ObjectRecord,
 } from "./storage/helpers";
 import {
@@ -130,19 +130,30 @@ export const registerStorageRoutes = (
       let s3ObjectsDeleted = 0;
       let s3DeleteErrors = 0;
 
-      if (isS3Enabled()) {
-        const s3Prefix = drawingS3Prefix(userId, id);
+      // DrawingFile rows exist in both storage modes; orphan rows are
+      // reclaimed in both, and S3 objects are additionally deleted when S3
+      // is enabled.
+      const storedRecords = await prisma.drawingFile.findMany({
+        where: { drawingId: id },
+        select: {
+          fileId: true,
+          storage: true,
+          s3Key: true,
+          mimeType: true,
+          sizeBytes: true,
+        },
+      });
+      const s3Objects = isS3Enabled()
+        ? await listS3Objects(drawingS3Prefix(userId, id))
+        : [];
 
-        const s3FileRecords = await prisma.s3File.findMany({
-          where: { drawingId: id },
-        });
-        const s3Objects = await listS3Objects(s3Prefix);
+      const s3CleanupPlan = buildTrimS3CleanupPlan({
+        survivingFileIds: trimPlan.survivingFileIds,
+        storedRecords,
+        s3Objects,
+      });
 
-        const s3CleanupPlan = buildTrimS3CleanupPlan({
-          survivingFileIds: trimPlan.survivingFileIds,
-          s3FileRecords,
-          s3Objects,
-        });
+      if (isS3Enabled() && s3CleanupPlan.orphanKeys.length > 0) {
         const deleteResult = await deleteS3KeysInBatches({
           keys: s3CleanupPlan.orphanKeys,
           logPrefix: "[storage/trim]",
@@ -150,15 +161,15 @@ export const registerStorageRoutes = (
         });
         s3ObjectsDeleted = deleteResult.deleted;
         s3DeleteErrors = deleteResult.errors;
+      }
 
-        if (s3CleanupPlan.orphanFileIds.length > 0) {
-          await prisma.s3File.deleteMany({
-            where: {
-              drawingId: id,
-              fileId: { in: s3CleanupPlan.orphanFileIds },
-            },
-          });
-        }
+      if (s3CleanupPlan.orphanFileIds.length > 0) {
+        await prisma.drawingFile.deleteMany({
+          where: {
+            drawingId: id,
+            fileId: { in: s3CleanupPlan.orphanFileIds },
+          },
+        });
       }
 
       invalidateDrawingsCache();
@@ -196,22 +207,24 @@ export const registerStorageRoutes = (
 
       const elements: any[] = parseJsonField(drawing.elements, []);
       const files: Record<string, any> = parseJsonField(drawing.files, {});
-      const s3Prefix = drawingS3Prefix(userId, id);
-      let s3FileRecords: S3FileRecord[] = [];
-      let s3Objects: S3ObjectRecord[] = [];
-
-      if (isS3Enabled()) {
-        s3FileRecords = await prisma.s3File.findMany({
-          where: { drawingId: id },
-          select: { fileId: true, s3Key: true, mimeType: true },
-        });
-        s3Objects = await listS3Objects(s3Prefix);
-      }
+      const storedRecords: StoredFileRecord[] = await prisma.drawingFile.findMany({
+        where: { drawingId: id },
+        select: {
+          fileId: true,
+          storage: true,
+          s3Key: true,
+          mimeType: true,
+          sizeBytes: true,
+        },
+      });
+      const s3Objects: S3ObjectRecord[] = isS3Enabled()
+        ? await listS3Objects(drawingS3Prefix(userId, id))
+        : [];
 
       const diffResponse = buildFilesDiffResponse({
         elements,
         files,
-        s3FileRecords,
+        storedRecords,
         s3Objects,
       });
 
@@ -306,20 +319,24 @@ export const registerStorageRoutes = (
       let s3DeleteErrors = 0;
 
       if (isS3Enabled()) {
-        const s3Records = await prisma.s3File.findMany({
-          where: { drawingId: id, fileId: { in: fileIds } },
+        const s3Records = await prisma.drawingFile.findMany({
+          where: { drawingId: id, fileId: { in: fileIds }, storage: "s3" },
+          select: { s3Key: true },
         });
         const deleteResult = await deleteS3KeysInBatches({
-          keys: s3Records.map((record) => record.s3Key),
+          keys: s3Records
+            .map((record) => record.s3Key)
+            .filter((key): key is string => Boolean(key)),
           logPrefix: "[storage/orphans]",
           deleteObject: deleteS3Object,
         });
         s3DeleteErrors = deleteResult.errors;
-
-        await prisma.s3File.deleteMany({
-          where: { drawingId: id, fileId: { in: fileIds } },
-        });
       }
+
+      // Reclaim the DrawingFile rows in both modes (db-mode bytes live here).
+      await prisma.drawingFile.deleteMany({
+        where: { drawingId: id, fileId: { in: fileIds } },
+      });
 
       const errorCount = s3DeleteErrors;
 

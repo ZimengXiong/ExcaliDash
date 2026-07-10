@@ -1,6 +1,61 @@
 import type { Drawing, DrawingSummary } from "../types";
 import { normalizePreviewSvg } from "../utils/previewSvg";
-import { api } from "./client";
+import { api, isAxiosError } from "./client";
+
+// Per-file image upload capability. The endpoint below is served by newer
+// backends only; against an older server the route 404s (or 501s). The first
+// such response flips this flag off for the rest of the session so callers stop
+// attempting per-file uploads and fall back to inlining bytes in the scene PUT
+// (which the server still interns) — a new frontend degrades to old behavior.
+let fileUploadSupported = true;
+
+export const isFileUploadSupported = (): boolean => fileUploadSupported;
+
+export type UploadedFileRef = { url: string };
+
+/**
+ * Upload the raw bytes of a single drawing image to
+ * `PUT /drawings/:drawingId/files/:fileId`. Idempotent and content-addressed:
+ * `fileId` is Excalidraw's content hash, so re-uploading is a no-op.
+ *
+ * Returns the ref URL to store in place of the inline dataURL, or `null` when
+ * the backend does not support per-file uploads (404/501) — in which case the
+ * capability is disabled for the session and the caller keeps the inline bytes.
+ * Other errors (network, 413, 5xx) are thrown so the caller can retry.
+ */
+export const uploadDrawingFile = async (
+  drawingId: string,
+  fileId: string,
+  body: ArrayBuffer | Uint8Array | Blob,
+  mimeType: string,
+): Promise<UploadedFileRef | null> => {
+  if (!fileUploadSupported) return null;
+  try {
+    const response = await api.put<{ url?: string }>(
+      `/drawings/${drawingId}/files/${fileId}`,
+      body,
+      {
+        headers: {
+          "Content-Type": mimeType || "application/octet-stream",
+        },
+      },
+    );
+    const url =
+      typeof response.data?.url === "string" && response.data.url.length > 0
+        ? response.data.url
+        : `/api/files/${drawingId}/${fileId}`;
+    return { url };
+  } catch (err) {
+    if (
+      isAxiosError(err) &&
+      (err.response?.status === 404 || err.response?.status === 501)
+    ) {
+      fileUploadSupported = false;
+      return null;
+    }
+    throw err;
+  }
+};
 
 const coerceTimestamp = (value: string | number | Date): number => {
   if (typeof value === "number") return value;
