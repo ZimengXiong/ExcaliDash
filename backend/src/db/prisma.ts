@@ -40,12 +40,23 @@ export async function configureSqlite(): Promise<void> {
     // Set busy_timeout first so the WAL switch can wait for any lock the
     // initial Prisma client setup may have left in flight.
     //
-    // PRAGMA statements return rows (busy_timeout returns 5000,
+    // PRAGMA statements return rows (busy_timeout returns the timeout,
     // journal_mode returns "wal"), so we use $queryRaw — the tagged-
     // template form rejects accidental interpolation, and accepts the
     // returned row.
-    await prismaClient.$queryRaw`PRAGMA busy_timeout = 5000;`;
+    //
+    // busy_timeout: give writers up to 10s to wait for a lock instead of
+    // failing immediately with SQLITE_BUSY. Issue #182 showed the previous
+    // 5s was not always enough under concurrent load; 10s stays well under
+    // the HTTP request timeout while absorbing brief write bursts.
+    await prismaClient.$queryRaw`PRAGMA busy_timeout = 10000;`;
+    // journal_mode = WAL is persistent (stored in the DB file header), so
+    // this survives connection churn and only needs setting once.
     await prismaClient.$queryRaw`PRAGMA journal_mode = WAL;`;
+    // synchronous = NORMAL is the recommended pairing with WAL: durable
+    // across application crashes, and only loses the last commit(s) on an
+    // OS/power crash, in exchange for far fewer fsyncs under write load.
+    await prismaClient.$queryRaw`PRAGMA synchronous = NORMAL;`;
   } catch (err) {
     // Surface real failures (e.g. permission, corrupted db) instead of swallowing.
     console.warn("[prisma] Failed to configure SQLite PRAGMAs:", err);

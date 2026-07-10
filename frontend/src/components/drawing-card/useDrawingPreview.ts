@@ -91,6 +91,22 @@ export const useDrawingPreview = (
       return;
     }
     const generatePreview = async () => {
+      // Previews are no longer inlined in list responses. Prefer the cheap,
+      // ETag-cacheable per-drawing preview endpoint; only fall back to
+      // client-side generation (which fetches full data) when the server has
+      // no stored preview for this drawing.
+      try {
+        const stored = await api.getDrawingPreview(drawing.id);
+        if (cancelled) return;
+        if (stored) {
+          setPreviewSvg(stored);
+          onPreviewGenerated?.(drawing.id, stored);
+          return;
+        }
+      } catch (e) {
+        if (cancelled) return;
+        // Ignore and fall through to client-side generation below.
+      }
       try {
         const data = await ensureFullData();
         if (cancelled) return;

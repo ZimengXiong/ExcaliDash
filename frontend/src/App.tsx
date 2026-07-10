@@ -25,9 +25,9 @@ const PageLoader = () => (
 
 function App() {
   return (
-    <ThemeProvider>
-      <Router>
-        <AuthProvider>
+    <Router>
+      <AuthProvider>
+        <ThemeProvider>
           <UploadProvider>
             <Suspense fallback={<PageLoader />}>
               <Routes>
@@ -89,9 +89,9 @@ function App() {
               </Routes>
             </Suspense>
           </UploadProvider>
-        </AuthProvider>
-      </Router>
-    </ThemeProvider>
+        </ThemeProvider>
+      </AuthProvider>
+    </Router>
   );
 }
 

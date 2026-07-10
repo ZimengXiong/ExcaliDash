@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import * as api from '../api';
+import { useAuth } from './AuthContext';
 
 type Theme = 'light' | 'dark';
 
@@ -11,11 +12,15 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const [theme, setTheme] = useState<Theme>(() => {
     const savedTheme = localStorage.getItem('theme');
     return savedTheme === 'dark' || savedTheme === 'light' ? savedTheme : 'light';
   });
 
+  // Re-fetch whenever the authenticated user id changes so per-user theme
+  // applies on login/switch without a hard refresh.
   useEffect(() => {
     let cancelled = false;
     api.getUserPreferences()
@@ -31,7 +36,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     localStorage.setItem('theme', theme);

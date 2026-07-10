@@ -1,7 +1,20 @@
 /**
  * Security utilities for XSS prevention, data sanitization, and CSRF protection
  */
-import { z } from "zod"; import DOMPurify from "dompurify"; import { JSDOM } from "jsdom"; import crypto from "crypto"; import { config } from "./config"; const window = new JSDOM("").window; const purify = DOMPurify(window);
+import { z } from "zod"; import DOMPurify from "dompurify"; import { JSDOM } from "jsdom"; import crypto from "crypto"; import { config } from "./config"; import { MIME_TO_EXT } from "./fileProcessing"; const window = new JSDOM("").window; const purify = DOMPurify(window);
+/**
+ * Thrown when a drawing's files cannot be sanitized safely (e.g. an image
+ * dataURL is malformed/unsupported → 400, or exceeds the size cap → 413).
+ * Carries the offending fileId so the client can identify the bad image
+ * instead of the sanitizer silently blanking or truncating it.
+ */
+export class DrawingSanitizationError extends Error { statusCode: number; fileId: string; isOperational = true; constructor(statusCode: number, fileId: string, message: string) { super(message); this.name = "DrawingSanitizationError"; this.statusCode = statusCode; this.fileId = fileId; } }
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** Image MIME allowlist derived from the single S3 upload allowlist so the two never drift. */
+const SAFE_IMAGE_MIME_TYPES = Object.keys(MIME_TO_EXT);
+/** A dataURL is accepted verbatim only if it is `data:image/<allowed>;base64,<base64 body>`. */
+const SAFE_IMAGE_DATAURL = new RegExp(`^data:(?:${SAFE_IMAGE_MIME_TYPES.map(escapeRegExp).join("|")});base64,[A-Za-z0-9+/=\\s]+$`, "i");
+const API_FILE_REF = /^\/api\/files\/[\w-]{1,200}\/[\w-]{1,200}$/;
 /**
  * Configuration for security limits
  */
@@ -22,7 +35,7 @@ export const resetSecuritySettings = (): void => { activeConfig = { ...defaultCo
  */
 export const getSecurityConfig = (): SecurityConfig => { return { ...activeConfig }; };
 export const sanitizeSvg = (svgContent: string): string => { if (typeof svgContent !== "string") return ""; const safeImageDataUrlPattern =
-/^data:image\/(?:png|jpe?g|gif|webp|avif|bmp);base64,[a-z0-9+/=\s]+$/i; const sanitizeSvgImageTags = (content: string): string => content.replace(/<image\b[^>]*>/gi, (imageTag) => { const hrefMatch = imageTag.match(/\shref\s*=\s*"([^"]*)"/i) ?? imageTag.match(/\shref\s*=\s*'([^']*)'/i) ?? imageTag.match(/\sxlink:href\s*=\s*"([^"]*)"/i) ?? imageTag.match(/\sxlink:href\s*=\s*'([^']*)'/i); const hrefValue = hrefMatch?.[1]?.trim(); if (!hrefValue || !safeImageDataUrlPattern.test(hrefValue)) { return ""; } const withoutXlinkHref = imageTag.replace(
+/^data:image\/(?:png|jpe?g|gif|webp|avif|bmp|svg\+xml);base64,[a-z0-9+/=\s]+$/i; const isSafeImageHref = (href: string): boolean => safeImageDataUrlPattern.test(href) || API_FILE_REF.test(href); const sanitizeSvgImageTags = (content: string): string => content.replace(/<image\b[^>]*>/gi, (imageTag) => { const hrefMatch = imageTag.match(/\shref\s*=\s*"([^"]*)"/i) ?? imageTag.match(/\shref\s*=\s*'([^']*)'/i) ?? imageTag.match(/\sxlink:href\s*=\s*"([^"]*)"/i) ?? imageTag.match(/\sxlink:href\s*=\s*'([^']*)'/i); const hrefValue = hrefMatch?.[1]?.trim(); if (!hrefValue || !isSafeImageHref(hrefValue)) { return ""; } const withoutXlinkHref = imageTag.replace(
 /\sxlink:href\s*=\s*(?:"[^"]*"|'[^']*')/gi, "" ); if (/\shref\s*=/i.test(withoutXlinkHref)) { return withoutXlinkHref.replace(
 /\shref\s*=\s*(?:"[^"]*"|'[^']*')/i,
           ` href="${hrefValue}"`
@@ -33,11 +46,22 @@ export const sanitizeSvg = (svgContent: string): string => { if (typeof svgConte
 "onload", "onclick", "onerror", "onmouseover", "onfocus", "onblur", "src", "action", "style", "class", ], KEEP_CONTENT: true, })
 .trim(); return sanitizeSvgImageTags(sanitized).trim(); }; export const sanitizeText = ( input: unknown, maxLength: number = 1000 ): string => { if (typeof input !== "string") return ""; const cleaned = input.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ""); const truncated = cleaned.slice(0, maxLength); return purify
 .sanitize(truncated, { ALLOWED_TAGS: ["b", "i", "u", "em", "strong", "br", "span"], ALLOWED_ATTR: [], FORBID_TAGS: [ "script", "iframe", "object", "embed", "link", "style", "form", "input", "button", "select", "textarea", "svg", "foreignObject", ], FORBID_ATTR: [ "onload", "onclick", "onerror", "onmouseover", "onfocus", "onblur", "onchange", "onsubmit", "onreset", "onkeydown", "onkeyup", "onkeypress", "href", "src", "action", "formaction", "style", ], KEEP_CONTENT: true, })
-.trim(); }; export const sanitizeUrl = (url: unknown): string => { if (typeof url !== "string") return ""; const trimmed = url.trim(); if (/^(javascript|data|vbscript):/i.test(trimmed)) { return ""; } try { if (/^(https?:\/\/|mailto:|\/|\.\/|\.\.\/)/i.test(trimmed)) { return trimmed; } return ""; } catch { return ""; } }; export const elementSchema = z
+.trim(); };
+/**
+ * Sanitize a canvas element's plain-text content. Unlike {@link sanitizeText}
+ * (for names/metadata that may land in an HTML context), element text is drawn
+ * to the Excalidraw canvas verbatim and is never inserted as HTML, so it must
+ * NOT be run through DOMPurify: that strips literal `<value>`-style words as if
+ * they were unknown tags and entity-encodes `<`, `&` (turning `3 < 4 & ok` into
+ * `3 &lt; 4 &amp; ok`), corrupting imported drawings. We only strip control
+ * characters and truncate, preserving angle brackets/ampersands exactly. The
+ * SVG preview export path is sanitized separately by {@link sanitizeSvg}.
+ */
+export const sanitizeElementText = ( input: unknown, maxLength: number = 5000 ): string => { if (typeof input !== "string") return ""; return input.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "").slice(0, maxLength); }; export const sanitizeUrl = (url: unknown): string => { if (typeof url !== "string") return ""; const trimmed = url.trim(); if (/^(javascript|data|vbscript):/i.test(trimmed)) { return ""; } try { if (/^(https?:\/\/|mailto:|\/|\.\/|\.\.\/)/i.test(trimmed)) { return trimmed; } return ""; } catch { return ""; } }; export const elementSchema = z
 .object({ id: z.string().min(1).max(200).optional().nullable(), type: z.string().optional().nullable(), x: z.number().optional().nullable(), y: z.number().optional().nullable(), width: z.number().optional().nullable(), height: z.number().optional().nullable(), angle: z.number().optional().nullable(), strokeColor: z.string().optional().nullable(), backgroundColor: z.string().optional().nullable(), fillStyle: z.string().optional().nullable(), strokeWidth: z.number().optional().nullable(), strokeStyle: z.string().optional().nullable(), roundness: z.any().optional().nullable(), boundElements: z.array(z.any()).optional().nullable(), groupIds: z.array(z.string()).optional().nullable(), frameId: z.string().optional().nullable(), seed: z.number().optional().nullable(), version: z.number().optional().nullable(), versionNonce: z.number().optional().nullable(),
-isDeleted: z.boolean().optional().nullable(), opacity: z.number().optional().nullable(), link: z.string().optional().nullable(), locked: z.boolean().optional().nullable(), text: z.string().optional().nullable(), fontSize: z.number().optional().nullable(), fontFamily: z.number().optional().nullable(), textAlign: z.string().optional().nullable(), verticalAlign: z.string().optional().nullable(), customData: z.record(z.string(), z.any()).optional().nullable(), })
+isDeleted: z.boolean().optional().nullable(), opacity: z.number().optional().nullable(), link: z.string().optional().nullable(), locked: z.boolean().optional().nullable(), text: z.string().optional().nullable(), fontSize: z.number().optional().nullable(), fontFamily: z.union([z.number(), z.string().max(200)]).optional().nullable(), textAlign: z.string().optional().nullable(), verticalAlign: z.string().optional().nullable(), customData: z.record(z.string(), z.any()).optional().nullable(), })
 .passthrough()
-.transform((element) => { const sanitized = { ...element }; if (typeof sanitized.text === "string") { sanitized.text = sanitizeText(sanitized.text, 5000); } if (typeof sanitized.link === "string") { sanitized.link = sanitizeUrl(sanitized.link); } return sanitized; }); export const appStateSchema = z
+.transform((element) => { const sanitized = { ...element }; if (typeof sanitized.text === "string") { sanitized.text = sanitizeElementText(sanitized.text, 5000); } if (typeof sanitized.link === "string") { sanitized.link = sanitizeUrl(sanitized.link); } return sanitized; }); export const appStateSchema = z
 .object({ gridSize: z.number().finite().min(0).max(1000).optional().nullable(), gridStep: z.number().finite().min(1).max(1000).optional().nullable(), viewBackgroundColor: z.string().optional().nullable(), currentItemStrokeColor: z.string().optional().nullable(), currentItemBackgroundColor: z.string().optional().nullable(), currentItemFillStyle: z
 .enum(["solid", "hachure", "cross-hatch", "dots"])
 .optional()
@@ -60,10 +84,7 @@ isDeleted: z.boolean().optional().nullable(), opacity: z.number().optional().nul
 .max(500)
 .optional()
 .nullable(), currentItemFontFamily: z
-.number()
-.finite()
-.min(1)
-.max(10)
+.union([z.number().finite().min(0), z.string().max(200)])
 .optional()
 .nullable(), currentItemTextAlign: z
 .enum(["left", "center", "right"])
@@ -93,17 +114,13 @@ isDeleted: z.boolean().optional().nullable(), opacity: z.number().optional().nul
 .object({ type: z.string(), customType: z.string().optional().nullable(), })
 .optional()
 .nullable(), cursorX: z.number().finite().optional().nullable(), cursorY: z.number().finite().optional().nullable(), collaborators: z.record(z.string(), z.any()).optional().nullable(), })
-.catchall( z.any().refine((val) => { if (typeof val === "string") { return sanitizeText(val, 1000); } return true; }) ); export const sanitizeDrawingData = (data: { elements: any[]; appState: any; files?: any; preview?: string | null; }) => { try { const sanitizedElements = elementSchema.array().parse(data.elements); const sanitizedAppState = appStateSchema.parse(data.appState); let sanitizedPreview = data.preview; if (typeof sanitizedPreview === "string") { sanitizedPreview = sanitizeSvg(sanitizedPreview); } let sanitizedFiles = data.files; if (typeof sanitizedFiles === "object" && sanitizedFiles !== null) { sanitizedFiles = structuredClone(sanitizedFiles); const safeImageTypes = [ "data:image/png", "data:image/jpeg", "data:image/jpg", "data:image/gif", "data:image/webp", "data:image/svg+xml", ]; const dangerousProtocols = [
-/^javascript:/i,
-/^vbscript:/i,
-/^data:text\/html/i, ]; const suspiciousPatterns = [
-/<script/i,
-/javascript:/i,
-/on\w+\s*=/i,
-/<iframe/i, ]; const MAX_DATAURL_SIZE = activeConfig.maxDataUrlSize; const VALID_FILE_ID = /^[\w-]{1,200}$/; for (const fileId of Object.keys(sanitizedFiles)) { if (!VALID_FILE_ID.test(fileId)) { delete sanitizedFiles[fileId]; } } for (const fileId in sanitizedFiles) { const file = sanitizedFiles[fileId]; if (typeof file === "object" && file !== null) { for (const key in file) { const value = file[key]; if (typeof value === "string") { if (key === "dataURL") { const normalizedValue = value.toLowerCase(); const hasDangerousProtocol = dangerousProtocols.some(
-(pattern) => pattern.test(value) ); if (hasDangerousProtocol) { file[key] = ""; continue; } const isSafeImageType = safeImageTypes.some((type) => normalizedValue.startsWith(type) ); if (isSafeImageType) { const hasSuspiciousContent = suspiciousPatterns.some(
-(pattern) => pattern.test(value) ); const isTooLarge = value.length > MAX_DATAURL_SIZE; if (hasSuspiciousContent || isTooLarge) { file[key] = ""; } else { file[key] = value; } } else if (/^https?:\/\//i.test(value)) { const hasSuspiciousContent = suspiciousPatterns.some(
-(pattern) => pattern.test(value) ); if (hasSuspiciousContent || value.length > 2048) { file[key] = ""; } else { file[key] = value; } } else if (/^\/api\/files\/[\w-]{1,200}\/[\w-]{1,200}$/.test(value)) { file[key] = value; } else { file[key] = sanitizeText(value, 1000); } } else { file[key] = sanitizeText(value, 1000); } } } } } } return { elements: sanitizedElements, appState: sanitizedAppState, files: sanitizedFiles, preview: sanitizedPreview, }; } catch (error) { console.error("Data sanitization failed:", error); throw new Error("Invalid or malicious drawing data detected"); } }; export const validateImportedDrawing = (data: any): boolean => { try { if (!data || typeof data !== "object") return false; if (!Array.isArray(data.elements)) return false; if (typeof data.appState !== "object") return false; if (data.elements.length > 10000) {
+.catchall( z.any().refine((val) => { if (typeof val === "string") { return sanitizeText(val, 1000); } return true; }) ); export const sanitizeDrawingData = (data: { elements: any[]; appState: any; files?: any; preview?: string | null; }) => { try { const sanitizedElements = elementSchema.array().parse(data.elements); const sanitizedAppState = appStateSchema.parse(data.appState); let sanitizedPreview = data.preview; if (typeof sanitizedPreview === "string") { sanitizedPreview = sanitizeSvg(sanitizedPreview); } let sanitizedFiles = data.files; if (typeof sanitizedFiles === "object" && sanitizedFiles !== null) { sanitizedFiles = structuredClone(sanitizedFiles); const MAX_DATAURL_SIZE = activeConfig.maxDataUrlSize; const VALID_FILE_ID = /^[\w-]{1,200}$/; for (const fileId of Object.keys(sanitizedFiles)) { if (!VALID_FILE_ID.test(fileId)) { delete sanitizedFiles[fileId]; } } for (const fileId in sanitizedFiles) { const file = sanitizedFiles[fileId]; if (typeof file === "object" && file !== null) { for (const key in file) { const value = file[key]; if (typeof value !== "string") { file[key] = sanitizeText(value, 1000); continue; } if (key !== "dataURL") { file[key] = sanitizeText(value, 1000); continue; }
+// dataURL is never truncated or HTML-sanitized: a base64 image body is not
+// markup, and running injection regexes over it produces false positives that
+// corrupt valid images. Accept a valid image dataURL verbatim, keep an already
+// uploaded https/S3 reference, otherwise reject the whole save (naming fileId)
+// instead of silently blanking it.
+if (value === "") { file[key] = ""; continue; } if (value.startsWith("data:")) { if (!SAFE_IMAGE_DATAURL.test(value)) { throw new DrawingSanitizationError(400, fileId, `Image file "${fileId}" has an invalid or unsupported image data URL and was rejected.`); } if (value.length > MAX_DATAURL_SIZE) { throw new DrawingSanitizationError(413, fileId, `Image file "${fileId}" exceeds the maximum allowed size of ${MAX_DATAURL_SIZE} bytes.`); } file[key] = value; } else if (/^https?:\/\//i.test(value)) { if (value.length > 2048) { throw new DrawingSanitizationError(400, fileId, `Image file "${fileId}" has an invalid image URL and was rejected.`); } file[key] = value; } else if (API_FILE_REF.test(value)) { file[key] = value; } else { throw new DrawingSanitizationError(400, fileId, `Image file "${fileId}" has an invalid image reference and was rejected.`); } } } } } return { elements: sanitizedElements, appState: sanitizedAppState, files: sanitizedFiles, preview: sanitizedPreview, }; } catch (error) { if (error instanceof DrawingSanitizationError) throw error; console.error("Data sanitization failed:", error); throw new Error("Invalid or malicious drawing data detected"); } }; export const validateImportedDrawing = (data: any): boolean => { try { if (!data || typeof data !== "object") return false; if (!Array.isArray(data.elements)) return false; if (typeof data.appState !== "object") return false; if (data.elements.length > 10000) {
 throw new Error("Drawing contains too many elements (max 10,000)"); } const sanitized = sanitizeDrawingData(data); if (sanitized.elements.length !== data.elements.length) { throw new Error("Element count mismatch after sanitization"); } return true; } catch (error) { console.error("Imported drawing validation failed:", error); return false; } }; const CSRF_TOKEN_HEADER = "x-csrf-token"; const CSRF_TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000; const CSRF_TOKEN_FUTURE_SKEW_MS = 5 * 60 * 1000; const CSRF_NONCE_BYTES = 16; const CSRF_TOKEN_MAX_LENGTH = 2048; let cachedCsrfSecret: Buffer | null = null; const getCsrfSecret = (): Buffer => { if (cachedCsrfSecret) return cachedCsrfSecret; const secretFromEnv = config.csrfSecret; if (secretFromEnv && secretFromEnv.trim().length > 0) { cachedCsrfSecret = Buffer.from(secretFromEnv, "utf8"); return cachedCsrfSecret; }
 cachedCsrfSecret = crypto.randomBytes(32);
   const envLabel = config.nodeEnv ? ` (${config.nodeEnv})` : "";

@@ -76,7 +76,10 @@ describe("authMode service", () => {
     const service = createAuthModeService(prisma);
     await expect(service.getAuthEnabled()).resolves.toBe(false);
 
-    expect(findUnique).toHaveBeenCalledTimes(1);
+    // getAuthEnabled reads once (authEnabled-only); on a miss it delegates
+    // to ensureSystemConfig, which now reads-first as well before falling
+    // back to upsert — two reads total, but still a single write.
+    expect(findUnique).toHaveBeenCalledTimes(2);
     expect(upsert).toHaveBeenCalledTimes(1);
   });
 
@@ -107,6 +110,28 @@ describe("authMode service", () => {
         }),
       })
     );
+  });
+
+  it("reads an existing system config without writing (no upsert on the read path)", async () => {
+    // Regression for issue #182: ensureSystemConfig runs on every
+    // /auth/status request; when the row already exists it must NOT take a
+    // write lock, or SQLite serialises readers behind the writer and times
+    // out under load.
+    const prisma = createPrismaMock();
+    const findUnique = prisma.systemConfig.findUnique as unknown as ReturnType<typeof vi.fn>;
+    const upsert = prisma.systemConfig.upsert as unknown as ReturnType<typeof vi.fn>;
+    findUnique.mockResolvedValue({
+      id: DEFAULT_SYSTEM_CONFIG_ID,
+      authEnabled: true,
+      registrationEnabled: false,
+    });
+
+    const service = createAuthModeService(prisma);
+    const result = await service.ensureSystemConfig();
+
+    expect(result).toMatchObject({ id: DEFAULT_SYSTEM_CONFIG_ID, authEnabled: true });
+    expect(findUnique).toHaveBeenCalledTimes(1);
+    expect(upsert).not.toHaveBeenCalled();
   });
 
   it("ensures system config defaults", async () => {

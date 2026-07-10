@@ -96,12 +96,37 @@ export const registerStorageRoutes = (
       const files: Record<string, any> = parseJsonField(drawing.files, {});
       const trimPlan = buildTrimPlan(elements, files);
 
+      // Commit the trimmed drawing FIRST, guarded on the version we read.
+      // If a concurrent editor saved in between, `count` is 0 — we abort
+      // with 409 instead of overwriting their newer state with our stale
+      // snapshot, and we have not yet touched S3, so nothing is stranded.
+      const updateResult = await prisma.drawing.updateMany({
+        where: { id, version: drawing.version },
+        data: {
+          elements: JSON.stringify(trimPlan.activeElements),
+          files: JSON.stringify(trimPlan.cleanedFiles),
+          version: { increment: 1 },
+        },
+      });
+      if (updateResult.count === 0) {
+        return res.status(409).json({
+          error: "Conflict",
+          code: "VERSION_CONFLICT",
+          message: "Drawing has changed since it was loaded for trimming.",
+        });
+      }
+
       // S3File is keyed (drawingId, fileId) and S3 objects sit under a
       // per-drawing path, so this drawing's storage is independent from
       // every other drawing's — no cross-drawing reference check needed.
       // Duplicates are made by copying objects into the new drawingId
       // path (see drawings.ts /duplicate), so deleting the original
       // does not strand a sibling.
+      //
+      // Delete objects only AFTER the DB write succeeds: the committed row
+      // no longer references the orphan files, so a mid-cleanup crash just
+      // leaves recoverable orphan S3 objects rather than a live drawing
+      // pointing at deleted objects (broken images).
       let s3ObjectsDeleted = 0;
       let s3DeleteErrors = 0;
 
@@ -136,16 +161,6 @@ export const registerStorageRoutes = (
         }
       }
 
-      // 7. Update drawing — bump version so concurrent editors get a VERSION_CONFLICT
-      // and reload, instead of having their newer version silently overwritten.
-      await prisma.drawing.update({
-        where: { id },
-        data: {
-          elements: JSON.stringify(trimPlan.activeElements),
-          files: JSON.stringify(trimPlan.cleanedFiles),
-          version: { increment: 1 },
-        },
-      });
       invalidateDrawingsCache();
       notifyServerStateChange(id);
 
@@ -262,12 +277,32 @@ export const registerStorageRoutes = (
         });
       }
 
-      // Batched S3 + DB cleanup. S3File rows are scoped
-      // (drawingId, fileId), and each drawing has its own S3 object
-      // under its own prefix path — deletion here cannot strand a
-      // sibling drawing. Doing N+1 sequential lookups + deletes per
-      // file would tie up the request unnecessarily for large
-      // selections.
+      // Commit the cleaned drawing FIRST, guarded on the version we read.
+      // A concurrent editor that re-referenced one of these files (or saved
+      // anything else) bumps the version, so `count` is 0 and we abort with
+      // 409 instead of deleting files the live drawing now depends on. S3 is
+      // untouched at this point, so a conflict strands nothing.
+      const updateResult = await prisma.drawing.updateMany({
+        where: { id, version: drawing.version },
+        data: {
+          files: JSON.stringify(deletePlan.cleanedFiles),
+          elements: JSON.stringify(deletePlan.cleanedElements),
+          version: { increment: 1 },
+        },
+      });
+      if (updateResult.count === 0) {
+        return res.status(409).json({
+          error: "Conflict",
+          code: "VERSION_CONFLICT",
+          message: "Drawing has changed since it was loaded for cleanup.",
+        });
+      }
+
+      // Batched S3 + DB cleanup, run only AFTER the DB write commits. S3File
+      // rows are scoped (drawingId, fileId), and each drawing has its own S3
+      // object under its own prefix path — deletion here cannot strand a
+      // sibling drawing. Doing N+1 sequential lookups + deletes per file
+      // would tie up the request unnecessarily for large selections.
       let s3DeleteErrors = 0;
 
       if (isS3Enabled()) {
@@ -288,16 +323,6 @@ export const registerStorageRoutes = (
 
       const errorCount = s3DeleteErrors;
 
-      // Update drawing with cleaned files and elements. Bump version so
-      // concurrent editors reload instead of silently overwriting.
-      await prisma.drawing.update({
-        where: { id },
-        data: {
-          files: JSON.stringify(deletePlan.cleanedFiles),
-          elements: JSON.stringify(deletePlan.cleanedElements),
-          version: { increment: 1 },
-        },
-      });
       invalidateDrawingsCache();
       notifyServerStateChange(id);
 

@@ -3,6 +3,7 @@ import type { MutableRefObject, RefObject } from "react";
 import { io, type Socket } from "socket.io-client";
 import { toast } from "sonner";
 import type { UserIdentity } from "../../utils/identity";
+import { filesNeedRehydration, rehydrateFilesFromUrls } from "../../utils/rehydrateFiles";
 import { buildRemoteSceneUpdate } from "./shared";
 
 interface Peer extends UserIdentity {
@@ -257,10 +258,17 @@ export const useEditorCollaboration = ({
           }
         }
         if (files && typeof files === "object") {
-          pendingRemoteFilesRef.current = {
-            ...pendingRemoteFilesRef.current,
-            ...files,
+          // A peer on S3 storage may broadcast `/api/files/...` (or public S3)
+          // references; re-inline them before Excalidraw renders the image.
+          // Already-inline data: URLs stay on the synchronous path.
+          const stage = (incoming: Record<string, any>) => {
+            pendingRemoteFilesRef.current = { ...pendingRemoteFilesRef.current, ...incoming };
           };
+          if (filesNeedRehydration(files)) {
+            void rehydrateFilesFromUrls(files).then((hydrated) => { stage(hydrated); scheduleRemoteFlush(); });
+          } else {
+            stage(files);
+          }
         }
         if (Array.isArray(elementOrder) && elementOrder.length > 0) {
           pendingRemoteElementOrderRef.current = elementOrder;

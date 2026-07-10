@@ -60,7 +60,6 @@ export type SortDirection = "asc" | "desc";
 
 type DrawingQueryOptions = {
   includeData?: boolean;
-  includePreview?: boolean;
   limit?: number;
   offset?: number;
   sortField?: DrawingSortField;
@@ -75,7 +74,6 @@ const buildDrawingParams = (
   const params: Record<string, string | number> = {};
   if (search) params.search = search;
   if (collectionId !== undefined) params.collectionId = collectionId === null ? "null" : collectionId;
-  if (options?.includePreview) params.includePreview = "true";
   if (options?.limit !== undefined) params.limit = options.limit;
   if (options?.offset !== undefined) params.offset = options.offset;
   if (options?.sortField) params.sortField = options.sortField;
@@ -122,6 +120,17 @@ export async function getSharedDrawings(
 export const getDrawing = async (id: string) => {
   const response = await api.get<Drawing>(`/drawings/${id}`);
   return deserializeDrawing(response.data);
+};
+
+// Previews are no longer inlined into list responses; fetch them per-drawing.
+// The endpoint is ETag-cacheable (revalidates on updatedAt), so repeated calls
+// are cheap once the browser has a copy.
+export const getDrawingPreview = async (id: string): Promise<string | null> => {
+  const response = await api.get<{ preview: string | null }>(
+    `/drawings/${id}/preview`,
+  );
+  const preview = response.data?.preview;
+  return typeof preview === "string" ? normalizePreviewSvg(preview) : null;
 };
 
 export type ShareResolvedUser = { id: string; name: string; email: string };

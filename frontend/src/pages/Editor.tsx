@@ -201,6 +201,7 @@ export const Editor: React.FC = () => {
     [isSyncing],
   );
   const {
+    autosaveFailing,
     debouncedSave,
     debouncedSaveLibrary,
     debouncedSavePreview,
@@ -300,6 +301,7 @@ export const Editor: React.FC = () => {
     });
   const commandRefs = React.useMemo(
     () => ({
+      currentDrawingVersion: currentDrawingVersionRef,
       excalidrawAPI,
       hasSceneChangesSinceLoad: hasSceneChangesSinceLoadRef,
       latestFiles: latestFilesRef,
@@ -342,6 +344,7 @@ export const Editor: React.FC = () => {
         id={id}
         accessLevel={accessLevel}
         autoHideEnabled={autoHideEnabled}
+        autosaveFailing={autosaveFailing}
         canEdit={canEdit}
         drawingName={drawingName}
         editorContainerRef={editorContainerRef}

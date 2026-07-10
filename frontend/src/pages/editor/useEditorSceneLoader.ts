@@ -3,6 +3,7 @@ import type { NavigateFunction } from "react-router-dom";
 import type { MutableRefObject } from "react";
 import { toast } from "sonner";
 import * as api from "../../api";
+import { rehydrateFilesFromUrls } from "../../utils/rehydrateFiles";
 import { getPersistedAppState, hasRenderableElements } from "./shared";
 
 type AccessLevel = "none" | "view" | "edit" | "owner";
@@ -86,7 +87,21 @@ export const useEditorSceneLoader = ({
     refs.excalidrawAPI.current = null;
   }, [refs]);
 
+  // Depend on the user id scalar, not the user object identity: a new object
+  // reference for the same logged-in user must not re-run the loader (which
+  // would reset refs and re-fetch mid-session).
+  const userId =
+    typeof user === "object" && user !== null && "id" in user
+      ? (user as { id?: unknown }).id
+      : undefined;
+  const userIdKey = typeof userId === "string" ? userId : null;
+
   useEffect(() => {
+    // A slow, stale load must never write its result into the persistence refs
+    // after the user has navigated to a different drawing — that is how one
+    // drawing's data used to leak into another. The cleanup flips this flag and
+    // every post-await step bails on it.
+    let cancelled = false;
     resetRefs();
     setIsReady(false);
     setIsSceneLoading(true);
@@ -95,12 +110,13 @@ export const useEditorSceneLoader = ({
 
     const loadData = async () => {
       if (!id) {
+        if (cancelled) return;
         setInitialData(buildEmptyScene());
         setIsSceneLoading(false);
         return;
       }
       try {
-        const libraryItemsPromise = user
+        const libraryItemsPromise = userIdKey
           ? api.getLibrary().catch((err) => {
               console.warn("Failed to load library, using empty:", err);
               return [];
@@ -110,6 +126,7 @@ export const useEditorSceneLoader = ({
           api.getDrawing(id),
           libraryItemsPromise,
         ]);
+        if (cancelled) return;
         setDrawingName(data.name);
         setAccessLevel(
           data.accessLevel === "view" ||
@@ -119,7 +136,12 @@ export const useEditorSceneLoader = ({
             : "owner",
         );
         const elements = data.elements || [];
-        const files = data.files || {};
+        // In S3 mode the loaded files carry `/api/files/...` (or public S3)
+        // references rather than inline data: URLs. Re-inline them before they
+        // reach Excalidraw so SVGs render and exports embed the real bytes. In
+        // non-S3 mode this is a synchronous no-op (all dataURLs already data:).
+        const files = await rehydrateFilesFromUrls(data.files || {});
+        if (cancelled) return;
         const hasPreview =
           typeof data.preview === "string" && data.preview.trim().length > 0;
         const loadedRenderable = hasRenderableElements(elements);
@@ -148,6 +170,7 @@ export const useEditorSceneLoader = ({
           libraryItems,
         });
       } catch (err) {
+        if (cancelled) return;
         console.error("Failed to load drawing", err);
         let message = "Failed to load drawing";
         if (api.isAxiosError(err)) {
@@ -187,11 +210,14 @@ export const useEditorSceneLoader = ({
         setLoadError(message);
         setInitialData(null);
       } finally {
-        setIsSceneLoading(false);
+        if (!cancelled) setIsSceneLoading(false);
       }
     };
 
     loadData();
+    return () => {
+      cancelled = true;
+    };
   }, [
     id,
     location.hash,
@@ -207,6 +233,6 @@ export const useEditorSceneLoader = ({
     setIsReady,
     setIsSceneLoading,
     setLoadError,
-    user,
+    userIdKey,
   ]);
 };

@@ -15,6 +15,39 @@ import {
 } from "./trash";
 import type { DrawingRouteContext } from "./drawingRouteContext";
 
+// A file entry is "blank" when it exists but carries no content (empty
+// dataURL). Sanitizer tombstones and transient client state can produce
+// these; they must never overwrite an existing entry that still has content.
+const isBlankFileEntry = (entry: unknown): boolean => {
+  if (!entry || typeof entry !== "object") return true;
+  const dataURL = (entry as { dataURL?: unknown }).dataURL;
+  if (typeof dataURL === "string") return dataURL.length === 0;
+  return false;
+};
+
+// Merge incoming files into the existing set by fileId (union). Removal is
+// never performed here — only the trim/orphans routes delete files — so a
+// save from a client with a partial/stale view of the files object cannot
+// delete another client's images. Same-id updates overwrite, except a blank
+// incoming entry never clobbers existing content.
+const mergeFilesUnion = (
+  existing: Record<string, unknown>,
+  incoming: Record<string, unknown>,
+): Record<string, unknown> => {
+  const merged: Record<string, unknown> = { ...existing };
+  for (const [fileId, entry] of Object.entries(incoming)) {
+    if (
+      isBlankFileEntry(entry) &&
+      merged[fileId] !== undefined &&
+      !isBlankFileEntry(merged[fileId])
+    ) {
+      continue;
+    }
+    merged[fileId] = entry;
+  }
+  return merged;
+};
+
 export const registerDrawingCreateUpdateRoutes = (
   app: express.Express,
   context: DrawingRouteContext,
@@ -215,7 +248,9 @@ export const registerDrawingCreateUpdateRoutes = (
           ownerUserId,
           id,
         );
-        data.files = JSON.stringify(processedFilesForUpdate);
+        // Note: data.files is not assigned here. The union merge with the
+        // authoritative current state happens inside the transaction so a
+        // concurrent client's files are never whole-replaced away.
       }
       if (payload.preview !== undefined) {
         const processedPreview = processedFilesForUpdate
@@ -259,15 +294,34 @@ export const registerDrawingCreateUpdateRoutes = (
       try {
         if (isSceneUpdate) {
           updatedDrawing = await prisma.$transaction(async (tx) => {
+            // Read the authoritative current state inside the transaction so
+            // the snapshot and the files union merge both reflect what is
+            // actually about to be overwritten (not a stale pre-transaction
+            // read that a concurrent writer may have already superseded).
+            const current = await tx.drawing.findUnique({ where: { id } });
+            if (!current) {
+              throw versionConflictError;
+            }
+
             await tx.drawingSnapshot.create({
               data: {
                 drawingId: id,
-                version: existingDrawing.version,
-                elements: existingDrawing.elements,
-                appState: existingDrawing.appState,
-                files: existingDrawing.files,
+                version: current.version,
+                elements: current.elements,
+                appState: current.appState,
+                files: current.files,
               },
             });
+
+            if (processedFilesForUpdate !== undefined) {
+              const existingFiles = parseJsonField<Record<string, unknown>>(
+                current.files,
+                {},
+              );
+              data.files = JSON.stringify(
+                mergeFilesUnion(existingFiles, processedFilesForUpdate),
+              );
+            }
 
             const updateResult = await tx.drawing.updateMany({
               where: updateWhere,

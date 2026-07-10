@@ -17,7 +17,7 @@ import {
  */
 const VALID_FILE_ID = /^[\w-]{1,200}$/;
 
-const MIME_TO_EXT: Record<string, string> = {
+export const MIME_TO_EXT: Record<string, string> = {
   "image/png": "png",
   "image/jpeg": "jpg",
   "image/gif": "gif",

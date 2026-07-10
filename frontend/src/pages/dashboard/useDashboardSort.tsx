@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Calendar, Clock, FileText } from "lucide-react";
 import * as api from "../../api";
 import type { DrawingSortField, SortDirection } from "../../api";
@@ -56,11 +56,22 @@ export const sortOptions: {
   { field: "updatedAt", label: "Date Modified", icon: <Clock size={16} /> },
 ];
 
+const sortSignature = (config: {
+  field: DrawingSortField;
+  direction: SortDirection;
+}) => `${config.field}:${config.direction}`;
+
 export const useDashboardSort = () => {
   const [sortConfig, setSortConfig] = useState<{
     field: DrawingSortField;
     direction: SortDirection;
   }>(() => readStoredSortConfig());
+  // Gate server writes until the initial GET has settled, so a first-mount
+  // effect run never PUTs the local default and clobbers the stored value.
+  const hydratedRef = useRef(false);
+  // Last signature we know the server already holds; skips redundant PUTs
+  // (e.g. echoing back the value we just fetched).
+  const lastPersistedRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,13 +83,18 @@ export const useDashboardSort = () => {
           isSortField(preferences.dashboardSortField) &&
           isSortDirection(preferences.dashboardSortDirection)
         ) {
-          setSortConfig({
+          const serverConfig = {
             field: preferences.dashboardSortField,
             direction: preferences.dashboardSortDirection,
-          });
+          };
+          lastPersistedRef.current = sortSignature(serverConfig);
+          setSortConfig(serverConfig);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) hydratedRef.current = true;
+      });
     return () => {
       cancelled = true;
     };
@@ -86,6 +102,10 @@ export const useDashboardSort = () => {
 
   useEffect(() => {
     writeStoredSortConfig(sortConfig);
+    if (!hydratedRef.current) return;
+    const signature = sortSignature(sortConfig);
+    if (lastPersistedRef.current === signature) return;
+    lastPersistedRef.current = signature;
     api
       .updateUserPreferences({
         dashboardSortField: sortConfig.field,

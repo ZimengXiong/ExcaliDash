@@ -1,9 +1,18 @@
 import express from "express";
 import { Prisma } from "../../generated/client";
-import { normalizeDrawingPermission } from "../../authz/sharing";
+import {
+  canViewDrawing,
+  getDrawingAccess,
+  normalizeDrawingPermission,
+} from "../../authz/sharing";
 import { getUserTrashCollectionId, toPublicTrashCollectionId } from "./trash";
 import { SortDirection, SortField } from "./types";
 import type { DrawingRouteContext } from "./drawingRouteContext";
+
+// Server-side page size applied when a client omits `limit`, so the list
+// endpoints can never return an unbounded payload (previously every drawing,
+// with inline previews, was serialized into a single response).
+const DEFAULT_PAGE_SIZE = 50;
 
 export const registerDrawingListRoutes = (
   app: express.Express,
@@ -12,13 +21,29 @@ export const registerDrawingListRoutes = (
   const {
     prisma,
     requireAuth,
+    optionalAuth,
     asyncHandler,
     parseJsonField,
+    getRequestPrincipal,
+    respondWithAuthErrorIfPresent,
     buildDrawingsCacheKey,
     getCachedDrawingsBody,
     cacheDrawingsResponse,
     MAX_PAGE_SIZE,
   } = context;
+
+  const clampLimit = (raw: string | undefined): number => {
+    const parsed = raw ? Number.parseInt(raw, 10) : undefined;
+    if (parsed === undefined || !Number.isFinite(parsed)) return DEFAULT_PAGE_SIZE;
+    return Math.min(Math.max(parsed, 1), MAX_PAGE_SIZE);
+  };
+
+  const clampOffset = (raw: string | undefined): number => {
+    const parsed = raw ? Number.parseInt(raw, 10) : undefined;
+    if (parsed === undefined || !Number.isFinite(parsed)) return 0;
+    return Math.max(parsed, 0);
+  };
+
   app.get(
     "/drawings",
     requireAuth,
@@ -32,7 +57,6 @@ export const registerDrawingListRoutes = (
         search,
         collectionId,
         includeData,
-        includePreview,
         limit,
         offset,
         sortField,
@@ -95,10 +119,6 @@ export const registerDrawingListRoutes = (
         typeof includeData === "string"
           ? includeData.toLowerCase() === "true" || includeData === "1"
           : false;
-      const shouldIncludePreview =
-        typeof includePreview === "string"
-          ? includePreview.toLowerCase() === "true" || includePreview === "1"
-          : false;
       const parsedSortField: SortField =
         sortField === "name" ||
         sortField === "createdAt" ||
@@ -112,18 +132,8 @@ export const registerDrawingListRoutes = (
             ? "asc"
             : "desc";
 
-      const rawLimit = limit ? Number.parseInt(limit as string, 10) : undefined;
-      const rawOffset = offset
-        ? Number.parseInt(offset as string, 10)
-        : undefined;
-      const parsedLimit =
-        rawLimit !== undefined && Number.isFinite(rawLimit)
-          ? Math.min(Math.max(rawLimit, 1), MAX_PAGE_SIZE)
-          : undefined;
-      const parsedOffset =
-        rawOffset !== undefined && Number.isFinite(rawOffset)
-          ? Math.max(rawOffset, 0)
-          : undefined;
+      const parsedLimit = clampLimit(limit as string | undefined);
+      const parsedOffset = clampOffset(offset as string | undefined);
 
       const cacheKey =
         buildDrawingsCacheKey({
@@ -133,7 +143,7 @@ export const registerDrawingListRoutes = (
           includeData: shouldIncludeData,
           sortField: parsedSortField,
           sortDirection: parsedSortDirection,
-        }) + `:${parsedLimit}:${parsedOffset}:preview=${shouldIncludePreview ? "1" : "0"}`;
+        }) + `:${parsedLimit}:${parsedOffset}`;
 
       const cachedBody = getCachedDrawingsBody(cacheKey);
       if (cachedBody) {
@@ -142,11 +152,12 @@ export const registerDrawingListRoutes = (
         return res.send(cachedBody);
       }
 
+      // Previews are intentionally excluded from list responses; they are served
+      // per-drawing from GET /drawings/:id/preview (ETag-cacheable).
       const summarySelect: Prisma.DrawingSelect = {
         id: true,
         name: true,
         collectionId: true,
-        ...(shouldIncludePreview ? { preview: true } : {}),
         version: true,
         createdAt: true,
         updatedAt: true,
@@ -160,9 +171,12 @@ export const registerDrawingListRoutes = (
             ? { createdAt: parsedSortDirection }
             : { updatedAt: parsedSortDirection };
 
-      const queryOptions: Prisma.DrawingFindManyArgs = { where, orderBy };
-      if (parsedLimit !== undefined) queryOptions.take = parsedLimit;
-      if (parsedOffset !== undefined) queryOptions.skip = parsedOffset;
+      const queryOptions: Prisma.DrawingFindManyArgs = {
+        where,
+        orderBy,
+        take: parsedLimit,
+        skip: parsedOffset,
+      };
       if (!shouldIncludeData) queryOptions.select = summarySelect;
 
       const [drawings, totalCount] = await Promise.all([
@@ -197,10 +211,51 @@ export const registerDrawingListRoutes = (
         offset: parsedOffset,
       };
 
-      const body = cacheDrawingsResponse(cacheKey, finalResponse);
+      const body = cacheDrawingsResponse(cacheKey, finalResponse, req.user.id);
       res.setHeader("X-Cache", "MISS");
       res.setHeader("Content-Type", "application/json");
       return res.send(body);
+    }),
+  );
+
+  // Per-drawing preview: small, ETag-cacheable, revalidates against updatedAt.
+  // Registered before `/drawings/:id` so previews aren't treated as an id.
+  app.get(
+    "/drawings/:id/preview",
+    optionalAuth,
+    asyncHandler(async (req, res) => {
+      const principal = await getRequestPrincipal(req);
+      const { id } = req.params;
+
+      const access = await getDrawingAccess({ prisma, principal, drawingId: id });
+      if (!canViewDrawing(access)) {
+        if (respondWithAuthErrorIfPresent(req, res)) return;
+        return res.status(404).json({
+          error: "Drawing not found",
+          message: "Drawing does not exist",
+        });
+      }
+
+      const drawing = await prisma.drawing.findUnique({
+        where: { id },
+        select: { preview: true, updatedAt: true },
+      });
+      if (!drawing) {
+        return res.status(404).json({
+          error: "Drawing not found",
+          message: "Drawing does not exist",
+        });
+      }
+
+      const updatedAtMs = new Date(drawing.updatedAt).getTime();
+      const etag = `W/"preview-${id}-${updatedAtMs}"`;
+      res.setHeader("Cache-Control", "private, max-age=0, must-revalidate");
+      res.setHeader("ETag", etag);
+      if (req.headers["if-none-match"] === etag) {
+        return res.status(304).end();
+      }
+
+      return res.json({ preview: drawing.preview ?? null, updatedAt: updatedAtMs });
     }),
   );
 
@@ -212,7 +267,7 @@ export const registerDrawingListRoutes = (
     asyncHandler(async (req, res) => {
       if (!req.user) return res.status(401).json({ error: "Unauthorized" });
 
-      const { search, includeData, includePreview, limit, offset, sortField, sortDirection } =
+      const { search, includeData, limit, offset, sortField, sortDirection } =
         req.query;
       const searchTerm =
         typeof search === "string" && search.trim().length > 0
@@ -222,10 +277,6 @@ export const registerDrawingListRoutes = (
       const shouldIncludeData =
         typeof includeData === "string"
           ? includeData.toLowerCase() === "true" || includeData === "1"
-          : false;
-      const shouldIncludePreview =
-        typeof includePreview === "string"
-          ? includePreview.toLowerCase() === "true" || includePreview === "1"
           : false;
       const parsedSortField: SortField =
         sortField === "name" ||
@@ -240,18 +291,8 @@ export const registerDrawingListRoutes = (
             ? "asc"
             : "desc";
 
-      const rawLimit = limit ? Number.parseInt(limit as string, 10) : undefined;
-      const rawOffset = offset
-        ? Number.parseInt(offset as string, 10)
-        : undefined;
-      const parsedLimit =
-        rawLimit !== undefined && Number.isFinite(rawLimit)
-          ? Math.min(Math.max(rawLimit, 1), MAX_PAGE_SIZE)
-          : undefined;
-      const parsedOffset =
-        rawOffset !== undefined && Number.isFinite(rawOffset)
-          ? Math.max(rawOffset, 0)
-          : undefined;
+      const parsedLimit = clampLimit(limit as string | undefined);
+      const parsedOffset = clampOffset(offset as string | undefined);
 
       const orderBy: Prisma.DrawingOrderByWithRelationInput =
         parsedSortField === "name"
@@ -291,7 +332,6 @@ export const registerDrawingListRoutes = (
         id: true,
         name: true,
         collectionId: true,
-        ...(shouldIncludePreview ? { preview: true } : {}),
         version: true,
         createdAt: true,
         updatedAt: true,
@@ -305,9 +345,9 @@ export const registerDrawingListRoutes = (
       const queryOptions: Prisma.DrawingFindManyArgs = {
         where: whereDrawing,
         orderBy,
+        take: parsedLimit,
+        skip: parsedOffset,
       };
-      if (parsedLimit !== undefined) queryOptions.take = parsedLimit;
-      if (parsedOffset !== undefined) queryOptions.skip = parsedOffset;
       if (!shouldIncludeData) queryOptions.select = summarySelect;
 
       const [drawings, totalCount] = await Promise.all([
