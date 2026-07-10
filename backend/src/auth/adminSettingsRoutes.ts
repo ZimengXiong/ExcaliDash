@@ -2,10 +2,101 @@ import { Request, Response } from "express";
 import { logAuditEvent } from "../utils/audit";
 import { getEffectiveOidcJitProvisioning } from "./accessPolicy";
 import type { RegisterAdminRoutesDeps } from "./adminRoutes";
-import { loginRateLimitResetSchema, loginRateLimitUpdateSchema, oidcJitProvisioningToggleSchema, registrationToggleSchema } from "./schemas";
+import { aiSettingsUpdateSchema, loginRateLimitResetSchema, loginRateLimitUpdateSchema, oidcJitProvisioningToggleSchema, registrationToggleSchema } from "./schemas";
+import { resolveAiSettings, toAiStatus, type AiSystemConfigRow } from "../ai/settings";
+import { encryptSecret } from "../ai/crypto";
+import { config as appConfig } from "../config";
 
 export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
   const { router, prisma, requireAuth, ensureAuthEnabled, ensureSystemConfig, parseLoginRateLimitConfig, applyLoginRateLimitConfig, resetLoginAttemptKey, requireAdmin, config, defaultSystemConfigId, requireCsrf } = deps;
+  const loadAiRow = async (): Promise<AiSystemConfigRow | null> =>
+    (await prisma.systemConfig.findUnique({
+      where: { id: defaultSystemConfigId },
+    })) as AiSystemConfigRow | null;
+
+  router.get(
+    "/ai/settings",
+    requireAuth,
+    async (req: Request, res: Response) => {
+      try {
+        if (!(await ensureAuthEnabled(res))) return;
+        if (!requireAdmin(req, res)) return;
+        const row = await loadAiRow();
+        const settings = resolveAiSettings(row);
+        res.json({
+          status: toAiStatus(settings),
+          // Non-secret DB overrides, so the form can show what is stored.
+          overrides: {
+            provider: row?.aiProvider ?? null,
+            baseUrl: row?.aiBaseUrl ?? null,
+            model: row?.aiModel ?? null,
+          },
+          // When an env key is set it always wins — the DB key field is locked.
+          envKeyConfigured: Boolean(appConfig.ai.apiKey),
+          dbKeyConfigured: Boolean(row?.aiApiKeyEncrypted),
+        });
+      } catch (error) {
+        console.error("Get AI settings error:", error);
+        res.status(500).json({ error: "Internal server error", message: "Failed to fetch AI settings" });
+      }
+    },
+  );
+
+  router.put(
+    "/ai/settings",
+    requireAuth,
+    async (req: Request, res: Response) => {
+      try {
+        if (!(await ensureAuthEnabled(res))) return;
+        if (!requireCsrf(req, res)) return;
+        if (!requireAdmin(req, res)) return;
+        const parsed = aiSettingsUpdateSchema.safeParse(req.body);
+        if (!parsed.success) {
+          return res.status(400).json({ error: "Bad request", message: "Invalid AI settings payload" });
+        }
+        const { provider, baseUrl, model, apiKey } = parsed.data;
+        const data: Record<string, string | null> = {};
+        if (provider !== undefined) data.aiProvider = provider;
+        if (baseUrl !== undefined) data.aiBaseUrl = baseUrl && baseUrl.length > 0 ? baseUrl : null;
+        if (model !== undefined) data.aiModel = model && model.length > 0 ? model : null;
+        if (apiKey !== undefined) {
+          data.aiApiKeyEncrypted = apiKey.length > 0 ? encryptSecret(apiKey) : null;
+        }
+        const updated = (await prisma.systemConfig.upsert({
+          where: { id: defaultSystemConfigId },
+          update: data,
+          create: { id: defaultSystemConfigId, ...data },
+        })) as AiSystemConfigRow;
+        if (config.enableAuditLogging) {
+          await logAuditEvent({
+            userId: req.user.id,
+            action: "admin_ai_settings_updated",
+            resource: "system_config",
+            ipAddress: req.ip || req.connection.remoteAddress || undefined,
+            userAgent: req.headers["user-agent"] || undefined,
+            details: {
+              provider: updated.aiProvider,
+              keyChanged: apiKey !== undefined,
+            },
+          });
+        }
+        res.json({
+          status: toAiStatus(resolveAiSettings(updated)),
+          overrides: {
+            provider: updated.aiProvider ?? null,
+            baseUrl: updated.aiBaseUrl ?? null,
+            model: updated.aiModel ?? null,
+          },
+          envKeyConfigured: Boolean(appConfig.ai.apiKey),
+          dbKeyConfigured: Boolean(updated.aiApiKeyEncrypted),
+        });
+      } catch (error) {
+        console.error("Update AI settings error:", error);
+        res.status(500).json({ error: "Internal server error", message: "Failed to update AI settings" });
+      }
+    },
+  );
+
   router.post(
     "/registration/toggle",
     requireAuth,

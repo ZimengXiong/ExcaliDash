@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import type { UserIdentity } from "../../utils/identity";
 import { filesNeedRehydration, rehydrateFilesFromUrls } from "../../utils/rehydrateFiles";
 import { buildRemoteSceneUpdate } from "./shared";
+import { useAgentBatchApplier } from "./useAgentBatchApplier";
+import { attachCanvasZoomForwarding } from "./canvasZoomForwarding";
 
 interface Peer extends UserIdentity {
   isActive: boolean;
@@ -23,6 +25,9 @@ type UseEditorCollaborationInput = {
   computeElementOrderSig: (elements: readonly any[]) => string;
   recordElementVersion: (element: any) => void;
   onAccessDenied: () => void;
+  // Batch ids this client originated; consumed to replay self edits as
+  // IMMEDIATELY-capture so native Ctrl+Z works (D5). See useAgentBatchApplier.
+  selfAgentBatchIdsRef?: MutableRefObject<Set<string>>;
 };
 
 const getSocketUrl = () =>
@@ -45,6 +50,7 @@ export const useEditorCollaboration = ({
   computeElementOrderSig,
   recordElementVersion,
   onAccessDenied,
+  selfAgentBatchIdsRef,
 }: UseEditorCollaborationInput) => {
   const [socketMe, setSocketMe] = useState<UserIdentity>(me);
   const socketMeRef = useRef<UserIdentity>(socketMe);
@@ -60,6 +66,17 @@ export const useEditorCollaboration = ({
   const pendingRemoteElementOrderRef = useRef<string[] | null>(null);
   const remoteFlushScheduledRef = useRef(false);
   const remoteFlushRafIdRef = useRef<number | null>(null);
+  // Agent op batches ride a dedicated buffer so each is applied as a whole with
+  // the right undo-capture mode (self-originated → IMMEDIATELY, else NEVER).
+  const enqueueAgentBatch = useAgentBatchApplier({
+    excalidrawAPI,
+    isSyncing,
+    lastSyncedElementOrderSigRef,
+    latestElementsRef,
+    computeElementOrderSig,
+    recordElementVersion,
+    selfAgentBatchIdsRef,
+  });
 
   useEffect(() => {
     setSocketMe(me);
@@ -244,11 +261,28 @@ export const useEditorCollaboration = ({
         elements,
         files,
         elementOrder,
+        origin,
+        opsBatchId,
       }: {
         elements: any[];
         files?: Record<string, any>;
         elementOrder?: string[];
+        origin?: string;
+        opsBatchId?: string;
       }) => {
+        // Agent op batches are applied atomically (whole batch, resolved undo
+        // mode) via the dedicated applier. Ops never mutate files.
+        if (origin === "agent-ops") {
+          enqueueAgentBatch({
+            opsBatchId,
+            elements: Array.isArray(elements) ? elements : [],
+            elementOrder:
+              Array.isArray(elementOrder) && elementOrder.length > 0
+                ? elementOrder
+                : null,
+          });
+          return;
+        }
         if (Array.isArray(elements)) {
           for (const el of elements) {
             const id = el?.id;
@@ -278,9 +312,7 @@ export const useEditorCollaboration = ({
     );
     socket.on("drawing-server-update", (payload: { drawingId?: string }) => {
       if (!payload?.drawingId || payload.drawingId !== drawingId) return;
-      toast.info(
-        "Drawing storage changed on the server. Reloading the editor.",
-      );
+      toast.info("Drawing storage changed on the server. Reloading the editor.");
       window.location.reload();
     });
     const handleActivity = (isActive: boolean) => {
@@ -294,43 +326,11 @@ export const useEditorCollaboration = ({
     window.addEventListener("blur", onBlur);
     document.addEventListener("mouseenter", onMouseEnter);
     document.addEventListener("mouseleave", onMouseLeave);
-    const container = editorContainerRef.current;
-    const handleWheel = (event: WheelEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (!target) return;
-      const isCanvas = target.tagName?.toLowerCase() === "canvas";
-      const isEditorUi =
-        target.closest(".layer-ui__wrapper") !== null ||
-        target.closest(".App-menu") !== null;
-      if (
-        isCanvas &&
-        !isEditorUi &&
-        !event.ctrlKey &&
-        !event.metaKey &&
-        !(event as any)._isFakeZoom
-      ) {
-        event.preventDefault();
-        event.stopPropagation();
-        const zoomEvent = new WheelEvent("wheel", {
-          bubbles: true,
-          cancelable: true,
-          clientX: event.clientX,
-          clientY: event.clientY,
-          deltaX: event.deltaX,
-          deltaY: event.deltaY,
-          deltaMode: event.deltaMode,
-          ctrlKey: true,
-        });
-        (zoomEvent as any)._isFakeZoom = true;
-        target.dispatchEvent(zoomEvent);
-      }
-    };
-    container?.addEventListener("wheel", handleWheel, {
-      capture: true,
-      passive: false,
-    });
+    const detachCanvasZoom = attachCanvasZoomForwarding(
+      editorContainerRef.current,
+    );
     return () => {
-      container?.removeEventListener("wheel", handleWheel, { capture: true });
+      detachCanvasZoom();
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("mouseenter", onMouseEnter);
@@ -364,6 +364,7 @@ export const useEditorCollaboration = ({
     computeElementOrderSig,
     recordElementVersion,
     onAccessDenied,
+    enqueueAgentBatch,
   ]);
 
   const onPointerUpdate = useCallback(

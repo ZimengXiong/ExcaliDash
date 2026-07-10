@@ -45,6 +45,10 @@ model SystemConfig {
   bootstrapSetupCodeIssuedAt DateTime?
   bootstrapSetupCodeExpiresAt DateTime?
   bootstrapSetupCodeFailedAttempts Int @default(0)
+  aiProvider                 String?
+  aiBaseUrl                  String?
+  aiModel                    String?
+  aiApiKeyEncrypted          String?
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt
 }
@@ -77,6 +81,7 @@ model Drawing {
   permissions  DrawingPermission[]
   linkShares   DrawingLinkShare[]
   snapshots    DrawingSnapshot[]
+  agentKeys    ApiKey[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
@@ -189,6 +194,10 @@ model ApiKey {
   tokenHash  String    @unique
   prefix     String
   scopes     String    @default("drawings:read,drawings:write,collections:read,collections:write")
+  // When set, the key is a per-drawing agent token confined to that drawing's
+  // agent routes (ops/summary/elements). Null keys are account-wide.
+  drawingId  String?
+  drawing    Drawing?  @relation(fields: [drawingId], references: [id], onDelete: Cascade)
   lastUsedAt DateTime?
   revokedAt  DateTime?
   createdAt  DateTime  @default(now())
@@ -196,6 +205,7 @@ model ApiKey {
 
   @@index([userId, createdAt])
   @@index([keyId, revokedAt])
+  @@index([drawingId])
 }
 
 model AuditLog {

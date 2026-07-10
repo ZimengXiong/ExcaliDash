@@ -38,6 +38,20 @@ export const securityEnv: readonly EnvVarSpec[] = [
     doc: "CSRF-token issuance rate-limit window in milliseconds (default 1 minute); pairs with CSRF_MAX_REQUESTS.",
   },
   {
+    name: "AGENT_OPS_RATE_LIMIT_MAX",
+    group: "Security",
+    kind: "number",
+    default: "120",
+    doc: "Maximum agent ops-batch requests (POST /api/drawings/:id/ops) per key/user per window.",
+  },
+  {
+    name: "AGENT_OPS_RATE_LIMIT_WINDOW_MS",
+    group: "Security",
+    kind: "number",
+    default: "60000",
+    doc: "Agent ops-batch rate-limit window in milliseconds (default 1 minute); pairs with AGENT_OPS_RATE_LIMIT_MAX.",
+  },
+  {
     name: "ENFORCE_HTTPS_REDIRECT",
     group: "Security",
     kind: "boolean",

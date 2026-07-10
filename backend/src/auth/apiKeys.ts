@@ -16,6 +16,13 @@ export const DEFAULT_API_KEY_SCOPES = [
   "collections:write",
 ] as const;
 
+// Scope carried only by per-drawing agent tokens (ApiKey.drawingId set). It is
+// intentionally absent from DEFAULT_API_KEY_SCOPES so account-wide keys can
+// never self-assign it — it is granted exclusively by the agent-token mint
+// route and confines the key to its drawing's agent routes.
+export const AGENT_OPS_SCOPE = "agent:ops";
+export const AGENT_TOKEN_SCOPES = [AGENT_OPS_SCOPE] as const;
+
 export const generateApiKey = (): {
   token: string;
   keyId: string;

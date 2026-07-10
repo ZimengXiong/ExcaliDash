@@ -38,6 +38,17 @@ export const registrationToggleSchema = z.object({
   enabled: z.boolean(),
 });
 
+// Admin AI settings update. All fields optional; null/empty clears the DB
+// override (falls back to env). `apiKey` is write-only — the special sentinel
+// "__unchanged__" leaves the stored (encrypted) key untouched, and an empty
+// string clears it.
+export const aiSettingsUpdateSchema = z.object({
+  provider: z.enum(["disabled", "anthropic", "openai", "custom"]).nullable().optional(),
+  baseUrl: z.string().trim().max(2000).nullable().optional(),
+  model: z.string().trim().max(200).nullable().optional(),
+  apiKey: z.string().max(4000).optional(),
+});
+
 export const oidcJitProvisioningToggleSchema = z.object({
   enabled: z.boolean(),
 });

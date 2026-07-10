@@ -284,6 +284,48 @@ export const revokeLinkShare = async (
   return response.data;
 };
 
+// Per-drawing agent tokens (owner-only). The raw token is returned exactly once
+// at creation; afterwards only the prefix is available.
+export type AgentTokenRow = {
+  id: string;
+  name: string;
+  prefix: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string | number | Date;
+  updatedAt: string | number | Date;
+};
+
+export const listAgentTokens = async (
+  drawingId: string,
+): Promise<AgentTokenRow[]> => {
+  const response = await api.get<{ agentTokens: AgentTokenRow[] }>(
+    `/drawings/${drawingId}/agent-tokens`,
+  );
+  return response.data.agentTokens;
+};
+
+export const createAgentToken = async (
+  drawingId: string,
+  params?: { name?: string },
+): Promise<{ agentToken: AgentTokenRow; token: string }> => {
+  const response = await api.post<{ agentToken: AgentTokenRow; token: string }>(
+    `/drawings/${drawingId}/agent-tokens`,
+    params ?? {},
+  );
+  return response.data;
+};
+
+export const revokeAgentToken = async (
+  drawingId: string,
+  tokenId: string,
+): Promise<{ success: true }> => {
+  const response = await api.delete<{ success: true }>(
+    `/drawings/${drawingId}/agent-tokens/${tokenId}`,
+  );
+  return response.data;
+};
+
 export const createDrawing = async (name?: string, collectionId?: string | null) => {
   const response = await api.post<{ id: string }>("/drawings", {
     name: name || "Untitled Drawing",

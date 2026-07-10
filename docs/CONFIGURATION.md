@@ -79,6 +79,8 @@ This file and `backend/.env.example` are generated from that registry; do not ed
 | `RATE_LIMIT_MAX_REQUESTS` | `1000` | No | Maximum general API requests per rate-limit window. |
 | `RATE_LIMIT_WINDOW_MS` | `900000` | No | General API rate-limit window in milliseconds (default 15 minutes); pairs with RATE_LIMIT_MAX_REQUESTS. |
 | `CSRF_RATE_LIMIT_WINDOW_MS` | `60000` | No | CSRF-token issuance rate-limit window in milliseconds (default 1 minute); pairs with CSRF_MAX_REQUESTS. |
+| `AGENT_OPS_RATE_LIMIT_MAX` | `120` | No | Maximum agent ops-batch requests (POST /api/drawings/:id/ops) per key/user per window. |
+| `AGENT_OPS_RATE_LIMIT_WINDOW_MS` | `60000` | No | Agent ops-batch rate-limit window in milliseconds (default 1 minute); pairs with AGENT_OPS_RATE_LIMIT_MAX. |
 | `ENFORCE_HTTPS_REDIRECT` | `true` | No | Redirect HTTP requests to HTTPS when a secure origin is detected. |
 | `API_KEY_HASH_PEPPER` | _(none — secret)_ | No | Pepper mixed into API-key hashes; set before creating keys (see docs). |
 | `DEBUG_CSRF` | `false` | No | Enable verbose CSRF debug logging. |
@@ -118,6 +120,18 @@ This file and `backend/.env.example` are generated from that registry; do not ed
 | `LINK_SHARE_EDIT_DEFAULT_TTL_MS` | `604800000` | No | Default lifetime (ms) of edit share links (7 days). |
 | `LINK_SHARE_VIEW_DEFAULT_TTL_MS` | `2592000000` | No | Default lifetime (ms) of view share links (30 days). |
 | `LINK_SHARE_MAX_TTL_MS` | `7776000000` | No | Maximum allowed lifetime (ms) for any share link (90 days). |
+
+## AI
+
+| Variable | Default | Required | Description |
+| --- | --- | --- | --- |
+| `AI_PROVIDER` | `disabled` | No | AI chat-proxy provider: disabled (chat panel hidden), anthropic (Messages API), openai (Chat Completions), or custom (any OpenAI-compatible baseUrl). The admin settings page can override this at runtime. Allowed: disabled, anthropic, openai, custom. |
+| `AI_API_KEY` | _(none — secret)_ | No | Provider API key for the AI chat proxy. Server-side only — never shipped to the browser. An env-provided key always wins over a key stored via the admin settings page. |
+| `AI_BASE_URL` | — | No | Override the provider base URL (e.g. an OpenAI-compatible gateway or self-hosted endpoint). Required for AI_PROVIDER=custom; optional otherwise. |
+| `AI_MODEL` | — | No | Model id the chat proxy requests (e.g. claude-opus-4-8 for anthropic, gpt-4o for openai). Falls back to a provider default when unset. |
+| `AI_MAX_TOKENS_PER_REQUEST` | `4096` | No | Maximum output tokens the chat proxy requests per model call. |
+| `AI_RATE_LIMIT_MAX` | `60` | No | Maximum AI chat requests allowed per user within AI_RATE_LIMIT_WINDOW_MS. |
+| `AI_RATE_LIMIT_WINDOW_MS` | `60000` | No | Rolling window (ms) for the AI chat per-user rate limiter. |
 
 ## Frontend (build-time)
 

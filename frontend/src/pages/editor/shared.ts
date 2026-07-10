@@ -39,25 +39,31 @@ export const getElementContentSig = (element: any): string => {
 };
 
 /**
- * Matches CaptureUpdateAction.NEVER from @excalidraw/excalidraw.
- * Kept as a local constant so that shared.ts doesn't pull in the full
- * excalidraw UI bundle, which breaks jsdom-based unit tests.
+ * Matches CaptureUpdateAction.{NEVER,IMMEDIATELY} from @excalidraw/excalidraw.
+ * Kept as local constants so that shared.ts doesn't pull in the full excalidraw
+ * UI bundle, which breaks jsdom-based unit tests. The enum values are the
+ * literal strings "NEVER" / "IMMEDIATELY" (see store.d.ts).
  */
 const CAPTURE_UPDATE_NEVER = "NEVER" as const;
+const CAPTURE_UPDATE_IMMEDIATELY = "IMMEDIATELY" as const;
+
+export type CaptureMode =
+  | typeof CAPTURE_UPDATE_NEVER
+  | typeof CAPTURE_UPDATE_IMMEDIATELY;
 
 type RemoteSceneUpdate =
   | {
       collaborators: Map<string, any>;
-      captureUpdate: typeof CAPTURE_UPDATE_NEVER;
+      captureUpdate: CaptureMode;
     }
   | {
       elements: any[];
       files?: Record<string, any>;
-      captureUpdate: typeof CAPTURE_UPDATE_NEVER;
+      captureUpdate: CaptureMode;
     }
   | {
       files: Record<string, any>;
-      captureUpdate: typeof CAPTURE_UPDATE_NEVER;
+      captureUpdate: CaptureMode;
     };
 
 type BuildRemoteSceneUpdateInput = {
@@ -67,6 +73,12 @@ type BuildRemoteSceneUpdateInput = {
   elementOrder?: readonly string[] | null;
   lastSyncedFiles?: Record<string, any>;
   incomingFiles?: Record<string, any>;
+  /**
+   * Undo-stack behavior for element updates. Remote peer edits default to
+   * NEVER (not locally undoable); a self-originated agent batch replayed to the
+   * requesting editor passes IMMEDIATELY so native Ctrl+Z works (D5).
+   */
+  captureUpdate?: CaptureMode;
 };
 
 export const getPersistedAppState = (appState: Record<string, any> | null | undefined) => {
@@ -86,6 +98,7 @@ export const buildRemoteSceneUpdate = ({
   elementOrder = null,
   lastSyncedFiles = {},
   incomingFiles = {},
+  captureUpdate = CAPTURE_UPDATE_NEVER,
 }: BuildRemoteSceneUpdateInput): {
   sceneUpdate: RemoteSceneUpdate | null;
   mergedElements: any[] | null;
@@ -121,7 +134,7 @@ export const buildRemoteSceneUpdate = ({
       sceneUpdate: {
         elements: mergedElements,
         ...(shouldUpdateFiles ? { files: nextFiles } : {}),
-        captureUpdate: CAPTURE_UPDATE_NEVER,
+        captureUpdate,
       },
       mergedElements,
       nextFiles,

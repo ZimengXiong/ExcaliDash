@@ -307,6 +307,14 @@ Common flags:
 
 </details>
 
+# Agent API
+
+ExcaliDash ships a built-in HTTPS API for AI agents and scripts to read and edit
+a drawing through atomic semantic ops, with live updates to open editors. Mint a
+per-drawing token from the Share dialog and see [docs/AGENT_API.md](docs/AGENT_API.md)
+for the full flow (summary, ops batch, element inspection, undo), the op schema,
+and the error-code catalog.
+
 # Community & Integrations
 
 Third-party projects that build on ExcaliDash. These are community-maintained and not part of this repository:

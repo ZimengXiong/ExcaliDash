@@ -10,6 +10,7 @@ import { useEditorAutoHide } from "./editor/useEditorAutoHide";
 import { useEditorIdentity } from "./editor/useEditorIdentity";
 import { EditorDialogs } from "./editor/EditorDialogs";
 import { EditorView } from "./editor/EditorView";
+import { ChatPanel } from "./editor/ChatPanel";
 import { useLibraryImportFromUrl } from "./editor/useLibraryImportFromUrl";
 import { useEditorSnapshotGuards } from "./editor/useEditorSnapshotGuards";
 import { useEditorSceneLoader } from "./editor/useEditorSceneLoader";
@@ -92,6 +93,9 @@ export const Editor: React.FC = () => {
   const lastLocalChangeAtRef = useRef<number>(0);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const excalidrawAPI = useRef<any>(null);
+  // Agent op batch ids this client originated (chat panel) so the collaboration
+  // layer replays them with IMMEDIATELY capture for native Ctrl+Z (D5).
+  const selfAgentBatchIdsRef = useRef<Set<string>>(new Set());
   const { resolveSafeSnapshot, normalizeImageElementStatus } =
     useEditorSnapshotGuards({
       lastPersistedElementsRef,
@@ -124,6 +128,7 @@ export const Editor: React.FC = () => {
       computeElementOrderSig,
       recordElementVersion,
       onAccessDenied: handleSocketAccessDenied,
+      selfAgentBatchIdsRef,
     });
   const { scanNow: scanFileUploads } = useEditorFileUploads({
     drawingId: id,
@@ -362,6 +367,11 @@ export const Editor: React.FC = () => {
         previewBackupRef={previewBackup}
         onCloseHistory={() => setIsHistoryOpen(false)}
         onCloseShare={() => setIsShareOpen(false)}
+      />
+      <ChatPanel
+        drawingId={id}
+        canEdit={canEdit}
+        selfAgentBatchIdsRef={selfAgentBatchIdsRef}
       />
     </>
   );

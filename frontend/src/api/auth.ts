@@ -226,7 +226,7 @@ const clearStoredAuth = () => {
   localStorage.removeItem(USER_KEY);
 };
 
-const ensureCsrfToken = async (): Promise<void> => {
+export const ensureCsrfToken = async (): Promise<void> => {
   if (csrfToken) return;
   csrfTokenPromise ||= fetchCsrfToken().finally(() => {
     csrfTokenPromise = null;

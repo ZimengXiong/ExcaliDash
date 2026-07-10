@@ -28,6 +28,7 @@ import {
   resolveLinkShareConfig,
   resolveUpdateCheckConfig,
 } from "./config/derived";
+import { type AiConfig, resolveAiConfig } from "./config/ai";
 
 export { buildPasswordPolicyMessage, validatePasswordAgainstPolicy };
 
@@ -67,6 +68,8 @@ interface Config {
   rateLimitWindowMs: number;
   csrfMaxRequests: number;
   csrfRateLimitWindowMs: number;
+  agentOpsRateLimitMax: number;
+  agentOpsRateLimitWindowMs: number;
   snapshotRetentionMs: number;
   uploadMaxBytes: number;
   bodyLimitMb: number;
@@ -88,6 +91,7 @@ interface Config {
   s3: S3Config;
   linkShare: LinkShareConfig;
   updateCheck: UpdateCheckConfig;
+  ai: AiConfig;
 }
 
 export type AuthMode = "local" | "hybrid" | "oidc_enforced" | "disabled";
@@ -309,16 +313,10 @@ const resolveOidcConfig = (authMode: AuthMode): OidcConfig => {
     tokenEndpointAuthMethod,
     scopes: readString("OIDC_SCOPES", "openid profile email"),
     emailClaim: readString("OIDC_EMAIL_CLAIM", "email"),
-    emailVerifiedClaim: readString(
-      "OIDC_EMAIL_VERIFIED_CLAIM",
-      "email_verified",
-    ),
+    emailVerifiedClaim: readString("OIDC_EMAIL_VERIFIED_CLAIM", "email_verified"),
     groupsClaim,
     adminGroups,
-    requireEmailVerified: readBoolean(
-      "OIDC_REQUIRE_EMAIL_VERIFIED",
-      true,
-    ),
+    requireEmailVerified: readBoolean("OIDC_REQUIRE_EMAIL_VERIFIED", true),
     jitProvisioning: readBoolean("OIDC_JIT_PROVISIONING", true),
     firstUserAdmin: readBoolean("OIDC_FIRST_USER_ADMIN", true),
   };
@@ -366,6 +364,8 @@ export const config: Config = {
   rateLimitWindowMs: readNumber("RATE_LIMIT_WINDOW_MS", 900000),
   csrfMaxRequests: readNumber("CSRF_MAX_REQUESTS", 60),
   csrfRateLimitWindowMs: readNumber("CSRF_RATE_LIMIT_WINDOW_MS", 60000),
+  agentOpsRateLimitMax: readNumber("AGENT_OPS_RATE_LIMIT_MAX", 120),
+  agentOpsRateLimitWindowMs: readNumber("AGENT_OPS_RATE_LIMIT_WINDOW_MS", 60000),
   snapshotRetentionMs: readNumber("SNAPSHOT_RETENTION_DAYS", 2) * 24 * 60 * 60 * 1000,
   uploadMaxBytes: readNumber("UPLOAD_MAX_MB", 100) * 1024 * 1024,
   bodyLimitMb: readNumber("BODY_LIMIT_MB", 50),
@@ -376,10 +376,7 @@ export const config: Config = {
   apiKeyHashPepper: readRaw("API_KEY_HASH_PEPPER") || "api-key-hash-pepper",
   oidc: resolveOidcConfig(resolvedAuthMode),
   enablePasswordReset: readBoolean("ENABLE_PASSWORD_RESET", false),
-  enableRefreshTokenRotation: readBoolean(
-    "ENABLE_REFRESH_TOKEN_ROTATION",
-    true,
-  ),
+  enableRefreshTokenRotation: readBoolean("ENABLE_REFRESH_TOKEN_ROTATION", true),
   enableAuditLogging: readBoolean("ENABLE_AUDIT_LOGGING", false),
   enforceHttpsRedirect: readBoolean("ENFORCE_HTTPS_REDIRECT", true),
   disableOnboardingGate: readRaw("DISABLE_ONBOARDING_GATE") === "true",
@@ -390,8 +387,8 @@ export const config: Config = {
   s3: resolveS3Config(),
   linkShare: resolveLinkShareConfig(),
   updateCheck: resolveUpdateCheckConfig(),
+  ai: resolveAiConfig(),
 };
-
 if (config.nodeEnv === "production") {
   validateProductionConfig(config);
 }

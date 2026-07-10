@@ -1,9 +1,5 @@
 # Advanced deployment and operations
 
-This page contains the advanced deployment, authentication, OIDC, offline, backup, and operational notes that were previously in the main README.
-
-## Advanced
-
 <details>
 <summary>Reverse Proxy / Traefik</summary>
 
@@ -101,9 +97,8 @@ backend:
     - AUTH_MODE=oidc_enforced
     - OIDC_PROVIDER_NAME=Authentik
     - OIDC_ISSUER_URL=https://auth.example.com/application/o/excalidash/
-    # Optional split-horizon setup when backend reaches IdP via internal DNS.
-    # Keep OIDC_ISSUER_URL browser-routable; set OIDC_DISCOVERY_URL for backend-only access.
-    # - OIDC_DISCOVERY_URL=http://auth-internal:9000/application/o/excalidash/
+    # Split-horizon: keep OIDC_ISSUER_URL browser-routable and set OIDC_DISCOVERY_URL
+    # (see notes below) when the backend reaches the IdP via internal DNS.
     - OIDC_CLIENT_ID=your-client-id
     # Optional for public clients; required for confidential clients
     # - OIDC_CLIENT_SECRET=your-client-secret
@@ -138,14 +133,12 @@ Notes:
 | Topic                        | Notes                                                                                                                                                                                                                                                                                                                                 |
 |------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | OIDC-only (`oidc_enforced`)  | You typically do not use local bootstrap admin registration; first admin can be created through your IdP depending on config.                                                                                                                                                                                                         |
-| Reverse proxy                | Set `FRONTEND_URL` and `TRUST_PROXY` correctly or auth + websockets may fail.                                                                                                                                                                                                                                                         |
 | ID token algorithm           | ExcaliDash defaults to `RS256`. If your IdP client is explicitly configured for another signed ID-token algorithm such as `HS256`, set `OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG` to match that exact client setting. `none` is not allowed, and `HS*` requires `OIDC_CLIENT_SECRET`.                                                        |
 | Keycloak issuer format       | Use realm issuer URL: `https://<keycloak-host>/realms/<realm>`.                                                                                                                                                                                                                                                                       |
 | Authentik issuer format      | Use provider issuer URL: `https://<authentik-host>/application/o/<provider-slug>/`.                                                                                                                                                                                                                                                   |
 | Authentik `email_verified`   | If Authentik does not emit `email_verified=true`, either add the scope mapping or set `OIDC_REQUIRE_EMAIL_VERIFIED=false`.                                                                                                                                                                                                            |
 | Microsoft Entra `email_verified` | Entra ID often omits `email_verified`. Either add a claim mapping policy that emits `email_verified=true` for your service principal, or set `OIDC_REQUIRE_EMAIL_VERIFIED=false` for trusted internal deployments. |
 | Redirect URI                 | Must be exact callback: `https://<excalidash-host>/api/auth/oidc/callback`.                                                                                                                                                                                                                                                           |
-| Split-horizon IdP networking | Set `OIDC_ISSUER_URL` to the browser-reachable issuer and optionally `OIDC_DISCOVERY_URL` to a backend-reachable internal URL.                                                                                                                                                                                                        |
 | OIDC admin mapping           | If `OIDC_ADMIN_GROUPS` is set, admin role is reconciled on each authenticated request for OIDC users: users in those groups are promoted to `ADMIN`, users not in those groups are demoted to `USER`.                                                                                                                                 |
 | Legacy sessions              | Users with old sessions (issued before group claims were embedded) should sign out/in once so OIDC group claims are refreshed.                                                                                                                                                                                                        |
 | OIDC_DISCOVERY_URL           | In Docker Compose or Kubernetes the backend container may not be able to reach your IdP's public hostname. Set `OIDC_DISCOVERY_URL` to an internal URL so the backend can fetch `.well-known/openid-configuration` without changing `OIDC_ISSUER_URL`, which must stay as the public URL for issuer validation and browser redirects. |
@@ -154,8 +147,6 @@ Notes:
 
 <details>
 <summary>Local OIDC Test Stack (Docker + Keycloak)</summary>
-
-### Local OIDC Test Stack (Docker + Keycloak)
 
 This repo includes a Keycloak container + realm seed for local OIDC testing:
 
@@ -384,6 +375,19 @@ backend:
 ```
 
 For Unraid or other Docker templates, map the host directory to container path `/app/prisma` and keep `DATABASE_URL=file:/app/prisma/dev.db`; named volumes are harder to inspect and easier to accidentally recreate.
+
+</details>
+
+<details>
+<summary>Agent API</summary>
+
+ExcaliDash exposes a built-in HTTPS Agent API for programmatic read/edit of a
+drawing (atomic semantic ops, live socket updates). It is always available — no
+extra service to run. Tokens are minted per drawing from the Share dialog. The
+ops endpoint has its own rate limiter (`AGENT_OPS_RATE_LIMIT_MAX` /
+`AGENT_OPS_RATE_LIMIT_WINDOW_MS`, see the [Configuration Reference](CONFIGURATION.md))
+and emits `agent_ops_applied` / `agent_token_created` / `agent_token_revoked`
+audit events. Full reference and curl examples: [docs/AGENT_API.md](AGENT_API.md).
 
 </details>
 
