@@ -331,6 +331,7 @@ export const Admin: React.FC = () => {
         baseUrl={aiSettings.baseUrl}
         model={aiSettings.model}
         apiKey={aiSettings.apiKey}
+        chatgptEnabled={aiSettings.chatgptEnabled}
         status={aiSettings.status}
         envKeyConfigured={aiSettings.envKeyConfigured}
         dbKeyConfigured={aiSettings.dbKeyConfigured}
@@ -338,6 +339,7 @@ export const Admin: React.FC = () => {
         onBaseUrlChange={aiSettings.setBaseUrl}
         onModelChange={aiSettings.setModel}
         onApiKeyChange={aiSettings.setApiKey}
+        onChatgptEnabledChange={aiSettings.setChatgptEnabled}
         onSave={aiSettings.save}
         onClearDbKey={aiSettings.clearDbKey}
       />{" "}

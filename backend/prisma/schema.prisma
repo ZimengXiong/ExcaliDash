@@ -28,6 +28,7 @@ model User {
   refreshTokens       RefreshToken[]
   apiKeys             ApiKey[]
   auditLogs           AuditLog[]
+  chatGptConnection   ChatGptConnection?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 }
@@ -49,8 +50,42 @@ model SystemConfig {
   aiBaseUrl                  String?
   aiModel                    String?
   aiApiKeyEncrypted          String?
+  // Admin kill-switch for the per-user ChatGPT (subscription) provider. Null =
+  // enabled by default; false disables connect/use even when provider=chatgpt.
+  aiChatgptEnabled           Boolean?
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt
+}
+
+// Per-user ChatGPT (Codex OAuth) connection. Tokens bill the user's own
+// subscription and are encrypted at rest (backend/src/ai/crypto.ts). Never
+// exposed to the browser.
+model ChatGptConnection {
+  userId                String   @id
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId             String
+  accessTokenEncrypted  String
+  refreshTokenEncrypted String
+  // Access-token expiry (epoch ms). Refreshed transparently before use.
+  expiresAt             BigInt
+  accountEmail          String?
+  planType              String?
+  // Set when a refresh permanently fails (invalid_grant); the UI surfaces
+  // "reconnect" and the connection is treated as unusable until re-linked.
+  needsReconnect        Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+// Short-lived pending OAuth authorizations (PKCE verifier + CSRF state), tied
+// to the initiating user. Consumed once by the callback, then deleted.
+model ChatGptAuthState {
+  state        String   @id
+  userId       String
+  codeVerifier String
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
 }
 
 model Collection {

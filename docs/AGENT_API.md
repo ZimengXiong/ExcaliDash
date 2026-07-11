@@ -269,9 +269,79 @@ When audit logging is enabled (`ENABLE_AUDIT_LOGGING`), the Agent API records:
 | `agent_ops_applied` | An ops batch committed. `details`: `opsBatchId`, `opCount`, `clientBatchId`. |
 | `agent_token_created` | A drawing-scoped agent token was minted. `details`: `agentTokenId`. |
 | `agent_token_revoked` | A drawing-scoped agent token was revoked. `details`: `agentTokenId`. |
+| `chatgpt_connected` | A user linked their ChatGPT subscription. `details`: `accountId`, `plan`. |
+| `chatgpt_disconnected` | A user unlinked their ChatGPT subscription. |
 
 Each event carries the actor `userId`, the `drawing:<id>` resource, and the
 request IP/user-agent. Admins can review them on the Admin → Audit page.
+
+---
+
+## ChatGPT (subscription) provider
+
+Alongside the API-key providers (`anthropic`, `openai`, `custom`), the canvas
+assistant supports a per-user **ChatGPT (subscription)** provider
+(`AI_PROVIDER=chatgpt`). Instead of a shared server API key, **each user connects
+their own ChatGPT Plus/Pro account** and requests are billed to that user's
+subscription. Tokens are stored per user, encrypted at rest (same AES-256-GCM
+helper that protects API keys), refreshed transparently, and **never sent to the
+browser**.
+
+### Unofficial channel
+
+This uses the **Codex sign-in flow** — the same OAuth client the Codex CLI uses
+to reach the ChatGPT-backed Codex responses API
+(`https://chatgpt.com/backend-api/codex/responses`). It is an **unofficial
+channel**: OpenAI may change or block it at any time. When that happens the panel
+surfaces a "reconnect" prompt and the API-key providers keep working — there are
+no crash paths. Enable it only where billing usage to end users' own ChatGPT
+plans is acceptable.
+
+### How a user connects
+
+1. Admin sets the provider to **ChatGPT (per-user subscription)** on
+   Admin → AI Assistant (a toggle there is the enable/disable kill-switch,
+   enabled by default).
+2. In the canvas assistant each user clicks **Connect ChatGPT**. A ChatGPT tab
+   opens (authorization-code + PKCE flow, CSRF-protected by a `state` tied to
+   the user's session).
+3. After approving, the browser lands on the Codex loopback redirect
+   (`http://localhost:1455/auth/callback?code=…&state=…`), which does not load —
+   the user copies that URL and pastes it back into the panel to finish. (A
+   loopback listener is not reachable from a hosted web app, so the paste step
+   replaces it; this also works behind a reverse proxy.)
+
+> A **device-code** variant (`/deviceauth/usercode` + `/deviceauth/token`) is
+> feasible for headless/reverse-proxied deployments and needs no redirect. It is
+> documented here but not implemented — the redirect + paste flow is the primary
+> path because it works everywhere without extra server configuration.
+
+### The client-version knob
+
+The ChatGPT backend gates the **available model set** on a `client_version` query
+parameter. If a stale version is sent, models report as unsupported. This is
+exposed as **`AI_CHATGPT_CLIENT_VERSION`** (default `0.142.5`) so a self-hoster
+can bump it toward the current Codex CLI release — without a code change or
+release — when models disappear. The offered model slugs come from
+`AI_CHATGPT_MODELS` (default `gpt-5.1, gpt-5.1-codex, gpt-5.2, gpt-5.2-codex,
+gpt-5.1-codex-max`; the first is the default). The OAuth client id, issuer,
+redirect URI, and Codex base URL are likewise overridable
+(`AI_CHATGPT_CLIENT_ID`, `AI_CHATGPT_ISSUER`, `AI_CHATGPT_REDIRECT_URI`,
+`AI_CHATGPT_CODEX_BASE_URL`) for resilience if OpenAI moves an endpoint. See the
+[Configuration Reference](CONFIGURATION.md).
+
+### Endpoints
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/ai/chatgpt/status` | Per-user connection state + provider availability. |
+| `POST` | `/ai/chatgpt/connect` | Begin OAuth; returns the `authorizeUrl` to open. |
+| `POST` | `/ai/chatgpt/callback` | Finish OAuth from the pasted redirect URL. |
+| `POST` | `/ai/chatgpt/disconnect` | Revoke this user's stored connection. |
+
+All four are session-only (never agent/API-key bearer principals) and CSRF-
+protected. A `409 CHATGPT_RECONNECT` from `POST /ai/chat` (or a same-coded SSE
+`error` event) means the user must reconnect.
 
 ---
 

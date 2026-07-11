@@ -56,6 +56,25 @@ describe("ai/settings resolveAiSettings", () => {
     expect(settings.available).toBe(false);
   });
 
+  it("makes the chatgpt provider available without an API key (per-user auth)", () => {
+    const settings = resolveAiSettings({ aiProvider: "chatgpt" });
+    expect(settings.provider).toBe("chatgpt");
+    expect(settings.available).toBe(true);
+    expect(settings.chatgptEnabled).toBe(true);
+    // No env/DB key needed; a Codex default model is chosen.
+    expect(settings.apiKey).toBeNull();
+    expect(settings.model).toBeTruthy();
+  });
+
+  it("respects the admin chatgpt kill-switch", () => {
+    const settings = resolveAiSettings({
+      aiProvider: "chatgpt",
+      aiChatgptEnabled: false,
+    });
+    expect(settings.available).toBe(false);
+    expect(settings.chatgptEnabled).toBe(false);
+  });
+
   it("toAiStatus never leaks the key", () => {
     const settings = resolveAiSettings({
       aiProvider: "anthropic",
@@ -68,6 +87,7 @@ describe("ai/settings resolveAiSettings", () => {
       model: "claude-opus-4-8",
       keyConfigured: true,
       keySource: "db",
+      chatgptEnabled: true,
     });
     expect(JSON.stringify(status)).not.toContain("sk-secret");
   });

@@ -30,6 +30,7 @@ export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
             provider: row?.aiProvider ?? null,
             baseUrl: row?.aiBaseUrl ?? null,
             model: row?.aiModel ?? null,
+            chatgptEnabled: row?.aiChatgptEnabled ?? true,
           },
           // When an env key is set it always wins — the DB key field is locked.
           envKeyConfigured: Boolean(appConfig.ai.apiKey),
@@ -54,14 +55,15 @@ export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
         if (!parsed.success) {
           return res.status(400).json({ error: "Bad request", message: "Invalid AI settings payload" });
         }
-        const { provider, baseUrl, model, apiKey } = parsed.data;
-        const data: Record<string, string | null> = {};
+        const { provider, baseUrl, model, apiKey, chatgptEnabled } = parsed.data;
+        const data: Record<string, string | boolean | null> = {};
         if (provider !== undefined) data.aiProvider = provider;
         if (baseUrl !== undefined) data.aiBaseUrl = baseUrl && baseUrl.length > 0 ? baseUrl : null;
         if (model !== undefined) data.aiModel = model && model.length > 0 ? model : null;
         if (apiKey !== undefined) {
           data.aiApiKeyEncrypted = apiKey.length > 0 ? encryptSecret(apiKey) : null;
         }
+        if (chatgptEnabled !== undefined) data.aiChatgptEnabled = chatgptEnabled;
         const updated = (await prisma.systemConfig.upsert({
           where: { id: defaultSystemConfigId },
           update: data,
@@ -86,6 +88,7 @@ export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
             provider: updated.aiProvider ?? null,
             baseUrl: updated.aiBaseUrl ?? null,
             model: updated.aiModel ?? null,
+            chatgptEnabled: updated.aiChatgptEnabled ?? true,
           },
           envKeyConfigured: Boolean(appConfig.ai.apiKey),
           dbKeyConfigured: Boolean(updated.aiApiKeyEncrypted),

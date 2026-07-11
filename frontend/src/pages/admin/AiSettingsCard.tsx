@@ -9,12 +9,14 @@ type AiSettingsCardProps = {
   baseUrl: string;
   model: string;
   apiKey: string;
+  chatgptEnabled: boolean;
   status: {
     available: boolean;
     provider: AiProvider;
     model: string | null;
     keyConfigured: boolean;
     keySource: "env" | "db" | null;
+    chatgptEnabled: boolean;
   } | null;
   envKeyConfigured: boolean;
   dbKeyConfigured: boolean;
@@ -22,6 +24,7 @@ type AiSettingsCardProps = {
   onBaseUrlChange: (value: string) => void;
   onModelChange: (value: string) => void;
   onApiKeyChange: (value: string) => void;
+  onChatgptEnabledChange: (value: boolean) => void;
   onSave: () => void | Promise<void>;
   onClearDbKey: () => void | Promise<void>;
 };
@@ -31,6 +34,7 @@ const PROVIDERS: { value: AiProvider; label: string }[] = [
   { value: "anthropic", label: "Anthropic" },
   { value: "openai", label: "OpenAI" },
   { value: "custom", label: "Custom (OpenAI-compatible)" },
+  { value: "chatgpt", label: "ChatGPT (per-user subscription)" },
 ];
 
 const inputClass =
@@ -45,6 +49,7 @@ export const AiSettingsCard: React.FC<AiSettingsCardProps> = ({
   baseUrl,
   model,
   apiKey,
+  chatgptEnabled,
   status,
   envKeyConfigured,
   dbKeyConfigured,
@@ -52,6 +57,7 @@ export const AiSettingsCard: React.FC<AiSettingsCardProps> = ({
   onBaseUrlChange,
   onModelChange,
   onApiKeyChange,
+  onChatgptEnabledChange,
   onSave,
   onClearDbKey,
 }) => (
@@ -124,6 +130,30 @@ export const AiSettingsCard: React.FC<AiSettingsCardProps> = ({
       </div>
     </div>
 
+    {provider === "chatgpt" && (
+      <div className="mt-4 rounded-xl border-2 border-slate-200 dark:border-neutral-700 p-4">
+        <label className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            checked={chatgptEnabled}
+            onChange={(e) => onChatgptEnabledChange(e.target.checked)}
+            className="h-5 w-5"
+          />
+          <span className="text-sm font-bold text-slate-700 dark:text-neutral-300">
+            Allow users to connect their ChatGPT subscription
+          </span>
+        </label>
+        <p className="mt-2 text-sm text-slate-600 dark:text-neutral-400 font-medium">
+          Each user links their own ChatGPT Plus/Pro account from the canvas
+          assistant — requests bill their subscription and no server API key is
+          used. This is an unofficial channel (Codex sign-in) that OpenAI may
+          change or block. The available models depend on the configured Codex
+          client version (AI_CHATGPT_CLIENT_VERSION).
+        </p>
+      </div>
+    )}
+
+    {provider !== "chatgpt" && (
     <div className="mt-4">
       <label className={labelClass}>API key</label>
       {envKeyConfigured ? (
@@ -154,6 +184,7 @@ export const AiSettingsCard: React.FC<AiSettingsCardProps> = ({
         </div>
       )}
     </div>
+    )}
 
     <div className="mt-4 flex justify-end">
       <button

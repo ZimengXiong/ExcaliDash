@@ -9,6 +9,7 @@ export type AiSystemConfigRow = {
   aiBaseUrl?: string | null;
   aiModel?: string | null;
   aiApiKeyEncrypted?: string | null;
+  aiChatgptEnabled?: boolean | null;
 };
 
 export type ResolvedAiSettings = {
@@ -21,6 +22,11 @@ export type ResolvedAiSettings = {
   keySource: "env" | "db" | null;
   /** True when the proxy is fully configured and can serve chat requests. */
   available: boolean;
+  /**
+   * Admin kill-switch for the per-user ChatGPT (subscription) provider. Defaults
+   * to true when unset. Only meaningful when `provider === "chatgpt"`.
+   */
+  chatgptEnabled: boolean;
 };
 
 const DEFAULT_BASE_URL: Record<AiProvider, string | null> = {
@@ -28,6 +34,7 @@ const DEFAULT_BASE_URL: Record<AiProvider, string | null> = {
   anthropic: "https://api.anthropic.com/v1",
   openai: "https://api.openai.com/v1",
   custom: null,
+  chatgpt: null,
 };
 
 const DEFAULT_MODEL: Record<AiProvider, string | null> = {
@@ -35,6 +42,7 @@ const DEFAULT_MODEL: Record<AiProvider, string | null> = {
   anthropic: "claude-opus-4-8",
   openai: "gpt-4o",
   custom: null,
+  chatgpt: null,
 };
 
 const trimOrNull = (value: string | null | undefined): string | null => {
@@ -49,7 +57,8 @@ const parseProvider = (value: string | null | undefined): AiProvider | null => {
     normalized === "disabled" ||
     normalized === "anthropic" ||
     normalized === "openai" ||
-    normalized === "custom"
+    normalized === "custom" ||
+    normalized === "chatgpt"
   ) {
     return normalized;
   }
@@ -66,14 +75,18 @@ export const resolveAiSettings = (
   row?: AiSystemConfigRow | null,
 ): ResolvedAiSettings => {
   const provider = parseProvider(row?.aiProvider) ?? config.ai.provider;
+  const chatgptEnabled = row?.aiChatgptEnabled ?? true;
 
+  const chatgptDefaultModel = config.ai.chatgpt.models[0] ?? null;
   const baseUrl =
     trimOrNull(row?.aiBaseUrl) ??
     config.ai.baseUrl ??
     DEFAULT_BASE_URL[provider];
 
   const model =
-    trimOrNull(row?.aiModel) ?? config.ai.model ?? DEFAULT_MODEL[provider];
+    trimOrNull(row?.aiModel) ??
+    config.ai.model ??
+    (provider === "chatgpt" ? chatgptDefaultModel : DEFAULT_MODEL[provider]);
 
   let apiKey: string | null = null;
   let keySource: "env" | "db" | null = null;
@@ -88,11 +101,16 @@ export const resolveAiSettings = (
     }
   }
 
+  // The ChatGPT provider authenticates per-user (no server API key), so its
+  // availability depends only on the admin toggle. Per-user connection state is
+  // reported separately via the chatgpt connection status endpoint.
   const available =
-    provider !== "disabled" &&
-    Boolean(apiKey) &&
-    Boolean(baseUrl) &&
-    Boolean(model);
+    provider === "chatgpt"
+      ? chatgptEnabled
+      : provider !== "disabled" &&
+        Boolean(apiKey) &&
+        Boolean(baseUrl) &&
+        Boolean(model);
 
   return {
     provider,
@@ -102,6 +120,7 @@ export const resolveAiSettings = (
     maxTokensPerRequest: config.ai.maxTokensPerRequest,
     keySource,
     available,
+    chatgptEnabled,
   };
 };
 
@@ -112,6 +131,8 @@ export type AiStatus = {
   model: string | null;
   keyConfigured: boolean;
   keySource: "env" | "db" | null;
+  /** Admin kill-switch for the ChatGPT (subscription) provider. */
+  chatgptEnabled: boolean;
 };
 
 export const toAiStatus = (settings: ResolvedAiSettings): AiStatus => ({
@@ -120,4 +141,5 @@ export const toAiStatus = (settings: ResolvedAiSettings): AiStatus => ({
   model: settings.model,
   keyConfigured: Boolean(settings.apiKey),
   keySource: settings.keySource,
+  chatgptEnabled: settings.chatgptEnabled,
 });

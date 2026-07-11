@@ -1,49 +1,34 @@
 import express from "express";
 import rateLimit from "express-rate-limit";
-import { v4 as uuidv4 } from "uuid";
-import type { PrismaClient } from "../generated/client";
 import {
   canEditDrawing,
   canViewDrawing,
   getDrawingAccess,
 } from "../authz/sharing";
-import { sanitizeDrawingData } from "../security";
-import { applyOps, type ApplyOpsSuccess } from "../agent/applyOps";
-import { opsBatchSchema, type OpError } from "../agent/opSchemas";
-import { buildStructuralSummary, summarizeElements } from "../agent/summary";
-import { applySceneUpdateTx, isVersionConflict } from "../routes/dashboard/sceneUpdate";
 import { config } from "../config";
-import type { AuditLogData } from "../utils/audit";
+import { buildStructuralSummary } from "../agent/summary";
 import { resolveAiSettings, toAiStatus, type AiSystemConfigRow } from "./settings";
 import { AGENT_TOOLS } from "./toolDefs";
 import { anthropicAdapter } from "./providers/anthropic";
 import { openaiAdapter } from "./providers/openai";
+import { codexAdapter } from "./providers/codex";
+import { ensureFreshAuth, flagReconnect, type ChatGptAuth } from "./chatgpt/store";
+import { registerChatGptRoutes } from "./chatgpt/routes";
+import { applyOpsBatch, type RegisterAiRoutesDeps } from "./applyOpsBatch";
 import {
   AiProviderError,
   type AiProviderAdapter,
   type ConversationTurn,
 } from "./providers/types";
 
-export type RegisterAiRoutesDeps = {
-  prisma: PrismaClient;
-  requireAuth: express.RequestHandler;
-  asyncHandler: (
-    fn: (req: express.Request, res: express.Response, next: express.NextFunction) => unknown,
-  ) => express.RequestHandler;
-  parseJsonField: <T>(raw: string | null | undefined, fallback: T) => T;
-  invalidateDrawingsCache: () => void;
-  logAuditEvent: (event: AuditLogData) => Promise<void>;
-  io?: {
-    to: (room: string) => { emit: (event: string, payload: unknown) => void };
-  } | null;
-  defaultSystemConfigId: string;
-};
+export type { RegisterAiRoutesDeps } from "./applyOpsBatch";
 
 const MAX_TOOL_ITERATIONS = 8;
 
 const adapterFor = (provider: string): AiProviderAdapter | null => {
   if (provider === "anthropic") return anthropicAdapter;
   if (provider === "openai" || provider === "custom") return openaiAdapter;
+  if (provider === "chatgpt") return codexAdapter;
   return null;
 };
 
@@ -62,137 +47,6 @@ const buildSystemPrompt = (name: string | null, summary: string): string =>
   ].join("\n");
 
 type SseWriter = (event: string, data: unknown) => void;
-
-// Apply one validated op batch through the shared scene-update transaction —
-// identical snapshot / sanitize / version semantics as a normal save — then
-// broadcast to open editors. Mirrors the REST agent-ops route.
-const applyOpsBatch = async (
-  deps: RegisterAiRoutesDeps,
-  drawingId: string,
-  userId: string,
-  rawOps: unknown,
-): Promise<
-  | {
-      ok: true;
-      version: number;
-      revertVersion: number;
-      summary: string;
-      summaryDelta: string[];
-      opsBatchId: string;
-    }
-  | { ok: false; errors: OpError[] }
-> => {
-  const parsed = opsBatchSchema.safeParse(rawOps);
-  if (!parsed.success) {
-    return {
-      ok: false,
-      errors: [
-        {
-          opIndex: 0,
-          code: "INVALID_OP",
-          message: `Invalid ops batch: ${parsed.error.issues
-            .map((i) => i.message)
-            .join("; ")
-            .slice(0, 300)}`,
-        },
-      ],
-    };
-  }
-  const { ops } = parsed.data;
-
-  const validationError = new Error("OPS_VALIDATION_FAILED");
-  let opsError: OpError[] | null = null;
-  let applied: ApplyOpsSuccess | null = null;
-
-  try {
-    const result = await applySceneUpdateTx({
-      prisma: deps.prisma,
-      drawingId,
-      parseJsonField: deps.parseJsonField,
-      versionGuard: "optimistic",
-      maxRetries: 3,
-      mutate: (current) => {
-        const currentElements = deps.parseJsonField<any[]>(current.elements, []);
-        const currentAppState = deps.parseJsonField<Record<string, unknown>>(
-          current.appState,
-          {},
-        );
-        const out = applyOps({ ops, elements: currentElements });
-        if (out.ok === false) {
-          opsError = out.errors;
-          throw validationError;
-        }
-        const sanitized = sanitizeDrawingData({
-          elements: out.elements,
-          appState: currentAppState,
-          files: undefined,
-          preview: null,
-        });
-        applied = { ...out, elements: sanitized.elements as any[] };
-        return { data: { elements: JSON.stringify(sanitized.elements) } };
-      },
-    });
-
-    const success = applied as ApplyOpsSuccess | null;
-    if (!success) throw new Error("Ops applied without a result");
-
-    const changedElements = success.elements.filter((el) =>
-      success.changedIds.has(el.id),
-    );
-    const opsBatchId = uuidv4();
-    const newVersion = result.drawing.version;
-
-    if (deps.io) {
-      deps.io.to(`drawing_${drawingId}`).emit("element-update", {
-        drawingId,
-        elements: changedElements,
-        elementOrder: success.orderChanged
-          ? success.elements.map((el) => el.id)
-          : undefined,
-        origin: "agent-ops",
-        opsBatchId,
-      });
-    }
-
-    deps.invalidateDrawingsCache();
-    await deps.logAuditEvent({
-      userId,
-      action: "agent_ops_applied",
-      resource: `drawing:${drawingId}`,
-      details: { opsBatchId, opCount: ops.length, source: "ai-chat" },
-    });
-
-    return {
-      ok: true,
-      version: newVersion,
-      revertVersion: result.revertVersion,
-      summary: buildStructuralSummary({
-        name: result.drawing.name,
-        version: newVersion,
-        elements: success.elements,
-      }),
-      summaryDelta: summarizeElements(changedElements),
-      opsBatchId,
-    };
-  } catch (error) {
-    if (error === validationError && opsError) {
-      return { ok: false, errors: opsError };
-    }
-    if (isVersionConflict(error)) {
-      return {
-        ok: false,
-        errors: [
-          {
-            opIndex: 0,
-            code: "INVALID_OP",
-            message: "Drawing changed concurrently; ask the user to retry.",
-          },
-        ],
-      };
-    }
-    throw error;
-  }
-};
 
 export const registerAiRoutes = (
   app: express.Express,
@@ -215,6 +69,15 @@ export const registerAiRoutes = (
     standardHeaders: true,
     legacyHeaders: false,
     validate: { trustProxy: false, xForwardedForHeader: false },
+  });
+
+  registerChatGptRoutes({
+    app,
+    prisma,
+    requireAuth,
+    asyncHandler,
+    logAuditEvent: deps.logAuditEvent,
+    loadAiSettings,
   });
 
   // GET /ai/status — availability probe (mirrors the auth-status pattern).
@@ -282,6 +145,25 @@ export const registerAiRoutes = (
       const drawing = await prisma.drawing.findUnique({ where: { id: drawingId } });
       if (!drawing) return res.status(404).json({ error: "Drawing not found" });
 
+      // For the ChatGPT (subscription) provider, resolve THIS user's tokens and
+      // refresh them if needed. A missing/dead connection surfaces a reconnect
+      // prompt without touching the API-key providers.
+      let codexAuth: ChatGptAuth | undefined;
+      if (settings.provider === "chatgpt") {
+        const fresh = await ensureFreshAuth(prisma, req.user.id);
+        if (fresh.ok === false) {
+          return res.status(409).json({
+            error: "ChatGPT not connected",
+            code: "CHATGPT_RECONNECT",
+            message:
+              fresh.reason === "not_connected"
+                ? "Connect your ChatGPT account to use the assistant"
+                : "Your ChatGPT connection expired — reconnect to continue",
+          });
+        }
+        codexAuth = fresh.auth;
+      }
+
       // Switch to SSE.
       res.status(200);
       res.setHeader("Content-Type", "text/event-stream");
@@ -315,6 +197,7 @@ export const registerAiRoutes = (
             turns,
             tools: AGENT_TOOLS,
             signal: abort.signal,
+            codexAuth,
           });
 
           if (completion.text) send("token", { text: completion.text });
@@ -369,9 +252,24 @@ export const registerAiRoutes = (
           res.end();
           return;
         }
-        const message =
-          error instanceof AiProviderError ? error.message : "AI chat failed";
-        send("error", { code: "PROVIDER_ERROR", message });
+        // A 401 from the Codex backend after a fresh token means OpenAI stopped
+        // accepting this connection: flag it so the panel prompts a reconnect
+        // and other providers keep working.
+        if (
+          settings.provider === "chatgpt" &&
+          error instanceof AiProviderError &&
+          error.status === 401
+        ) {
+          await flagReconnect(prisma, req.user.id);
+          send("error", {
+            code: "CHATGPT_RECONNECT",
+            message: "Your ChatGPT connection expired — reconnect to continue",
+          });
+        } else {
+          const message =
+            error instanceof AiProviderError ? error.message : "AI chat failed";
+          send("error", { code: "PROVIDER_ERROR", message });
+        }
       }
       res.end();
     }),

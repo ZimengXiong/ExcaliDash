@@ -39,6 +39,7 @@ describe("ChatPanel", () => {
       model: null,
       keyConfigured: false,
       keySource: null,
+      chatgptEnabled: true,
     });
     const { container } = render(<Harness />);
     await waitFor(() => expect(getAiStatusMock).toHaveBeenCalled());
@@ -61,6 +62,7 @@ describe("ChatPanel", () => {
       model: "claude",
       keyConfigured: true,
       keySource: "env",
+      chatgptEnabled: true,
     });
     render(<Harness />);
 
@@ -110,6 +112,7 @@ describe("ChatPanel", () => {
       model: "claude",
       keyConfigured: true,
       keySource: "env",
+      chatgptEnabled: true,
     });
     render(<Harness />);
     fireEvent.click(await screen.findByLabelText("Open canvas assistant"));
@@ -131,6 +134,7 @@ describe("ChatPanel", () => {
       model: "claude",
       keyConfigured: true,
       keySource: "env",
+      chatgptEnabled: true,
     });
     render(<Harness />);
     fireEvent.click(await screen.findByLabelText("Open canvas assistant"));
@@ -165,6 +169,7 @@ describe("ChatPanel", () => {
       model: "claude",
       keyConfigured: true,
       keySource: "env",
+      chatgptEnabled: true,
     });
     render(<Harness />);
     fireEvent.click(await screen.findByLabelText("Open canvas assistant"));

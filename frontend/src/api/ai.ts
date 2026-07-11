@@ -1,7 +1,12 @@
 import { api, API_URL } from "./client";
 import { ensureCsrfToken, getCsrfHeader } from "./auth";
 
-export type AiProvider = "anthropic" | "openai" | "custom" | "disabled";
+export type AiProvider =
+  | "anthropic"
+  | "openai"
+  | "custom"
+  | "chatgpt"
+  | "disabled";
 
 /** Availability probe mirroring the backend `GET /ai/status` payload. */
 export type AiStatus = {
@@ -10,6 +15,7 @@ export type AiStatus = {
   model: string | null;
   keyConfigured: boolean;
   keySource: "env" | "db" | null;
+  chatgptEnabled: boolean;
 };
 
 export const getAiStatus = async (): Promise<AiStatus> => {

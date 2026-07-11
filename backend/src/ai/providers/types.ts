@@ -25,6 +25,11 @@ export type CompletionRequest = {
   turns: ConversationTurn[];
   tools: AgentTool[];
   signal?: AbortSignal;
+  /**
+   * Per-user credentials for the ChatGPT (subscription) provider. Absent for
+   * API-key providers, which authenticate via `settings.apiKey` instead.
+   */
+  codexAuth?: { accessToken: string; accountId: string };
 };
 
 export type AiProviderAdapter = {

@@ -10,6 +10,11 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { getAiStatus } from "../../api/ai";
+import {
+  getChatGptStatus,
+  type ChatGptConnectionStatus,
+} from "../../api/chatgpt";
+import { ChatGptConnect } from "./ChatGptConnect";
 import { useAgentChat, type ChatBatch, type ChatMessage } from "./useAgentChat";
 
 const STR = {
@@ -139,6 +144,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   selfAgentBatchIdsRef,
 }) => {
   const [available, setAvailable] = useState(false);
+  const [isChatGpt, setIsChatGpt] = useState(false);
+  const [chatgpt, setChatgpt] = useState<ChatGptConnectionStatus | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const listRef = useRef<HTMLDivElement>(null);
@@ -155,6 +162,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     onSelfOpsBatch: registerSelfBatch,
   });
 
+  const refreshChatGpt = useCallback(() => {
+    getChatGptStatus()
+      .then(setChatgpt)
+      .catch(() => setChatgpt(null));
+  }, []);
+
   useEffect(() => {
     if (!canEdit || !drawingId) {
       setAvailable(false);
@@ -163,7 +176,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     let active = true;
     getAiStatus()
       .then((status) => {
-        if (active) setAvailable(status.available);
+        if (!active) return;
+        setAvailable(status.available);
+        const chatgptProvider = status.provider === "chatgpt";
+        setIsChatGpt(chatgptProvider);
+        if (chatgptProvider && status.available) refreshChatGpt();
       })
       .catch(() => {
         if (active) setAvailable(false);
@@ -171,7 +188,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     return () => {
       active = false;
     };
-  }, [canEdit, drawingId]);
+  }, [canEdit, drawingId, refreshChatGpt]);
 
   useEffect(() => {
     if (isOpen && listRef.current) {
@@ -201,6 +218,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   );
 
   if (!available) return null;
+
+  // With the ChatGPT (subscription) provider the panel stays visible even when
+  // the user hasn't linked their account — it shows a Connect flow instead of
+  // the chat until a usable connection exists.
+  const needsConnect = isChatGpt && !chatgpt?.connected;
 
   if (!isOpen) {
     return (
@@ -236,27 +258,36 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         </button>
       </header>
 
-      <div
-        ref={listRef}
-        className="flex-1 space-y-3 overflow-y-auto p-4"
-        data-testid="chat-messages"
-      >
-        {messages.length === 0 ? (
-          <p className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
-            {STR.empty}
-          </p>
-        ) : (
-          messages.map((message) => (
-            <MessageBubble
-              key={message.id}
-              message={message}
-              onUndo={undoBatch}
-            />
-          ))
-        )}
-      </div>
+      {needsConnect ? (
+        <div className="flex-1 overflow-y-auto" data-testid="chatgpt-connect">
+          <ChatGptConnect
+            needsReconnect={Boolean(chatgpt?.needsReconnect)}
+            onConnected={setChatgpt}
+          />
+        </div>
+      ) : (
+        <>
+          <div
+            ref={listRef}
+            className="flex-1 space-y-3 overflow-y-auto p-4"
+            data-testid="chat-messages"
+          >
+            {messages.length === 0 ? (
+              <p className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                {STR.empty}
+              </p>
+            ) : (
+              messages.map((message) => (
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  onUndo={undoBatch}
+                />
+              ))
+            )}
+          </div>
 
-      <form
+          <form
         onSubmit={handleSubmit}
         className="shrink-0 border-t border-gray-200 dark:border-neutral-800 p-3"
       >
@@ -292,7 +323,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             </button>
           )}
         </div>
-      </form>
+          </form>
+        </>
+      )}
     </aside>
   );
 };

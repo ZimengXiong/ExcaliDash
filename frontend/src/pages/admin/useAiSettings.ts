@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import * as api from "../../api";
 
-export type AiProvider = "disabled" | "anthropic" | "openai" | "custom";
+export type AiProvider = "disabled" | "anthropic" | "openai" | "custom" | "chatgpt";
 
 type AiSettingsResponse = {
   status: {
@@ -11,11 +11,13 @@ type AiSettingsResponse = {
     model: string | null;
     keyConfigured: boolean;
     keySource: "env" | "db" | null;
+    chatgptEnabled: boolean;
   };
   overrides: {
     provider: AiProvider | null;
     baseUrl: string | null;
     model: string | null;
+    chatgptEnabled: boolean;
   };
   envKeyConfigured: boolean;
   dbKeyConfigured: boolean;
@@ -36,6 +38,7 @@ export const useAiSettings = ({ authEnabled, isAdmin, setError }: UseAiSettingsP
   const [baseUrl, setBaseUrl] = useState("");
   const [model, setModel] = useState("");
   const [apiKey, setApiKey] = useState(KEY_UNCHANGED);
+  const [chatgptEnabled, setChatgptEnabled] = useState(true);
   const [status, setStatus] = useState<AiSettingsResponse["status"] | null>(null);
   const [envKeyConfigured, setEnvKeyConfigured] = useState(false);
   const [dbKeyConfigured, setDbKeyConfigured] = useState(false);
@@ -45,6 +48,7 @@ export const useAiSettings = ({ authEnabled, isAdmin, setError }: UseAiSettingsP
     setProvider((data.overrides.provider ?? data.status.provider) as AiProvider);
     setBaseUrl(data.overrides.baseUrl ?? "");
     setModel(data.overrides.model ?? "");
+    setChatgptEnabled(data.overrides.chatgptEnabled ?? true);
     setEnvKeyConfigured(data.envKeyConfigured);
     setDbKeyConfigured(data.dbKeyConfigured);
     setApiKey(KEY_UNCHANGED);
@@ -76,6 +80,7 @@ export const useAiSettings = ({ authEnabled, isAdmin, setError }: UseAiSettingsP
         provider,
         baseUrl: baseUrl.trim() || null,
         model: model.trim() || null,
+        chatgptEnabled,
       };
       // Only send apiKey when the admin typed something (empty = leave as-is).
       if (apiKey !== KEY_UNCHANGED) payload.apiKey = apiKey;
@@ -91,7 +96,7 @@ export const useAiSettings = ({ authEnabled, isAdmin, setError }: UseAiSettingsP
     } finally {
       setSaving(false);
     }
-  }, [saving, provider, baseUrl, model, apiKey, applyResponse, setError]);
+  }, [saving, provider, baseUrl, model, apiKey, chatgptEnabled, applyResponse, setError]);
 
   const clearDbKey = useCallback(async () => {
     setSaving(true);
@@ -123,6 +128,7 @@ export const useAiSettings = ({ authEnabled, isAdmin, setError }: UseAiSettingsP
     baseUrl,
     model,
     apiKey,
+    chatgptEnabled,
     status,
     envKeyConfigured,
     dbKeyConfigured,
@@ -130,6 +136,7 @@ export const useAiSettings = ({ authEnabled, isAdmin, setError }: UseAiSettingsP
     setBaseUrl,
     setModel,
     setApiKey,
+    setChatgptEnabled,
     load,
     save,
     clearDbKey,
