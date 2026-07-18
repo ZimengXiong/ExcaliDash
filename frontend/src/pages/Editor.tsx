@@ -426,6 +426,7 @@ const ExcalidrawEditor: React.FC = () => {
       <EditorDialogs
         drawingId={id}
         drawingName={drawingName}
+        getCurrentVersion={() => currentDrawingVersionRef.current}
         excalidrawAPIRef={excalidrawAPI}
         isHistoryOpen={isHistoryOpen}
         isShareOpen={isShareOpen}

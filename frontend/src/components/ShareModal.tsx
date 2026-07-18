@@ -232,9 +232,6 @@ export const ShareModal: React.FC<Props> = ({
     setIsLoading(true);
     setError(null);
     try {
-      if (activeLink) {
-        await api.revokeLinkShare(drawingId, activeLink.id);
-      }
       const perm = newPermission ?? linkPermission;
       setLinkPermission(perm);
       let expiresAt =

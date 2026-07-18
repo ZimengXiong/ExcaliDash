@@ -334,6 +334,11 @@ export const registerDrawingSharingRoutes = (
         },
       });
 
+      // The current-policy row may have been downgraded from edit to view or
+      // had its expiry shortened. Recheck connected sessions immediately so
+      // an existing collaborator cannot keep stale elevated access.
+      await revokeLiveAccess(id);
+
       if (config.enableAuditLogging) {
         await logAuditEvent({
           userId: req.user.id,

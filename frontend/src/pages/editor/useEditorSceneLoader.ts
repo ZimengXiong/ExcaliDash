@@ -138,22 +138,25 @@ export const useEditorSceneLoader = ({
       }
       try {
         const libraryItemsPromise = userIdKey
-          ? api.getLibrary().catch((err) => {
-              console.warn("Failed to load library, using empty:", err);
-              return { items: [], version: 0 };
-            })
-          : Promise.resolve({ items: [], version: 0 });
+          ? api.getLibrary()
+              .then((library) => ({ library, loaded: true }))
+              .catch((err) => {
+                // An empty library is not a safe fallback for a failed read:
+                // Excalidraw may report it as a user change and overwrite the
+                // real library. Pause persistence until a later successful load.
+                console.warn("Failed to load library; library saves are paused:", err);
+                return { library: { items: [], version: 0 }, loaded: false };
+              })
+          : Promise.resolve({ library: { items: [], version: 0 }, loaded: false });
         const [data, library] = await Promise.all([
           api.getDrawing(id),
           libraryItemsPromise,
         ]);
         if (cancelled) return;
-        const libraryItems = library.items;
+        const libraryItems = library.library.items;
         if (refs.libraryItems) refs.libraryItems.current = libraryItems;
-        if (refs.libraryVersion) refs.libraryVersion.current = library.version;
-        // initialData is now populated; subsequent empty callbacks represent
-        // an explicit user clear rather than pre-hydration initialization.
-        if (refs.libraryHydrated) refs.libraryHydrated.current = true;
+        if (refs.libraryVersion) refs.libraryVersion.current = library.library.version;
+        if (refs.libraryHydrated) refs.libraryHydrated.current = library.loaded;
         setDrawingName(data.name);
         setAccessLevel(
           data.accessLevel === "view" ||

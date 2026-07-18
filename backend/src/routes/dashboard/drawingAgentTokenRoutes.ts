@@ -111,7 +111,9 @@ export const registerDrawingAgentTokenRoutes = (
     return req.principal.userId;
   };
 
-  // GET /drawings/:id/agent-tokens — list active agent tokens for the drawing.
+  // GET /drawings/:id/agent-tokens — list non-revoked agent tokens for the drawing.
+  // Expired tokens are included so owners can see why a credential stopped
+  // working; the authentication middleware rejects them.
   app.get(
     "/drawings/:id/agent-tokens",
     requireAuth,

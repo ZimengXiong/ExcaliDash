@@ -103,7 +103,13 @@ export const registerDrawingHistoryRoutes = (
         return res.status(404).json({ error: "Drawing not found" });
       }
 
-      const expectedVersion = typeof req.body?.version === "number" ? req.body.version : undefined;
+      const expectedVersion = req.body?.version;
+      if (!Number.isInteger(expectedVersion) || expectedVersion < 0) {
+        return res.status(400).json({
+          error: "Validation error",
+          message: "A current drawing version is required to restore history.",
+        });
+      }
       const result = await prisma.$transaction(async (tx) => {
         const [drawing, snapshot] = await Promise.all([
           tx.drawing.findUnique({ where: { id } }),
@@ -112,7 +118,7 @@ export const registerDrawingHistoryRoutes = (
         if (!drawing) return { kind: "missing-drawing" as const };
         if (!snapshot) return { kind: "missing-snapshot" as const };
         const update = await tx.drawing.updateMany({
-          where: { id, version: expectedVersion ?? drawing.version },
+          where: { id, version: expectedVersion },
           data: { elements: snapshot.elements, appState: snapshot.appState, files: snapshot.files, version: { increment: 1 } },
         });
         if (update.count === 0) return { kind: "conflict" as const };

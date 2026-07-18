@@ -57,6 +57,7 @@ const makeParams = (over: Record<string, any> = {}) => ({
 
 describe("useEditorSceneLoader", () => {
   const getDrawing = vi.mocked(api.getDrawing);
+  const getLibrary = vi.mocked(api.getLibrary);
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -122,6 +123,25 @@ describe("useEditorSceneLoader", () => {
     rerender({ user: { id: "u1" } });
     await Promise.resolve();
     expect(getDrawing).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps library persistence paused when the library read fails", async () => {
+    getDrawing.mockResolvedValue({
+      name: "A",
+      elements: [],
+      files: {},
+      appState: {},
+      version: 1,
+      accessLevel: "owner",
+    } as any);
+    getLibrary.mockRejectedValue(new Error("network"));
+    const params = makeParams();
+
+    renderHook(() => useEditorSceneLoader(params));
+
+    await waitFor(() => expect(params.setInitialData).toHaveBeenCalled());
+    expect(params.refs.libraryHydrated.current).toBe(false);
+    expect(params.refs.libraryItems.current).toEqual([]);
   });
 
   describe("progressive file streaming", () => {
