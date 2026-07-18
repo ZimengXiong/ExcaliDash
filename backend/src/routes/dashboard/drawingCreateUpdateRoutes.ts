@@ -24,7 +24,6 @@ import {
   tldrawSceneExceedsCap,
   tldrawSceneTooLargeBody,
 } from "./tldrawScene";
-
 export const registerDrawingCreateUpdateRoutes = (
   app: express.Express,
   context: DrawingRouteContext,
@@ -51,14 +50,12 @@ export const registerDrawingCreateUpdateRoutes = (
     requireAuth,
     asyncHandler(async (req, res) => {
       if (!req.user) return res.status(401).json({ error: "Unauthorized" });
-
       const engineResult = engineCreateFieldSchema.safeParse(req.body?.engine);
       if (!engineResult.success) {
         return respondWithValidationErrors(res, engineResult.error.issues);
       }
       const engine = engineResult.data;
       const isTldraw = engine === "tldraw";
-
       const isImportedDrawing = req.headers["x-imported-file"] === "true";
       // The imported-file validator is excalidraw-shaped; tldraw import is
       // deferred, so the header is ignored for tldraw create.
@@ -69,14 +66,12 @@ export const registerDrawingCreateUpdateRoutes = (
             "The imported file contains potentially malicious content or invalid structure",
         });
       }
-
       const parsed = (
         isTldraw ? tldrawCreateSchema : drawingCreateSchema
       ).safeParse(req.body);
       if (!parsed.success) {
         return respondWithValidationErrors(res, parsed.error.issues);
       }
-
       const payload = parsed.data as {
         name?: string;
         collectionId?: string | null;
@@ -85,7 +80,6 @@ export const registerDrawingCreateUpdateRoutes = (
         preview?: string | null;
         files?: Record<string, unknown>;
       };
-
       if (
         isTldraw &&
         tldrawSceneExceedsCap(payload.elements, config.tldrawMaxSceneBytes)
@@ -99,7 +93,6 @@ export const registerDrawingCreateUpdateRoutes = (
         payload.collectionId === undefined ? null : payload.collectionId;
       const targetCollectionId =
         toInternalTrashCollectionId(targetCollectionIdRaw, req.user.id) ?? null;
-
       if (
         targetCollectionId &&
         !isTrashCollectionId(targetCollectionId, req.user.id)
@@ -109,7 +102,6 @@ export const registerDrawingCreateUpdateRoutes = (
         });
         if (!collection)
           return res.status(404).json({ error: "Collection not found" });
-
         // If the collection belongs to someone else, check the user has editor access
         if (collection.userId !== req.user.id) {
           const share = await prisma.collectionShare.findFirst({
@@ -127,7 +119,6 @@ export const registerDrawingCreateUpdateRoutes = (
       } else if (targetCollectionIdRaw === "trash") {
         await ensureTrashCollection(prisma, req.user.id);
       }
-
       const newDrawingId = uuidv4();
       const stagedFiles = createStagedDrawingFiles();
       let processedFiles: Record<string, unknown>;
@@ -155,7 +146,6 @@ export const registerDrawingCreateUpdateRoutes = (
         );
         processedPreview = typeof rewritten === "string" ? rewritten : null;
       }
-
       let newDrawing;
       try {
         newDrawing = await prisma.drawing.create({
@@ -180,7 +170,6 @@ export const registerDrawingCreateUpdateRoutes = (
         throw error;
       }
       invalidateDrawingsCache();
-
       return res.json({
         ...newDrawing,
         collectionId: toPublicTrashCollectionId(
@@ -193,13 +182,11 @@ export const registerDrawingCreateUpdateRoutes = (
       });
     }),
   );
-
   app.put(
     "/drawings/:id",
     optionalAuth,
     asyncHandler(async (req, res) => {
       const principal = await getRequestPrincipal(req);
-
       const { id } = req.params;
       const access = await getDrawingAccess({
         prisma,
@@ -213,13 +200,11 @@ export const registerDrawingCreateUpdateRoutes = (
           message: "Drawing does not exist",
         });
       }
-
       const existingDrawing = await prisma.drawing.findUnique({
         where: { id },
       });
       if (!existingDrawing)
         return res.status(404).json({ error: "Drawing not found" });
-
       // The stored row's engine — never the request body — decides validation.
       // A client can't smuggle a tldraw payload into an excalidraw row (its
       // object `elements` fails elementSchema.array()) or vice versa, and
@@ -237,7 +222,6 @@ export const registerDrawingCreateUpdateRoutes = (
         }
         return respondWithValidationErrors(res, parsed.error.issues);
       }
-
       const payload = parsed.data as {
         name?: string;
         collectionId?: string | null;
@@ -247,7 +231,6 @@ export const registerDrawingCreateUpdateRoutes = (
         files?: Record<string, unknown>;
         version?: number;
       };
-
       if (
         isTldraw &&
         tldrawSceneExceedsCap(payload.elements, config.tldrawMaxSceneBytes)
@@ -262,7 +245,6 @@ export const registerDrawingCreateUpdateRoutes = (
         payload.elements !== undefined ||
         payload.appState !== undefined ||
         payload.files !== undefined;
-
       if (isSceneUpdate && payload.version !== undefined && payload.version !== existingDrawing.version) {
         return res.status(409).json({
           error: "Conflict",
@@ -274,7 +256,6 @@ export const registerDrawingCreateUpdateRoutes = (
       // `version` is owned by applySceneUpdateTx for scene updates; do not set
       // it here.
       const data: Prisma.DrawingUpdateInput = {};
-
       if (payload.name !== undefined) data.name = payload.name;
       if (payload.elements !== undefined)
         data.elements = JSON.stringify(payload.elements);
@@ -311,7 +292,6 @@ export const registerDrawingCreateUpdateRoutes = (
         }
         data.preview = typeof processedPreview === "string" ? processedPreview : null;
       }
-
       if (payload.collectionId !== undefined) {
         if (!isOwnerAccess(access)) {
           return res.status(403).json({
@@ -335,9 +315,7 @@ export const registerDrawingCreateUpdateRoutes = (
           (data as Prisma.DrawingUncheckedUpdateInput).collectionId = null;
         }
       }
-
       let updatedDrawing: typeof existingDrawing | null = null;
-
       try {
         if (isSceneUpdate) {
           const result = await applySceneUpdateTx({
@@ -391,7 +369,6 @@ export const registerDrawingCreateUpdateRoutes = (
         return res.status(404).json({ error: "Drawing not found" });
       }
       invalidateDrawingsCache();
-
       return res.json({
         ...updatedDrawing,
         collectionId: toPublicTrashCollectionId(
@@ -405,5 +382,4 @@ export const registerDrawingCreateUpdateRoutes = (
       });
     }),
   );
-
 };

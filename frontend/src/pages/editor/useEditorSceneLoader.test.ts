@@ -37,23 +37,27 @@ const makeRefs = () => ({
   uploadedRefs: { current: {} as Record<string, string> },
 });
 
-const makeParams = (over: Record<string, any> = {}) => ({
-  id: "drawing-A",
-  user: { id: "u1" },
-  location: { pathname: "/editor/drawing-A", search: "", hash: "" },
-  navigate: vi.fn(),
-  refs: makeRefs(),
-  setAccessLevel: vi.fn(),
-  setDrawingName: vi.fn(),
-  setInitialData: vi.fn(),
-  setIsReady: vi.fn(),
-  setIsSceneLoading: vi.fn(),
-  setLoadError: vi.fn(),
-  recordElementVersion: vi.fn(),
-  normalizeImageElementStatus: (els?: readonly any[]) => els ?? [],
-  normalizeTextElementDimensions: (elements: readonly any[]) => elements,
-  ...over,
-});
+const makeParams = (over: Record<string, any> = {}) => {
+  const refs = makeRefs();
+  return {
+    id: "drawing-A",
+    user: { id: "u1" },
+    uploadedRefs: refs.uploadedRefs,
+    location: { pathname: "/editor/drawing-A", search: "", hash: "" },
+    navigate: vi.fn(),
+    refs,
+    setAccessLevel: vi.fn(),
+    setDrawingName: vi.fn(),
+    setInitialData: vi.fn(),
+    setIsReady: vi.fn(),
+    setIsSceneLoading: vi.fn(),
+    setLoadError: vi.fn(),
+    recordElementVersion: vi.fn(),
+    normalizeImageElementStatus: (els?: readonly any[]) => els ?? [],
+    normalizeTextElementDimensions: (elements: readonly any[]) => elements,
+    ...over,
+  };
+};
 
 describe("useEditorSceneLoader", () => {
   const getDrawing = vi.mocked(api.getDrawing);
