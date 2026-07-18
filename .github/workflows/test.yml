@@ -30,7 +30,6 @@ jobs:
         run: |
           cd backend
           npx prisma generate
-      
       - name: Run backend tests
         run: |
           cd backend
@@ -110,7 +109,6 @@ jobs:
         run: |
           cd backend
           npx prisma generate
-      
       - name: Setup backend database
         run: |
           cd backend
@@ -221,3 +219,8 @@ jobs:
         run: |
           cd backend
           npx prisma generate
+
+      - name: Run sanitization tests
+        run: |
+          cd backend
+          npx vitest run src/__tests__/sanitize-image-dataurls.test.ts src/__tests__/sanitize-svg-preview.test.ts

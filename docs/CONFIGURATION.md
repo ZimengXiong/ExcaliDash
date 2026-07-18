@@ -126,15 +126,16 @@ This file and `backend/.env.example` are generated from that registry; do not ed
 
 | Variable | Default | Required | Description |
 | --- | --- | --- | --- |
-| `AI_PROVIDER` | `disabled` | No | AI chat-proxy provider: disabled (chat panel hidden), anthropic (Messages API), openai (Chat Completions), custom (any OpenAI-compatible baseUrl), or chatgpt (each user connects their own ChatGPT Plus/Pro subscription via Codex OAuth — billed to the user, no server API key). The admin settings page can override this at runtime. Allowed: disabled, anthropic, openai, custom, chatgpt. |
-| `AI_API_KEY` | _(none — secret)_ | No | Provider API key for the AI chat proxy. Server-side only — never shipped to the browser. An env-provided key always wins over a key stored via the admin settings page. |
+| `AI_PROVIDER` | `disabled` | No | Bootstrap/legacy AI provider: disabled, anthropic, openai, gemini, custom (OpenAI-compatible), or chatgpt. Admin → AI provider registry can replace this single environment profile with multiple named profiles selectable in canvas chat. Allowed: disabled, anthropic, openai, gemini, custom, chatgpt. |
+| `AI_API_KEY` | _(none — secret)_ | No | API key for the bootstrap `legacy` AI profile. Server-side only. Additional provider keys are encrypted and stored per profile from the admin settings page. |
 | `AI_BASE_URL` | — | No | Override the provider base URL (e.g. an OpenAI-compatible gateway or self-hosted endpoint). Required for AI_PROVIDER=custom; optional otherwise. |
 | `AI_MODEL` | — | No | Model id the chat proxy requests (e.g. claude-opus-4-8 for anthropic, gpt-4o for openai). Falls back to a provider default when unset. |
 | `AI_MAX_TOKENS_PER_REQUEST` | `4096` | No | Maximum output tokens the chat proxy requests per model call. |
 | `AI_RATE_LIMIT_MAX` | `60` | No | Maximum AI chat requests allowed per user within AI_RATE_LIMIT_WINDOW_MS. |
 | `AI_RATE_LIMIT_WINDOW_MS` | `60000` | No | Rolling window (ms) for the AI chat per-user rate limiter. |
+| `AI_CHATGPT_ENABLED` | `true` | No | Allow users to connect ChatGPT subscriptions. Disable this deployment-wide by setting false. |
 | `AI_CHATGPT_CLIENT_VERSION` | `0.142.5` | No | Codex `client_version` sent to the ChatGPT backend (AI_PROVIDER=chatgpt). The backend gates the available model set on this — bump it toward the current Codex CLI release without a redeploy if models disappear. |
-| `AI_CHATGPT_MODELS` | — | No | Comma-separated Codex model slugs offered when AI_PROVIDER=chatgpt (first is the default). Falls back to a built-in gpt-5.x list when unset. |
+| `AI_CHATGPT_MODELS` | — | No | Comma-separated Codex model slugs offered when AI_PROVIDER=chatgpt (first is the default). Defaults to GPT-5.6 Sol, Terra, Luna, then compatible GPT-5.x models; configured models remain selectable when the live catalog lags behind Codex access. |
 | `AI_CHATGPT_CLIENT_ID` | — | No | Override the ChatGPT/Codex OAuth client id. Defaults to the public Codex CLI client. Only change if OpenAI rotates the client. |
 | `AI_CHATGPT_ISSUER` | — | No | Override the ChatGPT OAuth issuer origin (authorize/token endpoints). Defaults to https://auth.openai.com. |
 | `AI_CHATGPT_REDIRECT_URI` | — | No | OAuth redirect URI for the Codex loopback flow. Defaults to http://localhost:1455/auth/callback; the connect flow uses manual URL paste so this need not be reachable by the server. |

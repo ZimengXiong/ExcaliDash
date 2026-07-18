@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { MutableRefObject } from "react";
-import { applyUploadedFileRefs, getFilesDelta } from "./shared";
+import {
+  getAdmittedFileRefs,
+  getAdmittedImageElements,
+  getFilesDelta,
+} from "./shared";
 import type { UploadedFileRefs } from "./shared";
 
 type UseEditorBroadcastParams = {
@@ -61,9 +65,10 @@ export const useEditorBroadcast = ({
       if (!socketRef.current || !drawingId) return;
       const changes: any[] = [];
       const nextFiles = currentFiles || excalidrawAPI.current?.getFiles() || {};
-      const normalizedElements = normalizeImageElementStatus(
-        elements,
-        nextFiles,
+      const admittedFiles = getAdmittedFileRefs(nextFiles, uploadedRefs.current);
+      const normalizedElements = getAdmittedImageElements(
+        normalizeImageElementStatus(elements, nextFiles),
+        admittedFiles,
       );
       const nextOrderSig = computeElementOrderSig(normalizedElements);
       const shouldSyncOrder =
@@ -77,13 +82,13 @@ export const useEditorBroadcast = ({
           recordElementVersion(el);
         }
       });
-      const filesDelta = getFilesDelta(lastSyncedFilesRef.current, nextFiles);
+      const filesDelta = getFilesDelta(lastSyncedFilesRef.current, admittedFiles);
       const shouldSyncFiles = Object.keys(filesDelta).length > 0;
       if (Object.keys(nextFiles || {}).length > 0) {
         latestFilesRef.current = nextFiles;
       }
       if (shouldSyncFiles) {
-        lastSyncedFilesRef.current = nextFiles;
+        lastSyncedFilesRef.current = admittedFiles;
       }
       if (changes.length > 0 || shouldSyncFiles || shouldSyncOrder) {
         setHasSceneChangesSinceLoad();
@@ -93,9 +98,7 @@ export const useEditorBroadcast = ({
         socketRef.current.emit("element-update", {
           drawingId,
           elements: changes.length > 0 ? changes : [],
-          files: shouldSyncFiles
-            ? applyUploadedFileRefs(filesDelta, uploadedRefs.current)
-            : undefined,
+          files: shouldSyncFiles ? filesDelta : undefined,
           elementOrder: shouldSyncOrder
             ? normalizedElements.map((el: any) => el?.id).filter(Boolean)
             : undefined,
@@ -103,7 +106,7 @@ export const useEditorBroadcast = ({
         });
         const appState = latestAppStateRef.current;
         if (appState) {
-          debouncedSave(drawingId, normalizedElements, appState, nextFiles);
+          debouncedSave(drawingId, normalizedElements, appState, admittedFiles);
           debouncedSavePreview(drawingId);
         }
       }

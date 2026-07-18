@@ -37,6 +37,9 @@ const buildApp = (opts: {
       findMany: vi.fn().mockResolvedValue([]),
       deleteMany: vi.fn(),
     },
+    drawingSnapshot: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
   } as any;
 
   const app = express();

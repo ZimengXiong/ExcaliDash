@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react";
 import type { MutableRefObject } from "react";
-import { applyUploadedFileRefs, getFilesDelta } from "./shared";
+import { getAdmittedFileRefs, getFilesDelta } from "./shared";
 import type { UploadedFileRefs } from "./shared";
 
 type UseEditorSceneApiParams = {
@@ -24,7 +24,7 @@ type UseEditorSceneApiParams = {
   >;
   hasSceneChangesSinceLoadRef: MutableRefObject<boolean>;
   uploadedRefs: MutableRefObject<UploadedFileRefs>;
-  scanFileUploads: () => void;
+  scanFileUploads: () => Promise<void>;
   setIsReady: (ready: boolean) => void;
 };
 
@@ -55,17 +55,18 @@ export const useEditorSceneApi = ({
   const emitFilesDeltaIfNeeded = useCallback(
     (nextFiles: Record<string, any>) => {
       if (!socketRef.current || !drawingId) return false;
+      latestFilesRef.current = nextFiles;
+      const admittedFiles = getAdmittedFileRefs(nextFiles, uploadedRefs.current);
       const filesDelta = getFilesDelta(
         lastSyncedFilesRef.current,
-        nextFiles || {},
+        admittedFiles,
       );
       if (Object.keys(filesDelta).length === 0) return false;
-      latestFilesRef.current = nextFiles;
-      lastSyncedFilesRef.current = nextFiles;
+      lastSyncedFilesRef.current = admittedFiles;
       socketRef.current.emit("element-update", {
         drawingId,
         elements: [],
-        files: applyUploadedFileRefs(filesDelta, uploadedRefs.current),
+        files: filesDelta,
         userId: socketMeRef.current.id,
       });
       return true;
@@ -99,25 +100,26 @@ export const useEditorSceneApi = ({
             : Object.values(filesInput || {});
           originalAddFiles(normalizedFiles);
           if (isSyncing.current) return;
-          const nextFiles = api.getFiles?.() || {};
-          const didEmit = emitFilesDeltaIfNeeded(nextFiles);
-          if (
-            didEmit &&
-            drawingId &&
-            latestAppStateRef.current &&
-            debouncedSaveRef.current
-          ) {
-            hasSceneChangesSinceLoadRef.current = true;
-            debouncedSaveRef.current(
-              drawingId,
-              latestElementsRef.current,
-              latestAppStateRef.current,
-              latestFilesRef.current || {},
-            );
-          }
-          // Upload any freshly inserted image right away so the debounced save
-          // 1s later can ship a ref instead of inline bytes.
-          void scanFileUploads();
+          // Upload before publishing or persisting the image. It remains visible
+          // locally while pending, but inline bytes never enter socket/scene data.
+          void scanFileUploads().then(() => {
+            const nextFiles = api.getFiles?.() || {};
+            const didEmit = emitFilesDeltaIfNeeded(nextFiles);
+            if (
+              didEmit &&
+              drawingId &&
+              latestAppStateRef.current &&
+              debouncedSaveRef.current
+            ) {
+              hasSceneChangesSinceLoadRef.current = true;
+              debouncedSaveRef.current(
+                drawingId,
+                latestElementsRef.current,
+                latestAppStateRef.current,
+                latestFilesRef.current || {},
+              );
+            }
+          });
         };
       }
       setIsReady(true);

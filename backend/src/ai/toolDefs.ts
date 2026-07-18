@@ -1,8 +1,8 @@
 import { SHAPE_KINDS, STYLE_KEYS } from "../agent/opSchemas";
 
 /**
- * Provider-agnostic tool definition. The chat proxy exposes exactly one tool —
- * `apply_ops` — whose input schema mirrors the zod op batch in
+ * Provider-agnostic tool definitions. `view_canvas` supplies visual context and
+ * `apply_ops` mutates the scene using an input schema that mirrors the zod batch in
  * ../agent/opSchemas.ts. The SHAPE_KINDS / STYLE_KEYS constants are imported
  * from that single source so the tool schema can never drift from the applier's
  * whitelist. revert_to_snapshot (undo) and import_elements (raw-JSON escape
@@ -37,7 +37,8 @@ const opSchema = {
         h: { type: "number", description: "Height (optional)." },
         label: {
           type: "string",
-          description: "Bound text label placed inside the shape.",
+          description:
+            "For frames, the native editable frame title. For other shapes, a bound text label.",
         },
         style: styleObject,
       },
@@ -63,7 +64,8 @@ const opSchema = {
     {
       type: "object",
       title: "set_text",
-      description: "Set the text of an element or its bound label.",
+      description:
+        "Set a text element or shape label. For a frame id, edits its native frame title (name).",
       properties: {
         op: { const: "set_text" },
         id: { type: "string" },
@@ -135,4 +137,17 @@ export const APPLY_OPS_TOOL: AgentTool = {
   },
 };
 
-export const AGENT_TOOLS: AgentTool[] = [APPLY_OPS_TOOL];
+export const VIEW_CANVAS_TOOL: AgentTool = {
+  name: "view_canvas",
+  description:
+    "Inspect a PNG rendering of the canvas as it looked when the user sent this message. " +
+    "New user turns normally attach that rendering automatically, so do not call this " +
+    "when the message says an image is attached. The structural summary supplies ids.",
+  inputSchema: {
+    type: "object",
+    properties: {},
+    additionalProperties: false,
+  },
+};
+
+export const AGENT_TOOLS: AgentTool[] = [VIEW_CANVAS_TOOL, APPLY_OPS_TOOL];

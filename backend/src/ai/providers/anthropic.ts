@@ -6,21 +6,57 @@ import {
   type ConversationTurn,
   type ToolCall,
 } from "./types";
+import { readAnthropicStream } from "./anthropicStream";
 
 const ANTHROPIC_VERSION = "2023-06-01";
 
+const supportsAdaptiveThinking = (model: string): boolean =>
+  /(?:opus-4-[678]|sonnet-4-6|(?:fable|mythos|sonnet)-5)/i.test(model);
+
 type AnthropicBlock =
   | { type: "text"; text: string }
+  | { type: "thinking"; thinking: string; signature: string }
+  | {
+      type: "image";
+      source: { type: "base64"; media_type: string; data: string };
+    }
   | { type: "tool_use"; id: string; name: string; input: unknown }
-  | { type: "tool_result"; tool_use_id: string; content: string };
+  | { type: "tool_result"; tool_use_id: string; content: string | AnthropicBlock[] };
+
+const imageBlockFromDataUrl = (dataUrl: string): AnthropicBlock | null => {
+  const match = /^data:(image\/(?:png|jpeg|webp));base64,(.+)$/s.exec(dataUrl);
+  if (!match) return null;
+  return {
+    type: "image",
+    source: { type: "base64", media_type: match[1], data: match[2] },
+  };
+};
 
 const toMessages = (turns: ConversationTurn[]) => {
   const messages: { role: "user" | "assistant"; content: AnthropicBlock[] }[] = [];
   for (const turn of turns) {
     if (turn.role === "user") {
-      messages.push({ role: "user", content: [{ type: "text", text: turn.text }] });
+      const image = turn.imageDataUrl
+        ? imageBlockFromDataUrl(turn.imageDataUrl)
+        : null;
+      messages.push({
+        role: "user",
+        content: [
+          { type: "text", text: turn.text },
+          ...(image ? [image] : []),
+        ],
+      });
     } else if (turn.role === "assistant") {
       const content: AnthropicBlock[] = [];
+      const thinkingBlocks = turn.providerMetadata?.anthropicThinkingBlocks;
+      if (Array.isArray(thinkingBlocks)) {
+        for (const block of thinkingBlocks) {
+          if (
+            block && typeof block === "object" &&
+            (block as any).type === "thinking"
+          ) content.push(block as AnthropicBlock);
+        }
+      }
       if (turn.text) content.push({ type: "text", text: turn.text });
       for (const call of turn.toolCalls) {
         content.push({ type: "tool_use", id: call.id, name: call.name, input: call.input });
@@ -29,11 +65,16 @@ const toMessages = (turns: ConversationTurn[]) => {
     } else {
       messages.push({
         role: "user",
-        content: turn.results.map((r) => ({
-          type: "tool_result" as const,
-          tool_use_id: r.id,
-          content: r.content,
-        })),
+        content: turn.results.map((r) => {
+          const image = r.imageDataUrl ? imageBlockFromDataUrl(r.imageDataUrl) : null;
+          return {
+            type: "tool_result" as const,
+            tool_use_id: r.id,
+            content: image
+              ? [{ type: "text" as const, text: r.content }, image]
+              : r.content,
+          };
+        }),
       });
     }
   }
@@ -42,7 +83,16 @@ const toMessages = (turns: ConversationTurn[]) => {
 
 export const anthropicAdapter: AiProviderAdapter = {
   async complete(req: CompletionRequest): Promise<CompletionResult> {
-    const { settings, system, turns, tools, signal } = req;
+    const {
+      settings,
+      system,
+      turns,
+      tools,
+      signal,
+      reasoningEffort,
+      onTextDelta,
+      onThinkingDelta,
+    } = req;
     if (!settings.apiKey || !settings.baseUrl || !settings.model) {
       throw new AiProviderError("AI provider is not configured", 503);
     }
@@ -57,6 +107,13 @@ export const anthropicAdapter: AiProviderAdapter = {
         description: t.description,
         input_schema: t.inputSchema,
       })),
+      ...(reasoningEffort
+        ? { output_config: { effort: reasoningEffort } }
+        : {}),
+      ...(supportsAdaptiveThinking(settings.model)
+        ? { thinking: { type: "adaptive", display: "summarized" } }
+        : {}),
+      ...(onTextDelta || onThinkingDelta ? { stream: true } : {}),
     };
 
     let response: Response;
@@ -83,6 +140,24 @@ export const anthropicAdapter: AiProviderAdapter = {
         `Anthropic API error ${response.status}: ${detail.slice(0, 500)}`,
         response.status === 429 ? 429 : 502,
       );
+    }
+
+    if (onTextDelta || onThinkingDelta) {
+      const streamed = await readAnthropicStream(
+        response,
+        signal,
+        onTextDelta,
+        onThinkingDelta,
+      );
+      if (streamed.error) throw new AiProviderError(streamed.error);
+      return {
+        text: streamed.text,
+        toolCalls: streamed.toolCalls,
+        streamedText: Boolean(onTextDelta),
+        ...(streamed.thinkingBlocks.length > 0
+          ? { assistantMetadata: { anthropicThinkingBlocks: streamed.thinkingBlocks } }
+          : {}),
+      };
     }
 
     const data = (await response.json()) as {

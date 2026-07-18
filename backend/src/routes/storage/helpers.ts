@@ -32,6 +32,32 @@ export const collectReferencedFileIds = (
   return ids;
 };
 
+export const collectSnapshotFileIds = (
+  snapshots: Array<{ elements: string; files: string }>,
+): Set<string> => {
+  const ids = new Set<string>();
+  for (const snapshot of snapshots) {
+    try {
+      const elements = JSON.parse(snapshot.elements);
+      if (Array.isArray(elements)) {
+        for (const id of collectReferencedFileIds(elements, true)) ids.add(id);
+      }
+    } catch {
+      // Corrupt history must not make cleanup less safe; files JSON below can
+      // still preserve its referenced records.
+    }
+    try {
+      const files = JSON.parse(snapshot.files);
+      if (files && typeof files === "object") {
+        for (const id of Object.keys(files)) ids.add(id);
+      }
+    } catch {
+      // Ignore malformed snapshot metadata and preserve references found above.
+    }
+  }
+  return ids;
+};
+
 export const fileIdFromS3Key = (key: string): string | null => {
   const lastSegment = key.split("/").pop();
   if (!lastSegment) return null;

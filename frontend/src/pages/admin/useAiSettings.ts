@@ -1,144 +1,232 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import * as api from "../../api";
+import type { AiProvider, AiProviderProfile, AiStatus } from "../../api/ai";
 
-export type AiProvider = "disabled" | "anthropic" | "openai" | "custom" | "chatgpt";
+export type ConfigurableAiProvider = Exclude<AiProvider, "disabled">;
 
-type AiSettingsResponse = {
-  status: {
-    available: boolean;
-    provider: AiProvider;
-    model: string | null;
-    keyConfigured: boolean;
-    keySource: "env" | "db" | null;
-    chatgptEnabled: boolean;
-  };
-  overrides: {
-    provider: AiProvider | null;
-    baseUrl: string | null;
-    model: string | null;
-    chatgptEnabled: boolean;
-  };
-  envKeyConfigured: boolean;
-  dbKeyConfigured: boolean;
+export type AiProviderDraft = {
+  id: string;
+  label: string;
+  provider: ConfigurableAiProvider;
+  enabled: boolean;
+  baseUrl: string;
+  modelsText: string;
+  reasoningEffortsText: string;
+  apiKey: string;
+  keyConfigured: boolean;
+  keySource: "env" | "db" | null;
+  clearApiKey?: boolean;
 };
 
-const KEY_UNCHANGED = "";
+type AiSettingsResponse = {
+  status: AiStatus;
+  providers: AiProviderProfile[];
+  defaultProviderId: string | null;
+};
 
-type UseAiSettingsParams = {
+const toDraft = (profile: AiProviderProfile): AiProviderDraft | null => {
+  if (profile.provider === "disabled") return null;
+  const efforts = [...new Set(profile.models.flatMap((model) => model.reasoningEfforts))];
+  return {
+    id: profile.id,
+    label: profile.label,
+    provider: profile.provider,
+    enabled: profile.enabled,
+    baseUrl: profile.baseUrl ?? "",
+    modelsText: profile.models.map((model) => model.id).join(", "),
+    reasoningEffortsText: efforts.join(", "),
+    apiKey: "",
+    keyConfigured: profile.keyConfigured,
+    keySource: profile.keySource,
+  };
+};
+
+const splitCsv = (value: string): string[] =>
+  [...new Set(value.split(",").map((item) => item.trim()).filter(Boolean))];
+
+const defaultsForProvider = (
+  provider: ConfigurableAiProvider,
+): Partial<AiProviderDraft> => {
+  if (provider === "chatgpt") {
+    return {
+      label: "ChatGPT subscription",
+      baseUrl: "",
+      modelsText: "",
+      reasoningEffortsText: "",
+      apiKey: "",
+      keyConfigured: false,
+      keySource: null,
+      clearApiKey: true,
+    };
+  }
+  if (provider === "anthropic") {
+    return {
+      label: "Anthropic",
+      baseUrl: "",
+      modelsText: "claude-opus-4-8",
+      reasoningEffortsText: "",
+      clearApiKey: false,
+    };
+  }
+  if (provider === "openai") {
+    return {
+      label: "OpenAI",
+      baseUrl: "",
+      modelsText: "gpt-4o",
+      reasoningEffortsText: "",
+      clearApiKey: false,
+    };
+  }
+  if (provider === "gemini") {
+    return {
+      label: "Google Gemini",
+      baseUrl: "",
+      modelsText: "gemini-2.5-pro",
+      reasoningEffortsText: "low, medium, high",
+      clearApiKey: false,
+    };
+  }
+  return {
+    label: "OpenAI-compatible",
+    baseUrl: "",
+    modelsText: "",
+    reasoningEffortsText: "",
+    clearApiKey: false,
+  };
+};
+
+export const useAiSettings = ({
+  authEnabled,
+  isAdmin,
+  setError,
+}: {
   authEnabled: boolean | null;
   isAdmin: boolean;
   setError: (message: string) => void;
-};
-
-export const useAiSettings = ({ authEnabled, isAdmin, setError }: UseAiSettingsParams) => {
+}) => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [provider, setProvider] = useState<AiProvider>("disabled");
-  const [baseUrl, setBaseUrl] = useState("");
-  const [model, setModel] = useState("");
-  const [apiKey, setApiKey] = useState(KEY_UNCHANGED);
-  const [chatgptEnabled, setChatgptEnabled] = useState(true);
-  const [status, setStatus] = useState<AiSettingsResponse["status"] | null>(null);
-  const [envKeyConfigured, setEnvKeyConfigured] = useState(false);
-  const [dbKeyConfigured, setDbKeyConfigured] = useState(false);
+  const [providers, setProviders] = useState<AiProviderDraft[]>([]);
+  const [defaultProviderId, setDefaultProviderId] = useState("");
+  const [status, setStatus] = useState<AiStatus | null>(null);
 
   const applyResponse = useCallback((data: AiSettingsResponse) => {
+    const drafts = data.providers.map(toDraft).filter((item): item is AiProviderDraft => Boolean(item));
+    setProviders(drafts);
+    setDefaultProviderId(data.defaultProviderId ?? drafts[0]?.id ?? "");
     setStatus(data.status);
-    setProvider((data.overrides.provider ?? data.status.provider) as AiProvider);
-    setBaseUrl(data.overrides.baseUrl ?? "");
-    setModel(data.overrides.model ?? "");
-    setChatgptEnabled(data.overrides.chatgptEnabled ?? true);
-    setEnvKeyConfigured(data.envKeyConfigured);
-    setDbKeyConfigured(data.dbKeyConfigured);
-    setApiKey(KEY_UNCHANGED);
   }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await api.api.get<AiSettingsResponse>("/auth/ai/settings");
-      applyResponse(res.data);
-    } catch (err: unknown) {
-      let message = "Failed to load AI settings";
-      if (api.isAxiosError(err)) {
-        message = err.response?.data?.message || err.response?.data?.error || message;
-      }
-      setError(message);
+      applyResponse((await api.api.get<AiSettingsResponse>("/auth/ai/settings")).data);
+    } catch (error) {
+      setError(api.isAxiosError(error)
+        ? error.response?.data?.message ?? "Failed to load AI settings"
+        : "Failed to load AI settings");
     } finally {
       setLoading(false);
     }
   }, [applyResponse, setError]);
+
+  const addProvider = useCallback(() => {
+    const id = `provider_${Date.now().toString(36)}`;
+    setProviders((current) => [...current, {
+      id,
+      label: "OpenAI",
+      provider: "openai",
+      enabled: true,
+      baseUrl: "",
+      modelsText: "gpt-4o",
+      reasoningEffortsText: "",
+      apiKey: "",
+      keyConfigured: false,
+      keySource: null,
+    }]);
+    setDefaultProviderId((current) => current || id);
+  }, []);
+
+  const updateProvider = useCallback((id: string, patch: Partial<AiProviderDraft>) => {
+    setProviders((current) => current.map((profile) => {
+      if (profile.id !== id) return profile;
+      const providerDefaults = patch.provider && patch.provider !== profile.provider
+        ? defaultsForProvider(patch.provider)
+        : {};
+      return { ...profile, ...providerDefaults, ...patch };
+    }));
+  }, []);
+
+  const removeProvider = useCallback((id: string) => {
+    setProviders((current) => current.filter((profile) => profile.id !== id));
+    setDefaultProviderId((current) => current === id ? "" : current);
+  }, []);
 
   const save = useCallback(async () => {
     if (saving) return;
     setSaving(true);
     setError("");
     try {
-      const payload: Record<string, unknown> = {
-        provider,
-        baseUrl: baseUrl.trim() || null,
-        model: model.trim() || null,
-        chatgptEnabled,
-      };
-      // Only send apiKey when the admin typed something (empty = leave as-is).
-      if (apiKey !== KEY_UNCHANGED) payload.apiKey = apiKey;
-      const res = await api.api.put<AiSettingsResponse>("/auth/ai/settings", payload);
-      applyResponse(res.data);
-      toast.success("AI settings saved");
-    } catch (err: unknown) {
-      let message = "Failed to save AI settings";
-      if (api.isAxiosError(err)) {
-        message = err.response?.data?.message || err.response?.data?.error || message;
+      const payloadProviders = providers.map((profile) => {
+        const isChatGpt = profile.provider === "chatgpt";
+        const efforts = isChatGpt ? [] : splitCsv(profile.reasoningEffortsText);
+        const models = isChatGpt
+          ? []
+          : splitCsv(profile.modelsText).map((id) => ({
+              id,
+              label: id,
+              reasoningEfforts: efforts,
+            }));
+        return {
+          id: profile.id,
+          label: profile.label.trim() || profile.id,
+          provider: profile.provider,
+          enabled: profile.enabled,
+          baseUrl: isChatGpt ? null : profile.baseUrl.trim() || null,
+          models,
+          ...(!isChatGpt && profile.apiKey ? { apiKey: profile.apiKey } : {}),
+          ...(profile.clearApiKey ? { clearApiKey: true } : {}),
+        };
+      });
+      if (
+        payloadProviders.some(
+          (profile) => profile.provider !== "chatgpt" && profile.models.length === 0,
+        )
+      ) {
+        setError("Every API-key provider needs at least one model");
+        return;
       }
-      setError(message);
+      const response = await api.api.put<AiSettingsResponse>("/auth/ai/settings", {
+        providers: payloadProviders,
+        defaultProviderId: defaultProviderId || payloadProviders[0]?.id || null,
+      });
+      applyResponse(response.data);
+      toast.success("AI provider registry saved");
+    } catch (error) {
+      setError(api.isAxiosError(error)
+        ? error.response?.data?.message ?? "Failed to save AI settings"
+        : "Failed to save AI settings");
     } finally {
       setSaving(false);
     }
-  }, [saving, provider, baseUrl, model, apiKey, chatgptEnabled, applyResponse, setError]);
-
-  const clearDbKey = useCallback(async () => {
-    setSaving(true);
-    setError("");
-    try {
-      const res = await api.api.put<AiSettingsResponse>("/auth/ai/settings", { apiKey: "" });
-      applyResponse(res.data);
-      toast.success("Stored AI key cleared");
-    } catch (err: unknown) {
-      let message = "Failed to clear AI key";
-      if (api.isAxiosError(err)) {
-        message = err.response?.data?.message || err.response?.data?.error || message;
-      }
-      setError(message);
-    } finally {
-      setSaving(false);
-    }
-  }, [applyResponse, setError]);
+  }, [applyResponse, defaultProviderId, providers, saving, setError]);
 
   useEffect(() => {
-    if (!authEnabled || !isAdmin) return;
-    void load();
+    if (authEnabled && isAdmin) void load();
   }, [authEnabled, isAdmin, load]);
 
   return {
     loading,
     saving,
-    provider,
-    baseUrl,
-    model,
-    apiKey,
-    chatgptEnabled,
+    providers,
+    defaultProviderId,
     status,
-    envKeyConfigured,
-    dbKeyConfigured,
-    setProvider,
-    setBaseUrl,
-    setModel,
-    setApiKey,
-    setChatgptEnabled,
-    load,
+    setDefaultProviderId,
+    addProvider,
+    updateProvider,
+    removeProvider,
     save,
-    clearDbKey,
   };
 };

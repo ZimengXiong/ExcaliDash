@@ -30,8 +30,13 @@ export const useDashboardData = ({
   const [isLoading, setIsLoading] = useState(false);
   const listRequestVersionRef = useRef(0);
   const nextOffsetRef = useRef(0);
+  const fetchMoreInFlightRef = useRef(false);
+  const hasMoreRef = useRef(false);
+  const isLoadingRef = useRef(false);
 
   const hasMore = drawings.length < totalCount;
+  hasMoreRef.current = hasMore;
+  isLoadingRef.current = isLoading;
 
   const refreshData = useCallback(async () => {
     const requestVersion = ++listRequestVersionRef.current;
@@ -90,9 +95,10 @@ export const useDashboardData = ({
   ]);
 
   const fetchMore = useCallback(async () => {
-    if (isFetchingMore || !hasMore || isLoading) return;
+    if (fetchMoreInFlightRef.current || !hasMoreRef.current || isLoadingRef.current) return;
     const requestVersion = listRequestVersionRef.current;
     setIsFetchingMore(true);
+    fetchMoreInFlightRef.current = true;
     try {
       const isSharedView = selectedCollectionId === "shared";
       const drawingsRes = await (isSharedView
@@ -116,12 +122,10 @@ export const useDashboardData = ({
     } catch (err) {
       console.error("Failed to fetch more data:", err);
     } finally {
+      fetchMoreInFlightRef.current = false;
       setIsFetchingMore(false);
     }
   }, [
-    isFetchingMore,
-    hasMore,
-    isLoading,
     debouncedSearch,
     selectedCollectionId,
     pageSize,

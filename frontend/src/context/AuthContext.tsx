@@ -9,9 +9,11 @@ import {
   authLogin,
   authRegister,
   isAxiosError,
+  startOidcSignOut,
 } from '../api';
+import { clearOidcAutoLoginSuppression, suppressOidcAutoLogin } from '../utils/oidcLogout';
 
-interface User {
+export interface User {
   id: string;
   username?: string | null;
   email: string;
@@ -35,7 +37,8 @@ interface AuthContextType {
   authOnboardingMode: 'migration' | 'fresh' | null;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string, setupCode?: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  updateUser: (updates: Partial<User>) => void;
   retryAuthStatus: () => Promise<void>;
   isAuthenticated: boolean;
 }
@@ -150,6 +153,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       try {
         const response = await authMe();
+        clearOidcAutoLoginSuppression();
         setUser(response.user);
         localStorage.setItem(USER_KEY, JSON.stringify(response.user));
       } catch {
@@ -242,13 +246,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const logout = () => {
-    void authLogout().catch(() => undefined);
+  const logout = async () => {
+    suppressOidcAutoLogin();
+    const oidcLogout = await authLogout()
+      .then((result) => result.oidcLogout)
+      .catch(() => false);
     localStorage.removeItem(USER_KEY);
     setUser(null);
-    setTimeout(() => {
-      navigate('/login');
-    }, 0);
+    if (oidcLogout) {
+      startOidcSignOut();
+      return;
+    }
+    navigate('/login');
+  };
+
+  const updateUser = (updates: Partial<User>) => {
+    setUser((currentUser) => {
+      if (!currentUser) return currentUser;
+      const nextUser = { ...currentUser, ...updates };
+      localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
+      return nextUser;
+    });
   };
 
   return (
@@ -269,6 +287,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         login,
         register,
         logout,
+        updateUser,
         retryAuthStatus: loadUser,
         isAuthenticated: !!user,
       }}

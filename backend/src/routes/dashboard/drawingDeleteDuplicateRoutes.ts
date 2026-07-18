@@ -46,6 +46,10 @@ export const registerDrawingDeleteDuplicateRoutes = (
         await cleanupS3FilesForDrawing(id, req.user.id);
       } catch (error) {
         console.warn("[s3] Failed to cleanup deleted drawing files", { drawingId: id, error });
+        return res.status(502).json({
+          error: "Storage cleanup failed",
+          message: "Drawing was not deleted; retry the request after storage is available.",
+        });
       }
 
       const deleteResult = await prisma.drawing.deleteMany({
@@ -91,19 +95,26 @@ export const registerDrawingDeleteDuplicateRoutes = (
 
       const newDrawingId = uuidv4();
       const originalFiles = parseJsonField<Record<string, any>>(original.files, {});
-      const duplicatedFiles = await cloneS3FileReferences(
-        original.id,
-        newDrawingId,
-        req.user.id,
-        originalFiles,
-      );
+      let duplicatedFiles: Record<string, any>;
+      try {
+        duplicatedFiles = await cloneS3FileReferences(
+          original.id, newDrawingId, req.user.id, originalFiles,
+        );
+      } catch (error) {
+        try { await context.cleanupS3FilesForDrawing(newDrawingId, req.user.id); } catch (cleanupError) {
+          throw new AggregateError([error, cleanupError], "Duplicate failed and staged file cleanup failed");
+        }
+        throw error;
+      }
       const duplicatedPreview = rewritePreviewForInternedFiles(
         original.preview ?? null,
         originalFiles,
         duplicatedFiles,
       );
 
-      const newDrawing = await prisma.drawing.create({
+      let newDrawing;
+      try {
+        newDrawing = await prisma.drawing.create({
         data: {
           id: newDrawingId,
           name: `${original.name} (Copy)`,
@@ -118,7 +129,13 @@ export const registerDrawingDeleteDuplicateRoutes = (
           collectionId: duplicatedCollectionId,
           version: 1,
         },
-      });
+        });
+      } catch (error) {
+        try { await context.cleanupS3FilesForDrawing(newDrawingId, req.user.id); } catch (cleanupError) {
+          throw new AggregateError([error, cleanupError], "Duplicate failed and staged file cleanup failed");
+        }
+        throw error;
+      }
       invalidateDrawingsCache();
 
       return res.json({

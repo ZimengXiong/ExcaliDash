@@ -1,8 +1,10 @@
-import { readCsv, readNumber, readOptionalString, readRaw } from "./env";
+import { readBoolean, readCsv, readNumber, readOptionalString, readRaw } from "./env";
 
-export type AiProvider = "disabled" | "anthropic" | "openai" | "custom" | "chatgpt";
+export type AiProvider = "disabled" | "anthropic" | "openai" | "gemini" | "custom" | "chatgpt";
 
 export interface AiChatGptConfig {
+  /** Whether users may connect ChatGPT subscriptions. */
+  enabled: boolean;
   /**
    * `client_version` query param sent to the ChatGPT/Codex backend. The backend
    * gates the available model set on this value — a stale version makes models
@@ -43,29 +45,32 @@ const parseAiProvider = (rawValue: string | undefined): AiProvider => {
     normalized === "disabled" ||
     normalized === "anthropic" ||
     normalized === "openai" ||
+    normalized === "gemini" ||
     normalized === "custom" ||
     normalized === "chatgpt"
   ) {
     return normalized;
   }
   throw new Error(
-    "Invalid AI_PROVIDER. Expected one of: disabled, anthropic, openai, custom, chatgpt",
+    "Invalid AI_PROVIDER. Expected one of: disabled, anthropic, openai, gemini, custom, chatgpt",
   );
 };
 
 // Sensible defaults mirror the public Codex CLI client. Every value is
 // overridable so the integration keeps working if OpenAI moves an endpoint.
 const DEFAULT_CHATGPT_MODELS = [
-  "gpt-5.1",
-  "gpt-5.1-codex",
-  "gpt-5.2",
-  "gpt-5.2-codex",
-  "gpt-5.1-codex-max",
+  "gpt-5.6-sol",
+  "gpt-5.6-terra",
+  "gpt-5.6-luna",
+  "gpt-5.5",
+  "gpt-5.4",
+  "gpt-5.4-mini",
 ];
 
 const resolveChatGptConfig = (): AiChatGptConfig => {
   const models = readCsv("AI_CHATGPT_MODELS");
   return {
+    enabled: readBoolean("AI_CHATGPT_ENABLED", true),
     clientVersion: readOptionalString("AI_CHATGPT_CLIENT_VERSION") ?? "0.142.5",
     clientId:
       readOptionalString("AI_CHATGPT_CLIENT_ID") ?? "app_EMoamEEZ73f0CkXaXp7hrann",

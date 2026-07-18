@@ -110,8 +110,11 @@ describe("Agent ops engine", () => {
     const elements = JSON.parse(stored!.elements);
     expect(elements).toHaveLength(2);
     const rect = elements.find((e: any) => e.type === "rectangle");
+    const label = elements.find((e: any) => e.type === "text");
     expect(rect.x).toBe(10);
     expect(Array.isArray(rect.boundElements)).toBe(true);
+    expect(label.x + label.width / 2).toBe(rect.x + rect.width / 2);
+    expect(label.y + label.height / 2).toBe(rect.y + rect.height / 2);
   });
 
   it("is atomic: a batch with a bad element ref persists nothing (422)", async () => {

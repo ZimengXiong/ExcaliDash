@@ -1,12 +1,13 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   cronMatches,
   createSqliteBackup,
   parseCronSchedule,
+  pruneOldBackups,
 } from "./scheduler";
 
 const Database = require("better-sqlite3") as any;
@@ -142,6 +143,51 @@ describe("createSqliteBackup", () => {
 
     expect(fs.existsSync(stale)).toBe(false);
     expect(fs.existsSync(unrelated)).toBe(true);
+  });
+
+  it("keeps pruning work bounded while preserving the retention cutoff", async () => {
+    const backupDir = makeTempDir();
+    const staleCount = 24;
+    const oldTime = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const fresh = path.join(backupDir, "excalidash-sqlite-fresh.db");
+    fs.writeFileSync(fresh, "fresh");
+    for (let index = 0; index < staleCount; index += 1) {
+      const filePath = path.join(backupDir, `excalidash-sqlite-stale-${index}.db`);
+      fs.writeFileSync(filePath, "old");
+      fs.utimesSync(filePath, oldTime / 1000, oldTime / 1000);
+    }
+
+    const originalStat = fs.promises.stat;
+    const originalUnlink = fs.promises.unlink;
+    let activeOperations = 0;
+    let peakOperations = 0;
+    const track = async <T>(operation: () => Promise<T>): Promise<T> => {
+      activeOperations += 1;
+      peakOperations = Math.max(peakOperations, activeOperations);
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return await operation();
+      } finally {
+        activeOperations -= 1;
+      }
+    };
+    const statSpy = vi.spyOn(fs.promises, "stat").mockImplementation(
+      ((filePath: fs.PathLike) => track(() => originalStat(filePath))) as typeof fs.promises.stat,
+    );
+    const unlinkSpy = vi.spyOn(fs.promises, "unlink").mockImplementation(
+      ((filePath: fs.PathLike) => track(() => originalUnlink(filePath))) as typeof fs.promises.unlink,
+    );
+
+    await pruneOldBackups(backupDir, 14);
+
+    expect(peakOperations).toBeLessThanOrEqual(8);
+    expect(unlinkSpy).toHaveBeenCalledTimes(staleCount);
+    expect(fs.existsSync(fresh)).toBe(true);
+    expect(
+      fs.readdirSync(backupDir).filter((name) => name.startsWith("excalidash-sqlite-stale-")),
+    ).toHaveLength(0);
+    statSpy.mockRestore();
+    unlinkSpy.mockRestore();
   });
 
   it("skips (returns null) for non-file DATABASE_URL values", async () => {

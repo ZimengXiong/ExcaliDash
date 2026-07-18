@@ -16,17 +16,22 @@
 import type { PrismaClient } from "./generated/client";
 import {
   isS3Enabled,
-  getS3Config,
   uploadBuffer,
-  getPublicUrl,
+  deleteS3Object,
   buildS3Key,
 } from "./s3";
+import { config } from "./config";
 
 /**
  * Reject anything that could escape the per-user/per-drawing S3 prefix.
  * Same shape used by `/files/:drawingId/:fileId` validation.
  */
 const VALID_FILE_ID = /^[\w-]{1,200}$/;
+
+/** Records rows/objects created while an import is staged outside its DB transaction. */
+export type DrawingFileStagingJournal = {
+  recordNew: (drawingId: string, fileId: string, s3Key?: string | null) => void;
+};
 
 export const MIME_TO_EXT: Record<string, string> = {
   "image/png": "png",
@@ -36,6 +41,22 @@ export const MIME_TO_EXT: Record<string, string> = {
   "image/avif": "avif",
   "image/bmp": "bmp",
   "image/svg+xml": "svg",
+};
+
+export class FileTooLargeError extends Error {
+  statusCode = 413;
+  isOperational = true;
+
+  constructor() {
+    super(`Image exceeds the ${config.fileUploadMaxMb}MB upload limit. Compress it or raise FILE_UPLOAD_MAX_MB.`);
+    this.name = "FileTooLargeError";
+  }
+}
+
+const getBase64ByteLength = (base64: string): number => {
+  const normalized = base64.replace(/\s/g, "");
+  const padding = normalized.endsWith("==") ? 2 : normalized.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((normalized.length * 3) / 4) - padding);
 };
 
 /**
@@ -48,13 +69,21 @@ export const decodeDataURL = (
   const match = dataURL.match(/^data:([^;]+);base64,(.+)$/s);
   if (!match) return null;
 
-  const mimeType = match[1];
+  const mimeType = match[1].toLowerCase();
   const base64 = match[2];
+  if (!(mimeType in MIME_TO_EXT)) return null;
+  if (getBase64ByteLength(base64) > config.fileUploadMaxBytes) {
+    throw new FileTooLargeError();
+  }
 
   try {
     const buffer = Buffer.from(base64, "base64");
+    if (buffer.length > config.fileUploadMaxBytes) {
+      throw new FileTooLargeError();
+    }
     return { buffer, mimeType };
-  } catch {
+  } catch (error) {
+    if (error instanceof FileTooLargeError) throw error;
     return null;
   }
 };
@@ -72,9 +101,9 @@ export const internDrawingFiles = async (
   userId: string,
   drawingId: string,
   prisma: Pick<PrismaClient, "drawingFile">,
+  stagingJournal?: DrawingFileStagingJournal,
 ): Promise<Record<string, any>> => {
   const s3Enabled = isS3Enabled();
-  const cfg = s3Enabled ? getS3Config() : null;
   const result: Record<string, any> = { ...files };
 
   // Bound parallel writes. Without this, a paste of N images fires N
@@ -103,38 +132,60 @@ export const internDrawingFiles = async (
     if (!decoded) return;
 
     const sizeBytes = decoded.buffer.length;
+    // Stored file IDs are immutable. A stale save or failed import must never
+    // replace bytes already referenced by a committed scene or snapshot.
+    const existing = typeof prisma.drawingFile.findUnique === "function"
+      ? await prisma.drawingFile.findUnique({
+          where: { drawingId_fileId: { drawingId, fileId } },
+          select: { storage: true, s3Key: true, data: true },
+        })
+      : null;
+    const existingHasContent = existing &&
+      ((existing.storage === "s3" && Boolean(existing.s3Key)) ||
+        (existing.storage === "db" && Boolean(existing.data)));
+    if (existingHasContent) {
+      result[fileId] = {
+        ...file,
+        dataURL: `/api/files/${drawingId}/${fileId}`,
+      };
+      return;
+    }
 
     if (s3Enabled) {
       const ext = MIME_TO_EXT[decoded.mimeType] ?? "bin";
       const s3Key = buildS3Key(userId, drawingId, fileId, ext);
 
+      if (!existing) stagingJournal?.recordNew(drawingId, fileId, s3Key);
+
       await uploadBuffer(s3Key, decoded.buffer, decoded.mimeType);
 
-      // Drawing-scoped access URL: a file id alone would be ambiguous
-      // because the same content hash legitimately repeats across drawings.
-      const accessUrl = cfg?.publicUrl
-        ? getPublicUrl(s3Key)
-        : `/api/files/${drawingId}/${fileId}`;
+      try {
+        await prisma.drawingFile.upsert({
+          where: { drawingId_fileId: { drawingId, fileId } },
+          create: {
+            drawingId,
+            fileId,
+            mimeType: decoded.mimeType,
+            sizeBytes,
+            storage: "s3",
+            s3Key,
+            data: null,
+          },
+          update: { storage: "s3", s3Key, data: null, mimeType: decoded.mimeType, sizeBytes },
+        });
+      } catch (error) {
+        await deleteS3Object(s3Key).catch((cleanupError) => {
+          console.error("Failed to clean up staged image object:", cleanupError);
+        });
+        throw error;
+      }
 
-      await prisma.drawingFile.upsert({
-        where: { drawingId_fileId: { drawingId, fileId } },
-        create: {
-          drawingId,
-          fileId,
-          mimeType: decoded.mimeType,
-          sizeBytes,
-          storage: "s3",
-          s3Key,
-          data: null,
-        },
-        update: { storage: "s3", s3Key, data: null, mimeType: decoded.mimeType, sizeBytes },
-      });
-
-      result[fileId] = { ...file, dataURL: accessUrl };
+      result[fileId] = { ...file, dataURL: `/api/files/${drawingId}/${fileId}` };
       return;
     }
 
     // Database-bytes mode: store the raw bytes inline in DrawingFile.data.
+    if (!existing) stagingJournal?.recordNew(drawingId, fileId);
     await prisma.drawingFile.upsert({
       where: { drawingId_fileId: { drawingId, fileId } },
       create: {

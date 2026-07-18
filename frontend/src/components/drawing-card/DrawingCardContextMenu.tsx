@@ -65,7 +65,7 @@ export const DrawingCardContextMenu: React.FC<DrawingCardContextMenuProps> = ({
       }}
     >
       <div
-        className="absolute bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-lg py-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-100"
+        className="ui-popover absolute py-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-100"
         style={{ top: position.y, left: position.x }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -93,7 +93,7 @@ export const DrawingCardContextMenu: React.FC<DrawingCardContextMenuProps> = ({
               <ArrowRight size={12} />
             </button>
             {showMoveSubmenu && (
-              <div className="absolute left-full top-0 ml-1 w-40 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-lg py-1 max-h-64 overflow-y-auto">
+              <div className="ui-popover absolute left-full top-0 ml-1 w-40 py-1 max-h-64 overflow-y-auto">
                 <CollectionMoveOptions
                   collections={collections}
                   currentCollectionId={drawing.collectionId}

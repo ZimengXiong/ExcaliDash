@@ -6,7 +6,7 @@ import { useEditorSceneLoader } from "./useEditorSceneLoader";
 
 vi.mock("../../api", () => ({
   getDrawing: vi.fn(),
-  getLibrary: vi.fn().mockResolvedValue([]),
+  getLibrary: vi.fn().mockResolvedValue({ items: [], version: 0 }),
   isAxiosError: vi.fn(() => false),
 }));
 vi.mock("sonner", () => ({
@@ -31,6 +31,9 @@ const makeRefs = () => ({
   latestAppState: { current: null as any },
   isBootstrappingScene: { current: true },
   hasHydratedInitialScene: { current: false },
+  libraryItems: { current: [] as readonly any[] },
+  libraryVersion: { current: 0 },
+  libraryHydrated: { current: false },
 });
 
 const makeParams = (over: Record<string, any> = {}) => ({
@@ -47,6 +50,7 @@ const makeParams = (over: Record<string, any> = {}) => ({
   setLoadError: vi.fn(),
   recordElementVersion: vi.fn(),
   normalizeImageElementStatus: (els?: readonly any[]) => els ?? [],
+  normalizeTextElementDimensions: (elements: readonly any[]) => elements,
   ...over,
 });
 

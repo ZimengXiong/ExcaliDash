@@ -14,6 +14,7 @@ const useAgentChatMock = vi.mocked(agentChat.useAgentChat);
 const chatValue = (overrides: Partial<ReturnType<typeof agentChat.useAgentChat>> = {}) => ({
   messages: [],
   isStreaming: false,
+  isLoading: false,
   sendMessage: vi.fn(),
   stop: vi.fn(),
   undoBatch: vi.fn(),
@@ -23,7 +24,7 @@ const chatValue = (overrides: Partial<ReturnType<typeof agentChat.useAgentChat>>
 
 const Harness = () => {
   const ref = useRef<Set<string>>(new Set());
-  return <ChatPanel drawingId="d1" canEdit selfAgentBatchIdsRef={ref} />;
+  return <ChatPanel drawingId="d1" canView canEdit selfAgentBatchIdsRef={ref} />;
 };
 
 describe("ChatPanel", () => {
@@ -46,9 +47,11 @@ describe("ChatPanel", () => {
     expect(container.textContent).toBe("");
   });
 
-  it("does not probe status when the user lacks edit access", async () => {
+  it("does not probe status when the user cannot view the drawing", async () => {
     const ref = { current: new Set<string>() };
-    render(<ChatPanel drawingId="d1" canEdit={false} selfAgentBatchIdsRef={ref} />);
+    render(
+      <ChatPanel drawingId="d1" canView={false} canEdit={false} selfAgentBatchIdsRef={ref} />,
+    );
     await Promise.resolve();
     expect(getAiStatusMock).not.toHaveBeenCalled();
   });
@@ -68,11 +71,53 @@ describe("ChatPanel", () => {
 
     fireEvent.click(await screen.findByLabelText("Open canvas assistant"));
 
-    const textarea = screen.getByLabelText(/Ask the assistant/i);
+    const textarea = screen.getByLabelText(/Message the canvas agent/i);
     fireEvent.change(textarea, { target: { value: "draw a box" } });
     fireEvent.keyDown(textarea, { key: "Enter" });
 
     expect(sendMessage).toHaveBeenCalledWith("draw a box");
+  });
+
+  it("switches between configured providers and their model catalogs", async () => {
+    getAiStatusMock.mockResolvedValue({
+      available: true,
+      provider: "openai",
+      model: "gpt-fast",
+      keyConfigured: true,
+      keySource: "db",
+      chatgptEnabled: true,
+      defaultProviderId: "fast",
+      providers: [
+        {
+          id: "fast",
+          label: "Fast",
+          provider: "openai",
+          available: true,
+          enabled: true,
+          baseUrl: "https://api.openai.com/v1",
+          models: [{ id: "gpt-fast", label: "GPT Fast", reasoningEfforts: ["low"] }],
+          keyConfigured: true,
+          keySource: "db",
+        },
+        {
+          id: "deep",
+          label: "Deep",
+          provider: "custom",
+          available: true,
+          enabled: true,
+          baseUrl: "https://example.test/v1",
+          models: [{ id: "gemini-deep", label: "Gemini Deep", reasoningEfforts: ["high"] }],
+          keyConfigured: true,
+          keySource: "db",
+        },
+      ],
+    });
+    render(<Harness />);
+    fireEvent.click(await screen.findByLabelText("Open canvas assistant"));
+
+    fireEvent.change(screen.getByLabelText("Provider"), { target: { value: "deep" } });
+    await waitFor(() => expect(screen.getByLabelText("Model")).toHaveValue("gemini-deep"));
+    expect(screen.getByLabelText("Thinking")).toHaveValue("high");
   });
 
   it("renders an applied batch card and undoes it", async () => {

@@ -84,7 +84,14 @@ export const createTextElement = (
     text.split("\n").reduce((m, l) => Math.max(m, l.length), 0) * fontSize * 0.6,
   );
   const height = Math.ceil(fontSize * lineHeight * lines);
-  const el = baseElement("text", x, y, width, height);
+  // Excalidraw's newTextElement() treats x/y as the alignment anchor and stores
+  // the resulting top-left coordinates. Agent ops run on the server and cannot
+  // use browser font metrics, but applying the same offset to our estimate is
+  // essential: the client can refine an estimated box, whereas it cannot infer
+  // that an unshifted x/y was intended to be the center of a bound label.
+  const storedX = containerId ? x - width / 2 : x;
+  const storedY = containerId ? y - height / 2 : y;
+  const el = baseElement("text", storedX, storedY, width, height);
   el.text = text;
   el.originalText = text;
   el.fontSize = fontSize;

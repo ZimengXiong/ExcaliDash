@@ -15,8 +15,14 @@ export type ChatGptConnectionStatus = {
   needsReconnect: boolean;
   accountEmail: string | null;
   planType: string | null;
-  models: string[];
+  models: ChatGptModel[];
   redirectUri: string;
+};
+
+export type ChatGptModel = {
+  id: string;
+  label: string;
+  reasoningEfforts: string[];
 };
 
 export const getChatGptStatus = async (): Promise<ChatGptConnectionStatus> => {

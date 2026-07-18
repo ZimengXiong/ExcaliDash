@@ -5,13 +5,13 @@ import { useAuth } from '../context/AuthContext';
 import * as api from '../api';
 import type { Collection } from '../types';
 import { User, Save, X } from 'lucide-react';
-import { USER_KEY } from '../utils/impersonation';
 import { displayFontFamily } from "../utils/displayFont";
 import { ApiKeysCard } from "./profile/ApiKeysCard";
 import { PasswordCard } from "./profile/PasswordCard";
+import { getApiErrorMessage } from "../utils/getApiErrorMessage";
 
 export const Profile: React.FC = () => {
-    const { user: authUser, logout, authEnabled } = useAuth();
+    const { user: authUser, logout, authEnabled, updateUser } = useAuth();
     const navigate = useNavigate();
     const mustResetPassword = Boolean(authUser?.mustResetPassword);
     const [collections, setCollections] = useState<Collection[]>([]);
@@ -59,9 +59,8 @@ export const Profile: React.FC = () => {
     };
 
     const handleCreateCollection = async (name: string) => {
-        await api.createCollection(name);
-        const newCollections = await api.getCollections();
-        setCollections(newCollections);
+        const collection = await api.createCollection(name);
+        setCollections(prev => [...prev, collection]);
     };
 
     const handleEditCollection = async (id: string, name: string) => {
@@ -92,19 +91,10 @@ export const Profile: React.FC = () => {
             const response = await api.api.put<{ user: { id: string; email: string; name: string; createdAt: string; updatedAt: string } }>('/auth/profile', { name: name.trim() });
             setSuccess('Name updated successfully');
             if (response.data?.user) {
-                localStorage.setItem('excalidash-user', JSON.stringify(response.data.user));
-                setTimeout(() => window.location.reload(), 500);
+                updateUser(response.data.user);
             }
         } catch (err: unknown) {
-            let message = 'Failed to update name';
-            if (api.isAxiosError(err)) {
-                if (err.response?.data?.message) {
-                    message = err.response.data.message;
-                } else if (err.response?.data?.error) {
-                    message = err.response.data.error;
-                }
-            }
-            setError(message);
+            setError(getApiErrorMessage(err, 'Failed to update name'));
         } finally {
             setLoading(false);
         }
@@ -138,23 +128,14 @@ export const Profile: React.FC = () => {
                 currentPassword: emailCurrentPassword,
             });
 
-            localStorage.setItem(USER_KEY, JSON.stringify(response.data.user));
+            updateUser(response.data.user);
 
             setSuccess('Email updated successfully');
             setShowEmailForm(false);
             setEmailCurrentPassword('');
 
-            setTimeout(() => window.location.reload(), 500);
         } catch (err: unknown) {
-            let message = 'Failed to update email';
-            if (api.isAxiosError(err)) {
-                if (err.response?.data?.message) {
-                    message = err.response.data.message;
-                } else if (err.response?.data?.error) {
-                    message = err.response.data.error;
-                }
-            }
-            setError(message);
+            setError(getApiErrorMessage(err, 'Failed to update email'));
         } finally {
             setEmailLoading(false);
         }

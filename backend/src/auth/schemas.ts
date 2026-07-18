@@ -42,15 +42,41 @@ export const registrationToggleSchema = z.object({
 // override (falls back to env). `apiKey` is write-only — the special sentinel
 // "__unchanged__" leaves the stored (encrypted) key untouched, and an empty
 // string clears it.
+const aiModelOptionSchema = z.object({
+  id: z.string().trim().min(1).max(200),
+  label: z.string().trim().min(1).max(200),
+  reasoningEfforts: z.array(z.string().trim().min(1).max(40)).max(10),
+});
+
+const aiProviderProfileSchema = z.object({
+  id: z.string().trim().regex(/^[a-zA-Z0-9_-]+$/).max(64),
+  label: z.string().trim().min(1).max(100),
+  provider: z.enum(["anthropic", "openai", "gemini", "custom", "chatgpt"]),
+  enabled: z.boolean(),
+  baseUrl: z.string().trim().max(2000).nullable(),
+  models: z.array(aiModelOptionSchema).max(50),
+  apiKey: z.string().max(4000).optional(),
+  clearApiKey: z.boolean().optional(),
+}).superRefine((profile, ctx) => {
+  if (profile.provider !== "chatgpt" && profile.models.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["models"],
+      message: "At least one model is required for API-key providers",
+    });
+  }
+});
+
 export const aiSettingsUpdateSchema = z.object({
   provider: z
-    .enum(["disabled", "anthropic", "openai", "custom", "chatgpt"])
+    .enum(["disabled", "anthropic", "openai", "gemini", "custom", "chatgpt"])
     .nullable()
     .optional(),
   baseUrl: z.string().trim().max(2000).nullable().optional(),
   model: z.string().trim().max(200).nullable().optional(),
   apiKey: z.string().max(4000).optional(),
-  chatgptEnabled: z.boolean().optional(),
+  providers: z.array(aiProviderProfileSchema).max(20).optional(),
+  defaultProviderId: z.string().trim().max(64).nullable().optional(),
 });
 
 export const oidcJitProvisioningToggleSchema = z.object({

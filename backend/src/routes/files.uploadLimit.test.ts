@@ -19,7 +19,13 @@ beforeAll(async () => {
   app = express();
   registerFileRoutes(app, {
     prisma: {} as any,
-    requireAuth: ((_req: any, _res: any, next: any) => next()) as any,
+    requireAuth: ((req: any, res: any, next: any) => {
+      if (req.headers.authorization !== "Bearer test") {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      req.user = { id: "user-1" };
+      next();
+    }) as any,
     optionalAuth: ((_req: any, _res: any, next: any) => next()) as any,
     asyncHandler: (<T>(fn: any) => (req: any, res: any, next: any) =>
       Promise.resolve(fn(req, res, next)).catch(next)) as any,
@@ -32,6 +38,7 @@ describe("raw upload size limit", () => {
 
     const res = await request(app)
       .put("/drawings/drawing-1/files/file-1")
+      .set("Authorization", "Bearer test")
       .set("Content-Type", "image/png")
       .send(oversized);
 
@@ -39,5 +46,15 @@ describe("raw upload size limit", () => {
     expect(res.body.error).toBe("File too large");
     expect(typeof res.body.message).toBe("string");
     expect(res.body.message).toContain("FILE_UPLOAD_MAX_MB");
+  });
+
+  it("rejects unauthenticated callers before buffering an oversized body", async () => {
+    const res = await request(app)
+      .put("/drawings/drawing-1/files/file-1")
+      .set("Content-Type", "image/png")
+      .send(Buffer.alloc(4000, 1));
+
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe("Unauthorized");
   });
 });

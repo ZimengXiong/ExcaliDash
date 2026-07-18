@@ -1,7 +1,6 @@
 # Agent API
 
-The Agent API lets programs (AI agents, scripts, integrations) read and edit a
-drawing over plain HTTPS. Edits go through **semantic ops** that are applied
+The Agent API lets programs (AI agents, scripts, integrations) read and edit a drawing over HTTPS. Edits go through **semantic ops** that are applied
 atomically on the server: the whole batch is validated against the authoritative
 scene, applied in one transaction, snapshotted for undo, sanitized, and
 version-bumped — exactly like a normal save. Open editors receive the changes
@@ -49,7 +48,10 @@ Bearer (non-browser) requests are exempt from CSRF. Token management endpoints
 1. Open the drawing and click **Share**.
 2. In the **Agent access** section, click **Create token** (owner only).
 3. Copy the token — it is shown **once**. Afterwards only its prefix is listed.
-4. Revoke any time from the same panel.
+4. Optionally copy the token-free `SKILL.md`, then store the token separately as
+   `EXCALIDASH_TOKEN` in the agent's credential store.
+5. Drawing-scoped agent tokens expire after 30 days. Revoke them sooner from
+   the same panel when they are no longer needed.
 
 Programmatic management (session cookie required, owner only):
 
@@ -190,9 +192,9 @@ Batch envelope: `{ "ops": Op[]  (1..50), "clientBatchId"?: string }`.
 
 | Op | Params | Behavior |
 | --- | --- | --- |
-| `add_shape` | `shape` (`rectangle`\|`ellipse`\|`diamond`\|`text`\|`frame`), `x`, `y`, `w?`, `h?`, `label?`, `style?` | Creates a shape. `label` becomes a bound text child with correct `containerId`/`boundElements`. Returns `createdIds`. |
+| `add_shape` | `shape` (`rectangle`\|`ellipse`\|`diamond`\|`text`\|`frame`), `x`, `y`, `w?`, `h?`, `label?`, `style?` | Creates a shape. `label` is a frame title for frames, otherwise bound text. Returns `createdIds`. |
 | `connect` | `fromId`, `toId`, `label?`, `style?`, `arrowType?` (`arrow`\|`line`) | Creates an arrow/line with `startBinding`/`endBinding` and updates both endpoints' `boundElements`. `ELEMENT_NOT_FOUND` per missing endpoint. |
-| `set_text` | `id`, `text` | Sets the element's own text or its bound label (creating the label if none). Text is sanitized. |
+| `set_text` | `id`, `text` | Sets text or a bound label; for frames, sets the native frame title (`name`). Text is sanitized. |
 | `set_style` | `id`, `style` | Whitelist patch. Allowed keys: `strokeColor`, `backgroundColor`, `fillStyle`, `strokeWidth`, `strokeStyle`, `opacity`, `roughness`, `fontSize`, `fontFamily`, `textAlign`, `roundness`. Unknown key → `INVALID_STYLE_KEY`. |
 | `move` | `id`, and **either** `dx,dy` **or** `x,y` (never both) | Moves the element with its bound label and rebinds attached arrows. |
 | `delete` | `id` | Soft-deletes (`isDeleted:true`) the element and its bound label; detaches arrow bindings that referenced it. |
@@ -277,6 +279,50 @@ request IP/user-agent. Admins can review them on the Admin → Audit page.
 
 ---
 
+## Canvas assistant tools
+
+The in-editor assistant uses two server-managed tools:
+
+- Every new turn includes current structural state and attaches a bounded PNG
+  for nonblank canvases. Blank state is explicit; images are transient and are
+  never stored. `view_canvas` remains a compatibility fallback.
+- `apply_ops` validates and atomically applies semantic drawing operations.
+
+The chat is one server-owned transcript per drawing, shared live by authorized
+collaborators and restored after refresh. The model can answer normally or
+alternate `view_canvas`, `apply_ops`, and natural replies. SSE emits `tool_call` and
+`tool_result` lifecycle events, answer text as `token`, and provider-supplied
+reasoning summaries as `thinking`. The UI shows a collapsible **Thinking
+summary**; hidden chain-of-thought and opaque signatures stay private. Providers
+without summaries omit the event. Rejected tool calls remain recoverable.
+
+OpenAI-compatible tool calls preserve opaque provider metadata across every
+step. This includes Gemini's `extra_content.google.thought_signature`, which is
+required when a Gemini thinking model continues after a function call.
+
+The tool loop is capped at eight model steps. Reaching that cap emits
+`TOOL_LIMIT_REACHED` instead of reporting a false success.
+
+### Provider and model registry
+
+Admins can configure multiple named AI provider profiles under **Admin → AI
+provider registry**. Each profile has its own provider type, encrypted API key,
+base URL, enabled state, model allow-list, and optional reasoning levels. One
+profile is the default, but users can switch provider, model, and reasoning
+level from the canvas chat without starting a new conversation.
+
+`GET /ai/status` returns the non-secret registry; `GET /ai/chat/:drawingId/messages`
+returns shared history. `POST /ai/chat` accepts `message`, `providerId`, `model`, and
+`reasoningEffort`; every value is checked against the configured registry before
+the provider adapter is called. OpenAI-compatible profiles forward
+`reasoning_effort`, Anthropic profiles use `output_config.effort`, and ChatGPT
+subscription models use the reasoning levels reported by the user's live model
+catalog.
+
+The original `AI_PROVIDER`, `AI_API_KEY`, `AI_BASE_URL`, and `AI_MODEL` settings
+remain a backward-compatible bootstrap profile named `legacy`. Saving the new
+registry migrates that profile while preserving its encrypted database key.
+
 ## ChatGPT (subscription) provider
 
 Alongside the API-key providers (`anthropic`, `openai`, `custom`), the canvas
@@ -323,8 +369,9 @@ parameter. If a stale version is sent, models report as unsupported. This is
 exposed as **`AI_CHATGPT_CLIENT_VERSION`** (default `0.142.5`) so a self-hoster
 can bump it toward the current Codex CLI release — without a code change or
 release — when models disappear. The offered model slugs come from
-`AI_CHATGPT_MODELS` (default `gpt-5.1, gpt-5.1-codex, gpt-5.2, gpt-5.2-codex,
-gpt-5.1-codex-max`; the first is the default). The OAuth client id, issuer,
+`AI_CHATGPT_MODELS` (default `gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna,
+gpt-5.5, gpt-5.4, gpt-5.4-mini`; the first is the default). Configured models
+remain available when the live ChatGPT catalog omits a Codex-capable slug. The OAuth client id, issuer,
 redirect URI, and Codex base URL are likewise overridable
 (`AI_CHATGPT_CLIENT_ID`, `AI_CHATGPT_ISSUER`, `AI_CHATGPT_REDIRECT_URI`,
 `AI_CHATGPT_CODEX_BASE_URL`) for resilience if OpenAI moves an endpoint. See the

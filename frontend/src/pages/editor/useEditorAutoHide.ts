@@ -7,13 +7,13 @@ export const useEditorAutoHide = (drawingId: string | undefined) => {
   );
 
   const getStoredAutoHideEnabled = useCallback((): boolean => {
-    if (!storageKey) return true;
+    if (!storageKey) return false;
     try {
       const raw = window.localStorage.getItem(storageKey);
-      if (raw === null) return true;
+      if (raw === null) return false;
       return raw === "1" || raw === "true";
     } catch {
-      return true;
+      return false;
     }
   }, [storageKey]);
 

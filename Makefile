@@ -212,7 +212,7 @@ docker-rebuild: docker-down docker-build docker-run ## Rebuild and restart conta
 lab-build: ## Build reproducible local environment lab images
 	$(LAB_COMPOSE) build
 
-lab-up: ## Start all reproducible lab environments on ports 1101-1105
+lab-up: ## Start all reproducible lab environments on ports 1101-1106
 	$(LAB_COMPOSE) up -d --build
 	@echo ""
 	@echo "ExcaliDash lab is starting:"
@@ -221,6 +221,7 @@ lab-up: ## Start all reproducible lab environments on ports 1101-1105
 	@echo "  OIDC enforced:          http://localhost:1103"
 	@echo "  hybrid auth:            http://localhost:1104"
 	@echo "  trusted proxy variant:  http://localhost:1105"
+	@echo "  OIDC + SeaweedFS S3:    http://localhost:1106"
 	@echo "  Keycloak admin:         http://localhost:18080/admin"
 	@echo "  SeaweedFS filer:        http://localhost:18888"
 	@echo "  SeaweedFS S3 endpoint:  http://localhost:18333"
@@ -244,7 +245,7 @@ lab-smoke: ## Verify all lab frontends, backend health proxies, and SeaweedFS bu
 	./scripts/lab-smoke.sh
 
 lab-open: ## Open all lab URLs in the default browser
-	@URLS="http://localhost:1101 http://localhost:1102 http://localhost:1103 http://localhost:1104 http://localhost:1105 http://localhost:18080/admin http://localhost:18888 http://localhost:18333"; \
+	@URLS="http://localhost:1101 http://localhost:1102 http://localhost:1103 http://localhost:1104 http://localhost:1105 http://localhost:1106 http://localhost:18080/admin http://localhost:18888 http://localhost:18333"; \
 	if command -v open >/dev/null 2>&1; then \
 		for URL in $$URLS; do open "$$URL"; done; \
 	elif command -v xdg-open >/dev/null 2>&1; then \

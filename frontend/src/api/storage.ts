@@ -1,25 +1,41 @@
 import { api } from "./client";
 
-let s3EnabledCache: boolean | null = null;
-let s3EnabledInFlight: Promise<boolean> | null = null;
+type FileStorageConfig = {
+  s3Enabled: boolean;
+  fileUploadMaxBytes?: number;
+};
 
-export const isS3Enabled = async (): Promise<boolean> => {
-  if (s3EnabledCache !== null) return s3EnabledCache;
-  if (s3EnabledInFlight) return s3EnabledInFlight;
+let fileStorageConfigCache: FileStorageConfig | null = null;
+let fileStorageConfigInFlight: Promise<FileStorageConfig | null> | null = null;
 
-  s3EnabledInFlight = (async () => {
+const getFileStorageConfig = async (): Promise<FileStorageConfig | null> => {
+  if (fileStorageConfigCache) return fileStorageConfigCache;
+  if (fileStorageConfigInFlight) return fileStorageConfigInFlight;
+
+  fileStorageConfigInFlight = (async () => {
     try {
-      const response = await api.get<{ s3Enabled: boolean }>("/files/config");
-      s3EnabledCache = response.data.s3Enabled === true;
-      return s3EnabledCache;
+      const response = await api.get<FileStorageConfig>("/files/config");
+      fileStorageConfigCache = response.data;
+      return fileStorageConfigCache;
     } catch {
-      return false;
+      return null;
     } finally {
-      s3EnabledInFlight = null;
+      fileStorageConfigInFlight = null;
     }
   })();
 
-  return s3EnabledInFlight;
+  return fileStorageConfigInFlight;
+};
+
+export const isS3Enabled = async (): Promise<boolean> =>
+  (await getFileStorageConfig())?.s3Enabled === true;
+
+/** The server's existing per-image cap, when this backend exposes it. */
+export const getFileUploadMaxBytes = async (): Promise<number | null> => {
+  const limit = (await getFileStorageConfig())?.fileUploadMaxBytes;
+  return typeof limit === "number" && Number.isFinite(limit) && limit > 0
+    ? limit
+    : null;
 };
 
 export type TrimResult = {

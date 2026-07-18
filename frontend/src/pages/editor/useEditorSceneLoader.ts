@@ -35,6 +35,9 @@ type SceneLoaderParams = {
     latestAppState: MutableRefObject<any>;
     isBootstrappingScene: MutableRefObject<boolean>;
     hasHydratedInitialScene: MutableRefObject<boolean>;
+    libraryItems?: MutableRefObject<readonly any[]>;
+    libraryVersion?: MutableRefObject<number>;
+    libraryHydrated?: MutableRefObject<boolean>;
   };
   setAccessLevel: (accessLevel: AccessLevel) => void;
   setDrawingName: (name: string) => void;
@@ -47,6 +50,7 @@ type SceneLoaderParams = {
     elements?: readonly any[],
     files?: Record<string, any> | null,
   ) => readonly any[];
+  normalizeTextElementDimensions: (elements: readonly any[]) => readonly any[];
 };
 
 const buildEmptyScene = () => ({
@@ -74,6 +78,7 @@ export const useEditorSceneLoader = ({
   setLoadError,
   recordElementVersion,
   normalizeImageElementStatus,
+  normalizeTextElementDimensions,
 }: SceneLoaderParams) => {
   const resetRefs = useCallback(() => {
     refs.isBootstrappingScene.current = true;
@@ -88,6 +93,9 @@ export const useEditorSceneLoader = ({
     refs.lastPersistedFiles.current = {};
     refs.currentDrawingVersion.current = null;
     refs.lastPersistedElements.current = [];
+    if (refs.libraryItems) refs.libraryItems.current = [];
+    if (refs.libraryVersion) refs.libraryVersion.current = 0;
+    if (refs.libraryHydrated) refs.libraryHydrated.current = false;
     refs.suspiciousBlankLoad.current = false;
     refs.hasSceneChangesSinceLoad.current = false;
     refs.excalidrawAPI.current = null;
@@ -125,14 +133,20 @@ export const useEditorSceneLoader = ({
         const libraryItemsPromise = userIdKey
           ? api.getLibrary().catch((err) => {
               console.warn("Failed to load library, using empty:", err);
-              return [];
+              return { items: [], version: 0 };
             })
-          : Promise.resolve([]);
-        const [data, libraryItems] = await Promise.all([
+          : Promise.resolve({ items: [], version: 0 });
+        const [data, library] = await Promise.all([
           api.getDrawing(id),
           libraryItemsPromise,
         ]);
         if (cancelled) return;
+        const libraryItems = library.items;
+        if (refs.libraryItems) refs.libraryItems.current = libraryItems;
+        if (refs.libraryVersion) refs.libraryVersion.current = library.version;
+        // initialData is now populated; subsequent empty callbacks represent
+        // an explicit user clear rather than pre-hydration initialization.
+        if (refs.libraryHydrated) refs.libraryHydrated.current = true;
         setDrawingName(data.name);
         setAccessLevel(
           data.accessLevel === "view" ||
@@ -151,7 +165,9 @@ export const useEditorSceneLoader = ({
         // elements stay non-saved and show Excalidraw's own loading state until
         // their bytes arrive.
         const files: Record<string, any> = data.files || {};
-        const elements = normalizeImageElementStatus(rawElements, files);
+        const elements = normalizeTextElementDimensions(
+          normalizeImageElementStatus(rawElements, files),
+        );
         const hasPreview =
           typeof data.preview === "string" && data.preview.trim().length > 0;
         const loadedRenderable = hasRenderableElements(elements);
@@ -302,6 +318,7 @@ export const useEditorSceneLoader = ({
     location.search,
     navigate,
     normalizeImageElementStatus,
+    normalizeTextElementDimensions,
     recordElementVersion,
     refs,
     resetRefs,

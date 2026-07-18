@@ -24,6 +24,13 @@ services:
       # - OIDC_CLIENT_ID=your-client-id
       # - OIDC_CLIENT_SECRET=your-client-secret
       # - OIDC_REDIRECT_URI=https://excalidash.example.com/api/auth/oidc/callback
+      # For image-heavy or multi-user deployments, configure S3-compatible
+      # storage so binary files do not inflate and contend on the SQLite DB:
+      # - S3_BUCKET=excalidash
+      # - S3_REGION=us-east-1
+      # - S3_ENDPOINT=https://s3.example.com
+      # - AWS_ACCESS_KEY_ID=...
+      # - AWS_SECRET_ACCESS_KEY=...
       # Optional scheduled SQLite backups (see docs/DEPLOYMENT.md > Backups).
       # BACKUP_SCHEDULE is a 5- or 6-field cron expression; unset disables it.
       # Uncomment these together with the backup-data volume mount below.

@@ -23,6 +23,7 @@ AWS CLI images.
 | OIDC enforced | http://localhost:1103 | Keycloak-only login flow |
 | Hybrid auth | http://localhost:1104 | Local auth plus Keycloak OIDC |
 | Trusted proxy | http://localhost:1105 | `TRUST_PROXY=true` CSRF/proxy behavior |
+| OIDC + SeaweedFS S3 | http://localhost:1106 | Keycloak-only login with image files stored in SeaweedFS via S3 |
 | Keycloak admin | http://localhost:18080/admin | OIDC provider admin UI |
 | SeaweedFS filer | http://localhost:18888 | SeaweedFS file browser |
 | SeaweedFS S3 | http://localhost:18333 | Local S3-compatible endpoint |
@@ -72,9 +73,14 @@ make lab-down
 `lab-down` stops containers but keeps volumes. Use `lab-reset` when you need a
 fresh first-run install.
 
+The Keycloak realm JSON is imported when the Keycloak container is first
+created. After changing `local/oidc/realm-excalidash-local.json`, recreate only
+the Keycloak container to pick up the update. A full `lab-reset` is not required
+and would delete all lab application and SeaweedFS data.
+
 ## SeaweedFS Details
 
-The S3-backed app variant uses:
+The S3-backed app variants use:
 
 ```text
 bucket: excalidash-lab

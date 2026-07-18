@@ -36,6 +36,7 @@ check_url "basic + SeaweedFS" "http://localhost:1102/"
 check_url "OIDC enforced" "http://localhost:1103/"
 check_url "hybrid" "http://localhost:1104/"
 check_url "trusted proxy" "http://localhost:1105/"
+check_url "OIDC + SeaweedFS" "http://localhost:1106/"
 
 echo
 echo "Checking backend health through each frontend proxy..."
@@ -44,6 +45,7 @@ check_url "basic + SeaweedFS health" "http://localhost:1102/api/health"
 check_url "OIDC health" "http://localhost:1103/api/health"
 check_url "hybrid health" "http://localhost:1104/api/health"
 check_url "trusted proxy health" "http://localhost:1105/api/health"
+check_url "OIDC + SeaweedFS health" "http://localhost:1106/api/health"
 
 echo
 echo "Checking SeaweedFS S3 API..."

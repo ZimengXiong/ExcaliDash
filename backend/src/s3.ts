@@ -1,5 +1,5 @@
 /**
- * S3 client setup and helper utilities for presigned URL generation.
+ * S3 client setup and helper utilities for object access.
  * Supports AWS S3 and S3-compatible services (Cloudflare R2, MinIO, Alibaba OSS, etc.)
  */
 import {
@@ -12,6 +12,7 @@ import {
   HeadBucketCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { Readable } from "node:stream";
 import { config } from "./config";
 
 export interface S3Config {
@@ -109,6 +110,59 @@ export const generatePresignedDownloadUrl = async (
   });
 
   return getSignedUrl(s3Client, command, { expiresIn: expiresInSeconds });
+};
+
+/**
+ * Open an object as a Node stream so authenticated routes can proxy it without
+ * exposing a storage endpoint that may only be reachable inside Docker.
+ */
+export type S3ObjectStream = {
+  stream: Readable;
+  contentType?: string;
+  contentLength?: number;
+  etag?: string;
+  cacheControl?: string;
+  lastModified?: Date;
+};
+
+export const getObjectStream = async (key: string): Promise<S3ObjectStream> => {
+  if (!s3Client || !s3Config) {
+    throw new Error("S3 is not configured");
+  }
+
+  const response = await s3Client.send(
+    new GetObjectCommand({ Bucket: s3Config.bucket, Key: key }),
+  );
+  if (!response.Body) {
+    throw new Error("S3 returned an empty object body");
+  }
+
+  // The Node S3 client returns an IncomingMessage/Readable. Keeping the
+  // conversion here gives routes one portable stream interface if an SDK
+  // transport ever supplies a Web stream instead.
+  const stream = response.Body instanceof Readable
+    ? response.Body
+    : Readable.fromWeb(response.Body.transformToWebStream());
+  return {
+    stream,
+    contentType: response.ContentType,
+    contentLength: response.ContentLength,
+    etag: response.ETag,
+    cacheControl: response.CacheControl,
+    lastModified: response.LastModified,
+  };
+};
+
+/** Whether an S3 GetObject failure means the object no longer exists. */
+export const isS3ObjectNotFoundError = (error: unknown): boolean => {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { name?: unknown; Code?: unknown; $metadata?: { httpStatusCode?: unknown } };
+  return (
+    candidate.name === "NoSuchKey" ||
+    candidate.name === "NotFound" ||
+    candidate.Code === "NoSuchKey" ||
+    candidate.$metadata?.httpStatusCode === 404
+  );
 };
 
 /**

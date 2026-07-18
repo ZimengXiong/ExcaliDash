@@ -3,7 +3,12 @@ import { logAuditEvent } from "../utils/audit";
 import { getEffectiveOidcJitProvisioning } from "./accessPolicy";
 import type { RegisterAdminRoutesDeps } from "./adminRoutes";
 import { aiSettingsUpdateSchema, loginRateLimitResetSchema, loginRateLimitUpdateSchema, oidcJitProvisioningToggleSchema, registrationToggleSchema } from "./schemas";
-import { resolveAiSettings, toAiStatus, type AiSystemConfigRow } from "../ai/settings";
+import {
+  encodeStoredAiProfiles,
+  resolveAiRegistry,
+  toAiStatus,
+  type AiSystemConfigRow,
+} from "../ai/settings";
 import { encryptSecret } from "../ai/crypto";
 import { config as appConfig } from "../config";
 
@@ -22,15 +27,16 @@ export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
         if (!(await ensureAuthEnabled(res))) return;
         if (!requireAdmin(req, res)) return;
         const row = await loadAiRow();
-        const settings = resolveAiSettings(row);
+        const registry = resolveAiRegistry(row);
         res.json({
-          status: toAiStatus(settings),
+          status: toAiStatus(registry),
+          providers: toAiStatus(registry).providers,
+          defaultProviderId: registry.defaultProviderId,
           // Non-secret DB overrides, so the form can show what is stored.
           overrides: {
             provider: row?.aiProvider ?? null,
             baseUrl: row?.aiBaseUrl ?? null,
             model: row?.aiModel ?? null,
-            chatgptEnabled: row?.aiChatgptEnabled ?? true,
           },
           // When an env key is set it always wins — the DB key field is locked.
           envKeyConfigured: Boolean(appConfig.ai.apiKey),
@@ -55,7 +61,15 @@ export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
         if (!parsed.success) {
           return res.status(400).json({ error: "Bad request", message: "Invalid AI settings payload" });
         }
-        const { provider, baseUrl, model, apiKey, chatgptEnabled } = parsed.data;
+        const {
+          provider,
+          baseUrl,
+          model,
+          apiKey,
+          providers,
+          defaultProviderId,
+        } = parsed.data;
+        const current = await loadAiRow();
         const data: Record<string, string | boolean | null> = {};
         if (provider !== undefined) data.aiProvider = provider;
         if (baseUrl !== undefined) data.aiBaseUrl = baseUrl && baseUrl.length > 0 ? baseUrl : null;
@@ -63,7 +77,25 @@ export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
         if (apiKey !== undefined) {
           data.aiApiKeyEncrypted = apiKey.length > 0 ? encryptSecret(apiKey) : null;
         }
-        if (chatgptEnabled !== undefined) data.aiChatgptEnabled = chatgptEnabled;
+        if (providers !== undefined) {
+          if (
+            defaultProviderId &&
+            !providers.some((profile) => profile.id === defaultProviderId)
+          ) {
+            return res.status(400).json({
+              error: "Bad request",
+              message: "Default AI provider must reference a configured provider",
+            });
+          }
+          data.aiProviderProfiles = encodeStoredAiProfiles(
+            providers,
+            current?.aiProviderProfiles,
+            current?.aiApiKeyEncrypted,
+          );
+          data.aiDefaultProviderId = defaultProviderId ?? providers[0]?.id ?? null;
+        } else if (defaultProviderId !== undefined) {
+          data.aiDefaultProviderId = defaultProviderId;
+        }
         const updated = (await prisma.systemConfig.upsert({
           where: { id: defaultSystemConfigId },
           update: data,
@@ -83,12 +115,13 @@ export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
           });
         }
         res.json({
-          status: toAiStatus(resolveAiSettings(updated)),
+          status: toAiStatus(resolveAiRegistry(updated)),
+          providers: toAiStatus(resolveAiRegistry(updated)).providers,
+          defaultProviderId: resolveAiRegistry(updated).defaultProviderId,
           overrides: {
             provider: updated.aiProvider ?? null,
             baseUrl: updated.aiBaseUrl ?? null,
             model: updated.aiModel ?? null,
-            chatgptEnabled: updated.aiChatgptEnabled ?? true,
           },
           envKeyConfigured: Boolean(appConfig.ai.apiKey),
           dbKeyConfigured: Boolean(updated.aiApiKeyEncrypted),

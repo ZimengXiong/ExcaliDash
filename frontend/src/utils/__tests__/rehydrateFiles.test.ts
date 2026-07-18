@@ -69,6 +69,7 @@ describe("rehydrateFilesFromUrls", () => {
     const out = await rehydrateFilesFromUrls(files);
     expect(fetchMock).toHaveBeenCalledWith("/api/files/d1/f1", {
       credentials: "include",
+      signal: expect.any(AbortSignal),
     });
     expect(out.a.dataURL.startsWith("data:image/svg+xml;base64,")).toBe(true);
     // original object must not be mutated

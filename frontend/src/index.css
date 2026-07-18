@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  /* Shared secondary-surface language: rounded and playful, without the
+     heavy offset shadows reserved for the dashboard's primary cards. */
+  .ui-popover {
+    @apply rounded-xl border border-slate-200 bg-white shadow-lg shadow-slate-900/10 dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-black/30;
+  }
+
+  .ui-dialog {
+    @apply rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/15 dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-black/40;
+  }
+
+  .ui-side-panel {
+    @apply border-slate-200 bg-white shadow-xl shadow-slate-900/10 dark:border-neutral-800 dark:bg-neutral-900 dark:shadow-black/30;
+  }
+}
+
 :root {
   --excalidash-display-font: Excalifont;
 }

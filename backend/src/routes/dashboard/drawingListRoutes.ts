@@ -1,18 +1,13 @@
 import express from "express";
 import { Prisma } from "../../generated/client";
-import {
-  canViewDrawing,
-  getDrawingAccess,
-  normalizeDrawingPermission,
-} from "../../authz/sharing";
+import { canViewDrawing, getDrawingAccess, normalizeDrawingPermission } from "../../authz/sharing";
 import { getUserTrashCollectionId, toPublicTrashCollectionId } from "./trash";
 import { SortDirection, SortField } from "./types";
 import type { DrawingRouteContext } from "./drawingRouteContext";
 
-// Server-side page size applied when a client omits `limit`, so the list
-// endpoints can never return an unbounded payload (previously every drawing,
-// with inline previews, was serialized into a single response).
 const DEFAULT_PAGE_SIZE = 50;
+const MAX_FULL_SCENE_PAGE_SIZE = 5;
+const MAX_OFFSET = 10_000;
 
 export const registerDrawingListRoutes = (
   app: express.Express,
@@ -40,7 +35,7 @@ export const registerDrawingListRoutes = (
   const clampOffset = (raw: string | undefined): number => {
     const parsed = raw ? Number.parseInt(raw, 10) : undefined;
     if (parsed === undefined || !Number.isFinite(parsed)) return 0;
-    return Math.max(parsed, 0);
+    return Math.min(Math.max(parsed, 0), MAX_OFFSET);
   };
 
   app.get(
@@ -133,6 +128,9 @@ export const registerDrawingListRoutes = (
 
       const parsedLimit = clampLimit(limit as string | undefined);
       const parsedOffset = clampOffset(offset as string | undefined);
+      if (shouldIncludeData && parsedLimit > MAX_FULL_SCENE_PAGE_SIZE) {
+        return res.status(400).json({ error: "Full-scene page too large" });
+      }
 
       const cacheKey =
         buildDrawingsCacheKey({
@@ -293,6 +291,9 @@ export const registerDrawingListRoutes = (
 
       const parsedLimit = clampLimit(limit as string | undefined);
       const parsedOffset = clampOffset(offset as string | undefined);
+      if (shouldIncludeData && parsedLimit > MAX_FULL_SCENE_PAGE_SIZE) {
+        return res.status(400).json({ error: "Full-scene page too large" });
+      }
 
       const orderBy: Prisma.DrawingOrderByWithRelationInput =
         parsedSortField === "name"
@@ -301,7 +302,6 @@ export const registerDrawingListRoutes = (
             ? { createdAt: parsedSortDirection }
             : { updatedAt: parsedSortDirection };
 
-      // Get collection IDs shared with this user to exclude drawings already visible via collection sharing
       const sharedCollectionIds = await prisma.collectionShare.findMany({
         where: { granteeUserId: req.user.id },
         select: { collectionId: true },

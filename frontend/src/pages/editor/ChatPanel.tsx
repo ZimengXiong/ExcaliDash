@@ -1,154 +1,71 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
+import type { Socket } from "socket.io-client";
 import {
-  AlertTriangle,
   Loader2,
   Send,
   Sparkles,
-  Undo2,
   X,
 } from "lucide-react";
-import clsx from "clsx";
-import { getAiStatus } from "../../api/ai";
+import {
+  getAiStatus,
+  type AiModelOption,
+  type AiProviderProfile,
+} from "../../api/ai";
 import {
   getChatGptStatus,
   type ChatGptConnectionStatus,
 } from "../../api/chatgpt";
 import { ChatGptConnect } from "./ChatGptConnect";
-import { useAgentChat, type ChatBatch, type ChatMessage } from "./useAgentChat";
+import { useAgentChat } from "./useAgentChat";
+import { AgentModelSelector } from "./AgentModelSelector";
+import { AgentChatMessage } from "./AgentChatMessage";
+import type { AgentCanvasCapture } from "./captureAgentCanvas";
 
 const STR = {
   title: "Canvas assistant",
   open: "Open canvas assistant",
   close: "Close assistant",
-  placeholder: "Ask the assistant to change the canvas…",
+  placeholder: "Message the canvas agent…",
   send: "Send",
   stop: "Stop",
   empty:
-    "Describe what you want on the canvas and the assistant will draw it for you.",
-  thinking: "Thinking…",
-  applied: "Applied to canvas",
-  undo: "Undo",
-  undoing: "Undoing…",
-  reverted: "Undone",
-  undoFailed: "Undo failed — retry",
-  noChanges: "Updated the canvas",
+    "Ask a question, brainstorm, or describe a canvas change. You can iterate naturally.",
 } as const;
 
 type ChatPanelProps = {
   drawingId?: string;
+  canView: boolean;
   canEdit: boolean;
+  socket?: Socket | null;
   selfAgentBatchIdsRef: MutableRefObject<Set<string>>;
-};
-
-const BatchCard: React.FC<{
-  batch: ChatBatch;
-  onUndo: (batch: ChatBatch) => void;
-}> = ({ batch, onUndo }) => {
-  const lines = batch.summaryDelta.filter((l) => l.trim().length > 0);
-  return (
-    <div className="mt-2 rounded-lg border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/70 dark:bg-indigo-950/30 p-2.5 text-xs">
-      <div className="flex items-center justify-between gap-2">
-        <span className="font-semibold text-indigo-700 dark:text-indigo-300">
-          {STR.applied}
-        </span>
-        <button
-          type="button"
-          onClick={() => onUndo(batch)}
-          disabled={batch.status === "reverting" || batch.status === "reverted"}
-          className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 disabled:opacity-50 disabled:cursor-default transition-colors"
-        >
-          {batch.status === "reverting" ? (
-            <Loader2 size={12} className="animate-spin" />
-          ) : (
-            <Undo2 size={12} />
-          )}
-          {batch.status === "reverting"
-            ? STR.undoing
-            : batch.status === "reverted"
-              ? STR.reverted
-              : batch.status === "revert-failed"
-                ? STR.undoFailed
-                : STR.undo}
-        </button>
-      </div>
-      {lines.length > 0 ? (
-        <ul className="mt-1.5 space-y-0.5 text-gray-600 dark:text-gray-400">
-          {lines.slice(0, 8).map((line, i) => (
-            <li key={i} className="truncate font-mono">
-              {line}
-            </li>
-          ))}
-          {lines.length > 8 ? <li>+{lines.length - 8} more</li> : null}
-        </ul>
-      ) : (
-        <p className="mt-1 text-gray-500 dark:text-gray-400">{STR.noChanges}</p>
-      )}
-    </div>
-  );
-};
-
-const MessageBubble: React.FC<{
-  message: ChatMessage;
-  onUndo: (batch: ChatBatch) => void;
-}> = ({ message, onUndo }) => {
-  const isUser = message.role === "user";
-  return (
-    <div className={clsx("flex", isUser ? "justify-end" : "justify-start")}>
-      <div
-        className={clsx(
-          "max-w-[85%] rounded-2xl px-3 py-2 text-sm",
-          isUser
-            ? "bg-indigo-600 text-white rounded-br-sm"
-            : "bg-gray-100 dark:bg-neutral-800 text-gray-900 dark:text-gray-100 rounded-bl-sm",
-        )}
-      >
-        {message.text ? (
-          <p className="whitespace-pre-wrap break-words">{message.text}</p>
-        ) : message.streaming && !message.error ? (
-          <span className="inline-flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
-            <Loader2 size={14} className="animate-spin" />
-            {STR.thinking}
-          </span>
-        ) : null}
-        {!isUser
-          ? message.batches.map((batch) => (
-              <BatchCard key={batch.opsBatchId} batch={batch} onUndo={onUndo} />
-            ))
-          : null}
-        {message.error ? (
-          <div className="mt-2 flex items-start gap-1.5 rounded-lg bg-red-50 dark:bg-red-950/40 p-2 text-xs text-red-700 dark:text-red-300">
-            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-            <div className="min-w-0">
-              <p className="break-words">{message.error}</p>
-              {message.opErrors?.length ? (
-                <ul className="mt-1 space-y-0.5">
-                  {message.opErrors.map((e, i) => (
-                    <li key={i} className="break-words">
-                      #{e.opIndex}: {e.message}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
+  captureCanvasContext?: () => Promise<AgentCanvasCapture>;
 };
 
 export const ChatPanel: React.FC<ChatPanelProps> = ({
   drawingId,
+  canView,
   canEdit,
+  socket,
   selfAgentBatchIdsRef,
+  captureCanvasContext,
 }) => {
   const [available, setAvailable] = useState(false);
-  const [isChatGpt, setIsChatGpt] = useState(false);
+  const [providers, setProviders] = useState<AiProviderProfile[]>([]);
+  const [selectedProviderId, setSelectedProviderId] = useState("");
   const [chatgpt, setChatgpt] = useState<ChatGptConnectionStatus | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [draft, setDraft] = useState("");
+  const [selectedModel, setSelectedModel] = useState("");
+  const [reasoningEffort, setReasoningEffort] = useState("medium");
   const listRef = useRef<HTMLDivElement>(null);
+  const selectedProvider = providers.find((profile) => profile.id === selectedProviderId);
+  const isChatGpt = selectedProvider?.provider === "chatgpt";
+  const models: AiModelOption[] = isChatGpt
+    ? (chatgpt?.models ?? selectedProvider?.models ?? [])
+    : (selectedProvider?.models ?? []);
+  const selectedModelOption = models.find((model) => model.id === selectedModel);
+  const reasoningEfforts = selectedModelOption?.reasoningEfforts ?? [];
 
   const registerSelfBatch = useCallback(
     (opsBatchId: string) => {
@@ -157,8 +74,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     [selfAgentBatchIdsRef],
   );
 
-  const { messages, isStreaming, sendMessage, stop, undoBatch } = useAgentChat({
+  const { messages, isStreaming, isLoading, sendMessage, stop, undoBatch } = useAgentChat({
     drawingId,
+    providerId: selectedProviderId || undefined,
+    model: selectedModel || undefined,
+    reasoningEffort: reasoningEfforts.length > 0 ? reasoningEffort : undefined,
+    socket,
+    captureCanvasContext,
     onSelfOpsBatch: registerSelfBatch,
   });
 
@@ -169,7 +91,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   }, []);
 
   useEffect(() => {
-    if (!canEdit || !drawingId) {
+    if (!canView || !drawingId) {
       setAvailable(false);
       return;
     }
@@ -178,9 +100,28 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       .then((status) => {
         if (!active) return;
         setAvailable(status.available);
-        const chatgptProvider = status.provider === "chatgpt";
-        setIsChatGpt(chatgptProvider);
-        if (chatgptProvider && status.available) refreshChatGpt();
+        const listedProviders = status.providers?.length ? status.providers : [{
+          id: "legacy",
+          label: status.provider,
+          provider: status.provider,
+          available: status.available,
+          enabled: status.provider !== "disabled",
+          baseUrl: null,
+          models: status.model
+            ? [{ id: status.model, label: status.model, reasoningEfforts: [] }]
+            : [],
+          keyConfigured: status.keyConfigured,
+          keySource: status.keySource,
+        }];
+        const selectable = listedProviders.filter(
+          (profile) => profile.enabled && (profile.available || profile.provider === "chatgpt"),
+        );
+        setProviders(selectable);
+        setSelectedProviderId((current) =>
+          selectable.some((profile) => profile.id === current)
+            ? current
+            : status.defaultProviderId ?? selectable[0]?.id ?? "",
+        );
       })
       .catch(() => {
         if (active) setAvailable(false);
@@ -188,7 +129,23 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     return () => {
       active = false;
     };
-  }, [canEdit, drawingId, refreshChatGpt]);
+  }, [canView, drawingId, refreshChatGpt]);
+
+  useEffect(() => {
+    if (isChatGpt) refreshChatGpt();
+  }, [isChatGpt, refreshChatGpt]);
+
+  useEffect(() => {
+    if (!models.some((model) => model.id === selectedModel)) {
+      setSelectedModel(models[0]?.id ?? "");
+    }
+  }, [models, selectedModel]);
+
+  useEffect(() => {
+    if (reasoningEfforts.length > 0 && !reasoningEfforts.includes(reasoningEffort)) {
+      setReasoningEffort(reasoningEfforts.includes("medium") ? "medium" : reasoningEfforts[0]);
+    }
+  }, [reasoningEffort, reasoningEfforts]);
 
   useEffect(() => {
     if (isOpen && listRef.current) {
@@ -200,11 +157,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     (event: React.FormEvent) => {
       event.preventDefault();
       const text = draft.trim();
-      if (!text || isStreaming) return;
+      if (!canEdit || !text || isStreaming) return;
       setDraft("");
       void sendMessage(text);
     },
-    [draft, isStreaming, sendMessage],
+    [canEdit, draft, isStreaming, sendMessage],
   );
 
   const handleKeyDown = useCallback(
@@ -217,12 +174,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     [handleSubmit],
   );
 
-  if (!available) return null;
+  if (!canView || (!available && messages.length === 0 && !isLoading)) return null;
 
   // With the ChatGPT (subscription) provider the panel stays visible even when
   // the user hasn't linked their account — it shows a Connect flow instead of
   // the chat until a usable connection exists.
-  const needsConnect = isChatGpt && !chatgpt?.connected;
+  const needsConnect = canEdit && isChatGpt && !chatgpt?.connected;
 
   if (!isOpen) {
     return (
@@ -258,6 +215,21 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         </button>
       </header>
 
+      {canEdit && providers.length > 0 ? (
+        <AgentModelSelector
+          providers={providers}
+          providerId={selectedProviderId}
+          models={models}
+          modelId={selectedModel}
+          reasoningEfforts={reasoningEfforts}
+          reasoningEffort={reasoningEffort}
+          disabled={isStreaming}
+          onProviderChange={setSelectedProviderId}
+          onModelChange={setSelectedModel}
+          onReasoningChange={setReasoningEffort}
+        />
+      ) : null}
+
       {needsConnect ? (
         <div className="flex-1 overflow-y-auto" data-testid="chatgpt-connect">
           <ChatGptConnect
@@ -278,7 +250,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               </p>
             ) : (
               messages.map((message) => (
-                <MessageBubble
+                <AgentChatMessage
                   key={message.id}
                   message={message}
                   onUndo={undoBatch}
@@ -297,8 +269,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={handleKeyDown}
             rows={1}
-            placeholder={STR.placeholder}
+            placeholder={canEdit ? STR.placeholder : "Read-only shared conversation"}
             aria-label={STR.placeholder}
+            disabled={!canEdit}
             className="max-h-32 min-h-[2.5rem] flex-1 resize-none rounded-xl border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-indigo-500"
           />
           {isStreaming ? (
@@ -314,7 +287,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           ) : (
             <button
               type="submit"
-              disabled={draft.trim().length === 0}
+              disabled={!canEdit || draft.trim().length === 0}
               title={STR.send}
               aria-label={STR.send}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-default transition-colors"

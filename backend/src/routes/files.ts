@@ -3,15 +3,17 @@
  *   GET  /files/config                    – report whether S3 is configured
  *   PUT  /drawings/:drawingId/files/:fileId – upload raw image bytes (edit access)
  *   GET  /files/:drawingId/:fileId        – serve an image:
- *                                            db-mode → stream bytes (ETag/304)
- *                                            s3-mode → 302 to a presigned URL
+ *                                            db/s3-mode → stream bytes (ETag/304)
  */
 import express from "express";
+import { pipeline } from "node:stream/promises";
 import { PrismaClient } from "../generated/client";
 import {
   isS3Enabled,
-  generatePresignedDownloadUrl,
+  getObjectStream,
+  isS3ObjectNotFoundError,
   uploadBuffer,
+  deleteS3Object,
   buildS3Key,
 } from "../s3";
 import { MIME_TO_EXT } from "../fileProcessing";
@@ -22,11 +24,18 @@ import {
   getDrawingAccess,
 } from "../authz/sharing";
 
-const DOWNLOAD_EXPIRES_IN = 3600; // 1 hour   – cached by browser
-
 /** Loose guard: drawingId / fileId must be safe, path-traversal-free identifiers. */
 const isValidIdSegment = (value: unknown): value is string =>
   typeof value === "string" && /^[\w-]{1,200}$/.test(value);
+
+const matchesIfNoneMatch = (header: string | undefined, etag: string): boolean => {
+  if (!header) return false;
+  const normalizedEtag = etag.replace(/^W\//, "");
+  return header.split(",").some((candidate) => {
+    const normalized = candidate.trim();
+    return normalized === "*" || normalized.replace(/^W\//, "") === normalizedEtag;
+  });
+};
 
 export type FileRouteDeps = {
   prisma: PrismaClient;
@@ -85,7 +94,13 @@ export const registerFileRoutes = (
     "/files/config",
     requireAuth,
     asyncHandler(async (_req, res) => {
-      return res.json({ s3Enabled: isS3Enabled() });
+      return res.json({
+        s3Enabled: isS3Enabled(),
+        // This is an operator-configured request limit, not a secret. Clients
+        // use it to make a final compression attempt before reporting an image
+        // that cannot be uploaded.
+        fileUploadMaxBytes: config.fileUploadMaxBytes,
+      });
     })
   );
 
@@ -96,9 +111,10 @@ export const registerFileRoutes = (
   // ------------------------------------------------------------------
   app.put(
     "/drawings/:drawingId/files/:fileId",
+    // Authenticate before reading a potentially large request body.
+    requireAuth,
     rawUpload,
     handleUploadPayloadError,
-    requireAuth,
     asyncHandler(async (req, res) => {
       const userId = req.user?.id;
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -139,7 +155,9 @@ export const registerFileRoutes = (
 
       const responseUrl = `/api/files/${drawingId}/${fileId}`;
 
-      // Idempotent: an existing row that already carries content is a no-op.
+      // File IDs are immutable within a drawing. Repeated identical uploads are
+      // idempotent; a conflicting payload must never overwrite bytes that a
+      // committed scene or history snapshot may already reference.
       const existing = await prisma.drawingFile.findUnique({
         where: { drawingId_fileId: { drawingId, fileId } },
       });
@@ -148,6 +166,18 @@ export const registerFileRoutes = (
         ((existing.storage === "s3" && Boolean(existing.s3Key)) ||
           (existing.storage === "db" && Boolean(existing.data)));
       if (hasContent) {
+        const dbBytes = existing.storage === "db" && existing.data
+          ? (Buffer.isBuffer(existing.data) ? existing.data : Buffer.from(existing.data))
+          : null;
+        const matches = existing.mimeType === mimeType &&
+          existing.sizeBytes === body.length &&
+          (!dbBytes || dbBytes.equals(body));
+        if (!matches) {
+          return res.status(409).json({
+            error: "File id conflict",
+            message: "This file id already belongs to different image bytes. Insert the image again to generate a new id.",
+          });
+        }
         return res.status(200).json({ url: responseUrl, fileId });
       }
 
@@ -155,25 +185,32 @@ export const registerFileRoutes = (
         const ext = MIME_TO_EXT[mimeType] ?? "bin";
         const s3Key = buildS3Key(userId, drawingId, fileId, ext);
         await uploadBuffer(s3Key, body, mimeType);
-        await prisma.drawingFile.upsert({
-          where: { drawingId_fileId: { drawingId, fileId } },
-          create: {
-            drawingId,
-            fileId,
-            mimeType,
-            sizeBytes: body.length,
-            storage: "s3",
-            s3Key,
-            data: null,
-          },
-          update: {
-            storage: "s3",
-            s3Key,
-            data: null,
-            mimeType,
-            sizeBytes: body.length,
-          },
-        });
+        try {
+          await prisma.drawingFile.upsert({
+            where: { drawingId_fileId: { drawingId, fileId } },
+            create: {
+              drawingId,
+              fileId,
+              mimeType,
+              sizeBytes: body.length,
+              storage: "s3",
+              s3Key,
+              data: null,
+            },
+            update: {
+              storage: "s3",
+              s3Key,
+              data: null,
+              mimeType,
+              sizeBytes: body.length,
+            },
+          });
+        } catch (error) {
+          await deleteS3Object(s3Key).catch((cleanupError) => {
+            console.error("Failed to clean up S3 object after metadata write failure:", cleanupError);
+          });
+          throw error;
+        }
         return res.status(200).json({ url: responseUrl, fileId });
       }
 
@@ -203,9 +240,9 @@ export const registerFileRoutes = (
 
   // ------------------------------------------------------------------
   // GET /files/:drawingId/:fileId
-  // Serves the image. In db-mode the bytes are streamed directly with an
-  // immutable cache policy and an ETag (honoring If-None-Match → 304). In
-  // s3-mode a presigned GET URL is issued and the browser is redirected.
+  // Serves image bytes with an immutable cache policy and an ETag (honoring
+  // If-None-Match → 304). S3 objects are proxied through this authorized route:
+  // S3_ENDPOINT can be Docker-internal and must never be sent to a browser.
   // ------------------------------------------------------------------
   app.get(
     "/files/:drawingId/:fileId",
@@ -229,6 +266,7 @@ export const registerFileRoutes = (
 
       const fileRecord = await prisma.drawingFile.findUnique({
         where: { drawingId_fileId: { drawingId, fileId } },
+        select: { storage: true, s3Key: true, mimeType: true, sizeBytes: true, data: true },
       });
       if (!fileRecord) {
         return res.status(404).json({ error: "File not found" });
@@ -243,7 +281,7 @@ export const registerFileRoutes = (
         const etag = `"${fileId}"`;
         res.setHeader("ETag", etag);
         res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
-        if (req.headers["if-none-match"] === etag) {
+        if (matchesIfNoneMatch(req.headers["if-none-match"], etag)) {
           return res.status(304).end();
         }
         const buffer = Buffer.isBuffer(fileRecord.data)
@@ -254,17 +292,45 @@ export const registerFileRoutes = (
         return res.status(200).end(buffer);
       }
 
-      // storage === "s3": presigned redirect (private-bucket mode).
       if (!isS3Enabled() || !fileRecord.s3Key) {
         return res.status(404).json({ error: "File not found" });
       }
 
-      const downloadUrl = await generatePresignedDownloadUrl(
-        fileRecord.s3Key,
-        DOWNLOAD_EXPIRES_IN
-      );
-
-      return res.redirect(302, downloadUrl);
+      try {
+        const object = await getObjectStream(fileRecord.s3Key);
+        const etag = object.etag || `W/"${fileId}"`;
+        res.setHeader("ETag", etag);
+        res.setHeader(
+          "Cache-Control",
+          object.cacheControl || "private, max-age=31536000, immutable",
+        );
+        if (object.lastModified) {
+          res.setHeader("Last-Modified", object.lastModified.toUTCString());
+        }
+        if (matchesIfNoneMatch(req.headers["if-none-match"], etag)) {
+          object.stream.destroy();
+          return res.status(304).end();
+        }
+        res.setHeader("Content-Type", object.contentType || fileRecord.mimeType);
+        if (typeof object.contentLength === "number" && object.contentLength >= 0) {
+          res.setHeader("Content-Length", object.contentLength);
+        }
+        await pipeline(object.stream, res);
+        return;
+      } catch (error) {
+        // A missing object should look exactly like a missing file. Other S3
+        // failures remain server-side so endpoint/credential details cannot
+        // leak to the browser.
+        if (!res.headersSent) {
+          return res.status(isS3ObjectNotFoundError(error) ? 404 : 502).json({
+            error: isS3ObjectNotFoundError(error)
+              ? "File not found"
+              : "File storage is temporarily unavailable",
+          });
+        }
+        if (!res.writableEnded) res.destroy();
+        return;
+      }
     })
   );
 };

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import clsx from "clsx";
 import { Bot, Check, Copy, Plus, Trash2 } from "lucide-react";
 import * as api from "../../api";
+import { buildAgentSkill } from "./agentSkill";
 
 type Props = {
   drawingId: string;
@@ -18,7 +19,7 @@ export const AgentAccessSection: React.FC<Props> = ({ drawingId, isOpen }) => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [freshToken, setFreshToken] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"token" | "skill" | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -41,7 +42,7 @@ export const AgentAccessSection: React.FC<Props> = ({ drawingId, isOpen }) => {
     if (!isOpen) return;
     setFreshToken(null);
     setError(null);
-    setCopied(false);
+    setCopied(null);
     void refresh();
   }, [isOpen, refresh]);
 
@@ -51,7 +52,7 @@ export const AgentAccessSection: React.FC<Props> = ({ drawingId, isOpen }) => {
     try {
       const { token } = await api.createAgentToken(drawingId);
       setFreshToken(token);
-      setCopied(false);
+      setCopied(null);
       await refresh();
     } catch {
       setError("Failed to create agent token");
@@ -73,11 +74,11 @@ export const AgentAccessSection: React.FC<Props> = ({ drawingId, isOpen }) => {
     }
   };
 
-  const handleCopy = async (text: string) => {
+  const handleCopy = async (text: string, kind: "token" | "skill") => {
     try {
       await navigator.clipboard?.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setCopied(kind);
+      setTimeout(() => setCopied(null), 2000);
     } catch {
       // Clipboard can be denied; the token stays visible for manual copy.
     }
@@ -86,16 +87,16 @@ export const AgentAccessSection: React.FC<Props> = ({ drawingId, isOpen }) => {
   if (!available) return null;
 
   return (
-    <section className="pt-5 border-t-2 border-black dark:border-neutral-700">
-      <div className="flex items-center justify-between px-1 mb-3">
-        <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-neutral-500">
+    <section className="pt-5 border-t border-slate-200 dark:border-neutral-800">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-neutral-100">
           Agent access
         </h3>
         <button
           onClick={() => void handleCreate()}
           disabled={busy}
           className={clsx(
-            "flex items-center gap-1 px-2.5 py-1 rounded-lg border-2 border-black dark:border-neutral-600 bg-white dark:bg-neutral-900 text-indigo-600 dark:text-indigo-400 font-black text-[10px] uppercase tracking-wide shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.05)] hover:-translate-y-0.5 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all",
+            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-neutral-600 bg-white dark:bg-neutral-900 text-indigo-600 dark:text-indigo-400 font-semibold text-xs hover:bg-slate-50 dark:hover:bg-neutral-800 transition-colors",
             busy && "opacity-40 cursor-not-allowed shadow-none",
           )}
         >
@@ -104,15 +105,15 @@ export const AgentAccessSection: React.FC<Props> = ({ drawingId, isOpen }) => {
         </button>
       </div>
 
-      <div className="flex items-start gap-4 px-1">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border-2 border-slate-400 dark:border-neutral-600 bg-slate-50 dark:bg-neutral-800 text-slate-400 dark:text-neutral-500 mt-0.5">
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-slate-100 dark:bg-neutral-800 text-slate-500 dark:text-neutral-400">
           <Bot size={18} strokeWidth={3} />
         </div>
 
         <div className="flex-1 min-w-0 space-y-2.5">
-          <p className="text-[11px] font-bold text-slate-500 dark:text-neutral-400 leading-snug">
-            Tokens let an AI agent read and edit only this drawing over the API.
-            Keep them secret.
+          <p className="text-xs text-slate-500 dark:text-neutral-400 leading-relaxed">
+            Create a secure token for an AI agent to access this drawing. Keep
+            tokens private.
           </p>
 
           {error && (
@@ -122,31 +123,55 @@ export const AgentAccessSection: React.FC<Props> = ({ drawingId, isOpen }) => {
           )}
 
           {freshToken && (
-            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/10 border-2 border-amber-500 space-y-2 shadow-[2px_2px_0px_0px_rgba(245,158,11,0.2)]">
+            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/10 border border-amber-300 dark:border-amber-700/70 space-y-2">
               <p className="text-[8px] font-black uppercase tracking-[0.15em] text-amber-700 dark:text-amber-300">
                 Copy now — shown only once
               </p>
               <div className="flex items-center gap-2">
-                <code className="flex-1 min-w-0 truncate text-[10px] font-mono font-bold text-amber-900 dark:text-amber-100">
+                <span className="flex-1 min-w-0 truncate text-[11px] font-semibold text-amber-900 dark:text-amber-100">
                   {freshToken}
-                </code>
+                </span>
                 <button
-                  onClick={() => void handleCopy(freshToken)}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg border-2 border-black bg-white dark:bg-neutral-900 text-amber-700 dark:text-amber-300 font-black text-[9px] shrink-0 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all"
+                  onClick={() => void handleCopy(freshToken, "token")}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-neutral-900 text-amber-700 dark:text-amber-300 font-semibold text-[10px] shrink-0 hover:bg-amber-100 dark:hover:bg-amber-900/20 transition-colors"
                 >
-                  {copied ? (
+                  {copied === "token" ? (
                     <Check size={11} strokeWidth={3} />
                   ) : (
                     <Copy size={11} strokeWidth={3} />
                   )}
-                  {copied ? "Copied" : "Copy"}
+                  {copied === "token" ? "Copied" : "Copy token"}
                 </button>
               </div>
+              <button
+                onClick={() =>
+                  void handleCopy(
+                    buildAgentSkill({
+                      origin: window.location.origin,
+                      drawingId,
+                    }),
+                    "skill",
+                  )
+                }
+                className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-amber-700"
+              >
+                {copied === "skill" ? (
+                  <Check size={13} strokeWidth={2.5} />
+                ) : (
+                  <Copy size={13} strokeWidth={2.5} />
+                )}
+                {copied === "skill" ? "SKILL.md copied" : "Copy SKILL.md"}
+              </button>
+              <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-200">
+                The skill does not contain your secret. Store the copied token
+                as <span className="font-semibold">EXCALIDASH_TOKEN</span> in
+                your agent&apos;s credential store.
+              </p>
             </div>
           )}
 
           {tokens.length === 0 ? (
-            <p className="text-[10px] font-black text-slate-400 dark:text-neutral-500">
+            <p className="text-xs text-slate-400 dark:text-neutral-500">
               No agent tokens yet.
             </p>
           ) : (
@@ -154,15 +179,19 @@ export const AgentAccessSection: React.FC<Props> = ({ drawingId, isOpen }) => {
               {tokens.map((token) => (
                 <li
                   key={token.id}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl border-2 border-slate-300 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800/60"
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800/60"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-[11px] font-black text-slate-700 dark:text-neutral-200 truncate">
                       {token.name}
                     </p>
-                    <p className="text-[9px] font-mono font-bold text-slate-400 dark:text-neutral-500 truncate">
+                    <p className="text-[11px] text-slate-400 dark:text-neutral-500 truncate">
                       {token.prefix}…
-                      {token.lastUsedAt ? " · used" : " · never used"}
+                      {token.expiresAt && Date.parse(token.expiresAt) <= Date.now()
+                        ? " · expired"
+                        : token.expiresAt
+                          ? ` · expires ${new Date(token.expiresAt).toLocaleDateString()}`
+                          : " · no expiry"}
                     </p>
                   </div>
                   <button

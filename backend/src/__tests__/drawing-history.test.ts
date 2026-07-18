@@ -47,6 +47,7 @@ function buildApp() {
       findMany: vi.fn(),
       updateMany: vi.fn(),
       update: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
     },
     drawingSnapshot: {
       create: vi.fn(),
@@ -57,6 +58,7 @@ function buildApp() {
     drawingPermission: { findMany: vi.fn().mockResolvedValue([]) },
     drawingLinkShare: { findMany: vi.fn().mockResolvedValue([]) },
     collection: { findFirst: vi.fn() },
+    $transaction: vi.fn(async (fn: any) => fn(prisma)),
   } as any;
 
   const app = express();
@@ -183,7 +185,8 @@ describe("Drawing Version History", () => {
       prisma.drawing.findFirst.mockResolvedValue(mockDrawing);
       prisma.drawingSnapshot.findFirst.mockResolvedValue(mockSnapshot);
       prisma.drawingSnapshot.create.mockResolvedValue({});
-      prisma.drawing.update.mockResolvedValue({
+      prisma.drawing.updateMany.mockResolvedValue({ count: 1 });
+      prisma.drawing.findUniqueOrThrow.mockResolvedValue({
         ...mockDrawing,
         elements: mockSnapshot.elements,
         appState: mockSnapshot.appState,
@@ -205,8 +208,8 @@ describe("Drawing Version History", () => {
       });
 
       // Should update drawing with snapshot data
-      expect(prisma.drawing.update).toHaveBeenCalledWith({
-        where: { id: MOCK_DRAWING_ID },
+      expect(prisma.drawing.updateMany).toHaveBeenCalledWith({
+        where: { id: MOCK_DRAWING_ID, version: 5 },
         data: expect.objectContaining({
           elements: mockSnapshot.elements,
           appState: mockSnapshot.appState,
@@ -214,6 +217,7 @@ describe("Drawing Version History", () => {
         }),
       });
     });
+
 
     it("returns 404 for non-existent snapshot", async () => {
       prisma.drawing.findUnique.mockResolvedValue(mockDrawing);

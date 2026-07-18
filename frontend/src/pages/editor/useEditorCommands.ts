@@ -13,6 +13,8 @@ import type { UploadedFileRefs } from "./shared";
 import { saveDrawingKeepalive } from "./keepaliveSave";
 
 type EditorCommandRefs = {
+  libraryItems?: MutableRefObject<readonly any[]>;
+  libraryHydrated?: MutableRefObject<boolean>;
   currentDrawingVersion: MutableRefObject<number | null>;
   excalidrawAPI: MutableRefObject<any>;
   hasSceneChangesSinceLoad: MutableRefObject<boolean>;
@@ -199,6 +201,8 @@ export const useEditorCommands = ({
   const handleLibraryChange = useCallback(
     (items: readonly any[]) => {
       if (!canEdit || !user) return;
+      if (items.length > 0 && refs.libraryHydrated) refs.libraryHydrated.current = true;
+      if (items.length === 0 && refs.libraryHydrated?.current === false && (refs.libraryItems?.current.length ?? 0) > 0) return;
       debouncedSaveLibrary([...items]);
     },
     [canEdit, debouncedSaveLibrary, user],

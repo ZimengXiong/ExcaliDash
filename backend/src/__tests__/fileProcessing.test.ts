@@ -4,6 +4,7 @@ vi.mock("../s3", () => ({
   isS3Enabled: vi.fn(),
   getS3Config: vi.fn(),
   uploadBuffer: vi.fn(),
+  deleteS3Object: vi.fn(),
   getPublicUrl: vi.fn(),
   buildS3Key: (
     userId: string,
@@ -130,9 +131,9 @@ describe("internDrawingFiles — S3 mode", () => {
       prisma as any,
     );
 
-    // With a publicUrl configured the stored ref is the public URL.
+    // Persisted refs always stay behind the authorized backend route.
     expect(result["file-1"].dataURL).toBe(
-      getPublicUrl("excalidash/user-1/drawing-1/file-1.png"),
+      "/api/files/drawing-1/file-1",
     );
     expect(mockUploadBuffer).toHaveBeenCalledOnce();
     expect(mockUploadBuffer).toHaveBeenCalledWith(
@@ -322,9 +323,9 @@ describe("internDrawingFiles — S3 mode", () => {
       prisma as any,
     );
 
-    // base64 file was uploaded and replaced with its public URL
+    // base64 file was uploaded and replaced with its authorized API ref
     expect(result["file-b64"].dataURL).toBe(
-      "https://cdn.example.com/excalidash/user-1/drawing-1/file-b64.png",
+      "/api/files/drawing-1/file-b64",
     );
     // existing URLs left untouched
     expect(result["file-s3"].dataURL).toBe(

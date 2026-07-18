@@ -35,17 +35,17 @@ export const GeneralAccessSection: React.FC<Props> = ({
   handleUpdateLink,
   handleRevokeLink,
 }) => (
-  <section className="pt-5 border-t-2 border-black dark:border-neutral-700">
-    <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-neutral-500 px-1 mb-3">
+  <section className="pt-5 border-t border-slate-200 dark:border-neutral-800">
+    <h3 className="text-sm font-semibold text-slate-900 dark:text-neutral-100 mb-3">
       General access
     </h3>
-    <div className="flex items-start gap-4 px-1">
+    <div className="flex items-start gap-3">
       <div
         className={clsx(
-          "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border-2 transition-all mt-0.5",
+          "w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all",
           activeLink
-            ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-600 dark:border-emerald-500 shadow-[2px_2px_0px_0px_rgba(5,150,105,0.2)]"
-            : "bg-slate-50 dark:bg-neutral-800 text-slate-400 dark:text-neutral-500 border-slate-400 dark:border-neutral-600",
+            ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
+            : "bg-slate-100 dark:bg-neutral-800 text-slate-500 dark:text-neutral-400",
         )}
       >
         {activeLink ? (
@@ -72,7 +72,7 @@ export const GeneralAccessSection: React.FC<Props> = ({
           />
         </div>
 
-        <p className="text-[11px] font-bold text-slate-500 dark:text-neutral-400 leading-snug px-0.5">
+        <p className="text-xs text-slate-500 dark:text-neutral-400 leading-relaxed">
           {activeLink
             ? "Anyone on the internet with the link can access."
             : "Only people with access can open with the link."}
@@ -131,20 +131,20 @@ export const GeneralAccessSection: React.FC<Props> = ({
                 value={customExpiry}
                 onChange={(event) => setCustomExpiry(event.target.value)}
                 onBlur={() => void handleUpdateLink()}
-                className="w-full px-3 py-1.5 rounded-xl border-2 border-black dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800 text-[10px] font-black focus:outline-none focus:border-indigo-600 transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.05)]"
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
               />
             )}
 
             {linkPermission === "edit" && (
-              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/10 border-2 border-amber-500 space-y-1.5 shadow-[2px_2px_0px_0px_rgba(245,158,11,0.2)]">
+              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/10 border border-amber-300 dark:border-amber-700/70 space-y-1.5">
                 <div className="flex items-start gap-2">
                   <AlertTriangle
                     size={14}
                     strokeWidth={3}
                     className="text-amber-600 shrink-0 mt-0.5"
                   />
-                  <div className="text-[10px] text-amber-900 dark:text-amber-200 font-black leading-relaxed">
-                    <span className="uppercase tracking-[0.1em] text-[8px]">
+                  <div className="text-xs text-amber-900 dark:text-amber-200 font-medium leading-relaxed">
+                    <span className="uppercase tracking-[0.1em] text-[9px] font-semibold">
                       Security Warning
                     </span>
                     <br />

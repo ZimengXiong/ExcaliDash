@@ -54,26 +54,46 @@ const fetchAsDataUrl = async (
   url: string,
   mimeType: unknown,
 ): Promise<string | null> => {
-  try {
-    const response = await fetch(url, { credentials: "include" });
-    if (!response.ok) return null;
-    const blob = await response.blob();
-    const dataUrl = await blobToDataUrl(blob);
-    // When the response has no (or a generic) Content-Type the resulting MIME
-    // is empty / application/octet-stream, which Excalidraw cannot decode as an
-    // image. Repair it from the file's declared image mimeType when we have one.
-    const producedMime = /^data:([^;,]*)[;,]/.exec(dataUrl)?.[1] ?? "";
-    if (
-      !/^image\//i.test(producedMime) &&
-      typeof mimeType === "string" &&
-      /^image\//i.test(mimeType)
-    ) {
-      return dataUrl.replace(/^data:[^;,]*(;base64,)/i, `data:${mimeType}$1`);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 10_000);
+    try {
+      const response = await fetch(url, {
+        credentials: "include",
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const retryable =
+          response.status === 408 || response.status === 429 || response.status >= 500;
+        if (!retryable || attempt === 2) return null;
+        await new Promise((resolve) =>
+          window.setTimeout(resolve, 250 * 2 ** attempt)
+        );
+        continue;
+      }
+      const blob = await response.blob();
+      const dataUrl = await blobToDataUrl(blob);
+      // When the response has no (or a generic) Content-Type the resulting MIME
+      // is empty / application/octet-stream, repair it from scene metadata.
+      const producedMime = /^data:([^;,]*)[;,]/.exec(dataUrl)?.[1] ?? "";
+      if (
+        !/^image\//i.test(producedMime) &&
+        typeof mimeType === "string" &&
+        /^image\//i.test(mimeType)
+      ) {
+        return dataUrl.replace(/^data:[^;,]*(;base64,)/i, `data:${mimeType}$1`);
+      }
+      return dataUrl;
+    } catch {
+      if (attempt === 2) return null;
+      await new Promise((resolve) =>
+        window.setTimeout(resolve, 250 * 2 ** attempt)
+      );
+    } finally {
+      window.clearTimeout(timeout);
     }
-    return dataUrl;
-  } catch {
-    return null;
   }
+  return null;
 };
 
 /**

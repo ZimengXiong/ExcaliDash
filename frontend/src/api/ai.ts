@@ -4,9 +4,28 @@ import { ensureCsrfToken, getCsrfHeader } from "./auth";
 export type AiProvider =
   | "anthropic"
   | "openai"
+  | "gemini"
   | "custom"
   | "chatgpt"
   | "disabled";
+
+export type AiModelOption = {
+  id: string;
+  label: string;
+  reasoningEfforts: string[];
+};
+
+export type AiProviderProfile = {
+  id: string;
+  label: string;
+  provider: AiProvider;
+  available: boolean;
+  enabled: boolean;
+  baseUrl: string | null;
+  models: AiModelOption[];
+  keyConfigured: boolean;
+  keySource: "env" | "db" | null;
+};
 
 /** Availability probe mirroring the backend `GET /ai/status` payload. */
 export type AiStatus = {
@@ -16,6 +35,8 @@ export type AiStatus = {
   keyConfigured: boolean;
   keySource: "env" | "db" | null;
   chatgptEnabled: boolean;
+  defaultProviderId: string | null;
+  providers: AiProviderProfile[];
 };
 
 export const getAiStatus = async (): Promise<AiStatus> => {
@@ -25,6 +46,47 @@ export const getAiStatus = async (): Promise<AiStatus> => {
 
 export type ChatRole = "user" | "assistant";
 export type ChatTurn = { role: ChatRole; content: string };
+
+export type StoredAgentChatMessage = {
+  id: string;
+  drawingId: string;
+  turnId: string;
+  clientRequestId?: string;
+  role: ChatRole;
+  text: string;
+  thinking?: string;
+  status: "streaming" | "complete" | "error" | "interrupted";
+  providerId?: string;
+  model?: string;
+  reasoningEffort?: string;
+  tools: {
+    id: string;
+    name: string;
+    status: "running" | "success" | "error";
+    message?: string;
+  }[];
+  batches: {
+    opsBatchId: string;
+    version: number;
+    revertVersion: number;
+    summaryDelta: string[];
+    status: "applied" | "reverting" | "reverted" | "revert-failed";
+  }[];
+  error?: string;
+  opErrors: OpError[];
+  author?: { id: string; name: string };
+  createdAt: string;
+  updatedAt: string;
+};
+
+export const getAgentChatMessages = async (
+  drawingId: string,
+): Promise<StoredAgentChatMessage[]> => {
+  const response = await api.get<{ messages: StoredAgentChatMessage[] }>(
+    `/ai/chat/${drawingId}/messages`,
+  );
+  return response.data.messages;
+};
 
 export type OpError = {
   opIndex: number;
@@ -48,8 +110,16 @@ export type AgentChatError = {
 };
 
 export type AgentChatHandlers = {
+  onMessage?: (message: StoredAgentChatMessage) => void;
+  onThinking?: (text: string) => void;
   onToken?: (text: string) => void;
   onToolCall?: (call: { name: string; id: string }) => void;
+  onToolResult?: (result: {
+    name: string;
+    id: string;
+    ok: boolean;
+    message?: string;
+  }) => void;
   onOpsApplied?: (event: OpsAppliedEvent) => void;
   onError?: (error: AgentChatError) => void;
   onDone?: () => void;
@@ -78,11 +148,25 @@ const dispatchSse = (
   handlers: AgentChatHandlers,
 ): boolean => {
   switch (event) {
+    case "message":
+      if (data?.id && data?.role) handlers.onMessage?.(data);
+      return false;
+    case "thinking":
+      if (typeof data?.text === "string") handlers.onThinking?.(data.text);
+      return false;
     case "token":
       if (typeof data?.text === "string") handlers.onToken?.(data.text);
       return false;
     case "tool_call":
       handlers.onToolCall?.({ name: data?.name, id: data?.id });
+      return false;
+    case "tool_result":
+      handlers.onToolResult?.({
+        name: data?.name,
+        id: data?.id,
+        ok: data?.ok === true,
+        message: typeof data?.message === "string" ? data.message : undefined,
+      });
       return false;
     case "ops_applied":
       handlers.onOpsApplied?.({
@@ -114,7 +198,17 @@ const dispatchSse = (
  * client would (the chat proxy is session-only, never agent tokens).
  */
 export const streamAgentChat = async (
-  params: { drawingId: string; messages: ChatTurn[]; signal?: AbortSignal },
+  params: {
+    drawingId: string;
+    message: string;
+    clientRequestId: string;
+    providerId?: string;
+    model?: string;
+    reasoningEffort?: string;
+    canvasImage?: string;
+    canvasState?: "captured" | "blank" | "unavailable";
+    signal?: AbortSignal;
+  },
   handlers: AgentChatHandlers,
 ): Promise<void> => {
   await ensureCsrfToken();
@@ -133,7 +227,13 @@ export const streamAgentChat = async (
       headers,
       body: JSON.stringify({
         drawingId: params.drawingId,
-        messages: params.messages,
+        message: params.message,
+        clientRequestId: params.clientRequestId,
+        providerId: params.providerId,
+        model: params.model,
+        reasoningEffort: params.reasoningEffort,
+        canvasImage: params.canvasImage,
+        canvasState: params.canvasState,
       }),
       signal: params.signal,
     });

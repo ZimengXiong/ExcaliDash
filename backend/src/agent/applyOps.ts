@@ -109,6 +109,7 @@ const applyAddShape = (scene: Scene, op: Extract<Op, { op: "add_shape" }>) => {
 
   if (op.label !== undefined) {
     const text = sanitizeElementText(op.label);
+    if (op.shape === "frame") { el.name = text || null; return { createdIds }; }
     const label = createTextElement(op.x + w / 2, op.y + h / 2, text, el.id);
     addBoundElement(el, { id: label.id, type: "text" });
     scene.add(label);
@@ -164,6 +165,10 @@ const applySetText = (scene: Scene, op: Extract<Op, { op: "set_text" }>) => {
   const el = scene.getLive(op.id);
   if (!el) return { error: notFound(op.id) };
   const text = sanitizeElementText(op.text);
+
+  if (el.type === "frame") {
+    el.name = text || null; scene.markChanged(el); return {};
+  }
 
   if (el.type === "text") {
     el.text = text;
@@ -386,14 +391,7 @@ export const applyOps = (input: {
     results.push({ opIndex, createdIds: out.createdIds });
   });
 
-  if (errors.length > 0) {
-    return { ok: false, errors };
-  }
-  return {
-    ok: true,
-    elements: scene.elements,
-    results,
-    changedIds: scene.changed,
-    orderChanged: scene.orderChanged,
-  };
+  if (errors.length > 0) return { ok: false, errors };
+  return { ok: true, elements: scene.elements, results,
+    changedIds: scene.changed, orderChanged: scene.orderChanged };
 };

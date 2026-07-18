@@ -15,6 +15,7 @@ type UseAgentBatchApplierArgs = {
   latestElementsRef: MutableRefObject<readonly any[]>;
   computeElementOrderSig: (elements: readonly any[]) => string;
   recordElementVersion: (element: any) => void;
+  normalizeTextElementDimensions: (elements: readonly any[]) => readonly any[];
   /**
    * Ids of agent op batches this client originated (chat panel). A matching
    * batch is replayed with IMMEDIATELY capture so the requesting user can
@@ -37,6 +38,7 @@ export const useAgentBatchApplier = ({
   latestElementsRef,
   computeElementOrderSig,
   recordElementVersion,
+  normalizeTextElementDimensions,
   selfAgentBatchIdsRef,
 }: UseAgentBatchApplierArgs): ((batch: AgentBatch) => void) => {
   const pendingRef = useRef<AgentBatch[]>([]);
@@ -62,13 +64,25 @@ export const useAgentBatchApplier = ({
           captureUpdate: isSelf ? "IMMEDIATELY" : "NEVER",
         });
         if (mergedElements) {
+          const normalizedElements =
+            normalizeTextElementDimensions(mergedElements);
+          const normalizedById = new Map(
+            normalizedElements.map((element: any) => [element?.id, element]),
+          );
           if (batch.elementOrder) {
             lastSyncedElementOrderSigRef.current =
-              computeElementOrderSig(mergedElements);
+              computeElementOrderSig(normalizedElements);
           }
-          batch.elements.forEach((el: any) => recordElementVersion(el));
-          if (sceneUpdate) excalidrawAPI.current.updateScene(sceneUpdate);
-          latestElementsRef.current = mergedElements;
+          batch.elements.forEach((element: any) => {
+            recordElementVersion(normalizedById.get(element?.id) ?? element);
+          });
+          if (sceneUpdate) {
+            excalidrawAPI.current.updateScene({
+              ...sceneUpdate,
+              elements: normalizedElements,
+            });
+          }
+          latestElementsRef.current = normalizedElements;
         } else if (sceneUpdate) {
           excalidrawAPI.current.updateScene(sceneUpdate);
         }
@@ -84,6 +98,7 @@ export const useAgentBatchApplier = ({
     latestElementsRef,
     computeElementOrderSig,
     recordElementVersion,
+    normalizeTextElementDimensions,
     selfAgentBatchIdsRef,
   ]);
 

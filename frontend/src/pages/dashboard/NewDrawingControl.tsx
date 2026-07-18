@@ -102,7 +102,7 @@ export const NewDrawingControl: React.FC<NewDrawingControlProps> = ({
       {menuOpen && !disabled && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-          <div className="absolute right-0 top-full mt-2 z-50 min-w-[200px] bg-white dark:bg-neutral-800 rounded-xl border-2 border-black dark:border-neutral-700 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] py-1 animate-in fade-in zoom-in-95 duration-100">
+          <div className="ui-popover absolute right-0 top-full mt-2 z-50 min-w-[200px] py-1 animate-in fade-in zoom-in-95 duration-100">
             {otherEngines.map((engine) => (
               <button
                 key={engine}

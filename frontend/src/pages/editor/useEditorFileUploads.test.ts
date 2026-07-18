@@ -1,9 +1,12 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../../api";
+import * as imageCompression from "../../utils/imageCompression";
 import { useEditorFileUploads } from "./useEditorFileUploads";
 
 vi.mock("../../api", () => ({
+  getFileUploadMaxBytes: vi.fn(async () => null),
+  isAxiosError: vi.fn(() => false),
   isFileUploadSupported: vi.fn(() => true),
   uploadDrawingFile: vi.fn(),
 }));
@@ -13,10 +16,14 @@ vi.mock("../../utils/imageCompression", () => ({
     files,
     changedIds: [],
   })),
+  compressImageToFit: vi.fn(),
 }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 const uploadDrawingFile = vi.mocked(api.uploadDrawingFile);
 const isFileUploadSupported = vi.mocked(api.isFileUploadSupported);
+const getFileUploadMaxBytes = vi.mocked(api.getFileUploadMaxBytes);
+const compressImageToFit = vi.mocked(imageCompression.compressImageToFit);
 
 const dataFile = (id: string) => ({
   id,
@@ -45,6 +52,7 @@ describe("useEditorFileUploads", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     isFileUploadSupported.mockReturnValue(true);
+    getFileUploadMaxBytes.mockResolvedValue(null);
   });
 
   it("uploads inline images and records their ref URLs", async () => {
@@ -138,5 +146,36 @@ describe("useEditorFileUploads", () => {
     await result.current.scanNow();
 
     expect(uploadDrawingFile).not.toHaveBeenCalled();
+  });
+
+  it("makes a targeted compression pass before rejecting an image over the configured cap", async () => {
+    getFileUploadMaxBytes.mockResolvedValue(100);
+    compressImageToFit.mockResolvedValue({
+      dataURL: "data:image/webp;base64,QUJD",
+      mimeType: "image/webp",
+      width: 10,
+      height: 10,
+      changed: true,
+    });
+    uploadDrawingFile.mockResolvedValue({ url: "/api/files/d1/a" });
+    const oversized = {
+      a: {
+        id: "a",
+        mimeType: "image/png",
+        dataURL: `data:image/png;base64,${"QUJD".repeat(100)}`,
+      },
+    };
+    const { result, uploadedRefs } = setup(oversized);
+
+    await result.current.scanNow();
+
+    expect(compressImageToFit).toHaveBeenCalledWith(expect.objectContaining({ maxBytes: 100 }));
+    expect(uploadDrawingFile).toHaveBeenCalledWith(
+      "d1",
+      "a",
+      expect.any(Uint8Array),
+      "image/webp",
+    );
+    expect(uploadedRefs.current.a).toBe("/api/files/d1/a");
   });
 });

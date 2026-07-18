@@ -12,19 +12,7 @@ import type { ConversationTurn, ToolCall } from "./types";
 //   - input items must not carry server-side ids
 //   - `max_output_tokens` is rejected
 
-const CODEX_MODELS = new Set([
-  "gpt-5.1",
-  "gpt-5.1-codex",
-  "gpt-5.1-codex-max",
-  "gpt-5.1-codex-mini",
-  "gpt-5.2",
-  "gpt-5.2-codex",
-]);
-
-/**
- * Maps an admin-configured model onto a Codex-supported slug. Unknown or
- * API-only names (e.g. the default "gpt-4o") fall back to `fallback`.
- */
+/** Validation happens against the user's live `/models` catalog upstream. */
 export const normalizeCodexModel = (
   model: string | null | undefined,
   fallback: string,
@@ -32,15 +20,7 @@ export const normalizeCodexModel = (
   const raw = (model ?? "").trim();
   if (!raw) return fallback;
   const slug = raw.includes("/") ? raw.split("/").pop()! : raw;
-  const lower = slug.toLowerCase();
-  if (CODEX_MODELS.has(lower)) return lower;
-  if (lower.includes("codex-max")) return "gpt-5.1-codex-max";
-  if (lower.includes("codex-mini")) return "gpt-5.1-codex-mini";
-  if (lower.includes("gpt-5.2") && lower.includes("codex")) return "gpt-5.2-codex";
-  if (lower.includes("gpt-5.2")) return "gpt-5.2";
-  if (lower.includes("codex")) return "gpt-5.1-codex";
-  if (lower.includes("gpt-5")) return "gpt-5.1";
-  return fallback;
+  return slug;
 };
 
 type ResponsesInputItem =
@@ -51,7 +31,12 @@ type ResponsesInputItem =
       arguments: string;
       call_id: string;
     }
-  | { type: "function_call_output"; call_id: string; output: string };
+  | { type: "function_call_output"; call_id: string; output: string }
+  | {
+      type: "reasoning";
+      encrypted_content: string;
+      summary?: unknown[];
+    };
 
 /** Serializes the neutral conversation into Codex `/responses` input items. */
 export const toResponsesInput = (turns: ConversationTurn[]): ResponsesInputItem[] => {
@@ -61,9 +46,22 @@ export const toResponsesInput = (turns: ConversationTurn[]): ResponsesInputItem[
       items.push({
         type: "message",
         role: "user",
-        content: [{ type: "input_text", text: turn.text }],
+        content: [
+          { type: "input_text", text: turn.text },
+          ...(turn.imageDataUrl
+            ? [{ type: "input_image", image_url: turn.imageDataUrl }]
+            : []),
+        ],
       });
     } else if (turn.role === "assistant") {
+      const reasoningItems = turn.providerMetadata?.codexReasoningItems;
+      if (Array.isArray(reasoningItems)) {
+        for (const item of reasoningItems) {
+          if (isRecord(item) && item.type === "reasoning") {
+            items.push(item as ResponsesInputItem);
+          }
+        }
+      }
       if (turn.text) {
         items.push({
           type: "message",
@@ -86,6 +84,16 @@ export const toResponsesInput = (turns: ConversationTurn[]): ResponsesInputItem[
           call_id: r.id,
           output: r.content,
         });
+        if (r.imageDataUrl) {
+          items.push({
+            type: "message",
+            role: "user",
+            content: [
+              { type: "input_text", text: "Current canvas snapshot requested by view_canvas." },
+              { type: "input_image", image_url: r.imageDataUrl },
+            ],
+          });
+        }
       }
     }
   }
@@ -98,6 +106,7 @@ export const buildResponsesBody = (params: {
   system: string;
   turns: ConversationTurn[];
   tools: AgentTool[];
+  reasoningEffort?: string;
 }): Record<string, unknown> => ({
   model: params.model,
   instructions: params.system,
@@ -113,7 +122,7 @@ export const buildResponsesBody = (params: {
   parallel_tool_calls: false,
   store: false,
   stream: true,
-  reasoning: { effort: "medium", summary: "auto" },
+  reasoning: { effort: params.reasoningEffort ?? "medium", summary: "auto" },
   text: { verbosity: "medium" },
   include: ["reasoning.encrypted_content"],
 });
@@ -152,6 +161,7 @@ const toolCallFromItem = (item: Record<string, unknown>): ToolCall | null => {
 export type CodexParseResult = {
   text: string;
   toolCalls: ToolCall[];
+  assistantMetadata?: Record<string, unknown>;
   error?: string;
 };
 
@@ -166,12 +176,26 @@ export class CodexStreamAccumulator {
   private finalText: string | null = null;
   private finalCalls: ToolCall[] | null = null;
   private failure: string | null = null;
+  private reasoningItems: Record<string, unknown>[] = [];
+
+  constructor(
+    private readonly onTextDelta?: (delta: string) => void,
+    private readonly onThinkingDelta?: (delta: string) => void,
+  ) {}
 
   push(event: unknown): void {
     if (!isRecord(event)) return;
     const type = typeof event.type === "string" ? event.type : "";
     if (type === "response.output_text.delta" && typeof event.delta === "string") {
       this.deltaText += event.delta;
+      this.onTextDelta?.(event.delta);
+      return;
+    }
+    if (
+      type === "response.reasoning_summary_text.delta" &&
+      typeof event.delta === "string"
+    ) {
+      this.onThinkingDelta?.(event.delta);
       return;
     }
     if (type === "response.output_item.done" && isRecord(event.item)) {
@@ -196,6 +220,13 @@ export class CodexStreamAccumulator {
     for (const item of output) {
       if (!isRecord(item)) continue;
       if (item.type === "message") text += textFromMessageItem(item);
+      if (item.type === "reasoning" && typeof item.encrypted_content === "string") {
+        this.reasoningItems.push({
+          type: "reasoning",
+          encrypted_content: item.encrypted_content,
+          ...(Array.isArray(item.summary) ? { summary: item.summary } : {}),
+        });
+      }
       const call = toolCallFromItem(item);
       if (call) calls.push(call);
     }
@@ -217,6 +248,12 @@ export class CodexStreamAccumulator {
       this.finalCalls && this.finalCalls.length > 0
         ? this.finalCalls
         : [...this.itemCalls.values()];
-    return { text, toolCalls: calls };
+    return {
+      text,
+      toolCalls: calls,
+      ...(this.reasoningItems.length > 0
+        ? { assistantMetadata: { codexReasoningItems: this.reasoningItems } }
+        : {}),
+    };
   }
 }

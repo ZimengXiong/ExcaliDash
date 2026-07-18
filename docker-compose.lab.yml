@@ -200,6 +200,51 @@ services:
     networks:
       - lab-oidc-app
 
+  backend-oidc-seaweed:
+    <<: *backend-common
+    environment:
+      <<: *backend-common-env
+      NODE_ENV: development
+      AUTH_MODE: oidc_enforced
+      FRONTEND_URL: http://localhost:1106
+      OIDC_PROVIDER_NAME: Keycloak
+      OIDC_ISSUER_URL: http://localhost:18080/realms/excalidash
+      OIDC_DISCOVERY_URL: http://keycloak:8080/realms/excalidash
+      OIDC_CLIENT_ID: excalidash
+      OIDC_CLIENT_SECRET: excalidash-secret
+      OIDC_REDIRECT_URI: http://localhost:1106/api/auth/oidc/callback
+      OIDC_ADMIN_GROUPS: excalidash-admins
+      OIDC_REQUIRE_EMAIL_VERIFIED: "false"
+      S3_BUCKET: excalidash-lab
+      S3_REGION: us-east-1
+      S3_ENDPOINT: http://seaweedfs:8333
+      S3_FORCE_PATH_STYLE: "true"
+      S3_PUBLIC_URL: http://localhost:18333/excalidash-lab
+      S3_KEY_PREFIX: excalidash
+      AWS_ACCESS_KEY_ID: lab-access-key
+      AWS_SECRET_ACCESS_KEY: lab-secret-key
+    volumes:
+      - lab-backend-oidc-seaweed-data:/app/prisma
+      - lab-backend-oidc-seaweed-backups:/app/backups
+    depends_on:
+      - keycloak
+      - seaweedfs-init
+    networks:
+      - lab-oidc-seaweed-app
+      - lab-oidc
+      - lab-storage
+
+  frontend-oidc-seaweed:
+    <<: *frontend-common
+    ports:
+      - "1106:80"
+    environment:
+      BACKEND_URL: backend-oidc-seaweed:8000
+    depends_on:
+      - backend-oidc-seaweed
+    networks:
+      - lab-oidc-seaweed-app
+
   backend-hybrid:
     <<: *backend-common
     environment:
@@ -270,6 +315,8 @@ networks:
     driver: bridge
   lab-oidc-app:
     driver: bridge
+  lab-oidc-seaweed-app:
+    driver: bridge
   lab-hybrid-app:
     driver: bridge
   lab-trusted-proxy:
@@ -282,6 +329,8 @@ volumes:
   lab-backend-basic-seaweed-backups:
   lab-backend-oidc-data:
   lab-backend-oidc-backups:
+  lab-backend-oidc-seaweed-data:
+  lab-backend-oidc-seaweed-backups:
   lab-backend-hybrid-data:
   lab-backend-hybrid-backups:
   lab-backend-trusted-proxy-data:

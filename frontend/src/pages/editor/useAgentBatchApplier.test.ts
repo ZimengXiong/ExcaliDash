@@ -40,6 +40,7 @@ const setup = (selfSet: Set<string>) => {
     latestElementsRef: { current: [] as readonly any[] },
     computeElementOrderSig: vi.fn(() => "sig"),
     recordElementVersion: vi.fn(),
+    normalizeTextElementDimensions: vi.fn((elements) => elements),
     selfAgentBatchIdsRef: { current: selfSet },
   };
   const { result } = renderHook(() => useAgentBatchApplier(args as any));
@@ -107,5 +108,30 @@ describe("useAgentBatchApplier", () => {
     expect(args.recordElementVersion).toHaveBeenCalledTimes(1);
     expect(args.computeElementOrderSig).toHaveBeenCalled();
     expect(args.lastSyncedElementOrderSigRef.current).toBe("sig");
+  });
+
+  it("normalizes agent text before updating the Excalidraw scene", () => {
+    const text = {
+      id: "t1",
+      type: "text",
+      text: "Agent label",
+      version: 2,
+      versionNonce: 1,
+    };
+    const normalized = { ...text, x: 20, y: 30, width: 111, height: 25 };
+    const { enqueue, api, args } = setup(new Set());
+    args.normalizeTextElementDimensions.mockReturnValueOnce([normalized]);
+
+    act(() => {
+      enqueue({ opsBatchId: "agent-text", elements: [text], elementOrder: null });
+      flushRaf();
+    });
+
+    expect(args.normalizeTextElementDimensions).toHaveBeenCalledTimes(1);
+    expect(api.updateScene).toHaveBeenCalledWith(
+      expect.objectContaining({ elements: [normalized] }),
+    );
+    expect(args.latestElementsRef.current).toEqual([normalized]);
+    expect(args.recordElementVersion).toHaveBeenCalledWith(normalized);
   });
 });

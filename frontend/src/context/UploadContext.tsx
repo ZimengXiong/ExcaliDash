@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import { importDrawings } from '../utils/importUtils';
 import { uuidv4 } from '../utils/uuid';
+import { partitionUploadFiles } from '../utils/partitionUploadFiles';
+export { partitionUploadFiles } from '../utils/partitionUploadFiles';
 
 export type UploadStatus = 'pending' | 'uploading' | 'processing' | 'success' | 'error';
 
@@ -55,10 +57,7 @@ export const UploadProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   }, []);
 
   const uploadFiles = useCallback(async (files: File[], targetCollectionId: string | null) => {
-    const supportedFiles = files.filter(
-      (f) => f.name.endsWith('.json') || f.name.endsWith('.excalidraw')
-    );
-    const unsupportedFiles = files.filter((f) => !supportedFiles.includes(f));
+    const { supported: supportedFiles, unsupported: unsupportedFiles } = partitionUploadFiles(files);
 
     const unsupportedTasks: UploadTask[] = unsupportedFiles.map((f) => ({
       id: uuidv4(),

@@ -19,7 +19,14 @@ const DEFAULT_MAX_DIMENSION = 2800;
 const DEFAULT_MIN_IMPROVEMENT_RATIO = 0.9;
 
 const COMPRESSIBLE_MIME_PREFIX = "image/";
-const NON_COMPRESSIBLE_MIME_TYPES = new Set(["image/svg+xml", "image/gif"]);
+// Preserve formats that may carry animation or vector semantics. AVIF animation
+// detection is not consistently available in browsers, so keep AVIF lossless
+// rather than risk flattening it through a canvas.
+const NON_COMPRESSIBLE_MIME_TYPES = new Set([
+  "image/svg+xml",
+  "image/gif",
+  "image/avif",
+]);
 
 const isDataImageUrl = (value: unknown): value is string =>
   typeof value === "string" && value.startsWith("data:image/");
@@ -32,6 +39,35 @@ const getMimeTypeFromDataUrl = (dataURL: string): string | null => {
 const canCompressMimeType = (mimeType: string): boolean =>
   mimeType.startsWith(COMPRESSIBLE_MIME_PREFIX) &&
   !NON_COMPRESSIBLE_MIME_TYPES.has(mimeType);
+
+const hasAsciiMarker = (dataURL: string, markers: string[]): boolean => {
+  const payload = dataURL.split(",", 2)[1];
+  if (!payload) return false;
+  try {
+    // Animation markers live near the container header. Bound decoding so a
+    // very large image does not create another full-size string allocation.
+    const sampleLength = Math.min(payload.length, 512 * 1024);
+    const alignedLength = sampleLength - (sampleLength % 4);
+    const sample = atob(payload.slice(0, alignedLength));
+    return markers.some((marker) => sample.includes(marker));
+  } catch {
+    return false;
+  }
+};
+
+export const isAnimatedImageDataUrl = (
+  dataURL: string,
+  mimeType: string,
+): boolean => {
+  const normalized = mimeType.toLowerCase();
+  if (normalized === "image/gif") return true;
+  if (normalized === "image/png") return hasAsciiMarker(dataURL, ["acTL"]);
+  if (normalized === "image/webp") {
+    return hasAsciiMarker(dataURL, ["ANIM", "ANMF"]);
+  }
+  if (normalized === "image/avif") return true;
+  return false;
+};
 
 const loadImageFromDataUrl = (dataURL: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
@@ -121,7 +157,10 @@ const maybeCompressDataUrl = async (
   }
 
   const effectiveMimeType = (sourceMimeType || getMimeTypeFromDataUrl(inputDataURL) || "").toLowerCase();
-  if (!canCompressMimeType(effectiveMimeType)) {
+  if (
+    !canCompressMimeType(effectiveMimeType) ||
+    isAnimatedImageDataUrl(inputDataURL, effectiveMimeType)
+  ) {
     return {
       dataURL: inputDataURL,
       mimeType: effectiveMimeType || sourceMimeType,
@@ -188,6 +227,87 @@ export const compressDroppedImagePayload = async (args: {
   dataURL: string;
   mimeType: string;
 }) => maybeCompressDataUrl(args.dataURL, args.mimeType);
+
+const dataUrlByteLength = (dataURL: string): number | null => {
+  const match = /^data:[^;,]+;base64,([\s\S]*)$/i.exec(dataURL);
+  if (!match) return null;
+  const base64 = match[1].replace(/\s/g, "");
+  const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+  return Math.floor((base64.length * 3) / 4) - padding;
+};
+
+/**
+ * Make a final, progressively smaller WebP/JPEG encode when an image exceeds
+ * the server's configured raw-upload cap. This intentionally runs separately
+ * from the normal quality-preserving compression pass: it only trades more
+ * fidelity for size after the server limit makes that necessary.
+ */
+export const compressImageToFit = async (args: {
+  dataURL: string;
+  mimeType: string;
+  maxBytes: number;
+}): Promise<CompressionResult> => {
+  const sourceMimeType = (args.mimeType || getMimeTypeFromDataUrl(args.dataURL) || "").toLowerCase();
+  const unchanged = (): CompressionResult => ({
+    dataURL: args.dataURL,
+    mimeType: sourceMimeType || args.mimeType,
+    width: 0,
+    height: 0,
+    changed: false,
+  });
+  if (
+    !isCompressionEnabled() ||
+    !isDataImageUrl(args.dataURL) ||
+    !canCompressMimeType(sourceMimeType) ||
+    isAnimatedImageDataUrl(args.dataURL, sourceMimeType) ||
+    !Number.isFinite(args.maxBytes) ||
+    args.maxBytes <= 0
+  ) {
+    return unchanged();
+  }
+
+  const image = await loadImageFromDataUrl(args.dataURL);
+  const baseWidth = image.naturalWidth || image.width || 1;
+  const baseHeight = image.naturalHeight || image.height || 1;
+  const bounded = clampDimension(baseWidth, baseHeight, DEFAULT_MAX_DIMENSION);
+  const targetMimeType = getTargetMimeType(sourceMimeType);
+  let best = args.dataURL;
+  let bestWidth = baseWidth;
+  let bestHeight = baseHeight;
+
+  for (const scale of [1, 0.82, 0.66, 0.5, 0.36]) {
+    const width = Math.max(1, Math.round(bounded.width * scale));
+    const height = Math.max(1, Math.round(bounded.height * scale));
+    const canvas = drawToCanvas(image, width, height);
+    for (const quality of [0.82, 0.7, 0.58, 0.46]) {
+      const candidate = canvas.toDataURL(targetMimeType, quality);
+      if (candidate.length < best.length) {
+        best = candidate;
+        bestWidth = width;
+        bestHeight = height;
+      }
+      if ((dataUrlByteLength(candidate) ?? Number.POSITIVE_INFINITY) <= args.maxBytes) {
+        const actualMimeType = getMimeTypeFromDataUrl(candidate) || targetMimeType;
+        return {
+          dataURL: candidate,
+          mimeType: actualMimeType,
+          width,
+          height,
+          changed: candidate !== args.dataURL,
+        };
+      }
+    }
+  }
+
+  if (best === args.dataURL) return unchanged();
+  return {
+    dataURL: best,
+    mimeType: getMimeTypeFromDataUrl(best) || targetMimeType,
+    width: bestWidth,
+    height: bestHeight,
+    changed: true,
+  };
+};
 
 // Remember dataURLs we have already processed so the per-second save poll does
 // not re-encode the same (unchanged or already-compressed) image on every tick.

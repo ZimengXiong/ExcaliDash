@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { AGENT_TOOLS, APPLY_OPS_TOOL } from "./toolDefs";
+import { AGENT_TOOLS, APPLY_OPS_TOOL, VIEW_CANVAS_TOOL } from "./toolDefs";
 import { SHAPE_KINDS, STYLE_KEYS } from "../agent/opSchemas";
 
 describe("ai/toolDefs", () => {
-  it("exposes exactly the apply_ops tool", () => {
-    expect(AGENT_TOOLS).toHaveLength(1);
-    expect(AGENT_TOOLS[0]).toBe(APPLY_OPS_TOOL);
+  it("exposes visual inspection before the mutation tool", () => {
+    expect(AGENT_TOOLS).toEqual([VIEW_CANVAS_TOOL, APPLY_OPS_TOOL]);
+    expect(VIEW_CANVAS_TOOL.name).toBe("view_canvas");
     expect(APPLY_OPS_TOOL.name).toBe("apply_ops");
   });
 

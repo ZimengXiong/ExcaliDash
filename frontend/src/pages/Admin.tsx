@@ -4,11 +4,12 @@ import { Layout } from "../components/Layout";
 import { useAuth } from "../context/AuthContext";
 import * as api from "../api";
 import { Toaster } from "sonner";
-import { getPasswordPolicy, validatePassword } from "../utils/passwordPolicy";
+import { getPasswordPolicy } from "../utils/passwordPolicy";
+import { getApiErrorMessage } from "../utils/getApiErrorMessage";
 import { AccessControlCard } from "./admin/AccessControlCard";
 import { AiSettingsCard } from "./admin/AiSettingsCard";
 import { AdminHeader, AdminStatusMessages } from "./admin/AdminShell";
-import { CreateUserForm } from "./admin/CreateUserForm";
+import { CreateUserForm, type CreateUserInput } from "./admin/CreateUserForm";
 import { LoginRateLimitCard } from "./admin/LoginRateLimitCard";
 import { UserActionModals } from "./admin/UserActionModals";
 import { UsersTable } from "./admin/UsersTable";
@@ -41,14 +42,6 @@ export const Admin: React.FC = () => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
-  const [createEmail, setCreateEmail] = useState("");
-  const [createName, setCreateName] = useState("");
-  const [createUsername, setCreateUsername] = useState("");
-  const [createPassword, setCreatePassword] = useState("");
-  const [createOidcOnly, setCreateOidcOnly] = useState(false);
-  const [createRole, setCreateRole] = useState<"ADMIN" | "USER">("USER");
-  const [createMustReset, setCreateMustReset] = useState(true);
-  const [createActive, setCreateActive] = useState(true);
   const [impersonateTarget, setImpersonateTarget] = useState<AdminUser | null>(
     null,
   );
@@ -84,12 +77,7 @@ export const Admin: React.FC = () => {
       const response = await api.api.get<{ users: AdminUser[] }>("/auth/users");
       setUsers(response.data.users || []);
     } catch (err: unknown) {
-      let message = "Failed to load users";
-      if (api.isAxiosError(err)) {
-        message =
-          err.response?.data?.message || err.response?.data?.error || message;
-      }
-      setError(message);
+      setError(getApiErrorMessage(err, "Failed to load users"));
     } finally {
       setLoadingUsers(false);
     }
@@ -110,12 +98,7 @@ export const Admin: React.FC = () => {
       setSuccess(`Temporary password generated for ${target.email}`);
       await loadUsers();
     } catch (err: unknown) {
-      let message = "Failed to reset password";
-      if (api.isAxiosError(err)) {
-        message =
-          err.response?.data?.message || err.response?.data?.error || message;
-      }
-      setError(message);
+      setError(getApiErrorMessage(err, "Failed to reset password"));
     } finally {
       setResetPasswordLoadingId(null);
     }
@@ -126,28 +109,10 @@ export const Admin: React.FC = () => {
     void loadUsers();
     void accessControl.load();
   }, [authEnabled, isAdmin]);
-  const handleCreateUser = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCreateUser = async (payload: CreateUserInput): Promise<boolean> => {
     setError("");
     setSuccess("");
-    const passwordError = createOidcOnly
-      ? null
-      : validatePassword(createPassword, passwordPolicy);
-    if (passwordError) {
-      setError(passwordError);
-      return;
-    }
     try {
-      const payload = {
-        email: createEmail.trim().toLowerCase(),
-        name: createName.trim(),
-        username: createUsername.trim() ? createUsername.trim() : undefined,
-        password: createOidcOnly ? undefined : createPassword,
-        oidcOnly: createOidcOnly,
-        role: createRole,
-        mustResetPassword: createOidcOnly ? false : createMustReset,
-        isActive: createActive,
-      };
       const response = await api.api.post<{ user: AdminUser }>(
         "/auth/users",
         payload,
@@ -158,22 +123,11 @@ export const Admin: React.FC = () => {
         ),
       );
       setSuccess("User created");
-      setCreateEmail("");
-      setCreateName("");
-      setCreateUsername("");
-      setCreatePassword("");
-      setCreateOidcOnly(false);
-      setCreateRole("USER");
-      setCreateMustReset(true);
-      setCreateActive(true);
       setCreateOpen(false);
+      return true;
     } catch (err: unknown) {
-      let message = "Failed to create user";
-      if (api.isAxiosError(err)) {
-        message =
-          err.response?.data?.message || err.response?.data?.error || message;
-      }
-      setError(message);
+      setError(getApiErrorMessage(err, "Failed to create user"));
+      return false;
     }
   };
   const patchUser = async (
@@ -197,12 +151,7 @@ export const Admin: React.FC = () => {
       );
       setSuccess("User updated");
     } catch (err: unknown) {
-      let message = "Failed to update user";
-      if (api.isAxiosError(err)) {
-        message =
-          err.response?.data?.message || err.response?.data?.error || message;
-      }
-      setError(message);
+      setError(getApiErrorMessage(err, "Failed to update user"));
     }
   };
   const startImpersonation = async (target: AdminUser) => {
@@ -239,12 +188,7 @@ export const Admin: React.FC = () => {
       localStorage.setItem(USER_KEY, JSON.stringify(response.data.user));
       window.location.href = "/";
     } catch (err: unknown) {
-      let message = "Failed to impersonate user";
-      if (api.isAxiosError(err)) {
-        message =
-          err.response?.data?.message || err.response?.data?.error || message;
-      }
-      setError(message);
+      setError(getApiErrorMessage(err, "Failed to impersonate user"));
     }
   };
   if (authEnabled === null) {
@@ -264,7 +208,7 @@ export const Admin: React.FC = () => {
       onEditCollection={handleEditCollection}
       onDeleteCollection={handleDeleteCollection}
     >
-      {" "}
+      <div className="mx-auto w-full max-w-6xl">
       <AdminHeader
         loadingUsers={loadingUsers}
         onRefreshUsers={loadUsers}
@@ -273,26 +217,10 @@ export const Admin: React.FC = () => {
       <AdminStatusMessages success={success} error={error} />{" "}
       {createOpen && (
         <CreateUserForm
-          email={createEmail}
-          name={createName}
-          username={createUsername}
-          password={createPassword}
-          oidcOnly={createOidcOnly}
           oidcEnabled={accessControl.oidcEnabled}
-          role={createRole}
-          mustReset={createMustReset}
-          active={createActive}
           passwordPolicy={passwordPolicy}
           onSubmit={handleCreateUser}
           onCancel={() => setCreateOpen(false)}
-          onEmailChange={setCreateEmail}
-          onNameChange={setCreateName}
-          onUsernameChange={setCreateUsername}
-          onPasswordChange={setCreatePassword}
-          onOidcOnlyChange={setCreateOidcOnly}
-          onRoleChange={setCreateRole}
-          onMustResetChange={setCreateMustReset}
-          onActiveChange={setCreateActive}
         />
       )}{" "}
       <AccessControlCard
@@ -327,21 +255,14 @@ export const Admin: React.FC = () => {
       <AiSettingsCard
         loading={aiSettings.loading}
         saving={aiSettings.saving}
-        provider={aiSettings.provider}
-        baseUrl={aiSettings.baseUrl}
-        model={aiSettings.model}
-        apiKey={aiSettings.apiKey}
-        chatgptEnabled={aiSettings.chatgptEnabled}
+        providers={aiSettings.providers}
+        defaultProviderId={aiSettings.defaultProviderId}
         status={aiSettings.status}
-        envKeyConfigured={aiSettings.envKeyConfigured}
-        dbKeyConfigured={aiSettings.dbKeyConfigured}
-        onProviderChange={aiSettings.setProvider}
-        onBaseUrlChange={aiSettings.setBaseUrl}
-        onModelChange={aiSettings.setModel}
-        onApiKeyChange={aiSettings.setApiKey}
-        onChatgptEnabledChange={aiSettings.setChatgptEnabled}
+        onDefaultProviderChange={aiSettings.setDefaultProviderId}
+        onAddProvider={aiSettings.addProvider}
+        onUpdateProvider={aiSettings.updateProvider}
+        onRemoveProvider={aiSettings.removeProvider}
         onSave={aiSettings.save}
-        onClearDbKey={aiSettings.clearDbKey}
       />{" "}
       <UsersTable
         users={users}
@@ -367,7 +288,8 @@ export const Admin: React.FC = () => {
           navigator.clipboard?.writeText(result.tempPassword)
         }
         onClosePassword={() => setResetPasswordResult(null)}
-      />{" "}
+      />
+      </div>{" "}
       <Toaster position="bottom-center" />{" "}
     </Layout>
   );

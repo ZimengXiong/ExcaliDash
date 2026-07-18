@@ -7,16 +7,41 @@ export type ToolCall = {
   id: string;
   name: string;
   input: unknown;
+  /**
+   * Opaque provider state that must be replayed with this exact tool call.
+   * Gemini's OpenAI-compatible API stores its required thought signature here.
+   */
+  providerMetadata?: Record<string, unknown>;
+};
+
+export type ToolResult = {
+  id: string;
+  content: string;
+  /** A transient client-rendered canvas image; never persisted. */
+  imageDataUrl?: string;
 };
 
 export type ConversationTurn =
-  | { role: "user"; text: string }
-  | { role: "assistant"; text: string; toolCalls: ToolCall[] }
-  | { role: "tool_results"; results: { id: string; content: string }[] };
+  | {
+      role: "user";
+      text: string;
+      /** Transient snapshot attached only to the current request. */
+      imageDataUrl?: string;
+      canvasState?: "captured" | "blank" | "unavailable";
+    }
+  | {
+      role: "assistant";
+      text: string;
+      toolCalls: ToolCall[];
+      providerMetadata?: Record<string, unknown>;
+    }
+  | { role: "tool_results"; results: ToolResult[] };
 
 export type CompletionResult = {
   text: string;
   toolCalls: ToolCall[];
+  streamedText?: boolean;
+  assistantMetadata?: Record<string, unknown>;
 };
 
 export type CompletionRequest = {
@@ -30,6 +55,9 @@ export type CompletionRequest = {
    * API-key providers, which authenticate via `settings.apiKey` instead.
    */
   codexAuth?: { accessToken: string; accountId: string };
+  reasoningEffort?: string;
+  onTextDelta?: (delta: string) => void;
+  onThinkingDelta?: (delta: string) => void;
 };
 
 export type AiProviderAdapter = {

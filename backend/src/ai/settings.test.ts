@@ -1,16 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { resolveAiSettings, toAiStatus } from "./settings";
+import {
+  encodeStoredAiProfiles,
+  resolveAiRegistry,
+  resolveAiSettings,
+  toAiStatus,
+} from "./settings";
 import { encryptSecret } from "./crypto";
 
 // The test env sets no AI_* vars, so config.ai.provider is "disabled" and
 // config.ai.apiKey is null — this suite exercises the DB-override path.
 
 describe("ai/settings resolveAiSettings", () => {
-  it("is disabled and unavailable with no DB row and no env config", () => {
+  it("offers the built-in ChatGPT subscription with no registry configuration", () => {
     const settings = resolveAiSettings(null);
-    expect(settings.provider).toBe("disabled");
-    expect(settings.available).toBe(false);
+    expect(settings.provider).toBe("chatgpt");
+    expect(settings.available).toBe(true);
     expect(settings.keySource).toBeNull();
+    expect(settings.baseUrl).toBeNull();
+    expect(settings.models.length).toBeGreaterThan(0);
+    expect(settings.models[0].reasoningEfforts.length).toBeGreaterThan(0);
   });
 
   it("becomes available with a DB provider + encrypted key, using provider defaults", () => {
@@ -48,12 +56,14 @@ describe("ai/settings resolveAiSettings", () => {
     expect(settings.available).toBe(false);
   });
 
-  it("stays disabled/unavailable when a key is present but provider is disabled", () => {
+  it("ignores a legacy API key when only the built-in ChatGPT provider is enabled", () => {
     const settings = resolveAiSettings({
       aiProvider: "disabled",
       aiApiKeyEncrypted: encryptSecret("sk-x"),
     });
-    expect(settings.available).toBe(false);
+    expect(settings.provider).toBe("chatgpt");
+    expect(settings.apiKey).toBeNull();
+    expect(settings.available).toBe(true);
   });
 
   it("makes the chatgpt provider available without an API key (per-user auth)", () => {
@@ -66,13 +76,13 @@ describe("ai/settings resolveAiSettings", () => {
     expect(settings.model).toBeTruthy();
   });
 
-  it("respects the admin chatgpt kill-switch", () => {
+  it("ignores the legacy DB ChatGPT switch in favor of deployment config", () => {
     const settings = resolveAiSettings({
       aiProvider: "chatgpt",
       aiChatgptEnabled: false,
     });
-    expect(settings.available).toBe(false);
-    expect(settings.chatgptEnabled).toBe(false);
+    expect(settings.available).toBe(true);
+    expect(settings.chatgptEnabled).toBe(true);
   });
 
   it("toAiStatus never leaks the key", () => {
@@ -81,7 +91,7 @@ describe("ai/settings resolveAiSettings", () => {
       aiApiKeyEncrypted: encryptSecret("sk-secret"),
     });
     const status = toAiStatus(settings);
-    expect(status).toEqual({
+    expect(status).toMatchObject({
       available: true,
       provider: "anthropic",
       model: "claude-opus-4-8",
@@ -90,5 +100,58 @@ describe("ai/settings resolveAiSettings", () => {
       chatgptEnabled: true,
     });
     expect(JSON.stringify(status)).not.toContain("sk-secret");
+  });
+
+  it("resolves multiple named providers with an explicit default", () => {
+    const aiProviderProfiles = encodeStoredAiProfiles([
+      {
+        id: "fast",
+        label: "Fast model",
+        provider: "openai",
+        enabled: true,
+        baseUrl: null,
+        models: [{ id: "gpt-fast", label: "GPT Fast", reasoningEfforts: ["low"] }],
+        apiKey: "sk-fast",
+      },
+      {
+        id: "deep",
+        label: "Deep model",
+        provider: "custom",
+        enabled: true,
+        baseUrl: "https://gemini.example/v1beta/openai",
+        models: [{ id: "gemini-deep", label: "Gemini Deep", reasoningEfforts: ["medium", "high"] }],
+        apiKey: "sk-deep",
+      },
+    ]);
+    const registry = resolveAiRegistry({ aiProviderProfiles, aiDefaultProviderId: "deep" });
+
+    expect(registry.defaultProviderId).toBe("deep");
+    expect(registry.providers.map((profile) => profile.id)).toEqual(["fast", "deep"]);
+    expect(resolveAiSettings({ aiProviderProfiles, aiDefaultProviderId: "deep" }).model)
+      .toBe("gemini-deep");
+    expect(registry.providers.every((profile) => profile.available)).toBe(true);
+  });
+
+  it("preserves existing per-profile keys when an admin edits non-secret fields", () => {
+    const original = encodeStoredAiProfiles([{
+      id: "openai",
+      label: "OpenAI",
+      provider: "openai",
+      enabled: true,
+      baseUrl: null,
+      models: [{ id: "gpt-a", label: "GPT A", reasoningEfforts: [] }],
+      apiKey: "sk-preserved",
+    }]);
+    const updated = encodeStoredAiProfiles([{
+      id: "openai",
+      label: "Renamed",
+      provider: "openai",
+      enabled: true,
+      baseUrl: null,
+      models: [{ id: "gpt-b", label: "GPT B", reasoningEfforts: [] }],
+    }], original);
+
+    expect(resolveAiSettings({ aiProviderProfiles: updated }, "openai").apiKey)
+      .toBe("sk-preserved");
   });
 });

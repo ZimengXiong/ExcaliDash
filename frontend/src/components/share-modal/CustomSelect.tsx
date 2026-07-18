@@ -57,9 +57,9 @@ export const CustomSelect: React.FC<Props> = ({
           setIsOpen(!isOpen);
         }}
         className={clsx(
-          "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all text-sm font-bold outline-none",
+          "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-all text-sm font-medium outline-none",
           variant === "bordered"
-            ? "border-2 border-black dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.05)] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
+            ? "border border-slate-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:bg-slate-50 dark:hover:bg-neutral-800"
             : "hover:bg-gray-100 dark:hover:bg-neutral-800 text-slate-700 dark:text-neutral-300",
         )}
       >
@@ -77,7 +77,7 @@ export const CustomSelect: React.FC<Props> = ({
       {isOpen && (
         <div
           className={clsx(
-            "absolute top-full z-[100] mt-1.5 min-w-[140px] bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-xl shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.1)] overflow-hidden animate-in fade-in zoom-in-95 duration-100",
+            "ui-popover absolute top-full z-[100] mt-1.5 min-w-[140px] overflow-hidden animate-in fade-in zoom-in-95 duration-100",
             align === "right" ? "right-0" : "left-0",
           )}
         >
@@ -92,7 +92,7 @@ export const CustomSelect: React.FC<Props> = ({
                 setIsOpen(false);
               }}
               className={clsx(
-                "w-full text-left px-3 py-2 text-xs font-bold transition-colors flex items-center justify-between border-b last:border-b-0 border-slate-100 dark:border-neutral-800",
+                "w-full text-left px-3 py-2 text-xs font-semibold transition-colors flex items-center justify-between border-b last:border-b-0 border-slate-100 dark:border-neutral-800",
                 option.value === value && showCheck
                   ? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400"
                   : option.danger

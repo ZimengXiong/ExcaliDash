@@ -15,6 +15,7 @@ import {
 } from "../s3";
 import {
   VALID_STORAGE_FILE_ID,
+  collectSnapshotFileIds,
   type StoredFileRecord,
   type S3ObjectRecord,
 } from "./storage/helpers";
@@ -95,6 +96,15 @@ export const registerStorageRoutes = (
       const elements: any[] = parseJsonField(drawing.elements, []);
       const files: Record<string, any> = parseJsonField(drawing.files, {});
       const trimPlan = buildTrimPlan(elements, files);
+      const snapshots = await prisma.drawingSnapshot.findMany({
+        where: { drawingId: id },
+        select: { elements: true, files: true },
+      });
+      const retainedHistoryFileIds = collectSnapshotFileIds(snapshots);
+      const survivingFileIds = new Set([
+        ...trimPlan.survivingFileIds,
+        ...retainedHistoryFileIds,
+      ]);
 
       // Commit the trimmed drawing FIRST, guarded on the version we read.
       // If a concurrent editor saved in between, `count` is 0 — we abort
@@ -148,11 +158,12 @@ export const registerStorageRoutes = (
         : [];
 
       const s3CleanupPlan = buildTrimS3CleanupPlan({
-        survivingFileIds: trimPlan.survivingFileIds,
+        survivingFileIds,
         storedRecords,
         s3Objects,
       });
 
+      const retainedForRetry = new Set<string>();
       if (isS3Enabled() && s3CleanupPlan.orphanKeys.length > 0) {
         const deleteResult = await deleteS3KeysInBatches({
           keys: s3CleanupPlan.orphanKeys,
@@ -161,13 +172,23 @@ export const registerStorageRoutes = (
         });
         s3ObjectsDeleted = deleteResult.deleted;
         s3DeleteErrors = deleteResult.errors;
+        const keyToFileId = new Map(
+          storedRecords.flatMap((record) => record.s3Key ? [[record.s3Key, record.fileId] as const] : []),
+        );
+        for (const key of deleteResult.failedKeys) {
+          const fileId = keyToFileId.get(key);
+          if (fileId) retainedForRetry.add(fileId);
+        }
       }
 
-      if (s3CleanupPlan.orphanFileIds.length > 0) {
+      const deletableFileIds = s3CleanupPlan.orphanFileIds.filter(
+        (fileId) => !retainedForRetry.has(fileId),
+      );
+      if (deletableFileIds.length > 0) {
         await prisma.drawingFile.deleteMany({
           where: {
             drawingId: id,
-            fileId: { in: s3CleanupPlan.orphanFileIds },
+            fileId: { in: deletableFileIds },
           },
         });
       }
@@ -282,11 +303,20 @@ export const registerStorageRoutes = (
       const elements: any[] = parseJsonField(drawing.elements, []);
       const files: Record<string, any> = parseJsonField(drawing.files, {});
       const deletePlan = buildOrphanDeletePlan({ elements, files, fileIds });
+      const snapshots = await prisma.drawingSnapshot.findMany({
+        where: { drawingId: id },
+        select: { elements: true, files: true },
+      });
+      const historyFileIds = collectSnapshotFileIds(snapshots);
+      const blockedIds = [...new Set([
+        ...deletePlan.blockedIds,
+        ...fileIds.filter((fileId) => historyFileIds.has(fileId)),
+      ])];
 
-      if (deletePlan.blockedIds.length > 0) {
+      if (blockedIds.length > 0) {
         return res.status(400).json({
-          error: "Cannot delete files referenced by active elements",
-          blockedFileIds: deletePlan.blockedIds,
+          error: "Cannot delete files referenced by the drawing or retained history",
+          blockedFileIds: blockedIds,
         });
       }
 
@@ -317,26 +347,35 @@ export const registerStorageRoutes = (
       // sibling drawing. Doing N+1 sequential lookups + deletes per file
       // would tie up the request unnecessarily for large selections.
       let s3DeleteErrors = 0;
+      const retainedForRetry = new Set<string>();
 
       if (isS3Enabled()) {
         const s3Records = await prisma.drawingFile.findMany({
           where: { drawingId: id, fileId: { in: fileIds }, storage: "s3" },
-          select: { s3Key: true },
+          select: { fileId: true, s3Key: true },
         });
+        const keyToFileId = new Map(
+          s3Records.flatMap((record) => record.s3Key ? [[record.s3Key, record.fileId] as const] : []),
+        );
         const deleteResult = await deleteS3KeysInBatches({
-          keys: s3Records
-            .map((record) => record.s3Key)
-            .filter((key): key is string => Boolean(key)),
+          keys: [...keyToFileId.keys()],
           logPrefix: "[storage/orphans]",
           deleteObject: deleteS3Object,
         });
         s3DeleteErrors = deleteResult.errors;
+        for (const key of deleteResult.failedKeys) {
+          const fileId = keyToFileId.get(key);
+          if (fileId) retainedForRetry.add(fileId);
+        }
       }
 
-      // Reclaim the DrawingFile rows in both modes (db-mode bytes live here).
-      await prisma.drawingFile.deleteMany({
-        where: { drawingId: id, fileId: { in: fileIds } },
-      });
+      // Keep metadata for failed S3 deletions so a later cleanup can retry.
+      const deletableFileIds = fileIds.filter((fileId) => !retainedForRetry.has(fileId));
+      if (deletableFileIds.length > 0) {
+        await prisma.drawingFile.deleteMany({
+          where: { drawingId: id, fileId: { in: deletableFileIds } },
+        });
+      }
 
       const errorCount = s3DeleteErrors;
 

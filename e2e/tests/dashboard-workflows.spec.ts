@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 import {
   API_URL,
+  cleanupDrawings,
   createDrawing,
   deleteDrawing,
   getDrawing,
@@ -42,13 +43,7 @@ test.describe("Dashboard Workflows", () => {
   let createdCollectionIds: string[] = [];
 
   test.afterEach(async ({ request }) => {
-    for (const id of createdDrawingIds) {
-      try {
-        await deleteDrawing(request, id);
-      } catch {
-      }
-    }
-    createdDrawingIds = [];
+    await cleanupDrawings(request, createdDrawingIds);
 
     for (const id of createdCollectionIds) {
       try {

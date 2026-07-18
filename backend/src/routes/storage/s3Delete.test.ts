@@ -14,7 +14,12 @@ describe("deleteS3KeysInBatches", () => {
       deleteObject,
     });
 
-    expect(result).toEqual({ deleted: 2, errors: 1 });
+    expect(result).toEqual({
+      deleted: 2,
+      errors: 1,
+      deletedKeys: ["good-key", "another-good-key"],
+      failedKeys: ["bad-key"],
+    });
     expect(deleteObject).toHaveBeenCalledTimes(3);
     expect(consoleSpy).toHaveBeenCalledTimes(1);
     consoleSpy.mockRestore();

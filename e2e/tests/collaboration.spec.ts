@@ -1,182 +1,148 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import {
+  cleanupDrawings,
   createDrawing,
-  deleteDrawing,
   getDrawing,
 } from "./helpers/api";
 
-/**
- * E2E Tests for Real-time Collaboration
- * 
- * Tests the real-time collaboration feature mentioned in README:
- * - Multiple users can edit drawings simultaneously
- * - Cursor presence is shared between users
- * - Changes sync between users in real-time
- */
+type SocketEvent = { name: string; payload: any };
+
+const observeSocketEvents = (page: Page, events: SocketEvent[]) => {
+  page.on("websocket", (socket) => {
+    socket.on("framereceived", ({ payload }) => {
+      if (typeof payload !== "string" || !payload.startsWith("42")) return;
+      try {
+        const [name, eventPayload] = JSON.parse(payload.slice(2));
+        if (typeof name === "string") events.push({ name, payload: eventPayload });
+      } catch {
+        // Socket.IO also sends Engine.IO control frames, which are not JSON events.
+      }
+    });
+  });
+};
+
+const interactiveCanvas = (page: Page) =>
+  page.locator("canvas.excalidraw__canvas.interactive");
+
+const waitForEditor = async (page: Page) => {
+  await expect(interactiveCanvas(page)).toBeVisible();
+};
 
 test.describe("Real-time Collaboration", () => {
-  let createdDrawingIds: string[] = [];
+  const createdDrawingIds: string[] = [];
 
   test.afterEach(async ({ request }) => {
-    for (const id of createdDrawingIds) {
-      try {
-        await deleteDrawing(request, id);
-      } catch {
-      }
-    }
-    createdDrawingIds = [];
+    await cleanupDrawings(request, createdDrawingIds);
   });
 
-  test("should show presence when multiple users view same drawing", async ({ browser, request }) => {
+  test("shows each connected collaborator in the editor header", async ({ browser, request }) => {
     const drawing = await createDrawing(request, { name: `Collab_Presence_${Date.now()}` });
     createdDrawingIds.push(drawing.id);
-
     const context1 = await browser.newContext();
     const context2 = await browser.newContext();
 
-    const page1 = await context1.newPage();
-    const page2 = await context2.newPage();
-
     try {
+      const page1 = await context1.newPage();
+      const page2 = await context2.newPage();
       await page1.goto(`/editor/${drawing.id}`);
       await page2.goto(`/editor/${drawing.id}`);
+      await Promise.all([waitForEditor(page1), waitForEditor(page2)]);
 
-      await page1.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
-      await page2.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
-
-      await page1.waitForTimeout(2000);
-      await page2.waitForTimeout(2000);
-
-      const collaboratorIndicator1 = page1.locator("[data-testid='collaborator-avatar'], .collaborator-avatar, [class*='collaborator']");
-      const collaboratorIndicator2 = page2.locator("[data-testid='collaborator-avatar'], .collaborator-avatar, [class*='collaborator']");
-
-      const hasCollaborator1 = await collaboratorIndicator1.count();
-      const hasCollaborator2 = await collaboratorIndicator2.count();
-
-      expect(hasCollaborator1 + hasCollaborator2).toBeGreaterThanOrEqual(0);
+      // The header always contains the local avatar; the second avatar is the peer.
+      await expect(page1.locator("header div.relative.group")).toHaveCount(2);
+      await expect(page2.locator("header div.relative.group")).toHaveCount(2);
     } finally {
       await context1.close();
       await context2.close();
     }
   });
 
-  test("should sync drawing changes between two users", async ({ browser, request }) => {
+  test("sends the same drawn element identity and content to a collaborator", async ({ browser, request }) => {
     const drawing = await createDrawing(request, {
       name: `Collab_Sync_${Date.now()}`,
       elements: [],
     });
     createdDrawingIds.push(drawing.id);
-
     const context1 = await browser.newContext();
     const context2 = await browser.newContext();
 
-    const page1 = await context1.newPage();
-    const page2 = await context2.newPage();
-
     try {
+      const page1 = await context1.newPage();
+      const page2 = await context2.newPage();
+      const remoteEvents: SocketEvent[] = [];
+      observeSocketEvents(page2, remoteEvents);
       await page1.goto(`/editor/${drawing.id}`);
       await page2.goto(`/editor/${drawing.id}`);
+      await Promise.all([waitForEditor(page1), waitForEditor(page2)]);
+      await expect(page1.locator("header div.relative.group")).toHaveCount(2);
 
-      await page1.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
-      await page2.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
-
-      await page1.waitForTimeout(2000);
-      await page2.waitForTimeout(2000);
-
-      const canvas1 = page1.locator("canvas.excalidraw__canvas.interactive");
-      const box1 = await canvas1.boundingBox();
-      if (!box1) throw new Error("Canvas not found");
-
+      const canvas = interactiveCanvas(page1);
+      const box = await canvas.boundingBox();
+      if (!box) throw new Error("Interactive canvas not found");
       await page1.keyboard.press("r");
-      await page1.waitForTimeout(200);
-
-      await page1.mouse.move(box1.x + 100, box1.y + 100);
+      await page1.mouse.move(box.x + 100, box.y + 100);
       await page1.mouse.down();
-      await page1.mouse.move(box1.x + 300, box1.y + 200, { steps: 5 });
+      await page1.mouse.move(box.x + 300, box.y + 200, { steps: 5 });
       await page1.mouse.up();
 
-      await page1.waitForTimeout(1000);
+      let localElement: any;
+      await expect.poll(async () => {
+        const saved = await getDrawing(request, drawing.id);
+        localElement = saved.elements?.find((element) => !element.isDeleted);
+        return localElement?.id;
+      }).toEqual(expect.any(String));
 
-      const updatedDrawing = await getDrawing(request, drawing.id);
-
-      const elements = updatedDrawing.elements || [];
-
-      expect(elements).toBeDefined();
+      await expect.poll(() => remoteEvents.find(
+        (event) => event.name === "element-update" && event.payload?.elements?.some(
+          (element: any) => element.id === localElement.id,
+        ),
+      )).toMatchObject({
+        name: "element-update",
+        payload: {
+          drawingId: drawing.id,
+          elements: expect.arrayContaining([expect.objectContaining({
+            id: localElement.id,
+            type: localElement.type,
+            x: localElement.x,
+            y: localElement.y,
+            width: localElement.width,
+            height: localElement.height,
+          })]),
+        },
+      });
     } finally {
       await context1.close();
       await context2.close();
     }
   });
 
-  test("should persist drawing changes across page reload", async ({ page, request }) => {
-    const drawing = await createDrawing(request, {
-      name: `Collab_Persist_${Date.now()}`,
-      elements: [],
-    });
-    createdDrawingIds.push(drawing.id);
-
-    await page.goto(`/editor/${drawing.id}`);
-    await page.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
-    await page.waitForTimeout(1000);
-
-    const canvas = page.locator("canvas.excalidraw__canvas.interactive");
-
-    await page.keyboard.press("r");
-    await page.waitForTimeout(200);
-
-    const box = await canvas.boundingBox();
-    if (!box) throw new Error("Canvas not found");
-
-    await page.mouse.move(box.x + 150, box.y + 150);
-    await page.mouse.down();
-    await page.mouse.move(box.x + 350, box.y + 250, { steps: 5 });
-    await page.mouse.up();
-
-    await page.waitForTimeout(2000);
-
-    let savedDrawing = await getDrawing(request, drawing.id);
-    const elementCount = savedDrawing.elements?.length || 0;
-
-    await page.reload();
-    await page.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
-    await page.waitForTimeout(1000);
-
-    savedDrawing = await getDrawing(request, drawing.id);
-    expect(savedDrawing.elements?.length || 0).toBe(elementCount);
-  });
-
-  test("should display collaborator cursor positions", async ({ browser, request }) => {
+  test("broadcasts collaborator cursor movement", async ({ browser, request }) => {
     const drawing = await createDrawing(request, { name: `Collab_Cursor_${Date.now()}` });
     createdDrawingIds.push(drawing.id);
-
     const context1 = await browser.newContext();
     const context2 = await browser.newContext();
 
-    const page1 = await context1.newPage();
-    const page2 = await context2.newPage();
-
     try {
+      const page1 = await context1.newPage();
+      const page2 = await context2.newPage();
+      const remoteEvents: SocketEvent[] = [];
+      observeSocketEvents(page2, remoteEvents);
       await page1.goto(`/editor/${drawing.id}`);
       await page2.goto(`/editor/${drawing.id}`);
+      await Promise.all([waitForEditor(page1), waitForEditor(page2)]);
+      await expect(page1.locator("header div.relative.group")).toHaveCount(2);
 
-      await page1.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
-      await page2.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
+      const box = await interactiveCanvas(page1).boundingBox();
+      if (!box) throw new Error("Interactive canvas not found");
+      await page1.mouse.move(box.x + 180, box.y + 180);
+      await page1.waitForTimeout(75);
+      await page1.mouse.move(box.x + 360, box.y + 300);
 
-      await page1.waitForTimeout(2000);
-      await page2.waitForTimeout(2000);
-
-      const canvas1 = page1.locator("canvas.excalidraw__canvas.interactive");
-      const box = await canvas1.boundingBox();
-      if (!box) throw new Error("Canvas not found");
-
-      await page1.mouse.move(box.x + 300, box.y + 300);
-      await page1.waitForTimeout(500);
-      await page1.mouse.move(box.x + 400, box.y + 400);
-      await page1.waitForTimeout(500);
-
-
-      await page2.waitForTimeout(1000);
-
+      await expect.poll(() => remoteEvents.filter((event) => event.name === "cursor-move"))
+        .toHaveLength(2);
+      const cursorEvents = remoteEvents.filter((event) => event.name === "cursor-move");
+      expect(cursorEvents[0].payload.drawingId).toBe(drawing.id);
+      expect(cursorEvents[0].payload.pointer).not.toEqual(cursorEvents[1].payload.pointer);
     } finally {
       await context1.close();
       await context2.close();

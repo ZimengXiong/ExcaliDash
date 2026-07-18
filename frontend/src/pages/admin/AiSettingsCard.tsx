@@ -1,199 +1,158 @@
 import React from "react";
-import { Sparkles } from "lucide-react";
-import type { AiProvider } from "./useAiSettings";
-
-type AiSettingsCardProps = {
-  loading: boolean;
-  saving: boolean;
-  provider: AiProvider;
-  baseUrl: string;
-  model: string;
-  apiKey: string;
-  chatgptEnabled: boolean;
-  status: {
-    available: boolean;
-    provider: AiProvider;
-    model: string | null;
-    keyConfigured: boolean;
-    keySource: "env" | "db" | null;
-    chatgptEnabled: boolean;
-  } | null;
-  envKeyConfigured: boolean;
-  dbKeyConfigured: boolean;
-  onProviderChange: (value: AiProvider) => void;
-  onBaseUrlChange: (value: string) => void;
-  onModelChange: (value: string) => void;
-  onApiKeyChange: (value: string) => void;
-  onChatgptEnabledChange: (value: boolean) => void;
-  onSave: () => void | Promise<void>;
-  onClearDbKey: () => void | Promise<void>;
-};
-
-const PROVIDERS: { value: AiProvider; label: string }[] = [
-  { value: "disabled", label: "Disabled" },
-  { value: "anthropic", label: "Anthropic" },
-  { value: "openai", label: "OpenAI" },
-  { value: "custom", label: "Custom (OpenAI-compatible)" },
-  { value: "chatgpt", label: "ChatGPT (per-user subscription)" },
-];
+import { Plus, Sparkles, Trash2 } from "lucide-react";
+import type { AiStatus } from "../../api/ai";
+import type {
+  AiProviderDraft,
+  ConfigurableAiProvider,
+} from "./useAiSettings";
 
 const inputClass =
-  "w-full px-4 py-3 bg-white dark:bg-neutral-800 border-2 border-slate-200 dark:border-neutral-700 rounded-xl text-slate-900 dark:text-white outline-none";
-const labelClass =
-  "block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2";
+  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white";
+const labelClass = "mb-1 block text-xs font-bold text-slate-600 dark:text-neutral-400";
 
-export const AiSettingsCard: React.FC<AiSettingsCardProps> = ({
-  loading,
-  saving,
-  provider,
-  baseUrl,
-  model,
-  apiKey,
-  chatgptEnabled,
-  status,
-  envKeyConfigured,
-  dbKeyConfigured,
-  onProviderChange,
-  onBaseUrlChange,
-  onModelChange,
-  onApiKeyChange,
-  onChatgptEnabledChange,
-  onSave,
-  onClearDbKey,
-}) => (
-  <div className="mb-6 bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] p-4 sm:p-6">
-    <div className="flex items-center gap-3 mb-4">
-      <div className="w-12 h-12 bg-slate-50 dark:bg-neutral-800 rounded-xl flex items-center justify-center border-2 border-slate-200 dark:border-neutral-700">
-        <Sparkles size={24} className="text-slate-700 dark:text-neutral-200" />
-      </div>
-      <div className="min-w-0">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">AI Assistant</h2>
-        <p className="text-sm text-slate-600 dark:text-neutral-400 font-medium">
-          Configure the AI chat proxy. The provider key is stored server-side only.
-        </p>
-      </div>
-      {loading && (
-        <span className="ml-auto text-sm text-slate-500 dark:text-neutral-500 font-medium">
-          Loading…
-        </span>
-      )}
-    </div>
+const PROVIDERS: Array<{ value: ConfigurableAiProvider; label: string }> = [
+  { value: "anthropic", label: "Anthropic" },
+  { value: "openai", label: "OpenAI" },
+  { value: "gemini", label: "Google Gemini" },
+  { value: "custom", label: "OpenAI-compatible" },
+  { value: "chatgpt", label: "ChatGPT subscription" },
+];
 
-    {status && (
-      <div className="mb-4 text-sm font-medium">
-        <span
-          className={
-            status.available
-              ? "text-emerald-700 dark:text-emerald-300"
-              : "text-slate-500 dark:text-neutral-400"
-          }
-        >
-          {status.available
-            ? `Available — ${status.provider} / ${status.model ?? "default"}`
-            : "Not available (provider or key missing)"}
-        </span>
-      </div>
-    )}
-
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <div>
-        <label className={labelClass}>Provider</label>
-        <select
-          value={provider}
-          onChange={(e) => onProviderChange(e.target.value as AiProvider)}
-          className={inputClass}
-        >
-          {PROVIDERS.map((p) => (
-            <option key={p.value} value={p.value}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label className={labelClass}>Model</label>
+const ProviderEditor: React.FC<{
+  profile: AiProviderDraft;
+  saving: boolean;
+  onChange: (patch: Partial<AiProviderDraft>) => void;
+  onRemove: () => void;
+}> = ({ profile, saving, onChange, onRemove }) => (
+  <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 dark:border-neutral-700 dark:bg-neutral-800/30 sm:p-5">
+    <div className="mb-4 flex flex-wrap items-center gap-3 border-b border-slate-200 pb-4 dark:border-neutral-700">
+      <div className="min-w-[220px] max-w-sm flex-1">
+        <label className={labelClass}>Display name</label>
         <input
-          value={model}
-          onChange={(e) => onModelChange(e.target.value)}
-          placeholder="claude-opus-4-8 / gpt-4o"
-          className={inputClass}
+          value={profile.label}
+          onChange={(event) => onChange({ label: event.target.value })}
+          aria-label="Provider label"
+          className={`${inputClass} font-semibold`}
         />
       </div>
-      <div>
-        <label className={labelClass}>Base URL (optional)</label>
-        <input
-          value={baseUrl}
-          onChange={(e) => onBaseUrlChange(e.target.value)}
-          placeholder="https://api.openai.com/v1"
-          className={inputClass}
-        />
-      </div>
-    </div>
-
-    {provider === "chatgpt" && (
-      <div className="mt-4 rounded-xl border-2 border-slate-200 dark:border-neutral-700 p-4">
-        <label className="flex items-center gap-3">
-          <input
-            type="checkbox"
-            checked={chatgptEnabled}
-            onChange={(e) => onChatgptEnabledChange(e.target.checked)}
-            className="h-5 w-5"
-          />
-          <span className="text-sm font-bold text-slate-700 dark:text-neutral-300">
-            Allow users to connect their ChatGPT subscription
-          </span>
-        </label>
-        <p className="mt-2 text-sm text-slate-600 dark:text-neutral-400 font-medium">
-          Each user links their own ChatGPT Plus/Pro account from the canvas
-          assistant — requests bill their subscription and no server API key is
-          used. This is an unofficial channel (Codex sign-in) that OpenAI may
-          change or block. The available models depend on the configured Codex
-          client version (AI_CHATGPT_CLIENT_VERSION).
-        </p>
-      </div>
-    )}
-
-    {provider !== "chatgpt" && (
-    <div className="mt-4">
-      <label className={labelClass}>API key</label>
-      {envKeyConfigured ? (
-        <p className="text-sm text-slate-500 dark:text-neutral-400 font-medium">
-          A key is provided via the AI_API_KEY environment variable and always takes
-          precedence — it cannot be overridden here.
-        </p>
-      ) : (
-        <div className="flex flex-col sm:flex-row gap-3">
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(e) => onApiKeyChange(e.target.value)}
-            placeholder={dbKeyConfigured ? "•••••••• (stored — leave blank to keep)" : "Enter provider API key"}
-            className={inputClass}
-            autoComplete="off"
-          />
-          {dbKeyConfigured && (
-            <button
-              type="button"
-              onClick={() => void onClearDbKey()}
-              disabled={saving}
-              className="px-4 py-2 text-sm font-bold rounded-xl border-2 border-black dark:border-neutral-700 bg-white dark:bg-neutral-900 text-slate-900 dark:text-neutral-200 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-0.5 transition-all disabled:opacity-60 flex-shrink-0"
-            >
-              Clear key
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-    )}
-
-    <div className="mt-4 flex justify-end">
-      <button
-        onClick={() => void onSave()}
-        disabled={saving}
-        className="px-5 py-2 text-sm font-bold rounded-xl border-2 border-black dark:border-neutral-700 bg-indigo-600 text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 transition-all disabled:opacity-60"
-      >
-        {saving ? "Saving…" : "Save AI settings"}
+      <label className="mt-5 flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-slate-700 dark:text-neutral-300">
+        <input type="checkbox" checked={profile.enabled} onChange={(event) => onChange({ enabled: event.target.checked })} />
+        Enabled
+      </label>
+      <button type="button" onClick={onRemove} disabled={saving} aria-label={`Remove ${profile.label}`} className="mt-5 rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30">
+        <Trash2 size={18} />
       </button>
     </div>
+    <div className="grid max-w-3xl grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-2">
+      <div className="md:max-w-xs">
+        <label className={labelClass}>Provider type</label>
+        <select value={profile.provider} onChange={(event) => onChange({ provider: event.target.value as ConfigurableAiProvider })} className={inputClass}>
+          {PROVIDERS.map((provider) => <option key={provider.value} value={provider.value}>{provider.label}</option>)}
+        </select>
+      </div>
+      {profile.provider === "chatgpt" ? (
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-200 md:col-span-2">
+          Models, reasoning levels, OAuth endpoints, and the Codex base URL are managed automatically. Each user connects their own ChatGPT subscription from the canvas chat panel.
+        </div>
+      ) : (
+        <>
+          <div className="md:max-w-md">
+            <label className={labelClass}>Models (comma-separated)</label>
+            <input value={profile.modelsText} onChange={(event) => onChange({ modelsText: event.target.value })} placeholder="gpt-5, gpt-4.1" className={inputClass} />
+          </div>
+          <div className="md:max-w-md">
+            <label className={labelClass}>Reasoning levels (optional)</label>
+            <input value={profile.reasoningEffortsText} onChange={(event) => onChange({ reasoningEffortsText: event.target.value })} placeholder="minimal, low, medium, high" className={inputClass} />
+          </div>
+          <div className="md:max-w-md">
+            <label className={labelClass}>Base URL (optional)</label>
+            <input value={profile.baseUrl} onChange={(event) => onChange({ baseUrl: event.target.value })} placeholder="https://api.openai.com/v1" className={inputClass} />
+          </div>
+        </>
+      )}
+    </div>
+    {profile.provider !== "chatgpt" ? (
+      <div className="mt-4 max-w-3xl">
+        <label className={labelClass}>API key</label>
+        {profile.keySource === "env" ? (
+          <p className="text-sm text-slate-500 dark:text-neutral-400">Provided by AI_API_KEY for this migrated profile.</p>
+        ) : (
+          <div className="flex max-w-xl gap-2">
+            <input type="password" value={profile.apiKey} onChange={(event) => onChange({ apiKey: event.target.value, clearApiKey: false })} placeholder={profile.keyConfigured ? "Stored — leave blank to keep" : "Enter API key"} autoComplete="off" className={inputClass} />
+            {profile.keyConfigured ? (
+              <button type="button" onClick={() => onChange({ apiKey: "", keyConfigured: false, clearApiKey: true })} className="shrink-0 rounded-xl border-2 border-slate-200 px-3 text-sm font-bold dark:border-neutral-700">Clear</button>
+            ) : null}
+          </div>
+        )}
+      </div>
+    ) : null}
   </div>
+);
+
+export const AiSettingsCard: React.FC<{
+  loading: boolean;
+  saving: boolean;
+  providers: AiProviderDraft[];
+  defaultProviderId: string;
+  status: AiStatus | null;
+  onDefaultProviderChange: (id: string) => void;
+  onAddProvider: () => void;
+  onUpdateProvider: (id: string, patch: Partial<AiProviderDraft>) => void;
+  onRemoveProvider: (id: string) => void;
+  onSave: () => void | Promise<void>;
+}> = ({
+  loading,
+  saving,
+  providers,
+  defaultProviderId,
+  status,
+  onDefaultProviderChange,
+  onAddProvider,
+  onUpdateProvider,
+  onRemoveProvider,
+  onSave,
+}) => (
+  <section className="mx-auto mb-6 w-full max-w-5xl rounded-2xl border-2 border-black bg-white p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:border-neutral-700 dark:bg-neutral-900 sm:p-6">
+    <div className="mb-5 flex items-start gap-3">
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl border-2 border-slate-200 bg-slate-50 dark:border-neutral-700 dark:bg-neutral-800">
+        <Sparkles size={24} />
+      </div>
+      <div>
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white sm:text-2xl">AI provider registry</h2>
+        <p className="mt-1 max-w-xl text-sm text-slate-600 dark:text-neutral-400">Configure the providers and models available to the canvas agent.</p>
+      </div>
+      {loading ? <span className="ml-auto text-sm text-slate-500">Loading…</span> : null}
+    </div>
+
+    <div className="mb-5 max-w-xs">
+      <label className={labelClass}>Default provider</label>
+      <select value={defaultProviderId} onChange={(event) => onDefaultProviderChange(event.target.value)} className={inputClass}>
+        {providers.map((profile) => <option key={profile.id} value={profile.id}>{profile.label}</option>)}
+      </select>
+    </div>
+
+    <div className="space-y-3">
+      {providers.map((profile) => (
+        <ProviderEditor
+          key={profile.id}
+          profile={profile}
+          saving={saving}
+          onChange={(patch) => onUpdateProvider(profile.id, patch)}
+          onRemove={() => onRemoveProvider(profile.id)}
+        />
+      ))}
+    </div>
+
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+      <button type="button" onClick={onAddProvider} className="inline-flex items-center gap-2 rounded-xl border-2 border-black px-4 py-2 text-sm font-bold dark:border-neutral-700">
+        <Plus size={16} /> Add provider
+      </button>
+      <div className="flex items-center gap-3">
+        {status ? <span className="text-sm text-slate-500">{status.providers.filter((profile) => profile.available).length} available</span> : null}
+        <button type="button" onClick={() => void onSave()} disabled={saving} className="rounded-xl border-2 border-black bg-indigo-600 px-5 py-2 text-sm font-bold text-white disabled:opacity-60">
+          {saving ? "Saving…" : "Save provider registry"}
+        </button>
+      </div>
+    </div>
+  </section>
 );

@@ -37,8 +37,10 @@ const parseSse = (accumulator: CodexStreamAccumulator, chunk: string): void => {
 const readStream = async (
   response: Response,
   signal: AbortSignal | undefined,
+  onTextDelta?: (delta: string) => void,
+  onThinkingDelta?: (delta: string) => void,
 ): Promise<CodexStreamAccumulator> => {
-  const accumulator = new CodexStreamAccumulator();
+  const accumulator = new CodexStreamAccumulator(onTextDelta, onThinkingDelta);
   const body = response.body;
   if (!body) {
     const text = await response.text().catch(() => "");
@@ -65,7 +67,17 @@ const readStream = async (
 
 export const codexAdapter: AiProviderAdapter = {
   async complete(req: CompletionRequest): Promise<CompletionResult> {
-    const { settings, system, turns, tools, signal, codexAuth } = req;
+    const {
+      settings,
+      system,
+      turns,
+      tools,
+      signal,
+      codexAuth,
+      reasoningEffort,
+      onTextDelta,
+      onThinkingDelta,
+    } = req;
     if (!codexAuth) {
       throw new AiProviderError(
         "ChatGPT account is not connected",
@@ -73,8 +85,8 @@ export const codexAdapter: AiProviderAdapter = {
       );
     }
     const c = config.ai.chatgpt;
-    const model = normalizeCodexModel(settings.model, c.models[0] ?? "gpt-5.1");
-    const body = buildResponsesBody({ model, system, turns, tools });
+    const model = normalizeCodexModel(settings.model, c.models[0] ?? "gpt-5.5");
+    const body = buildResponsesBody({ model, system, turns, tools, reasoningEffort });
 
     const url = new URL(`${c.codexBaseUrl}/responses`);
     url.searchParams.set("client_version", c.clientVersion);
@@ -116,11 +128,21 @@ export const codexAdapter: AiProviderAdapter = {
       );
     }
 
-    const accumulator = await readStream(response, signal);
+    const accumulator = await readStream(
+      response,
+      signal,
+      onTextDelta,
+      onThinkingDelta,
+    );
     const parsed = accumulator.result();
     if (parsed.error) {
       throw new AiProviderError(`ChatGPT Codex backend: ${parsed.error}`);
     }
-    return { text: parsed.text, toolCalls: parsed.toolCalls };
+    return {
+      text: parsed.text,
+      toolCalls: parsed.toolCalls,
+      streamedText: Boolean(onTextDelta),
+      assistantMetadata: parsed.assistantMetadata,
+    };
   },
 };

@@ -24,6 +24,7 @@ type UseEditorCollaborationInput = {
   latestFilesRef: MutableRefObject<any>;
   computeElementOrderSig: (elements: readonly any[]) => string;
   recordElementVersion: (element: any) => void;
+  normalizeTextElementDimensions: (elements: readonly any[]) => readonly any[];
   onAccessDenied: () => void;
   // Batch ids this client originated; consumed to replay self edits as
   // IMMEDIATELY-capture so native Ctrl+Z works (D5). See useAgentBatchApplier.
@@ -37,6 +38,23 @@ const getSocketUrl = () =>
       import.meta.env.VITE_DEV_BACKEND_URL ||
       "http://localhost:8000";
 
+export const createDemandDrivenRafScheduler = (callback: () => void) => {
+  let frameId: number | null = null;
+  return {
+    schedule: () => {
+      if (frameId !== null) return;
+      frameId = requestAnimationFrame(() => {
+        frameId = null;
+        callback();
+      });
+    },
+    cancel: () => {
+      if (frameId !== null) cancelAnimationFrame(frameId);
+      frameId = null;
+    },
+  };
+};
+
 export const useEditorCollaboration = ({
   drawingId,
   me,
@@ -49,17 +67,18 @@ export const useEditorCollaboration = ({
   latestFilesRef,
   computeElementOrderSig,
   recordElementVersion,
+  normalizeTextElementDimensions,
   onAccessDenied,
   selfAgentBatchIdsRef,
 }: UseEditorCollaborationInput) => {
   const [socketMe, setSocketMe] = useState<UserIdentity>(me);
   const socketMeRef = useRef<UserIdentity>(socketMe);
   const [peers, setPeers] = useState<Peer[]>([]);
+  const [socket, setSocket] = useState<Socket | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const lastPresenceUsersRef = useRef<Peer[] | null>(null);
   const lastCursorEmit = useRef<number>(0);
   const cursorBuffer = useRef<Map<string, any>>(new Map());
-  const animationFrameId = useRef<number>(0);
   const isSyncing = useRef(false);
   const pendingRemoteElementsRef = useRef<Map<string, any>>(new Map());
   const pendingRemoteFilesRef = useRef<Record<string, any>>({});
@@ -75,6 +94,7 @@ export const useEditorCollaboration = ({
     latestElementsRef,
     computeElementOrderSig,
     recordElementVersion,
+    normalizeTextElementDimensions,
     selfAgentBatchIdsRef,
   });
 
@@ -94,6 +114,7 @@ export const useEditorCollaboration = ({
       withCredentials: true,
     });
     socketRef.current = socket;
+    setSocket(socket);
     if (import.meta.env.DEV) {
       (window as any).__EXCALIDASH_SOCKET_STATUS__ = {
         connected: socket.connected,
@@ -139,9 +160,8 @@ export const useEditorCollaboration = ({
           excalidrawAPI.current.updateScene(sceneUpdate);
         }
       }
-      animationFrameId.current = requestAnimationFrame(renderLoop);
     };
-    renderLoop();
+    const cursorScheduler = createDemandDrivenRafScheduler(renderLoop);
     socket.on("presence-update", (users: Peer[]) => {
       lastPresenceUsersRef.current = users;
       const selfId = socketMeRef.current.id;
@@ -180,6 +200,7 @@ export const useEditorCollaboration = ({
         color: { background: data.color, stroke: data.color },
         id: data.userId,
       });
+      cursorScheduler.schedule();
     });
     const hasNonEmptyArray = (value: unknown): value is any[] =>
       Array.isArray(value) && value.length > 0;
@@ -341,6 +362,8 @@ export const useEditorCollaboration = ({
       socket.off("element-update");
       socket.off("drawing-server-update");
       socket.disconnect();
+      socketRef.current = null;
+      setSocket(null);
       if (remoteFlushRafIdRef.current !== null) {
         cancelAnimationFrame(remoteFlushRafIdRef.current);
         remoteFlushRafIdRef.current = null;
@@ -349,7 +372,8 @@ export const useEditorCollaboration = ({
       pendingRemoteElementsRef.current.clear();
       pendingRemoteFilesRef.current = {};
       pendingRemoteElementOrderRef.current = null;
-      cancelAnimationFrame(animationFrameId.current);
+      cursorScheduler.cancel();
+      cursorBuffer.current.clear();
     };
   }, [
     drawingId,
@@ -389,6 +413,7 @@ export const useEditorCollaboration = ({
   return {
     peers,
     socketMeRef,
+    socket,
     socketRef,
     isSyncing,
     onPointerUpdate,

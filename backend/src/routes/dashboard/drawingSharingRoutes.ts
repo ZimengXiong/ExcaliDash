@@ -309,19 +309,15 @@ export const registerDrawingSharingRoutes = (
       // Passphrase support is currently disabled. We keep passphraseHash nullable for backwards compatibility.
       const passphraseHashValue: string | null = null;
 
-      // Enforce a single active "anyone with the link" policy per drawing. The public link is the drawing id,
-      // so multiple active link-share rows would be confusing and could unintentionally widen access.
-      await prisma.drawingLinkShare.updateMany({
-        where: { drawingId: id, revokedAt: null },
-        data: { revokedAt: new Date() },
-      });
-
-      // Token is generated only to satisfy the current schema's tokenHash requirement.
-      // Link access is based on drawing id + active policy (no secret token in the URL).
+      // A drawing-id-derived unique key turns this into a single atomic upsert
+      // on both SQLite and PostgreSQL. In particular, there is no revocation /
+      // creation gap in which concurrent requests can each create an active row.
       const tokenHash = hashShareLinkToken(buildShareLinkToken());
-
-      const created = await prisma.drawingLinkShare.create({
-        data: {
+      const created = await prisma.drawingLinkShare.upsert({
+        where: { policyKey: `current:${id}` },
+        update: { permission, tokenHash, passphraseHash: passphraseHashValue, expiresAt, revokedAt: null, createdByUserId: req.user.id },
+        create: {
+          policyKey: `current:${id}`,
           drawingId: id,
           permission,
           tokenHash,

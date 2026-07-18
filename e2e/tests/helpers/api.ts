@@ -224,6 +224,25 @@ export async function deleteDrawing(
   }
 }
 
+/** Delete every tracked drawing, then surface all failures together. */
+export async function cleanupDrawings(
+  request: APIRequestContext,
+  drawingIds: string[],
+): Promise<void> {
+  const ids = [...new Set(drawingIds)];
+  drawingIds.length = 0;
+  const results = await Promise.allSettled(ids.map((id) => deleteDrawing(request, id)));
+  const failures = results.filter(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  );
+  if (failures.length > 0) {
+    throw new AggregateError(
+      failures.map((failure) => failure.reason),
+      `Failed to delete ${failures.length} E2E drawing(s) after attempting all ${ids.length}`,
+    );
+  }
+}
+
 export async function listDrawings(
   request: APIRequestContext,
   options: ListDrawingsOptions = {}

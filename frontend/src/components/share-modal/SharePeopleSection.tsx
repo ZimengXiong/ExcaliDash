@@ -37,26 +37,26 @@ export const SharePeopleSection: React.FC<Props> = ({
           value={userQuery}
           onChange={(event) => setUserQuery(event.target.value)}
           placeholder="Add people"
-          className="w-full pl-10 pr-4 py-2 rounded-xl border-2 border-black dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800 text-slate-900 dark:text-neutral-100 focus:outline-none focus:ring-0 focus:border-indigo-600 dark:focus:border-indigo-500 transition-all text-sm font-bold placeholder:text-slate-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.05)]"
+          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-slate-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium placeholder:font-normal placeholder:text-slate-400"
         />
       </div>
 
       {userResults.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-2 border-2 border-black dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-900 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] dark:shadow-[6px_6px_0px_0px_rgba(255,255,255,0.1)] overflow-hidden z-[200] animate-in fade-in slide-in-from-top-2">
+        <div className="ui-popover absolute top-full left-0 right-0 mt-2 overflow-hidden z-[200] animate-in fade-in slide-in-from-top-2">
           {userResults.map((candidate) => (
             <button
               key={candidate.id}
               onClick={() => handleAddUser(candidate.id)}
               className="w-full text-left px-4 py-2.5 flex items-center gap-3 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors group border-b last:border-b-0 border-slate-100 dark:border-neutral-800"
             >
-              <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-700 dark:text-indigo-300 font-black text-xs border-2 border-black dark:border-neutral-600">
+              <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-700 dark:text-indigo-300 font-semibold text-xs">
                 {candidate.name.charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-xs font-black text-slate-900 dark:text-neutral-100 truncate">
+                <div className="text-xs font-semibold text-slate-900 dark:text-neutral-100 truncate">
                   {candidate.name}
                 </div>
-                <div className="text-[10px] font-bold text-slate-500 dark:text-neutral-400 truncate">
+                <div className="text-[10px] text-slate-500 dark:text-neutral-400 truncate">
                   {candidate.email}
                 </div>
               </div>
@@ -72,26 +72,26 @@ export const SharePeopleSection: React.FC<Props> = ({
     </section>
 
     <section className="space-y-2">
-      <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-neutral-500 px-1">
+      <h3 className="text-sm font-semibold text-slate-900 dark:text-neutral-100">
         People with access
       </h3>
       <div className="space-y-0">
-        <div className="flex items-center gap-3 px-1 py-1.5">
-          <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-neutral-800 flex items-center justify-center text-slate-600 dark:text-neutral-300 font-black text-sm border-2 border-black dark:border-neutral-600 shrink-0">
+        <div className="flex items-center gap-3 py-2">
+          <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-neutral-800 flex items-center justify-center text-slate-600 dark:text-neutral-300 font-semibold text-sm shrink-0">
             {user?.name?.charAt(0).toUpperCase() || "U"}
           </div>
           <div className="flex-1 min-w-0 flex flex-col justify-center">
-            <div className="text-xs font-black text-slate-900 dark:text-neutral-100 leading-tight">
+            <div className="text-sm font-medium text-slate-900 dark:text-neutral-100 leading-tight">
               {user?.name}{" "}
-              <span className="text-slate-400 dark:text-neutral-500 font-bold ml-1">
+              <span className="text-slate-400 dark:text-neutral-500 font-normal ml-1">
                 (you)
               </span>
             </div>
-            <div className="text-[10px] font-bold text-slate-500 dark:text-neutral-400 mt-0.5">
+            <div className="text-xs text-slate-500 dark:text-neutral-400 mt-1">
               {user?.email}
             </div>
           </div>
-          <div className="text-[8px] font-black uppercase tracking-widest text-slate-400 dark:text-neutral-500 pr-1 shrink-0">
+          <div className="text-xs font-medium text-slate-500 dark:text-neutral-400 shrink-0">
             Owner
           </div>
         </div>
@@ -99,16 +99,16 @@ export const SharePeopleSection: React.FC<Props> = ({
         {(sharing?.permissions || []).map((permission) => (
           <div
             key={permission.id}
-            className="flex items-center gap-3 px-1 py-1.5 group"
+            className="flex items-center gap-3 py-2 group"
           >
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-black text-sm border-2 border-indigo-600 dark:border-indigo-500 shrink-0">
+            <div className="w-9 h-9 rounded-full bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-semibold text-sm shrink-0">
               {permission.granteeUser.name.charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0 flex flex-col justify-center">
-              <div className="text-xs font-black text-slate-900 dark:text-neutral-100 leading-tight truncate">
+              <div className="text-sm font-medium text-slate-900 dark:text-neutral-100 leading-tight truncate">
                 {permission.granteeUser.name}
               </div>
-              <div className="text-[10px] font-bold text-slate-500 dark:text-neutral-400 mt-0.5 truncate">
+              <div className="text-xs text-slate-500 dark:text-neutral-400 mt-1 truncate">
                 {permission.granteeUser.email}
               </div>
             </div>

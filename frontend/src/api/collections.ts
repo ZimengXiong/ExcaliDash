@@ -28,16 +28,17 @@ export const deleteCollection = async (id: string) => {
   return response.data;
 };
 
-type LibraryItem = Record<string, unknown>;
+export type LibraryItem = Record<string, unknown>;
+export type LibrarySnapshot = { items: LibraryItem[]; version: number };
 
-export const getLibrary = async (): Promise<LibraryItem[]> => {
-  const response = await api.get<{ items: LibraryItem[] }>("/library");
-  return response.data.items;
+export const getLibrary = async (): Promise<LibrarySnapshot> => {
+  const response = await api.get<LibrarySnapshot>("/library");
+  return response.data;
 };
 
-export const updateLibrary = async (items: LibraryItem[]): Promise<LibraryItem[]> => {
-  const response = await api.put<{ items: LibraryItem[] }>("/library", { items });
-  return response.data.items;
+export const updateLibrary = async (items: LibraryItem[], expectedVersion: number): Promise<LibrarySnapshot> => {
+  const response = await api.put<LibrarySnapshot>("/library", { items, expectedVersion });
+  return response.data;
 };
 
 export const getCollectionShares = async (

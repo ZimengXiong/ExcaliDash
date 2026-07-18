@@ -17,12 +17,15 @@ const agentTokenCreateSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
 });
 
+const AGENT_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
 type AgentTokenMetadata = {
   id: string;
   name: string;
   prefix: string;
   lastUsedAt: Date | null;
   revokedAt: Date | null;
+  expiresAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -33,6 +36,7 @@ const serializeAgentToken = (token: AgentTokenMetadata) => ({
   prefix: token.prefix,
   lastUsedAt: token.lastUsedAt,
   revokedAt: token.revokedAt,
+  expiresAt: token.expiresAt,
   createdAt: token.createdAt,
   updatedAt: token.updatedAt,
 });
@@ -43,6 +47,7 @@ const agentTokenSelect = {
   prefix: true,
   lastUsedAt: true,
   revokedAt: true,
+  expiresAt: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -152,6 +157,7 @@ export const registerDrawingAgentTokenRoutes = (
           tokenHash: generated.tokenHash,
           prefix: generated.prefix,
           scopes: serializeApiKeyScopes(AGENT_TOKEN_SCOPES),
+          expiresAt: new Date(Date.now() + AGENT_TOKEN_TTL_MS),
         },
         select: agentTokenSelect,
       });

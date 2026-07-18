@@ -69,7 +69,6 @@ export const Dashboard: React.FC = () => {
     setTotalCount,
     isFetchingMore,
     isLoading,
-    hasMore,
     refreshData,
     fetchMore,
   } = useDashboardData({
@@ -83,7 +82,7 @@ export const Dashboard: React.FC = () => {
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore) {
+        if (entries[0].isIntersecting) {
           fetchMore();
         }
       },
@@ -93,7 +92,7 @@ export const Dashboard: React.FC = () => {
       observer.observe(loaderRef.current);
     }
     return () => observer.disconnect();
-  }, [fetchMore, hasMore]);
+  }, [fetchMore]);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const dragCounter = useRef(0);
   const handleDragEnter = useCallback((e: React.DragEvent) => {

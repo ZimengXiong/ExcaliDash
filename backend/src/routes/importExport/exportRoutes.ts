@@ -1,5 +1,6 @@
 import archiver from "archiver";
 import { Prisma } from "../../generated/client";
+import { getObjectStream, isS3Enabled } from "../../s3";
 import {
   RegisterImportExportDeps,
   assertSafeArchivePath,
@@ -9,6 +10,43 @@ import {
   sanitizePathSegment,
   toPublicTrashCollectionId,
 } from "./shared";
+
+const streamToBuffer = async (stream: NodeJS.ReadableStream): Promise<Buffer> => {
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+};
+
+const buildPortableFiles = async (
+  prisma: RegisterImportExportDeps["prisma"],
+  drawingId: string,
+  sceneFiles: Record<string, any>,
+): Promise<Record<string, any>> => {
+  const records = await prisma.drawingFile.findMany({
+    where: { drawingId, fileId: { in: Object.keys(sceneFiles) } },
+    select: { fileId: true, mimeType: true, storage: true, s3Key: true, data: true },
+  });
+  const result = { ...sceneFiles };
+  for (const record of records) {
+    let bytes: Buffer | null = null;
+    if (record.storage === "db" && record.data) {
+      bytes = Buffer.isBuffer(record.data) ? record.data : Buffer.from(record.data);
+    } else if (record.storage === "s3" && record.s3Key && isS3Enabled()) {
+      const object = await getObjectStream(record.s3Key);
+      bytes = await streamToBuffer(object.stream);
+    }
+    if (!bytes) continue;
+    result[record.fileId] = {
+      ...(sceneFiles[record.fileId] ?? {}),
+      id: sceneFiles[record.fileId]?.id ?? record.fileId,
+      mimeType: record.mimeType,
+      dataURL: `data:${record.mimeType};base64,${bytes.toString("base64")}`,
+    };
+  }
+  return result;
+};
 
 export const registerExcalidashExportRoute = (deps: RegisterImportExportDeps) => {
   const {
@@ -155,6 +193,12 @@ export const registerExcalidashExportRoute = (deps: RegisterImportExportDeps) =>
       // ({ store, schema }), not an excalidraw elements array. Preserve that
       // shape verbatim under `document` so import can round-trip it, instead of
       // stuffing an object into a `type:"excalidraw"` scene's `elements` field.
+      const sceneFiles = meta.engine === "excalidraw"
+        ? parseJsonField(drawing.files, {} as Record<string, any>)
+        : {};
+      const portableFiles = meta.engine === "excalidraw"
+        ? await buildPortableFiles(prisma, drawing.id, sceneFiles)
+        : {};
       const drawingData =
         meta.engine === "tldraw"
           ? {
@@ -171,7 +215,7 @@ export const registerExcalidashExportRoute = (deps: RegisterImportExportDeps) =>
               source: exportSource,
               elements: parseJsonField(drawing.elements, [] as unknown[]),
               appState: parseJsonField(drawing.appState, {} as Record<string, unknown>),
-              files: parseJsonField(drawing.files, {} as Record<string, unknown>),
+              files: portableFiles,
               excalidash: excalidashMeta,
             };
       assertSafeArchivePath(meta.filePath);

@@ -22,14 +22,31 @@
         "http://localhost:1003/*",
         "http://localhost:1103/*",
         "http://localhost:1104/*",
+        "http://localhost:1106/*",
         "http://localhost:5173/*",
         "http://localhost:6767/*"
+      ],
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "consentRequired": false,
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "claim.name": "groups"
+          }
+        }
       ],
       "webOrigins": [
         "http://localhost:1002",
         "http://localhost:1003",
         "http://localhost:1103",
         "http://localhost:1104",
+        "http://localhost:1106",
         "http://localhost:5173",
         "http://localhost:6767"
       ]

@@ -13,10 +13,15 @@ import {
 import {
   consumePendingAuth,
   disconnect,
+  ensureFreshAuth,
   getConnectionStatus,
   savePendingAuth,
   saveConnection,
 } from "./store";
+import {
+  fetchChatGptModels,
+  reasoningEffortsForChatGptModel,
+} from "./models";
 import { config } from "../../config";
 
 // Session-only OAuth endpoints for the ChatGPT (subscription) provider. Each
@@ -63,10 +68,17 @@ export const registerChatGptRoutes = (deps: RegisterChatGptRoutesDeps): void => 
       if (!user) return;
       const settings = await loadAiSettings();
       const connection = await getConnectionStatus(prisma, user.id);
+      let models = config.ai.chatgpt.models.map((id) => ({
+        id,
+        label: id,
+        reasoningEfforts: reasoningEffortsForChatGptModel(id),
+      }));
+      const fresh = await ensureFreshAuth(prisma, user.id);
+      if (fresh.ok) models = await fetchChatGptModels(fresh.auth);
       res.json({
         enabled: settings.chatgptEnabled,
         isActiveProvider: settings.provider === "chatgpt",
-        models: config.ai.chatgpt.models,
+        models,
         redirectUri: config.ai.chatgpt.redirectUri,
         ...connection,
       });

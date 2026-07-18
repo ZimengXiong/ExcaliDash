@@ -48,7 +48,7 @@ export const RoleSelect: React.FC<{
       </button>
 
       {open && (
-        <div className="absolute top-full right-0 mt-1 min-w-[150px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-lg overflow-hidden z-[200] animate-in fade-in zoom-in-95 duration-100">
+        <div className="ui-popover absolute top-full right-0 mt-1 min-w-[150px] overflow-hidden z-[200] animate-in fade-in zoom-in-95 duration-100">
           {options.map((option) => (
             <button
               key={option.value}

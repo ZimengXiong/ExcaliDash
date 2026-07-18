@@ -40,12 +40,18 @@ const bindingSuffix = (el: ExcalidrawElement): string => {
  */
 export const elementLine = (el: ExcalidrawElement): string => {
   const text = clampText(el.text);
+  const frameTitle = el.type === "frame" ? clampText(el.name) : "";
   return [
     el.id,
     el.type,
     `${num(el.x)},${num(el.y)}`,
     `${num(el.width)}×${num(el.height)}`,
     styleDigest(el),
+    el.type === "frame"
+      ? frameTitle
+        ? `title="${frameTitle}"`
+        : "title=<untitled>"
+      : "",
     text ? `"${text}"` : "",
     bindingSuffix(el),
   ]

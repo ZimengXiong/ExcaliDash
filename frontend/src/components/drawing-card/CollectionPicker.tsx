@@ -79,7 +79,7 @@ export const CollectionPicker: React.FC<CollectionPickerProps> = ({
       {!isShared && isOpen && (
         <>
           <div className="fixed inset-0 z-10" onClick={onClose} />
-          <div className="absolute right-0 bottom-full mb-1.5 w-48 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-lg z-20 py-1 max-h-56 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-bottom-2 duration-150">
+          <div className="ui-popover absolute right-0 bottom-full mb-1.5 w-48 z-20 py-1 max-h-56 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-bottom-2 duration-150">
             <CollectionMoveOptions
               collections={collections}
               currentCollectionId={drawing.collectionId}

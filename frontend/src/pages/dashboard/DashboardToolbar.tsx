@@ -140,7 +140,7 @@ export const DashboardToolbar: React.FC<DashboardToolbarProps> = ({
                   className="fixed inset-0 z-40"
                   onClick={() => onShowSortMenuChange(false)}
                 />
-                <div className="absolute top-full left-0 mt-2 z-50 bg-white dark:bg-neutral-800 rounded-lg border-2 border-black dark:border-neutral-700 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] py-1 min-w-[180px]">
+                <div className="ui-popover absolute top-full left-0 mt-2 z-50 py-1 min-w-[180px]">
                   {sortOptions.map((option) => (
                     <button
                       key={option.field}

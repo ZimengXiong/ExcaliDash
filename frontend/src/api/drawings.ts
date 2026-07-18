@@ -292,6 +292,7 @@ export type AgentTokenRow = {
   prefix: string;
   lastUsedAt: string | null;
   revokedAt: string | null;
+  expiresAt: string | null;
   createdAt: string | number | Date;
   updatedAt: string | number | Date;
 };

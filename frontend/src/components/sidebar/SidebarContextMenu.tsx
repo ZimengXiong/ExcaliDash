@@ -37,7 +37,7 @@ export const SidebarContextMenu: React.FC<SidebarContextMenuProps> = ({
     }}
   >
     <div
-      className="absolute bg-white dark:bg-neutral-800 rounded-lg border-2 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] py-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-100"
+      className="ui-popover absolute py-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-100"
       style={{ top: contextMenu.y, left: contextMenu.x }}
       onClick={(e) => e.stopPropagation()}
     >

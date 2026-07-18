@@ -10,14 +10,14 @@ datasource db {
 }
 
 model User {
-  id                  String              @id @default(uuid())
-  username            String?             @unique
-  email               String              @unique
+  id                  String               @id @default(uuid())
+  username            String?              @unique
+  email               String               @unique
   passwordHash        String
   name                String
-  role                String              @default("USER")
-  mustResetPassword   Boolean             @default(false)
-  isActive            Boolean             @default(true)
+  role                String               @default("USER")
+  mustResetPassword   Boolean              @default(false)
+  isActive            Boolean              @default(true)
   preferences         String?
   authIdentities      AuthIdentity[]
   drawings            Drawing[]
@@ -29,32 +29,35 @@ model User {
   apiKeys             ApiKey[]
   auditLogs           AuditLog[]
   chatGptConnection   ChatGptConnection?
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
+  chatMessages        DrawingChatMessage[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 }
 
 model SystemConfig {
-  id                         String   @id @default("default")
-  authEnabled                Boolean  @default(false)
-  authOnboardingCompleted    Boolean  @default(false)
-  registrationEnabled        Boolean  @default(false)
-  oidcJitProvisioningEnabled Boolean?
-  authLoginRateLimitEnabled  Boolean  @default(true)
-  authLoginRateLimitWindowMs Int      @default(900000)
-  authLoginRateLimitMax      Int      @default(20)
-  bootstrapSetupCodeHash     String?
-  bootstrapSetupCodeIssuedAt DateTime?
-  bootstrapSetupCodeExpiresAt DateTime?
-  bootstrapSetupCodeFailedAttempts Int @default(0)
-  aiProvider                 String?
-  aiBaseUrl                  String?
-  aiModel                    String?
-  aiApiKeyEncrypted          String?
+  id                               String    @id @default("default")
+  authEnabled                      Boolean   @default(false)
+  authOnboardingCompleted          Boolean   @default(false)
+  registrationEnabled              Boolean   @default(false)
+  oidcJitProvisioningEnabled       Boolean?
+  authLoginRateLimitEnabled        Boolean   @default(true)
+  authLoginRateLimitWindowMs       Int       @default(900000)
+  authLoginRateLimitMax            Int       @default(20)
+  bootstrapSetupCodeHash           String?
+  bootstrapSetupCodeIssuedAt       DateTime?
+  bootstrapSetupCodeExpiresAt      DateTime?
+  bootstrapSetupCodeFailedAttempts Int       @default(0)
+  aiProvider                       String?
+  aiBaseUrl                        String?
+  aiModel                          String?
+  aiApiKeyEncrypted                String?
+  aiProviderProfiles               String?
+  aiDefaultProviderId              String?
   // Admin kill-switch for the per-user ChatGPT (subscription) provider. Null =
   // enabled by default; false disables connect/use even when provider=chatgpt.
-  aiChatgptEnabled           Boolean?
-  createdAt                  DateTime @default(now())
-  updatedAt                  DateTime @updatedAt
+  aiChatgptEnabled                 Boolean?
+  createdAt                        DateTime  @default(now())
+  updatedAt                        DateTime  @updatedAt
 }
 
 // Per-user ChatGPT (Codex OAuth) connection. Tokens bill the user's own
@@ -102,30 +105,62 @@ model Collection {
 }
 
 model Drawing {
-  id           String      @id @default(uuid())
+  id           String              @id @default(uuid())
   name         String
   // Rendering engine for this drawing. "excalidraw" (default) or "tldraw".
   // Immutable after creation; the update path validates incoming scenes against
   // the stored engine and never accepts an engine change.
-  engine       String      @default("excalidraw")
+  engine       String              @default("excalidraw")
   elements     String
   appState     String
-  files        String      @default("{}")
+  files        String              @default("{}")
   preview      String?
-  version      Int         @default(1)
+  version      Int                 @default(1)
   userId       String
-  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   collectionId String?
-  collection   Collection? @relation(fields: [collectionId], references: [id])
+  collection   Collection?         @relation(fields: [collectionId], references: [id])
   permissions  DrawingPermission[]
   linkShares   DrawingLinkShare[]
   snapshots    DrawingSnapshot[]
   agentKeys    ApiKey[]
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  chatMessages DrawingChatMessage[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
 
   @@index([userId, updatedAt])
   @@index([userId, collectionId, updatedAt])
+}
+
+// One server-owned, shared assistant transcript per drawing. User messages and
+// assistant lifecycle state survive refreshes and are visible to collaborators.
+model DrawingChatMessage {
+  id                String   @id @default(uuid())
+  drawingId         String
+  drawing           Drawing  @relation(fields: [drawingId], references: [id], onDelete: Cascade)
+  authorUserId      String?
+  authorUser        User?    @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+  role              String
+  content           String   @default("")
+  thinking          String?
+  status            String   @default("complete")
+  providerId        String?
+  model             String?
+  reasoningEffort   String?
+  tools             String   @default("[]")
+  batches           String   @default("[]")
+  error             String?
+  opErrors          String   @default("[]")
+  providerMetadata  String?
+  turnId            String
+  position          Int      @default(0)
+  clientRequestId   String?  @unique
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([drawingId, createdAt])
+  @@index([turnId])
+  @@index([authorUserId])
 }
 
 model DrawingSnapshot {
@@ -133,8 +168,8 @@ model DrawingSnapshot {
   drawingId String
   drawing   Drawing  @relation(fields: [drawingId], references: [id], onDelete: Cascade)
   version   Int
-  elements  String   // JSON string (state before update)
-  appState  String   // JSON string
+  elements  String // JSON string (state before update)
+  appState  String // JSON string
   files     String   @default("{}")
   createdAt DateTime @default(now())
 
@@ -164,6 +199,9 @@ model DrawingPermission {
 model DrawingLinkShare {
   id              String    @id @default(uuid())
   drawingId       String
+  // Stable identity for the one mutable, current policy for this drawing.
+  // Historical/revoked rows retain a distinct key during migration.
+  policyKey       String    @unique
   drawing         Drawing   @relation(fields: [drawingId], references: [id], onDelete: Cascade)
   permission      String
   tokenHash       String    @unique
@@ -200,6 +238,7 @@ model CollectionShare {
 model Library {
   id        String   @id
   items     String   @default("[]")
+  version   Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -239,6 +278,8 @@ model ApiKey {
   drawing    Drawing?  @relation(fields: [drawingId], references: [id], onDelete: Cascade)
   lastUsedAt DateTime?
   revokedAt  DateTime?
+  // Required for drawing-scoped agent tokens; null for account API keys.
+  expiresAt  DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
@@ -287,12 +328,12 @@ model AuthIdentity {
 /// idempotent — no version/merge concerns for blobs.
 model DrawingFile {
   drawingId String
-  fileId    String   // Excalidraw fileId (same id used in Drawing.files)
+  fileId    String // Excalidraw fileId (same id used in Drawing.files)
   mimeType  String
   sizeBytes Int      @default(0)
-  storage   String   // "db" | "s3"
-  s3Key     String?  // set when storage = "s3"; full object key
-  data      Bytes?   // set when storage = "db"; raw image bytes
+  storage   String // "db" | "s3"
+  s3Key     String? // set when storage = "s3"; full object key
+  data      Bytes? // set when storage = "db"; raw image bytes
   createdAt DateTime @default(now())
 
   @@id([drawingId, fileId])

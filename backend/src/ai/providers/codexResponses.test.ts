@@ -26,19 +26,35 @@ describe("normalizeCodexModel", () => {
     expect(normalizeCodexModel("openai/gpt-5.2-codex", "gpt-5.1")).toBe("gpt-5.2-codex");
   });
 
-  it("maps unknown / API-only names to the fallback", () => {
-    expect(normalizeCodexModel("gpt-4o", "gpt-5.1")).toBe("gpt-5.1");
+  it("preserves a validated catalog slug and falls back only when blank", () => {
+    expect(normalizeCodexModel("gpt-5.5", "gpt-5.1")).toBe("gpt-5.5");
     expect(normalizeCodexModel("", "gpt-5.1")).toBe("gpt-5.1");
     expect(normalizeCodexModel(null, "gpt-5.1")).toBe("gpt-5.1");
   });
 
-  it("pattern-matches codex/gpt-5 families", () => {
-    expect(normalizeCodexModel("gpt-5-codex", "gpt-5.1")).toBe("gpt-5.1-codex");
-    expect(normalizeCodexModel("my-codex-max-model", "gpt-5.1")).toBe("gpt-5.1-codex-max");
+  it("does not rewrite catalog model slugs", () => {
+    expect(normalizeCodexModel("gpt-5.4-mini", "gpt-5.1")).toBe("gpt-5.4-mini");
   });
 });
 
 describe("toResponsesInput", () => {
+  it("attaches the automatic canvas image to the current user message", () => {
+    const input = toResponsesInput([{
+      role: "user",
+      text: "review",
+      imageDataUrl: "data:image/png;base64,AAAA",
+      canvasState: "captured",
+    }]);
+    expect(input[0]).toEqual({
+      type: "message",
+      role: "user",
+      content: [
+        { type: "input_text", text: "review" },
+        { type: "input_image", image_url: "data:image/png;base64,AAAA" },
+      ],
+    });
+  });
+
   it("serializes user/assistant/tool turns without server ids", () => {
     const turns: ConversationTurn[] = [
       { role: "user", text: "hi" },
@@ -98,9 +114,36 @@ describe("buildResponsesBody", () => {
       },
     ]);
   });
+
+  it("uses the selected reasoning effort", () => {
+    const body = buildResponsesBody({
+      model: "gpt-5.5",
+      system: "sys",
+      turns: [{ role: "user", text: "hi" }],
+      tools: TOOLS,
+      reasoningEffort: "xhigh",
+    });
+    expect(body.reasoning).toMatchObject({ effort: "xhigh" });
+  });
 });
 
 describe("CodexStreamAccumulator", () => {
+  it("streams provider reasoning summaries separately from answer text", () => {
+    const textDeltas: string[] = [];
+    const thinkingDeltas: string[] = [];
+    const acc = new CodexStreamAccumulator(
+      (delta) => textDeltas.push(delta),
+      (delta) => thinkingDeltas.push(delta),
+    );
+    acc.push({
+      type: "response.reasoning_summary_text.delta",
+      delta: "Checking the canvas.",
+    });
+    acc.push({ type: "response.output_text.delta", delta: "Done." });
+    expect(thinkingDeltas).toEqual(["Checking the canvas."]);
+    expect(textDeltas).toEqual(["Done."]);
+  });
+
   it("aggregates text and tool calls from a completed response", () => {
     const acc = new CodexStreamAccumulator();
     acc.push({ type: "response.output_text.delta", delta: "Hel" });
@@ -146,5 +189,26 @@ describe("CodexStreamAccumulator", () => {
       response: { error: { message: "usage limit reached" } },
     });
     expect(acc.result().error).toBe("usage limit reached");
+  });
+
+  it("retains encrypted reasoning items for stateless tool continuation", () => {
+    const acc = new CodexStreamAccumulator();
+    acc.push({
+      type: "response.completed",
+      response: {
+        output: [{
+          type: "reasoning",
+          encrypted_content: "opaque",
+          summary: [{ type: "summary_text", text: "Checked layout" }],
+        }],
+      },
+    });
+    expect(acc.result().assistantMetadata).toEqual({
+      codexReasoningItems: [{
+        type: "reasoning",
+        encrypted_content: "opaque",
+        summary: [{ type: "summary_text", text: "Checked layout" }],
+      }],
+    });
   });
 });

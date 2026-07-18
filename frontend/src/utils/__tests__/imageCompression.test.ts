@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   compressDroppedImagePayload,
+  compressImageToFit,
   compressExcalidrawFiles,
   resetImageCompressionMemo,
+  isAnimatedImageDataUrl,
 } from "../imageCompression";
 
 // jsdom ships no real canvas/image decoder, so stub the pieces the compressor
@@ -65,6 +67,35 @@ describe("compression MIME detection", () => {
 
     expect(result.changed).toBe(true);
     expect(result.mimeType).toBe("image/webp");
+  });
+
+  it("uses a more aggressive encode to fit a known upload cap", async () => {
+    toDataURLImpl = () => "data:image/webp;base64,QUJD";
+
+    const result = await compressImageToFit({
+      dataURL: LARGE_INPUT,
+      mimeType: "image/png",
+      maxBytes: 10,
+    });
+
+    expect(result.changed).toBe(true);
+    expect(result.dataURL).toBe("data:image/webp;base64,QUJD");
+    expect(result.mimeType).toBe("image/webp");
+  });
+
+  it("preserves animated WebP instead of flattening it through canvas", async () => {
+    const animated = `data:image/webp;base64,${btoa("RIFF0000WEBPANIM0000")}`;
+    expect(isAnimatedImageDataUrl(animated, "image/webp")).toBe(true);
+
+    const result = await compressImageToFit({
+      dataURL: animated,
+      mimeType: "image/webp",
+      maxBytes: 1,
+    });
+
+    expect(result.changed).toBe(false);
+    expect(result.dataURL).toBe(animated);
+    expect(toDataURLSpy()).not.toHaveBeenCalled();
   });
 });
 

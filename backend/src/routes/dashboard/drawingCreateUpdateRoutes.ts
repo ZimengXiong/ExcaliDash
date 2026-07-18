@@ -16,6 +16,7 @@ import {
 import type { DrawingRouteContext } from "./drawingRouteContext";
 import { applySceneUpdateTx, isVersionConflict } from "./sceneUpdate";
 import { sanitizeSvg } from "../../security";
+import { createStagedDrawingFiles } from "../importExport/stagedDrawingFiles";
 import {
   engineCreateFieldSchema,
   tldrawCreateSchema,
@@ -128,6 +129,7 @@ export const registerDrawingCreateUpdateRoutes = (
       }
 
       const newDrawingId = uuidv4();
+      const stagedFiles = createStagedDrawingFiles();
       let processedFiles: Record<string, unknown>;
       let processedPreview: string | null;
       if (isTldraw) {
@@ -144,6 +146,7 @@ export const registerDrawingCreateUpdateRoutes = (
           originalFiles,
           req.user.id,
           newDrawingId,
+          stagedFiles,
         );
         const rewritten = rewritePreviewForInternedFiles(
           payload.preview ?? null,
@@ -153,7 +156,9 @@ export const registerDrawingCreateUpdateRoutes = (
         processedPreview = typeof rewritten === "string" ? rewritten : null;
       }
 
-      const newDrawing = await prisma.drawing.create({
+      let newDrawing;
+      try {
+        newDrawing = await prisma.drawing.create({
         data: {
           id: newDrawingId,
           name: drawingName,
@@ -165,7 +170,15 @@ export const registerDrawingCreateUpdateRoutes = (
           preview: processedPreview,
           files: JSON.stringify(processedFiles),
         },
-      });
+        });
+      } catch (error) {
+        // Files are staged before the Drawing row exists. Reclaim both DB
+        // rows and S3 objects if the subsequent create fails.
+        try { await stagedFiles.cleanup(prisma); } catch (cleanupError) {
+          throw new AggregateError([error, cleanupError], "Drawing create failed and staged file cleanup failed");
+        }
+        throw error;
+      }
       invalidateDrawingsCache();
 
       return res.json({
@@ -270,11 +283,13 @@ export const registerDrawingCreateUpdateRoutes = (
       // tldraw rows never intern files (schema normalizes files to undefined),
       // so this block only runs for excalidraw.
       let processedFilesForUpdate: Record<string, unknown> | undefined;
+      const stagedFilesForUpdate = createStagedDrawingFiles();
       if (payload.files !== undefined) {
         processedFilesForUpdate = await internDrawingFiles(
           payload.files,
           ownerUserId,
           id,
+          stagedFilesForUpdate,
         );
         // Note: data.files is not assigned here. The union merge with the
         // authoritative current state happens inside the transaction so a
@@ -330,6 +345,7 @@ export const registerDrawingCreateUpdateRoutes = (
             drawingId: id,
             parseJsonField,
             versionGuard: payload.version !== undefined ? payload.version : "none",
+            snapshotMinIntervalMs: 60_000,
             mutate: () => ({ data, incomingFiles: processedFilesForUpdate }),
           });
           updatedDrawing = result.drawing;
@@ -346,6 +362,14 @@ export const registerDrawingCreateUpdateRoutes = (
           });
         }
       } catch (error) {
+        try {
+          await stagedFilesForUpdate.cleanup(prisma);
+        } catch (cleanupError) {
+          throw new AggregateError(
+            [error, cleanupError],
+            "Drawing update failed and staged file cleanup failed",
+          );
+        }
         if (isVersionConflict(error)) {
           const latestDrawing = await prisma.drawing.findFirst({
             where: { id },
