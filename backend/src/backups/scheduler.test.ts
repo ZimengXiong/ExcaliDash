@@ -127,8 +127,11 @@ describe("createSqliteBackup", () => {
     fs.mkdirSync(backupDir, { recursive: true });
     const stale = path.join(backupDir, "excalidash-sqlite-2000-01-01.db");
     fs.writeFileSync(stale, "old");
+    const staleAssets = path.join(backupDir, "excalidash-s3-assets-2000-01-01.zip");
+    fs.writeFileSync(staleAssets, "old assets");
     const oldTime = Date.now() - 30 * 24 * 60 * 60 * 1000;
     fs.utimesSync(stale, oldTime / 1000, oldTime / 1000);
+    fs.utimesSync(staleAssets, oldTime / 1000, oldTime / 1000);
     // A non-backup file must be left untouched.
     const unrelated = path.join(backupDir, "keep.txt");
     fs.writeFileSync(unrelated, "keep");
@@ -142,6 +145,7 @@ describe("createSqliteBackup", () => {
     });
 
     expect(fs.existsSync(stale)).toBe(false);
+    expect(fs.existsSync(staleAssets)).toBe(false);
     expect(fs.existsSync(unrelated)).toBe(true);
   });
 

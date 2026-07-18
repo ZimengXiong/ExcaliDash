@@ -34,6 +34,7 @@ const makeRefs = () => ({
   libraryItems: { current: [] as readonly any[] },
   libraryVersion: { current: 0 },
   libraryHydrated: { current: false },
+  uploadedRefs: { current: {} as Record<string, string> },
 });
 
 const makeParams = (over: Record<string, any> = {}) => ({
@@ -148,6 +149,19 @@ describe("useEditorSceneLoader", () => {
       appState: {},
       version: 2,
       accessLevel: "owner",
+    });
+
+    it("retains canonical file refs while rehydrating image bytes", async () => {
+      getDrawing.mockResolvedValue(drawingWithRef() as any);
+      const params = makeParams();
+
+      renderHook(() => useEditorSceneLoader(params));
+
+      await waitFor(() => {
+        expect(params.refs.uploadedRefs.current).toEqual({
+          f1: "/api/files/dA/f1",
+        });
+      });
     });
 
     it("paints the scene without waiting for file fetches, then streams the file in via addFiles", async () => {
