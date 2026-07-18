@@ -266,6 +266,7 @@ const ExcalidrawEditor: React.FC = () => {
   useEditorSceneLoader({
     id,
     user,
+    uploadedRefs: uploadedFileRefsRef,
     location,
     navigate,
     refs: sceneLoaderRefs,
