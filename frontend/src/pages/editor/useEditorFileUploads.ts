@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useRef } from "react";
 import type { MutableRefObject } from "react";
-import { isFileUploadSupported, uploadDrawingFile } from "../../api";
-import { compressExcalidrawFiles } from "../../utils/imageCompression";
+import { toast } from "sonner";
+import {
+  getFileUploadMaxBytes,
+  isAxiosError,
+  isFileUploadSupported,
+  uploadDrawingFile,
+} from "../../api";
+import {
+  compressExcalidrawFiles,
+  compressImageToFit,
+  isAnimatedImageDataUrl,
+} from "../../utils/imageCompression";
 import type { UploadedFileRefs } from "./shared";
 
 // How often (ms) we sweep the live file set for freshly inserted images that
@@ -12,6 +22,9 @@ const SCAN_INTERVAL_MS = 800;
 const UPLOAD_CONCURRENCY = 3;
 const UPLOAD_ATTEMPTS = 2;
 
+const formatMegabytes = (bytes: number): string =>
+  `${(bytes / (1024 * 1024)).toFixed(bytes >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
+
 type UseEditorFileUploadsParams = {
   drawingId: string | undefined;
   isReady: boolean;
@@ -19,6 +32,13 @@ type UseEditorFileUploadsParams = {
   isSyncing: MutableRefObject<boolean>;
   latestFiles: MutableRefObject<any>;
   uploadedRefs: MutableRefObject<UploadedFileRefs>;
+  /**
+   * Called after a file becomes durable. This closes the gap for images
+   * inserted by paths that do not cause another Excalidraw onChange event:
+   * their element and ref must be published/saved immediately, not at the
+   * next periodic sweep.
+   */
+  onUploadCompleteRef?: MutableRefObject<(() => void) | null>;
 };
 
 /** Decode a base64/plain `data:` URL into raw bytes plus its declared MIME. */
@@ -74,8 +94,12 @@ export const useEditorFileUploads = ({
   isSyncing,
   latestFiles,
   uploadedRefs,
+  onUploadCompleteRef,
 }: UseEditorFileUploadsParams) => {
   const inFlightRef = useRef<Set<string>>(new Set());
+  // Do not retry an image that has already exhausted the fit-to-limit pass on
+  // every polling tick; it remains visible so the user can replace it.
+  const rejectedDataUrlsRef = useRef<Set<string>>(new Set());
 
   const scanNow = useCallback(async () => {
     if (!drawingId || !isFileUploadSupported()) return;
@@ -91,11 +115,15 @@ export const useEditorFileUploads = ({
         typeof file.dataURL === "string" &&
         file.dataURL.startsWith("data:") &&
         !uploadedRefs.current[id] &&
-        !inFlightRef.current.has(id)
+        !inFlightRef.current.has(id) &&
+        !rejectedDataUrlsRef.current.has(file.dataURL)
       );
     });
     if (candidateIds.length === 0) return;
     candidateIds.forEach((id) => inFlightRef.current.add(id));
+    // Newer backends expose their existing FILE_UPLOAD_MAX_MB setting here.
+    // An older/unreachable backend simply skips the targeted fit pass.
+    const uploadMaxBytes = await getFileUploadMaxBytes();
 
     // Compress (idempotent/memoized) and write the result back into the editor
     // so the uploaded bytes are the same ones later saves and previews use.
@@ -119,17 +147,59 @@ export const useEditorFileUploads = ({
     }
 
     const uploadOne = async (id: string): Promise<void> => {
-      const file = filesToUpload[id];
-      const dataURL = file?.dataURL;
+      let file = filesToUpload[id];
+      let dataURL = file?.dataURL;
       if (typeof dataURL !== "string" || !dataURL.startsWith("data:")) {
         inFlightRef.current.delete(id);
         return;
       }
-      const parsed = dataUrlToBytes(dataURL);
+      let parsed = dataUrlToBytes(dataURL);
       if (!parsed) {
         inFlightRef.current.delete(id);
         return;
       }
+
+      if (uploadMaxBytes && parsed.bytes.byteLength > uploadMaxBytes) {
+        try {
+          const fitted = await compressImageToFit({
+            dataURL,
+            mimeType: (typeof file?.mimeType === "string" && file.mimeType) || parsed.mimeType,
+            maxBytes: uploadMaxBytes,
+          });
+          if (fitted.changed) {
+            dataURL = fitted.dataURL;
+            file = { ...file, dataURL, mimeType: fitted.mimeType };
+            filesToUpload = { ...filesToUpload, [id]: file };
+            parsed = dataUrlToBytes(dataURL);
+            if (editor && typeof editor.addFiles === "function") {
+              isSyncing.current = true;
+              try {
+                editor.addFiles([file]);
+              } finally {
+                isSyncing.current = false;
+              }
+            }
+            latestFiles.current = filesToUpload;
+          }
+        } catch {
+          // The normal upload below remains the fallback when browser encoding fails.
+        }
+        if (!parsed || parsed.bytes.byteLength > uploadMaxBytes) {
+          rejectedDataUrlsRef.current.add(dataURL);
+          const animated = isAnimatedImageDataUrl(
+            dataURL,
+            (typeof file?.mimeType === "string" && file.mimeType) || parsed?.mimeType || "",
+          );
+          toast.error(
+            animated
+              ? `This animated image is larger than the ${formatMegabytes(uploadMaxBytes)} server safety limit. Animation was preserved; ask an administrator to raise FILE_UPLOAD_MAX_MB.`
+              : `This image cannot be compressed below the ${formatMegabytes(uploadMaxBytes)} server safety limit. Choose a smaller image or ask an administrator to raise FILE_UPLOAD_MAX_MB.`,
+          );
+          inFlightRef.current.delete(id);
+          return;
+        }
+      }
+
       for (let attempt = 0; attempt < UPLOAD_ATTEMPTS; attempt++) {
         try {
           const result = await uploadDrawingFile(
@@ -140,10 +210,21 @@ export const useEditorFileUploads = ({
               parsed.mimeType,
           );
           // null => backend lacks the endpoint; stop trying for the session.
-          if (result) uploadedRefs.current[id] = result.url;
+          if (result) {
+            uploadedRefs.current[id] = result.url;
+            onUploadCompleteRef?.current?.();
+          }
           inFlightRef.current.delete(id);
           return;
-        } catch {
+        } catch (error) {
+          if (isAxiosError(error) && error.response?.status === 413) {
+            rejectedDataUrlsRef.current.add(dataURL);
+            toast.error(
+              "The server rejected this image as too large. Choose a smaller image or ask an administrator to raise FILE_UPLOAD_MAX_MB.",
+            );
+            inFlightRef.current.delete(id);
+            return;
+          }
           if (attempt === UPLOAD_ATTEMPTS - 1) {
             // Give up for now; a later scan retries (server interns meanwhile).
             inFlightRef.current.delete(id);
@@ -156,7 +237,14 @@ export const useEditorFileUploads = ({
       candidateIds.map((id) => () => uploadOne(id)),
       UPLOAD_CONCURRENCY,
     );
-  }, [drawingId, excalidrawAPI, isSyncing, latestFiles, uploadedRefs]);
+  }, [
+    drawingId,
+    excalidrawAPI,
+    isSyncing,
+    latestFiles,
+    onUploadCompleteRef,
+    uploadedRefs,
+  ]);
 
   useEffect(() => {
     if (!drawingId || !isReady) return;

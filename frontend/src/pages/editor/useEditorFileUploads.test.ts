@@ -1,9 +1,12 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../../api";
+import * as imageCompression from "../../utils/imageCompression";
 import { useEditorFileUploads } from "./useEditorFileUploads";
 
 vi.mock("../../api", () => ({
+  getFileUploadMaxBytes: vi.fn(async () => null),
+  isAxiosError: vi.fn(() => false),
   isFileUploadSupported: vi.fn(() => true),
   uploadDrawingFile: vi.fn(),
 }));
@@ -13,10 +16,14 @@ vi.mock("../../utils/imageCompression", () => ({
     files,
     changedIds: [],
   })),
+  compressImageToFit: vi.fn(),
 }));
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 const uploadDrawingFile = vi.mocked(api.uploadDrawingFile);
 const isFileUploadSupported = vi.mocked(api.isFileUploadSupported);
+const getFileUploadMaxBytes = vi.mocked(api.getFileUploadMaxBytes);
+const compressImageToFit = vi.mocked(imageCompression.compressImageToFit);
 
 const dataFile = (id: string) => ({
   id,
@@ -26,6 +33,7 @@ const dataFile = (id: string) => ({
 
 const setup = (files: Record<string, any>) => {
   const uploadedRefs = { current: {} as Record<string, string> };
+  const onUploadCompleteRef = { current: vi.fn() as (() => void) | null };
   const addFiles = vi.fn();
   const excalidrawAPI = { current: { getFiles: () => files, addFiles } };
   const { result } = renderHook(() =>
@@ -36,28 +44,31 @@ const setup = (files: Record<string, any>) => {
       isSyncing: { current: false },
       latestFiles: { current: files },
       uploadedRefs,
+      onUploadCompleteRef,
     }),
   );
-  return { result, uploadedRefs };
+  return { result, uploadedRefs, onUploadCompleteRef };
 };
 
 describe("useEditorFileUploads", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     isFileUploadSupported.mockReturnValue(true);
+    getFileUploadMaxBytes.mockResolvedValue(null);
   });
 
   it("uploads inline images and records their ref URLs", async () => {
     uploadDrawingFile.mockImplementation(async (drawingId, fileId) => ({
       url: `/api/files/${drawingId}/${fileId}`,
     }));
-    const { result, uploadedRefs } = setup({ a: dataFile("a"), b: dataFile("b") });
+    const { result, uploadedRefs, onUploadCompleteRef } = setup({ a: dataFile("a"), b: dataFile("b") });
 
     await result.current.scanNow();
 
     expect(uploadDrawingFile).toHaveBeenCalledTimes(2);
     expect(uploadedRefs.current.a).toBe("/api/files/d1/a");
     expect(uploadedRefs.current.b).toBe("/api/files/d1/b");
+    expect(onUploadCompleteRef.current).toHaveBeenCalledTimes(2);
     // Raw bytes are sent, not the dataURL string.
     expect(uploadDrawingFile.mock.calls[0][2]).toBeInstanceOf(Uint8Array);
   });
@@ -138,5 +149,36 @@ describe("useEditorFileUploads", () => {
     await result.current.scanNow();
 
     expect(uploadDrawingFile).not.toHaveBeenCalled();
+  });
+
+  it("makes a targeted compression pass before rejecting an image over the configured cap", async () => {
+    getFileUploadMaxBytes.mockResolvedValue(100);
+    compressImageToFit.mockResolvedValue({
+      dataURL: "data:image/webp;base64,QUJD",
+      mimeType: "image/webp",
+      width: 10,
+      height: 10,
+      changed: true,
+    });
+    uploadDrawingFile.mockResolvedValue({ url: "/api/files/d1/a" });
+    const oversized = {
+      a: {
+        id: "a",
+        mimeType: "image/png",
+        dataURL: `data:image/png;base64,${"QUJD".repeat(100)}`,
+      },
+    };
+    const { result, uploadedRefs } = setup(oversized);
+
+    await result.current.scanNow();
+
+    expect(compressImageToFit).toHaveBeenCalledWith(expect.objectContaining({ maxBytes: 100 }));
+    expect(uploadDrawingFile).toHaveBeenCalledWith(
+      "d1",
+      "a",
+      expect.any(Uint8Array),
+      "image/webp",
+    );
+    expect(uploadedRefs.current.a).toBe("/api/files/d1/a");
   });
 });
