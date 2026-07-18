@@ -3,6 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { startOidcSignIn } from '../api';
 import { AuthStatusErrorPanel } from './AuthStatusErrorPanel';
+import { isOidcAutoLoginSuppressed } from '../utils/oidcLogout';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -58,6 +59,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
       return <Navigate to="/register" replace />;
     }
     if (oidcEnforced) {
+      if (isOidcAutoLoginSuppressed()) {
+        return <Navigate to="/login" replace />;
+      }
       const returnTo = `${location.pathname}${location.search}${location.hash}`;
       return <OidcRedirect returnTo={returnTo} />;
     }

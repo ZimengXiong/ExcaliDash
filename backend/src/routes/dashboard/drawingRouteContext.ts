@@ -13,6 +13,17 @@ import {
 import { type DrawingPrincipal } from "../../authz/sharing";
 import { config } from "../../config";
 
+const S3_OPERATION_BATCH_SIZE = 8;
+
+const inBatches = async <T>(items: T[], action: (item: T) => Promise<void>) => {
+  const failures: unknown[] = [];
+  for (let index = 0; index < items.length; index += S3_OPERATION_BATCH_SIZE) {
+    const results = await Promise.allSettled(items.slice(index, index + S3_OPERATION_BATCH_SIZE).map(action));
+    failures.push(...results.filter((result) => result.status === "rejected").map((result) => (result as PromiseRejectedResult).reason));
+  }
+  if (failures.length) throw new AggregateError(failures, "One or more S3 object deletions failed");
+};
+
 export type DrawingRouteContext = DashboardRouteDeps & {
   getRequestPrincipal: (req: express.Request) => Promise<DrawingPrincipal | null>;
   resolveDefaultTtlMs: (permission: "view" | "edit") => number;
@@ -65,7 +76,9 @@ export const createDrawingRouteContext = (
     drawingId: string,
     userId: string,
   ): Promise<void> => {
-    // Delete S3 objects first (when enabled), then the rows. In db-mode the
+    // Delete S3 objects first (when enabled), then the rows. A rejected object
+    // delete deliberately leaves every DrawingFile row in place: it is the
+    // retry record for a later delete attempt. In db-mode the
     // bytes live in the rows themselves, so the deleteMany below reclaims
     // them; it runs in both modes.
     if (isS3Enabled()) {
@@ -80,7 +93,7 @@ export const createDrawingRouteContext = (
       for (const record of records) {
         if (record.s3Key) keys.add(record.s3Key);
       }
-      await Promise.allSettled([...keys].map((key) => deleteS3Object(key)));
+      await inBatches([...keys], async (key) => deleteS3Object(key));
     }
 
     await prisma.drawingFile.deleteMany({ where: { drawingId } });
@@ -100,8 +113,9 @@ export const createDrawingRouteContext = (
     const clonedFiles: Record<string, any> = { ...files };
     const cfg = isS3Enabled() ? getS3Config() : null;
 
-    await Promise.all(
-      records.map(async (record) => {
+    for (let index = 0; index < records.length; index += S3_OPERATION_BATCH_SIZE) {
+      await Promise.all(
+        records.slice(index, index + S3_OPERATION_BATCH_SIZE).map(async (record) => {
         if (record.storage === "s3" && record.s3Key) {
           const extension = record.s3Key.includes(".")
             ? record.s3Key.substring(record.s3Key.lastIndexOf(".") + 1)
@@ -179,8 +193,9 @@ export const createDrawingRouteContext = (
             dataURL: `/api/files/${targetDrawingId}/${record.fileId}`,
           };
         }
-      }),
-    );
+        }),
+      );
+    }
 
     return clonedFiles;
   };

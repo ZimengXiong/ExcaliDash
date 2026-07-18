@@ -72,8 +72,10 @@ export const registerSocketHandlers = ({
     return "#4f46e5";
   };
 
-  const getSocketAuthUserId = async (token?: string): Promise<string | null> => {
-    const authEnabled = await authModeService.getAuthEnabled();
+  const getSocketAuthUserId = async (
+    authEnabled: boolean,
+    token?: string,
+  ): Promise<string | null> => {
     if (!authEnabled) {
       return BOOTSTRAP_USER_ID;
     }
@@ -112,7 +114,7 @@ export const registerSocketHandlers = ({
       })();
       const token = tokenFromAuth || tokenFromCookie;
       const authEnabled = await authModeService.getAuthEnabled();
-      const userId = await getSocketAuthUserId(token);
+      const userId = await getSocketAuthUserId(authEnabled, token);
       const state = getState(socket);
 
       if (userId) {
@@ -134,7 +136,22 @@ export const registerSocketHandlers = ({
   io.on("connection", (socket) => {
     const state = getState(socket);
     const principal = state.principal;
-    const ACCESS_CACHE_TTL_MS = 1500;
+    // Sharing mutations explicitly revalidate room members, avoiding a DB
+    // permission query every few cursor events.
+    const ACCESS_CACHE_TTL_MS = 30_000;
+    const MAX_ELEMENT_EVENT_BYTES = 1024 * 1024;
+    const MAX_CHANGED_ELEMENTS = 500;
+    let cursorWindowStartedAt = Date.now();
+    let cursorEventsInWindow = 0;
+    const acceptCursorEvent = (): boolean => {
+      const now = Date.now();
+      if (now - cursorWindowStartedAt >= 1000) {
+        cursorWindowStartedAt = now;
+        cursorEventsInWindow = 0;
+      }
+      cursorEventsInWindow += 1;
+      return cursorEventsInWindow <= 30;
+    };
 
     const getCachedOrFreshAccess = async (
       drawingId: string,
@@ -246,6 +263,7 @@ export const registerSocketHandlers = ({
     );
 
     socket.on("cursor-move", async (data) => {
+      if (!acceptCursorEvent()) return;
       const drawingId = typeof data?.drawingId === "string" ? data.drawingId : null;
       if (!drawingId || !state.access.has(drawingId)) {
         return;
@@ -274,6 +292,21 @@ export const registerSocketHandlers = ({
     socket.on("element-update", async (data) => {
       const drawingId = typeof data?.drawingId === "string" ? data.drawingId : null;
       if (!drawingId || !state.access.has(drawingId)) {
+        return;
+      }
+
+      if (!Array.isArray(data?.elements) || data.elements.length > MAX_CHANGED_ELEMENTS) {
+        socket.emit("error", { message: "Invalid or oversized element update" });
+        return;
+      }
+      let eventBytes = MAX_ELEMENT_EVENT_BYTES + 1;
+      try {
+        eventBytes = Buffer.byteLength(JSON.stringify(data));
+      } catch {
+        // Non-serializable payloads are rejected below.
+      }
+      if (eventBytes > MAX_ELEMENT_EVENT_BYTES) {
+        socket.emit("error", { message: "Element update exceeds 1 MB" });
         return;
       }
 

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { RefObject } from "react";
+import type { RefObject, MutableRefObject } from "react";
 import { toast } from "sonner";
 import * as api from "../../api";
 
@@ -7,12 +7,16 @@ type UseLibraryImportFromUrlParams = {
   excalidrawAPIRef: RefObject<any>;
   isReady: boolean;
   user: unknown;
+  libraryItemsRef: MutableRefObject<readonly any[]>;
+  libraryVersionRef: MutableRefObject<number>;
 };
 
 export const useLibraryImportFromUrl = ({
   excalidrawAPIRef,
   isReady,
   user,
+  libraryItemsRef,
+  libraryVersionRef,
 }: UseLibraryImportFromUrlParams) => {
   useEffect(() => {
     if (!isReady || !excalidrawAPIRef.current) return;
@@ -78,7 +82,9 @@ export const useLibraryImportFromUrl = ({
         const updatedItems =
           excalidrawAPIRef.current.getAppState().libraryItems || [];
         if (user) {
-          await api.updateLibrary([...updatedItems]);
+          const saved = await api.updateLibrary([...updatedItems], libraryVersionRef.current);
+          libraryItemsRef.current = saved.items;
+          libraryVersionRef.current = saved.version;
         }
         toast.success("Library imported successfully", {
           id: "library-import",
@@ -90,9 +96,18 @@ export const useLibraryImportFromUrl = ({
         );
       } catch (err) {
         console.error("[Editor] Failed to import library:", err);
+        if (api.isAxiosError(err) && err.response?.status === 409) {
+          const current = err.response.data as { items?: any[]; version?: number };
+          const items = Array.isArray(current.items) ? current.items : [];
+          libraryItemsRef.current = items;
+          libraryVersionRef.current = typeof current.version === "number" ? current.version : 0;
+          await excalidrawAPIRef.current?.updateLibrary?.({ libraryItems: items });
+          toast.error("Library changed in another tab. Reloaded the server library.", { id: "library-import" });
+          return;
+        }
         toast.error("Failed to import library", { id: "library-import" });
       }
     };
     importLibraryFromUrl();
-  }, [excalidrawAPIRef, isReady, user]);
+  }, [excalidrawAPIRef, isReady, user, libraryItemsRef, libraryVersionRef]);
 };

@@ -24,6 +24,7 @@ describe("auth middleware drawing-scoped agent tokens", () => {
       scopes: serializeApiKeyScopes(scopes),
       drawingId,
       revokedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
       user: {
         id: "user-1",
         username: "user1",
@@ -87,6 +88,45 @@ describe("auth middleware drawing-scoped agent tokens", () => {
     const { res, next } = await runRequireAuth("POST", "/drawings/drawing-2/ops");
     expect(res.status).toHaveBeenCalledWith(403);
     expect(next).not.toHaveBeenCalled();
+  });
+
+  it("rejects an expired drawing-scoped token", async () => {
+    const { prisma, authModeService } = createDeps();
+    authModeService.getAuthEnabled.mockResolvedValue(true);
+    const generated = generateApiKey();
+    mockScopedKey(prisma, generated, "drawing-1");
+    prisma.apiKey.findUnique.mockResolvedValue({
+      id: "agent-key-1",
+      tokenHash: generated.tokenHash,
+      scopes: serializeApiKeyScopes(AGENT_TOKEN_SCOPES),
+      drawingId: "drawing-1",
+      revokedAt: null,
+      expiresAt: new Date(Date.now() - 1),
+      user: {
+        id: "user-1",
+        username: "user1",
+        email: "user-1@test.local",
+        name: "User One",
+        role: "USER",
+        mustResetPassword: false,
+        isActive: true,
+      },
+    });
+    const { requireAuth } = createAuthMiddleware({ prisma, authModeService });
+    const req = createRequest({
+      method: "GET",
+      originalUrl: "/drawings/drawing-1/summary",
+      url: "/drawings/drawing-1/summary",
+      headers: { authorization: `Bearer ${generated.token}` },
+    });
+    const res = createResponse();
+    const next = vi.fn() as NextFunction;
+
+    await requireAuth(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
+    expect(prisma.apiKey.update).not.toHaveBeenCalled();
   });
 
   it("rejects non-agent routes on the scoped drawing", async () => {

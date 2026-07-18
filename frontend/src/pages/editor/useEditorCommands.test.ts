@@ -20,6 +20,8 @@ const makeRefs = () => ({
   currentDrawingVersion: { current: 1 as number | null },
   excalidrawAPI: { current: null as any },
   hasSceneChangesSinceLoad: { current: false },
+  libraryHydrated: { current: false },
+  libraryItems: { current: [] as readonly any[] },
   latestFiles: { current: {} as any },
   saveData: { current: vi.fn() as any },
   savePreview: { current: vi.fn() as any },
@@ -111,6 +113,35 @@ describe("useEditorCommands rename", () => {
     });
 
     expect(updateDrawing).not.toHaveBeenCalled();
+  });
+});
+
+describe("useEditorCommands library changes", () => {
+  it("ignores a transient empty callback before a non-empty library hydrates", () => {
+    const refs = makeRefs();
+    refs.libraryItems.current = [{ id: "saved" }];
+    const debouncedSaveLibrary = vi.fn();
+    const { result } = renderHook(() =>
+      useEditorCommands(baseParams({ refs, debouncedSaveLibrary })),
+    );
+
+    act(() => result.current.handleLibraryChange([]));
+
+    expect(debouncedSaveLibrary).not.toHaveBeenCalled();
+  });
+
+  it("persists an explicit clear after hydration", () => {
+    const refs = makeRefs();
+    refs.libraryHydrated.current = true;
+    refs.libraryItems.current = [{ id: "saved" }];
+    const debouncedSaveLibrary = vi.fn();
+    const { result } = renderHook(() =>
+      useEditorCommands(baseParams({ refs, debouncedSaveLibrary })),
+    );
+
+    act(() => result.current.handleLibraryChange([]));
+
+    expect(debouncedSaveLibrary).toHaveBeenCalledWith([]);
   });
 });
 

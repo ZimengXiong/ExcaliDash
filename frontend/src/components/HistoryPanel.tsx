@@ -6,6 +6,7 @@ import clsx from "clsx";
 
 type Props = {
   drawingId: string;
+  getCurrentVersion: () => number | null;
   isOpen: boolean;
   onClose: () => void;
   onRestore: (snapshot: api.DrawingSnapshotFull) => void;
@@ -27,6 +28,7 @@ function timeAgo(dateStr: string): string {
 
 export const HistoryPanel: React.FC<Props> = ({
   drawingId,
+  getCurrentVersion,
   isOpen,
   onClose,
   onRestore,
@@ -99,7 +101,11 @@ export const HistoryPanel: React.FC<Props> = ({
       if (!data || data.id !== snapshotId) {
         data = await api.getDrawingSnapshot(drawingId, snapshotId);
       }
-      await api.restoreDrawingSnapshot(drawingId, snapshotId);
+      const version = getCurrentVersion();
+      if (version === null) {
+        throw new Error("Drawing is still loading. Please try again.");
+      }
+      await api.restoreDrawingSnapshot(drawingId, snapshotId, version);
       onRestore(data);
       onClose();
     } catch {
@@ -119,9 +125,9 @@ export const HistoryPanel: React.FC<Props> = ({
         onClick={onClose}
       />
 
-      <div className="relative w-full max-w-sm bg-white dark:bg-neutral-900 border-l-2 border-black dark:border-neutral-700 shadow-[-4px_0px_0px_0px_rgba(0,0,0,1)] dark:shadow-[-4px_0px_0px_0px_rgba(255,255,255,0.08)] animate-in slide-in-from-right duration-200 flex flex-col h-full">
+      <div className="ui-side-panel relative w-full max-w-sm border-l animate-in slide-in-from-right duration-200 flex flex-col h-full">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b-2 border-black dark:border-neutral-700 bg-white dark:bg-neutral-900">
+        <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
           <div className="flex items-center gap-2">
             <Clock size={18} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
             <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
@@ -161,10 +167,10 @@ export const HistoryPanel: React.FC<Props> = ({
                 <div
                   key={snap.id}
                   className={clsx(
-                    "rounded-xl border-2 transition-all duration-200 flex flex-col overflow-hidden",
+                    "rounded-xl border transition-colors duration-150 flex flex-col overflow-hidden",
                     previewId === snap.id
-                      ? "border-indigo-600 dark:border-indigo-500 bg-indigo-50/40 dark:bg-indigo-900/10 shadow-[2px_2px_0px_0px_rgba(79,70,229,1)]"
-                      : "border-black dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.05)] hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]"
+                      ? "border-indigo-400 dark:border-indigo-500 bg-indigo-50/60 dark:bg-indigo-900/15 ring-2 ring-indigo-500/10"
+                      : "border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:border-slate-300 dark:hover:border-neutral-600 hover:shadow-sm"
                   )}
                 >
                   <div className="p-3">
@@ -183,10 +189,10 @@ export const HistoryPanel: React.FC<Props> = ({
                       <button
                         onClick={() => handlePreview(snap.id)}
                         className={clsx(
-                          "flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg border-2 transition-all duration-200 active:translate-x-[1px] active:translate-y-[1px] active:shadow-none",
+                          "flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg border transition-colors duration-150",
                           previewId === snap.id
-                            ? "bg-indigo-600 text-white border-indigo-600 shadow-[1px_1px_0px_0px_rgba(0,0,0,0.15)]"
-                            : "bg-white dark:bg-neutral-900 text-slate-700 dark:text-neutral-300 border-black dark:border-neutral-600 shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5"
+                            ? "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
+                            : "bg-white dark:bg-neutral-900 text-slate-700 dark:text-neutral-300 border-slate-300 dark:border-neutral-600 hover:bg-slate-50 dark:hover:bg-neutral-800"
                         )}
                       >
                         <Eye size={12} strokeWidth={2.5} />
@@ -196,10 +202,10 @@ export const HistoryPanel: React.FC<Props> = ({
                         onClick={() => handleRestore(snap.id)}
                         disabled={restoring}
                         className={clsx(
-                          "flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg border-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:translate-x-[1px] active:translate-y-[1px] active:shadow-none",
+                          "flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg border transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed",
                           confirmRestore === snap.id
-                            ? "bg-amber-500 text-white border-black shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)] animate-pulse"
-                            : "bg-white dark:bg-neutral-900 text-slate-700 dark:text-neutral-300 border-black dark:border-neutral-600 shadow-[1.5px_1.5px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5"
+                            ? "bg-amber-500 text-white border-amber-500 hover:bg-amber-600"
+                            : "bg-white dark:bg-neutral-900 text-slate-700 dark:text-neutral-300 border-slate-300 dark:border-neutral-600 hover:bg-slate-50 dark:hover:bg-neutral-800"
                         )}
                       >
                         <RotateCcw size={12} strokeWidth={2.5} />
@@ -214,7 +220,7 @@ export const HistoryPanel: React.FC<Props> = ({
 
                   {/* Preview info pane */}
                   {previewId === snap.id && (
-                    <div className="border-t-2 border-black dark:border-neutral-700 p-3 bg-indigo-50/20 dark:bg-indigo-900/5">
+                    <div className="border-t border-indigo-200/70 dark:border-indigo-800/50 p-3 bg-indigo-50/20 dark:bg-indigo-900/5">
                       {previewLoading ? (
                         <span className="text-[10px] font-semibold text-neutral-400">
                           Loading preview...
@@ -249,7 +255,7 @@ export const HistoryPanel: React.FC<Props> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t-2 border-black dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800/50">
+        <div className="p-4 border-t border-slate-200 dark:border-neutral-800 bg-slate-50 dark:bg-neutral-800/50">
           <p className="text-[10px] font-bold uppercase tracking-wide text-neutral-400 dark:text-neutral-500 text-center">
             Versions are kept for 2 days
           </p>

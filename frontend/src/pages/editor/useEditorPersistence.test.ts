@@ -6,6 +6,7 @@ import { useEditorPersistence } from "./useEditorPersistence";
 vi.mock("@excalidraw/excalidraw", () => ({ exportToSvg: vi.fn() }));
 vi.mock("../../api", () => ({
   updateDrawing: vi.fn(),
+  updateLibrary: vi.fn(),
   getDrawing: vi.fn(),
   isAxiosError: vi.fn(() => false),
 }));
@@ -25,6 +26,9 @@ const makeRefs = () => ({
   excalidrawAPI: { current: null as any },
   isSyncing: { current: false },
   isUnmounting: { current: false },
+  libraryHydrated: { current: true },
+  libraryItems: { current: [] as readonly any[] },
+  libraryVersion: { current: 0 },
   lastLocalChangeAt: { current: 0 },
   lastPersistedElements: { current: [] as readonly any[] },
   lastPersistedFiles: { current: {} as Record<string, any> },
@@ -116,7 +120,7 @@ describe("useEditorPersistence file ref substitution", () => {
     expect(refs.lastPersistedFiles.current.a.dataURL).toBe("/api/files/d1/a");
   });
 
-  it("keeps inline bytes for a file that has not been uploaded", async () => {
+  it("keeps unuploaded inline bytes out of persisted scene payloads", async () => {
     const refs = makeRefs(); // uploadedRefs empty
     const { result } = renderHook(() => useEditorPersistence(params(refs)));
 
@@ -126,13 +130,12 @@ describe("useEditorPersistence file ref substitution", () => {
       });
     });
 
-    expect(bodyOf().files.a.dataURL.startsWith("data:")).toBe(true);
+    expect(bodyOf().files).toBeUndefined();
+    expect(refs.lastPersistedFiles.current).toEqual({});
   });
 
-  it("falls back to inline when uploads are unsupported (old server)", async () => {
-    // When the per-file upload endpoint 404s, the upload hook never records a
-    // ref, so uploadedRefs stays empty and the scene PUT keeps the inline bytes
-    // exactly as today's behavior — the server interns them.
+  it("does not send inline bytes when the upload endpoint is unavailable", async () => {
+    // Inline bytes remain local rather than entering JSON/socket payloads.
     const refs = makeRefs();
     const { result } = renderHook(() => useEditorPersistence(params(refs)));
 
@@ -142,7 +145,7 @@ describe("useEditorPersistence file ref substitution", () => {
       });
     });
 
-    expect(bodyOf().files.a.dataURL.startsWith("data:")).toBe(true);
+    expect(bodyOf().files).toBeUndefined();
   });
 });
 

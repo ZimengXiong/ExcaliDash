@@ -293,7 +293,7 @@ describe("Link Sharing - Public By Drawing ID", () => {
     expect(response.body?.message).toBe("Invalid or expired token");
   });
 
-  it("revokes previous active link-share when creating a new one", async () => {
+  it("atomically updates the single active link-share policy", async () => {
     const drawing = await createDrawing();
 
     const first = await ownerAgent
@@ -313,12 +313,17 @@ describe("Link Sharing - Public By Drawing ID", () => {
       .set(ownerCsrfHeaderName, ownerCsrfToken)
       .send({ permission: "edit" });
     expect(second.status).toBe(200);
+    expect(second.body?.share?.id).toBe(firstShareId);
 
     const firstRow = await prisma.drawingLinkShare.findUnique({
       where: { id: firstShareId },
-      select: { revokedAt: true },
+      select: { policyKey: true, permission: true, revokedAt: true },
     });
-    expect(firstRow?.revokedAt).not.toBeNull();
+    expect(firstRow).toMatchObject({
+      policyKey: `current:${drawing.id}`,
+      permission: "edit",
+      revokedAt: null,
+    });
 
     const activeCount = await prisma.drawingLinkShare.count({
       where: { drawingId: drawing.id, revokedAt: null },

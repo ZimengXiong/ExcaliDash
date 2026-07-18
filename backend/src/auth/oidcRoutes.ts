@@ -135,6 +135,32 @@ export const registerOidcRoutes = (deps: RegisterOidcRoutesDeps) => {
       return redirectToLoginWithError(req, res, "callback_failed");
     }
   });
+  router.get("/oidc/logout", async (_req: Request, res: Response) => {
+    const loginUrl = new URL("/login", config.oidc.redirectUri as string).toString();
+    try {
+      const client = await getOidcClient();
+      const endSessionEndpoint = (client.issuer.metadata as Record<string, unknown>)
+        .end_session_endpoint;
+      if (typeof endSessionEndpoint !== "string") {
+        return res.redirect(loginUrl);
+      }
+
+      // Discovery may use an internal address (for example, keycloak:8080),
+      // while the browser must be redirected to the public issuer URL.
+      const endpoint = new URL(endSessionEndpoint);
+      const issuer = new URL(config.oidc.issuerUrl as string);
+      if (endpoint.pathname.startsWith(issuer.pathname.replace(/\/$/, ""))) {
+        endpoint.protocol = issuer.protocol;
+        endpoint.host = issuer.host;
+      }
+      endpoint.searchParams.set("post_logout_redirect_uri", loginUrl);
+      endpoint.searchParams.set("client_id", config.oidc.clientId as string);
+      return res.redirect(endpoint.toString());
+    } catch (error) {
+      console.error("OIDC logout error:", error);
+      return res.redirect(loginUrl);
+    }
+  });
   registerOidcCallbackRoute({
     ...deps,
     clearOidcFlowCookie,
