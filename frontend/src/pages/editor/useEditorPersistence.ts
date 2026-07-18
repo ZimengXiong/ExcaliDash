@@ -6,12 +6,7 @@ import { toast } from "sonner";
 import * as api from "../../api";
 import { reloadAndReconcile } from "./reconcileSave";
 import { compressExcalidrawFiles } from "../../utils/imageCompression";
-import {
-  applyUploadedFileRefs,
-  getFilesDelta,
-  getPersistedAppState,
-  hasRenderableElements,
-} from "./shared";
+import { getAdmittedFileRefs, getAdmittedImageElements, getFilesDelta, getPersistedAppState, hasRenderableElements } from "./shared";
 import type { UploadedFileRefs } from "./shared";
 
 class DrawingSaveConflictError extends Error {
@@ -22,16 +17,11 @@ class DrawingSaveConflictError extends Error {
 }
 
 type PersistenceRefs = {
+  libraryItems?: MutableRefObject<readonly any[]>;
+  libraryVersion?: MutableRefObject<number>;
+  libraryHydrated?: MutableRefObject<boolean>;
   currentDrawingVersion: MutableRefObject<number | null>;
-  debouncedSave: MutableRefObject<
-    | ((
-        drawingId: string,
-        elements: readonly any[],
-        appState: any,
-        files?: Record<string, any>,
-      ) => void)
-    | null
-  >;
+  debouncedSave: MutableRefObject<((drawingId: string, elements: readonly any[], appState: any, files?: Record<string, any>) => void) | null>;
   excalidrawAPI: MutableRefObject<any>;
   isSyncing: MutableRefObject<boolean>;
   isUnmounting: MutableRefObject<boolean>;
@@ -50,10 +40,7 @@ type PersistenceRefs = {
 type UseEditorPersistenceParams = {
   refs: PersistenceRefs;
   user: unknown;
-  normalizeImageElementStatus: (
-    elements?: readonly any[],
-    files?: Record<string, any> | null,
-  ) => readonly any[];
+  normalizeImageElementStatus: (elements?: readonly any[], files?: Record<string, any> | null) => readonly any[];
   resolveSafeSnapshot: (candidateSnapshot?: readonly any[]) => {
     snapshot: readonly any[];
     prevented: boolean;
@@ -87,6 +74,7 @@ export const useEditorPersistence = ({
     | null
   >(null);
   const saveLibraryRef = useRef<((items: any[]) => Promise<void>) | null>(null);
+  const librarySaveQueueRef = useRef(Promise.resolve());
   const [autosaveFailing, setAutosaveFailing] = useState(false);
   const autosaveFailureCountRef = useRef(0);
 
@@ -149,10 +137,9 @@ export const useEditorPersistence = ({
         refs.latestFiles.current = persistableFiles;
         refs.lastSyncedFiles.current = persistableFiles;
       }
-      // Swap inline bytes for a ref on any file already uploaded out-of-band so
-      // the PUT ships KB, not MB. Files not yet uploaded keep their inline
-      // dataURL and the server interns them — no data loss on an upload race.
-      const filesToPersist = applyUploadedFileRefs(
+      // Persist only durable refs. Inline-only files and their image elements
+      // stay local until upload admission succeeds.
+      const filesToPersist = getAdmittedFileRefs(
         persistableFiles,
         refs.uploadedRefs.current,
       );
@@ -164,7 +151,10 @@ export const useEditorPersistence = ({
           ),
         ).length > 0;
       const normalizedElementsForSave = Array.from(
-        normalizeImageElementStatus(persistableElements, filesToPersist),
+        getAdmittedImageElements(
+          normalizeImageElementStatus(persistableElements, persistableFiles),
+          filesToPersist,
+        ),
       );
       const persistScene = async (
         attempt: number,
@@ -312,13 +302,33 @@ export const useEditorPersistence = ({
 
   saveLibraryRef.current = async (items: any[]) => {
     if (!user) return;
-    try {
-      await api.updateLibrary(items);
-    } catch (err) {
+    if (items.length === 0 && refs.libraryHydrated?.current === false && (refs.libraryItems?.current.length ?? 0) > 0) return;
+    librarySaveQueueRef.current = librarySaveQueueRef.current.then(async () => {
+      try {
+        const saved = await api.updateLibrary(items, refs.libraryVersion?.current ?? 0);
+        if (refs.libraryItems) refs.libraryItems.current = saved.items;
+        if (refs.libraryVersion) refs.libraryVersion.current = saved.version;
+      } catch (err) {
       console.error("Failed to save library", err);
       if (api.isAxiosError(err) && err.response?.status === 401) return;
+      if (api.isAxiosError(err) && err.response?.status === 409) {
+        const current = err.response.data as { items?: any[]; version?: number };
+        const items = Array.isArray(current.items) ? current.items : [];
+        if (refs.libraryItems) refs.libraryItems.current = items;
+        if (refs.libraryVersion) refs.libraryVersion.current = typeof current.version === "number" && Number.isInteger(current.version) ? current.version : 0;
+        refs.isSyncing.current = true;
+        try {
+          refs.excalidrawAPI.current?.updateLibrary?.({ libraryItems: items });
+        } finally {
+          refs.isSyncing.current = false;
+        }
+        toast.error("Library changed in another tab. Reloaded the server library.");
+        return;
+      }
       toast.error("Failed to save library");
-    }
+      }
+    });
+    await librarySaveQueueRef.current;
   };
 
   const debouncedSave = useCallback(

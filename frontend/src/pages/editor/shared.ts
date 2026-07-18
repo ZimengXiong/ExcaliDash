@@ -85,6 +85,8 @@ export const getPersistedAppState = (appState: Record<string, any> | null | unde
   const base: Record<string, any> = {
     viewBackgroundColor: appState?.viewBackgroundColor ?? "#ffffff",
     gridSize: appState?.gridSize ?? null,
+    // Keep the editor chrome visible unless a user explicitly enables Zen mode.
+    zenModeEnabled: false,
   };
   if (appState?.gridStep != null) base.gridStep = appState.gridStep;
   if (appState?.gridModeEnabled != null) base.gridModeEnabled = appState.gridModeEnabled;
@@ -313,6 +315,34 @@ export const applyUploadedFileRefs = (
   }
   return changed ? result : files;
 };
+
+/**
+ * Return only files that are durably stored. Inline-only files remain local
+ * until their out-of-band upload succeeds, preventing multi-megabyte data URLs
+ * from racing into scene saves or collaboration events.
+ */
+export const getAdmittedFileRefs = (
+  files: Record<string, any> | null | undefined,
+  uploadedRefs: UploadedFileRefs | null | undefined,
+): Record<string, any> => {
+  const withRefs = applyUploadedFileRefs(files, uploadedRefs);
+  return Object.fromEntries(
+    Object.entries(withRefs).filter(([, file]) => {
+      const dataURL = (file as any)?.dataURL;
+      return typeof dataURL === "string" && !dataURL.startsWith("data:");
+    }),
+  );
+};
+
+export const getAdmittedImageElements = (
+  elements: readonly any[],
+  admittedFiles: Record<string, any>,
+): readonly any[] => elements.filter((element) =>
+  element?.type !== "image" ||
+  element?.isDeleted ||
+  !element?.fileId ||
+  Boolean(admittedFiles[element.fileId])
+);
 
 export const UIOptions = {
   canvasActions: {
