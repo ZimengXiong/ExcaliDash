@@ -1,6 +1,8 @@
 import fs from "fs";
 import path from "path";
+import archiver from "archiver";
 import type { PrismaClient } from "../generated/client";
+import { getObjectStream, isS3Enabled } from "../s3";
 
 const Database = require("better-sqlite3") as any;
 
@@ -13,6 +15,8 @@ type BackupSchedulerOptions = {
 };
 
 type CronPart = Set<number>;
+
+const BACKUP_PRUNE_CONCURRENCY = 8;
 
 type ParsedCron = {
   seconds: CronPart;
@@ -116,19 +120,82 @@ export const cronMatches = (cron: ParsedCron, date: Date): boolean => {
   );
 };
 
-const pruneOldBackups = async (backupDir: string, retentionDays: number): Promise<void> => {
+export const pruneOldBackups = async (backupDir: string, retentionDays: number): Promise<void> => {
   if (!Number.isFinite(retentionDays) || retentionDays <= 0) return;
   const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
   const entries = await fs.promises.readdir(backupDir, { withFileTypes: true });
-  await Promise.allSettled(
-    entries
-      .filter((entry) => entry.isFile() && /^excalidash-sqlite-.*\.db$/.test(entry.name))
-      .map(async (entry) => {
-        const filePath = path.join(backupDir, entry.name);
+  const backupPaths = entries
+    .filter(
+      (entry) =>
+        entry.isFile() &&
+        /^(?:excalidash-sqlite-.*\.db|excalidash-s3-assets-.*\.zip)$/.test(
+          entry.name,
+        ),
+    )
+    .map((entry) => path.join(backupDir, entry.name));
+  const failures: unknown[] = [];
+  let nextIndex = 0;
+
+  const worker = async () => {
+    while (nextIndex < backupPaths.length) {
+      const filePath = backupPaths[nextIndex++];
+      try {
         const stat = await fs.promises.stat(filePath);
         if (stat.mtimeMs < cutoff) await fs.promises.unlink(filePath);
-      }),
+      } catch (error) {
+        failures.push({ filePath, error });
+      }
+    }
+  };
+
+  await Promise.all(
+    Array.from(
+      { length: Math.min(BACKUP_PRUNE_CONCURRENCY, backupPaths.length) },
+      worker,
+    ),
   );
+
+  if (failures.length > 0) {
+    console.warn(`[backup] Failed to prune ${failures.length} backup file(s):`, failures);
+  }
+};
+
+const createS3AssetsBackup = async (
+  prisma: PrismaClient,
+  targetPath: string,
+): Promise<void> => {
+  if (!isS3Enabled()) return;
+  const records = await prisma.drawingFile.findMany({
+    where: { storage: "s3", s3Key: { not: null } },
+    select: {
+      drawingId: true,
+      fileId: true,
+      mimeType: true,
+      sizeBytes: true,
+      s3Key: true,
+    },
+  });
+  const output = fs.createWriteStream(targetPath, { mode: 0o600 });
+  const archive = archiver("zip", { zlib: { level: 0 } });
+  const completed = new Promise<void>((resolve, reject) => {
+    output.on("close", resolve);
+    output.on("error", reject);
+    archive.on("error", reject);
+  });
+  archive.pipe(output);
+  archive.append(JSON.stringify({ version: 1, files: records }, null, 2), {
+    name: "manifest.json",
+  });
+  for (const record of records) {
+    if (!record.s3Key) continue;
+    const object = await getObjectStream(record.s3Key);
+    archive.append(object.stream, {
+      name: `assets/${record.drawingId}/${record.fileId}`,
+    });
+  }
+  await archive.finalize();
+  await completed;
+  await fs.promises.chmod(targetPath, 0o600);
 };
 
 export const createSqliteBackup = async ({
@@ -148,7 +215,8 @@ export const createSqliteBackup = async ({
   await fs.promises.mkdir(backupDir, { recursive: true, mode: 0o700 });
   await prisma.$executeRawUnsafe("PRAGMA wal_checkpoint(PASSIVE)");
 
-  const target = path.join(backupDir, `excalidash-sqlite-${timestampForFilename(new Date())}.db`);
+  const timestamp = timestampForFilename(new Date());
+  const target = path.join(backupDir, `excalidash-sqlite-${timestamp}.db`);
   const source = new Database(databasePath, { readonly: true, fileMustExist: true });
   try {
     await source.backup(target);
@@ -156,6 +224,23 @@ export const createSqliteBackup = async ({
     source.close();
   }
   await fs.promises.chmod(target, 0o600);
+  if (isS3Enabled()) {
+    const assetsTarget = path.join(
+      backupDir,
+      `excalidash-s3-assets-${timestamp}.zip`,
+    );
+    try {
+      await createS3AssetsBackup(prisma, assetsTarget);
+      console.log(`[backup] Wrote S3 assets backup: ${assetsTarget}`);
+    } catch (error) {
+      await fs.promises.unlink(target).catch(() => undefined);
+      await fs.promises.unlink(assetsTarget).catch(() => undefined);
+      throw new AggregateError(
+        [error],
+        "S3 assets backup failed; removed incomplete database backup",
+      );
+    }
+  }
   await pruneOldBackups(backupDir, retentionDays);
   console.log(`[backup] Wrote SQLite backup: ${target}`);
   return target;
