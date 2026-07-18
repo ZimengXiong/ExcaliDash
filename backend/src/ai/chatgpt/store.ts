@@ -1,4 +1,5 @@
 import type { PrismaClient } from "../../generated/client";
+import { Prisma } from "../../generated/client";
 import { decryptSecret, encryptSecret } from "../crypto";
 import {
   ChatGptOAuthError,
@@ -27,12 +28,11 @@ export const savePendingAuth = async (
   prisma: PrismaClient,
   params: { state: string; userId: string; codeVerifier: string },
 ): Promise<void> => {
-  // Opportunistically purge stale pending rows for this user.
+  // A user only needs one active PKCE transaction. Replacing an earlier
+  // attempt prevents repeated Connect clicks from accumulating valid states
+  // (and makes the most recently displayed authorization URL authoritative).
   await prisma.chatGptAuthState.deleteMany({
-    where: {
-      userId: params.userId,
-      createdAt: { lt: new Date(Date.now() - PENDING_TTL_MS) },
-    },
+    where: { userId: params.userId },
   });
   await prisma.chatGptAuthState.create({
     data: {
@@ -48,9 +48,18 @@ export const consumePendingAuth = async (
   prisma: PrismaClient,
   state: string,
 ): Promise<{ userId: string; codeVerifier: string } | null> => {
-  const row = await prisma.chatGptAuthState.findUnique({ where: { state } });
-  if (!row) return null;
-  await prisma.chatGptAuthState.delete({ where: { state } }).catch(() => undefined);
+  let row: { userId: string; codeVerifier: string; createdAt: Date };
+  try {
+    row = await prisma.chatGptAuthState.delete({ where: { state } });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2025"
+    ) {
+      return null;
+    }
+    throw error;
+  }
   if (row.createdAt.getTime() < Date.now() - PENDING_TTL_MS) return null;
   return { userId: row.userId, codeVerifier: row.codeVerifier };
 };
