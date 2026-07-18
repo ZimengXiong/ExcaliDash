@@ -28,12 +28,11 @@ export const savePendingAuth = async (
   prisma: PrismaClient,
   params: { state: string; userId: string; codeVerifier: string },
 ): Promise<void> => {
-  // Opportunistically purge stale pending rows for this user.
+  // A user only needs one active PKCE transaction. Replacing an earlier
+  // attempt prevents repeated Connect clicks from accumulating valid states
+  // (and makes the most recently displayed authorization URL authoritative).
   await prisma.chatGptAuthState.deleteMany({
-    where: {
-      userId: params.userId,
-      createdAt: { lt: new Date(Date.now() - PENDING_TTL_MS) },
-    },
+    where: { userId: params.userId },
   });
   await prisma.chatGptAuthState.create({
     data: {
