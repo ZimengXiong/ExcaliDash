@@ -1,6 +1,6 @@
 import { Prisma } from "../../generated/client";
 import { describe, expect, it, vi } from "vitest";
-import { consumePendingAuth } from "./store";
+import { consumePendingAuth, savePendingAuth } from "./store";
 
 const row = (createdAt = new Date()) => ({
   userId: "user-1",
@@ -39,5 +39,24 @@ describe("consumePendingAuth", () => {
     ) } } as any;
 
     await expect(consumePendingAuth(prisma, "expired")).resolves.toBeNull();
+  });
+});
+
+describe("savePendingAuth", () => {
+  it("keeps only the most recent pending authorization for a user", async () => {
+    const deleteMany = vi.fn().mockResolvedValue({ count: 1 });
+    const create = vi.fn().mockResolvedValue({});
+    const prisma = { chatGptAuthState: { deleteMany, create } } as any;
+
+    await savePendingAuth(prisma, {
+      state: "new-state",
+      userId: "user-1",
+      codeVerifier: "verifier",
+    });
+
+    expect(deleteMany).toHaveBeenCalledWith({ where: { userId: "user-1" } });
+    expect(create).toHaveBeenCalledWith({
+      data: { state: "new-state", userId: "user-1", codeVerifier: "verifier" },
+    });
   });
 });
