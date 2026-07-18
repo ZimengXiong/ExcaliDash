@@ -258,7 +258,7 @@ export const DashboardToolbar: React.FC<DashboardToolbarProps> = ({
                   className="fixed inset-0 z-10"
                   onClick={() => onShowBulkMoveMenuChange(false)}
                 />
-                <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-neutral-800 rounded-xl border-2 border-black dark:border-neutral-700 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] z-50 py-1 max-h-64 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100">
+                <div className="ui-popover absolute right-0 top-full mt-2 w-56 z-50 py-1 max-h-64 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100">
                   <div className="px-3 py-2 text-[10px] font-bold uppercase text-slate-400 dark:text-neutral-500 tracking-wider border-b border-slate-100 dark:border-neutral-700 mb-1">
                     Move {selectedCount} items to...
                   </div>

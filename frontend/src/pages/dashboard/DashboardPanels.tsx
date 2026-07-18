@@ -145,8 +145,13 @@ export const DrawingsGrid: React.FC<DrawingsGridProps> = ({
 }) => {
   if (isLoading && drawings.length === 0) {
     return (
-      <div className="flex justify-center items-center h-64 text-indigo-600">
+      <div
+        className="flex justify-center items-center h-64 text-indigo-600"
+        role="status"
+        aria-label="Loading drawings"
+      >
         <Loader2 size={32} className="animate-spin" />
+        <span className="sr-only">Loading drawings</span>
       </div>
     );
   }

@@ -315,8 +315,10 @@ export const ShareModal: React.FC<Props> = ({
             user={user}
             sharing={sharing}
             userQuery={userQuery}
+            userPermission={userPermission}
             userResults={userResults}
             setUserQuery={setUserQuery}
+            setUserPermission={setUserPermission}
             handleAddUser={handleAddUser}
             handleRevokeUser={handleRevokeUser}
             handleUpdateUserPermission={handleUpdateUserPermission}
@@ -368,7 +370,7 @@ export const ShareModal: React.FC<Props> = ({
         </div>
 
         {isLoading && (
-          <div className="absolute inset-0 bg-white/20 dark:bg-black/10 backdrop-blur-[1px] flex items-center justify-center z-[300] pointer-events-none rounded-[14px]">
+          <div className="absolute inset-0 bg-white/20 dark:bg-black/10 backdrop-blur-[1px] flex items-center justify-center z-[300] pointer-events-none rounded-[14px]" role="status" aria-label="Updating sharing settings">
             <div className="ui-popover p-4">
               <RefreshCw
                 size={24}

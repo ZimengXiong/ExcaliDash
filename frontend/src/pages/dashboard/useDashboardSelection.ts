@@ -23,8 +23,17 @@ export const useDashboardSelection = ({
   const selectedIdsRef = useRef(selectedIds);
   const dragStartRef = useRef<Point | null>(null);
   const dragCurrentRef = useRef<Point | null>(null);
-  drawingsRef.current = drawings;
-  selectedIdsRef.current = selectedIds;
+
+  // Document-level listeners intentionally stay stable while the dashboard
+  // re-renders. Sync their inputs after render rather than mutating refs while
+  // rendering, which also keeps the listeners current for keyboard shortcuts.
+  useEffect(() => {
+    drawingsRef.current = drawings;
+  }, [drawings]);
+
+  useEffect(() => {
+    selectedIdsRef.current = selectedIds;
+  }, [selectedIds]);
 
   const resetSelection = useCallback(() => {
     setSelectedIds(new Set());
@@ -93,7 +102,9 @@ export const useDashboardSelection = ({
           return;
         }
         event.preventDefault();
-        setSelectedIds(new Set(drawings.map((drawing) => drawing.id)));
+        setSelectedIds(
+          new Set(drawingsRef.current.map((drawing) => drawing.id)),
+        );
       }
       if (event.key === "Escape") {
         event.preventDefault();
