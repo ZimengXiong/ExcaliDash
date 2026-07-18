@@ -7,8 +7,10 @@ type Props = {
   user: { name?: string | null; email?: string | null } | null | undefined;
   sharing: { permissions: api.DrawingPermissionRow[] } | null;
   userQuery: string;
+  userPermission: "view" | "edit";
   userResults: api.ShareResolvedUser[];
   setUserQuery: (value: string) => void;
+  setUserPermission: (value: "view" | "edit") => void;
   handleAddUser: (userId: string) => void | Promise<void>;
   handleRevokeUser: (permissionId: string) => void | Promise<void>;
   handleUpdateUserPermission: (
@@ -21,8 +23,10 @@ export const SharePeopleSection: React.FC<Props> = ({
   user,
   sharing,
   userQuery,
+  userPermission,
   userResults,
   setUserQuery,
+  setUserPermission,
   handleAddUser,
   handleRevokeUser,
   handleUpdateUserPermission,
@@ -36,9 +40,21 @@ export const SharePeopleSection: React.FC<Props> = ({
         <input
           value={userQuery}
           onChange={(event) => setUserQuery(event.target.value)}
-          placeholder="Add people"
-          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-slate-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium placeholder:font-normal placeholder:text-slate-400"
+          placeholder="Add people by name or email"
+          className="w-full pl-10 pr-28 py-2.5 rounded-xl border border-slate-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-slate-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium placeholder:font-normal placeholder:text-slate-400"
         />
+        <div className="absolute right-2 top-1/2 -translate-y-1/2">
+          <CustomSelect
+            value={userPermission}
+            onChange={(value) => setUserPermission(value as "view" | "edit")}
+            options={[
+              { label: "Can view", value: "view" },
+              { label: "Can edit", value: "edit" },
+            ]}
+            align="right"
+            variant="bordered"
+          />
+        </div>
       </div>
 
       {userResults.length > 0 && (
@@ -65,6 +81,9 @@ export const SharePeopleSection: React.FC<Props> = ({
                 className="text-slate-400 group-hover:text-indigo-600 transition-colors"
                 strokeWidth={3}
               />
+              <span className="sr-only">
+                Give {candidate.name} {userPermission === "edit" ? "edit" : "view"} access
+              </span>
             </button>
           ))}
         </div>
