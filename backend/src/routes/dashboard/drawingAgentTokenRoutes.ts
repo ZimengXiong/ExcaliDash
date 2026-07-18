@@ -1,5 +1,5 @@
 import express from "express";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { z } from "zod";
 import {
   canViewDrawing,
@@ -67,7 +67,8 @@ export const registerDrawingAgentTokenRoutes = (
   const tokenMutationLimiter = rateLimit({
     windowMs: 60000,
     max: 30,
-    keyGenerator: (req) => req.user?.id ?? req.ip ?? "anonymous",
+    keyGenerator: (req) =>
+      req.user?.id ?? (req.ip ? ipKeyGenerator(req.ip) : "anonymous"),
     message: {
       error: "Rate limit exceeded",
       message: "Too many agent token changes, please slow down",
