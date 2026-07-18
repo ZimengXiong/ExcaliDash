@@ -96,6 +96,7 @@ const ExcalidrawEditor: React.FC = () => {
   const lastPersistedFilesRef = useRef<Record<string, any>>({});
   // fileId -> stored ref URL for images uploaded via the per-file endpoint.
   const uploadedFileRefsRef = useRef<Record<string, string>>({});
+  const onFileUploadCompleteRef = useRef<(() => void) | null>(null);
   const latestAppStateRef = useRef<any>(null);
   const debouncedSaveRef = useRef<
     | ((
@@ -158,6 +159,7 @@ const ExcalidrawEditor: React.FC = () => {
     isSyncing,
     latestFiles: latestFilesRef,
     uploadedRefs: uploadedFileRefsRef,
+    onUploadCompleteRef: onFileUploadCompleteRef,
   });
   const { emitFilesDeltaIfNeeded, setExcalidrawAPI } = useEditorSceneApi({
     drawingId: id,
@@ -233,6 +235,12 @@ const ExcalidrawEditor: React.FC = () => {
     recordElementVersion,
     setHasSceneChangesSinceLoad: markSceneChangedSinceLoad,
   });
+  onFileUploadCompleteRef.current = () => {
+    const editor = excalidrawAPI.current;
+    const elements =
+      editor?.getSceneElementsIncludingDeleted?.() ?? latestElementsRef.current;
+    broadcastChanges(elements, editor?.getFiles?.() ?? latestFilesRef.current);
+  };
   const sceneLoaderRefs = React.useMemo(
     () => ({
       elementVersionMap,
