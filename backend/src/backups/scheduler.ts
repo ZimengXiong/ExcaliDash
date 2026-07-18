@@ -125,7 +125,13 @@ export const pruneOldBackups = async (backupDir: string, retentionDays: number):
   const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
   const entries = await fs.promises.readdir(backupDir, { withFileTypes: true });
   const backupPaths = entries
-    .filter((entry) => entry.isFile() && /^excalidash-sqlite-.*\.db$/.test(entry.name))
+    .filter(
+      (entry) =>
+        entry.isFile() &&
+        /^(?:excalidash-sqlite-.*\.db|excalidash-s3-assets-.*\.zip)$/.test(
+          entry.name,
+        ),
+    )
     .map((entry) => path.join(backupDir, entry.name));
   const failures: unknown[] = [];
   let nextIndex = 0;

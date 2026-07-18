@@ -4,13 +4,18 @@ import type { MutableRefObject } from "react";
 import { toast } from "sonner";
 import * as api from "../../api";
 import { rehydrateFilesProgressive } from "../../utils/rehydrateFiles";
-import { getPersistedAppState, hasRenderableElements } from "./shared";
+import {
+  getPersistedAppState,
+  hasRenderableElements,
+  type UploadedFileRefs,
+} from "./shared";
 
 type AccessLevel = "none" | "view" | "edit" | "owner";
 
 type SceneLoaderParams = {
   id: string | undefined;
   user: unknown;
+  uploadedRefs?: MutableRefObject<UploadedFileRefs>;
   location: {
     pathname: string;
     search: string;
@@ -67,6 +72,7 @@ const buildEmptyScene = () => ({
 export const useEditorSceneLoader = ({
   id,
   user,
+  uploadedRefs,
   location,
   navigate,
   refs,
@@ -96,10 +102,11 @@ export const useEditorSceneLoader = ({
     if (refs.libraryItems) refs.libraryItems.current = [];
     if (refs.libraryVersion) refs.libraryVersion.current = 0;
     if (refs.libraryHydrated) refs.libraryHydrated.current = false;
+    if (uploadedRefs) uploadedRefs.current = {};
     refs.suspiciousBlankLoad.current = false;
     refs.hasSceneChangesSinceLoad.current = false;
     refs.excalidrawAPI.current = null;
-  }, [refs]);
+  }, [refs, uploadedRefs]);
 
   // Depend on the user id scalar, not the user object identity: a new object
   // reference for the same logged-in user must not re-run the loader (which
@@ -165,6 +172,19 @@ export const useEditorSceneLoader = ({
         // elements stay non-saved and show Excalidraw's own loading state until
         // their bytes arrive.
         const files: Record<string, any> = data.files || {};
+        // Rehydration turns durable refs back into inline bytes for
+        // Excalidraw. Keep the canonical refs separately, otherwise a later
+        // edit misclassifies these images as pending and drops them from save.
+        if (uploadedRefs) {
+          uploadedRefs.current = Object.fromEntries(
+            Object.entries(files).flatMap(([fileId, file]) => {
+              const dataURL = (file as any)?.dataURL;
+              return typeof dataURL === "string" && !dataURL.startsWith("data:")
+                ? [[fileId, dataURL]]
+                : [];
+            }),
+          );
+        }
         const elements = normalizeTextElementDimensions(
           normalizeImageElementStatus(rawElements, files),
         );

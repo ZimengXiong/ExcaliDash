@@ -6,13 +6,7 @@ import { toast } from "sonner";
 import * as api from "../../api";
 import { reloadAndReconcile } from "./reconcileSave";
 import { compressExcalidrawFiles } from "../../utils/imageCompression";
-import {
-  getAdmittedFileRefs,
-  getAdmittedImageElements,
-  getFilesDelta,
-  getPersistedAppState,
-  hasRenderableElements,
-} from "./shared";
+import { getAdmittedFileRefs, getAdmittedImageElements, getFilesDelta, getPersistedAppState, hasRenderableElements } from "./shared";
 import type { UploadedFileRefs } from "./shared";
 
 class DrawingSaveConflictError extends Error {
@@ -27,15 +21,7 @@ type PersistenceRefs = {
   libraryVersion?: MutableRefObject<number>;
   libraryHydrated?: MutableRefObject<boolean>;
   currentDrawingVersion: MutableRefObject<number | null>;
-  debouncedSave: MutableRefObject<
-    | ((
-        drawingId: string,
-        elements: readonly any[],
-        appState: any,
-        files?: Record<string, any>,
-      ) => void)
-    | null
-  >;
+  debouncedSave: MutableRefObject<((drawingId: string, elements: readonly any[], appState: any, files?: Record<string, any>) => void) | null>;
   excalidrawAPI: MutableRefObject<any>;
   isSyncing: MutableRefObject<boolean>;
   isUnmounting: MutableRefObject<boolean>;
@@ -54,10 +40,7 @@ type PersistenceRefs = {
 type UseEditorPersistenceParams = {
   refs: PersistenceRefs;
   user: unknown;
-  normalizeImageElementStatus: (
-    elements?: readonly any[],
-    files?: Record<string, any> | null,
-  ) => readonly any[];
+  normalizeImageElementStatus: (elements?: readonly any[], files?: Record<string, any> | null) => readonly any[];
   resolveSafeSnapshot: (candidateSnapshot?: readonly any[]) => {
     snapshot: readonly any[];
     prevented: boolean;

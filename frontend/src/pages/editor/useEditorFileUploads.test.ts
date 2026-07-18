@@ -33,6 +33,7 @@ const dataFile = (id: string) => ({
 
 const setup = (files: Record<string, any>) => {
   const uploadedRefs = { current: {} as Record<string, string> };
+  const onUploadCompleteRef = { current: vi.fn() as (() => void) | null };
   const addFiles = vi.fn();
   const excalidrawAPI = { current: { getFiles: () => files, addFiles } };
   const { result } = renderHook(() =>
@@ -43,9 +44,10 @@ const setup = (files: Record<string, any>) => {
       isSyncing: { current: false },
       latestFiles: { current: files },
       uploadedRefs,
+      onUploadCompleteRef,
     }),
   );
-  return { result, uploadedRefs };
+  return { result, uploadedRefs, onUploadCompleteRef };
 };
 
 describe("useEditorFileUploads", () => {
@@ -59,13 +61,14 @@ describe("useEditorFileUploads", () => {
     uploadDrawingFile.mockImplementation(async (drawingId, fileId) => ({
       url: `/api/files/${drawingId}/${fileId}`,
     }));
-    const { result, uploadedRefs } = setup({ a: dataFile("a"), b: dataFile("b") });
+    const { result, uploadedRefs, onUploadCompleteRef } = setup({ a: dataFile("a"), b: dataFile("b") });
 
     await result.current.scanNow();
 
     expect(uploadDrawingFile).toHaveBeenCalledTimes(2);
     expect(uploadedRefs.current.a).toBe("/api/files/d1/a");
     expect(uploadedRefs.current.b).toBe("/api/files/d1/b");
+    expect(onUploadCompleteRef.current).toHaveBeenCalledTimes(2);
     // Raw bytes are sent, not the dataURL string.
     expect(uploadDrawingFile.mock.calls[0][2]).toBeInstanceOf(Uint8Array);
   });

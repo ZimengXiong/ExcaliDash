@@ -32,6 +32,13 @@ type UseEditorFileUploadsParams = {
   isSyncing: MutableRefObject<boolean>;
   latestFiles: MutableRefObject<any>;
   uploadedRefs: MutableRefObject<UploadedFileRefs>;
+  /**
+   * Called after a file becomes durable. This closes the gap for images
+   * inserted by paths that do not cause another Excalidraw onChange event:
+   * their element and ref must be published/saved immediately, not at the
+   * next periodic sweep.
+   */
+  onUploadCompleteRef?: MutableRefObject<(() => void) | null>;
 };
 
 /** Decode a base64/plain `data:` URL into raw bytes plus its declared MIME. */
@@ -87,6 +94,7 @@ export const useEditorFileUploads = ({
   isSyncing,
   latestFiles,
   uploadedRefs,
+  onUploadCompleteRef,
 }: UseEditorFileUploadsParams) => {
   const inFlightRef = useRef<Set<string>>(new Set());
   // Do not retry an image that has already exhausted the fit-to-limit pass on
@@ -202,7 +210,10 @@ export const useEditorFileUploads = ({
               parsed.mimeType,
           );
           // null => backend lacks the endpoint; stop trying for the session.
-          if (result) uploadedRefs.current[id] = result.url;
+          if (result) {
+            uploadedRefs.current[id] = result.url;
+            onUploadCompleteRef?.current?.();
+          }
           inFlightRef.current.delete(id);
           return;
         } catch (error) {
@@ -226,7 +237,14 @@ export const useEditorFileUploads = ({
       candidateIds.map((id) => () => uploadOne(id)),
       UPLOAD_CONCURRENCY,
     );
-  }, [drawingId, excalidrawAPI, isSyncing, latestFiles, uploadedRefs]);
+  }, [
+    drawingId,
+    excalidrawAPI,
+    isSyncing,
+    latestFiles,
+    onUploadCompleteRef,
+    uploadedRefs,
+  ]);
 
   useEffect(() => {
     if (!drawingId || !isReady) return;
