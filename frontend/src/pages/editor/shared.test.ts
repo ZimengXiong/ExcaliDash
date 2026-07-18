@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildRemoteSceneUpdate,
   getPersistedAppState,
+  getAdmittedFileRefs,
+  getAdmittedImageElements,
   hasRenderableElements,
   isSuspiciousEmptySnapshot,
   isStaleEmptySnapshot,
@@ -173,18 +175,40 @@ describe("editor/shared scene guards", () => {
       gridSize: 24,
       gridStep: 5,
       gridModeEnabled: true,
+      zenModeEnabled: false,
     });
+  });
+
+  it("keeps pending inline images local until their upload ref is ready", () => {
+    const files = {
+      pending: { id: "pending", dataURL: "data:image/png;base64,abc" },
+      ready: { id: "ready", dataURL: "/api/files/d1/ready" },
+    };
+    const admitted = getAdmittedFileRefs(files, {});
+    expect(admitted).toEqual({ ready: files.ready });
+
+    const elements = [
+      { id: "pending-el", type: "image", fileId: "pending", isDeleted: false },
+      { id: "ready-el", type: "image", fileId: "ready", isDeleted: false },
+      { id: "rect", type: "rectangle", isDeleted: false },
+    ];
+    expect(getAdmittedImageElements(elements, admitted).map((item) => item.id)).toEqual([
+      "ready-el",
+      "rect",
+    ]);
   });
 
   it("falls back to safe defaults when persisted appState is missing or invalid", () => {
     expect(getPersistedAppState(undefined)).toEqual({
       viewBackgroundColor: "#ffffff",
       gridSize: null,
+      zenModeEnabled: false,
     });
 
     expect(getPersistedAppState(null)).toEqual({
       viewBackgroundColor: "#ffffff",
       gridSize: null,
+      zenModeEnabled: false,
     });
   });
 });
