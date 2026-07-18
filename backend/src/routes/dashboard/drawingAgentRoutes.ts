@@ -1,5 +1,5 @@
 import express from "express";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { v4 as uuidv4 } from "uuid";
 import {
   canEditDrawing,
@@ -54,7 +54,8 @@ export const registerDrawingAgentRoutes = (
   const opsRateLimiter = rateLimit({
     windowMs: agentOps.rateLimitWindowMs,
     max: agentOps.rateLimitMaxRequests,
-    keyGenerator: (req) => req.user?.id ?? req.ip ?? "anonymous",
+    keyGenerator: (req) =>
+      req.user?.id ?? (req.ip ? ipKeyGenerator(req.ip) : "anonymous"),
     message: {
       error: "Rate limit exceeded",
       message: "Too many agent op batches, please slow down",
