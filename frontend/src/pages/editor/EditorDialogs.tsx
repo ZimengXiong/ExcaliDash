@@ -12,6 +12,7 @@ type PreviewBackup = {
 type EditorDialogsProps = {
   drawingId?: string;
   drawingName: string;
+  getCurrentVersion: () => number | null;
   excalidrawAPIRef: React.MutableRefObject<any>;
   isHistoryOpen: boolean;
   isShareOpen: boolean;
@@ -23,6 +24,7 @@ type EditorDialogsProps = {
 export const EditorDialogs: React.FC<EditorDialogsProps> = ({
   drawingId,
   drawingName,
+  getCurrentVersion,
   excalidrawAPIRef,
   isHistoryOpen,
   isShareOpen,
@@ -42,6 +44,7 @@ export const EditorDialogs: React.FC<EditorDialogsProps> = ({
       />
       <HistoryPanel
         drawingId={drawingId}
+        getCurrentVersion={getCurrentVersion}
         isOpen={isHistoryOpen}
         onClose={onCloseHistory}
         onPreview={(snapshot) => {

@@ -2,6 +2,7 @@ import { cachePasswordPolicy, type PasswordPolicyResponse } from "../utils/passw
 import type { DrawingEngine } from "../types";
 import { API_URL, api, axios } from "./client";
 import type { DrawingSortField, SortDirection } from "./drawings";
+import { isOidcAutoLoginSuppressed } from "../utils/oidcLogout";
 
 const USER_KEY = "excalidash-user";
 const AUTH_ENABLED_CACHE_KEY = "excalidash-auth-enabled";
@@ -149,8 +150,13 @@ export const authRefresh = async (): Promise<void> => {
   await api.post<{ ok?: boolean }>("/auth/refresh", {});
 };
 
-export const authLogout = async (): Promise<void> => {
-  await api.post("/auth/logout");
+export const authLogout = async (): Promise<{ oidcLogout: boolean }> => {
+  const response = await api.post<{ oidcLogout?: boolean }>("/auth/logout");
+  return { oidcLogout: response.data.oidcLogout === true };
+};
+
+export const startOidcSignOut = (): void => {
+  window.location.assign(`${API_URL}/auth/oidc/logout`);
 };
 
 export const authLogin = async (
@@ -278,7 +284,7 @@ const redirectToLogin = async () => {
 
   try {
     const status = await authStatus();
-    if (status?.oidcEnforced) {
+    if (status?.oidcEnforced && !isOidcAutoLoginSuppressed()) {
       startOidcSignIn();
       return;
     }

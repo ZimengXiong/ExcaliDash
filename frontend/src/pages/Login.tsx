@@ -7,6 +7,7 @@ import { USER_KEY } from '../utils/impersonation';
 import { getPasswordPolicy, validatePassword } from '../utils/passwordPolicy';
 import { PasswordRequirements } from '../components/PasswordRequirements';
 import { AuthStatusErrorPanel } from '../components/AuthStatusErrorPanel';
+import { clearOidcAutoLoginSuppression, isOidcAutoLoginSuppressed } from '../utils/oidcLogout';
 
 export const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -62,7 +63,7 @@ export const Login: React.FC = () => {
     }
     if (oidcEnforced && !mustReset) {
       if (!oidcErrorCode) {
-        api.startOidcSignIn(oidcReturnTo);
+        if (!isOidcAutoLoginSuppressed()) api.startOidcSignIn(oidcReturnTo);
       }
       return;
     }
@@ -194,7 +195,10 @@ export const Login: React.FC = () => {
             <div>
               <button
                 type="button"
-                onClick={() => api.startOidcSignIn(oidcReturnTo)}
+                onClick={() => {
+                  clearOidcAutoLoginSuppression();
+                  api.startOidcSignIn(oidcReturnTo);
+                }}
                 className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 Continue with {oidcProvider || 'OIDC'}
@@ -319,7 +323,10 @@ export const Login: React.FC = () => {
             <div>
               <button
                 type="button"
-                onClick={() => api.startOidcSignIn('/')}
+                onClick={() => {
+                  clearOidcAutoLoginSuppression();
+                  api.startOidcSignIn('/');
+                }}
                 className="group relative w-full flex justify-center py-2 px-4 border border-gray-300 dark:border-gray-700 text-sm font-medium rounded-md text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 Continue with {oidcProvider || 'OIDC'}

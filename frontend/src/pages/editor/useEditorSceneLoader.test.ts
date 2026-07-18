@@ -6,7 +6,7 @@ import { useEditorSceneLoader } from "./useEditorSceneLoader";
 
 vi.mock("../../api", () => ({
   getDrawing: vi.fn(),
-  getLibrary: vi.fn().mockResolvedValue([]),
+  getLibrary: vi.fn().mockResolvedValue({ items: [], version: 0 }),
   isAxiosError: vi.fn(() => false),
 }));
 vi.mock("sonner", () => ({
@@ -31,6 +31,9 @@ const makeRefs = () => ({
   latestAppState: { current: null as any },
   isBootstrappingScene: { current: true },
   hasHydratedInitialScene: { current: false },
+  libraryItems: { current: [] as readonly any[] },
+  libraryVersion: { current: 0 },
+  libraryHydrated: { current: false },
 });
 
 const makeParams = (over: Record<string, any> = {}) => ({
@@ -47,11 +50,13 @@ const makeParams = (over: Record<string, any> = {}) => ({
   setLoadError: vi.fn(),
   recordElementVersion: vi.fn(),
   normalizeImageElementStatus: (els?: readonly any[]) => els ?? [],
+  normalizeTextElementDimensions: (elements: readonly any[]) => elements,
   ...over,
 });
 
 describe("useEditorSceneLoader", () => {
   const getDrawing = vi.mocked(api.getDrawing);
+  const getLibrary = vi.mocked(api.getLibrary);
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -117,6 +122,25 @@ describe("useEditorSceneLoader", () => {
     rerender({ user: { id: "u1" } });
     await Promise.resolve();
     expect(getDrawing).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps library persistence paused when the library read fails", async () => {
+    getDrawing.mockResolvedValue({
+      name: "A",
+      elements: [],
+      files: {},
+      appState: {},
+      version: 1,
+      accessLevel: "owner",
+    } as any);
+    getLibrary.mockRejectedValue(new Error("network"));
+    const params = makeParams();
+
+    renderHook(() => useEditorSceneLoader(params));
+
+    await waitFor(() => expect(params.setInitialData).toHaveBeenCalled());
+    expect(params.refs.libraryHydrated.current).toBe(false);
+    expect(params.refs.libraryItems.current).toEqual([]);
   });
 
   describe("progressive file streaming", () => {

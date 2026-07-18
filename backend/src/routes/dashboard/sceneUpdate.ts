@@ -67,6 +67,7 @@ export type ApplySceneUpdateArgs = {
   versionGuard: number | "optimistic" | "none";
   // Retries only apply to the "optimistic" guard.
   maxRetries?: number;
+  snapshotMinIntervalMs?: number;
   // Produces the next scene from the authoritative current row. Runs inside
   // the transaction so it always sees committed state.
   mutate: (current: DrawingRow) => SceneMutation | Promise<SceneMutation>;
@@ -98,6 +99,7 @@ export const applySceneUpdateTx = async (
     versionGuard,
     mutate,
     maxRetries = 0,
+    snapshotMinIntervalMs = 0,
   } = args;
 
   const attempts = versionGuard === "optimistic" ? maxRetries + 1 : 1;
@@ -117,15 +119,26 @@ export const applySceneUpdateTx = async (
 
         const mutation = await mutate(current);
 
-        await tx.drawingSnapshot.create({
-          data: {
-            drawingId,
-            version: current.version,
-            elements: current.elements,
-            appState: current.appState,
-            files: current.files,
-          },
-        });
+        const latestSnapshot = snapshotMinIntervalMs > 0
+          ? await tx.drawingSnapshot.findFirst({
+              where: { drawingId },
+              select: { createdAt: true },
+              orderBy: { createdAt: "desc" },
+            })
+          : null;
+        const shouldSnapshot = snapshotMinIntervalMs === 0 || !latestSnapshot ||
+          Date.now() - latestSnapshot.createdAt.getTime() >= snapshotMinIntervalMs;
+        if (shouldSnapshot) {
+          await tx.drawingSnapshot.create({
+            data: {
+              drawingId,
+              version: current.version,
+              elements: current.elements,
+              appState: current.appState,
+              files: current.files,
+            },
+          });
+        }
 
         const writeData: Prisma.DrawingUpdateInput = {
           ...mutation.data,

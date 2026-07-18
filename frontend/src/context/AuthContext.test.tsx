@@ -5,13 +5,24 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthProvider, useAuth } from "./AuthContext";
 
 const Probe = () => {
-  const { loading, authEnabled, authStatusError, retryAuthStatus } = useAuth();
+  const {
+    user,
+    loading,
+    authEnabled,
+    authStatusError,
+    retryAuthStatus,
+    updateUser,
+  } = useAuth();
   return (
     <div>
       <span data-testid="loading">{String(loading)}</span>
       <span data-testid="auth-enabled">{String(authEnabled)}</span>
       <span data-testid="auth-status-error">{String(authStatusError)}</span>
+      <span data-testid="user">{JSON.stringify(user)}</span>
       <button data-testid="retry" onClick={() => void retryAuthStatus()}>retry</button>
+      <button data-testid="update-user" onClick={() => updateUser({ email: "new@example.com" })}>
+        update user
+      </button>
     </div>
   );
 };
@@ -171,5 +182,50 @@ describe("AuthProvider", () => {
       expect(screen.getByTestId("auth-enabled").textContent).toBe("true");
     });
     expect(screen.getByTestId("auth-status-error").textContent).toBe("null");
+  });
+
+  it("merges profile updates without dropping existing authorization fields", async () => {
+    const storage = new Map<string, string>();
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => storage.set(key, value),
+        removeItem: (key: string) => storage.delete(key),
+      },
+    });
+
+    vi.spyOn(axios, "get")
+      .mockResolvedValueOnce({ data: { authEnabled: true } })
+      .mockResolvedValueOnce({
+        data: {
+          user: {
+            id: "u1",
+            email: "old@example.com",
+            name: "User One",
+            role: "ADMIN",
+            mustResetPassword: false,
+          },
+        },
+      });
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <Probe />
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("user").textContent).toContain("old@example.com");
+    });
+    fireEvent.click(screen.getByTestId("update-user"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("user").textContent).toContain("new@example.com");
+    });
+    const stored = JSON.parse(storage.get("excalidash-user") || "null");
+    expect(stored).toMatchObject({ email: "new@example.com", role: "ADMIN" });
   });
 });

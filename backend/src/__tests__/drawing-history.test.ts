@@ -47,6 +47,7 @@ function buildApp() {
       findMany: vi.fn(),
       updateMany: vi.fn(),
       update: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
     },
     drawingSnapshot: {
       create: vi.fn(),
@@ -57,6 +58,7 @@ function buildApp() {
     drawingPermission: { findMany: vi.fn().mockResolvedValue([]) },
     drawingLinkShare: { findMany: vi.fn().mockResolvedValue([]) },
     collection: { findFirst: vi.fn() },
+    $transaction: vi.fn(async (fn: any) => fn(prisma)),
   } as any;
 
   const app = express();
@@ -183,7 +185,8 @@ describe("Drawing Version History", () => {
       prisma.drawing.findFirst.mockResolvedValue(mockDrawing);
       prisma.drawingSnapshot.findFirst.mockResolvedValue(mockSnapshot);
       prisma.drawingSnapshot.create.mockResolvedValue({});
-      prisma.drawing.update.mockResolvedValue({
+      prisma.drawing.updateMany.mockResolvedValue({ count: 1 });
+      prisma.drawing.findUniqueOrThrow.mockResolvedValue({
         ...mockDrawing,
         elements: mockSnapshot.elements,
         appState: mockSnapshot.appState,
@@ -191,7 +194,9 @@ describe("Drawing Version History", () => {
         version: 6,
       });
 
-      const res = await request(app).post(`/drawings/${MOCK_DRAWING_ID}/history/${MOCK_SNAPSHOT_ID}/restore`);
+      const res = await request(app)
+        .post(`/drawings/${MOCK_DRAWING_ID}/history/${MOCK_SNAPSHOT_ID}/restore`)
+        .send({ version: 5 });
 
       expect(res.status).toBe(200);
 
@@ -205,8 +210,8 @@ describe("Drawing Version History", () => {
       });
 
       // Should update drawing with snapshot data
-      expect(prisma.drawing.update).toHaveBeenCalledWith({
-        where: { id: MOCK_DRAWING_ID },
+      expect(prisma.drawing.updateMany).toHaveBeenCalledWith({
+        where: { id: MOCK_DRAWING_ID, version: 5 },
         data: expect.objectContaining({
           elements: mockSnapshot.elements,
           appState: mockSnapshot.appState,
@@ -215,14 +220,41 @@ describe("Drawing Version History", () => {
       });
     });
 
+    it("rejects a restore without a client version instead of overwriting unseen edits", async () => {
+      const res = await request(app)
+        .post(`/drawings/${MOCK_DRAWING_ID}/history/${MOCK_SNAPSHOT_ID}/restore`)
+        .send({});
+
+      expect(res.status).toBe(400);
+      expect(prisma.drawing.updateMany).not.toHaveBeenCalled();
+    });
+
+
     it("returns 404 for non-existent snapshot", async () => {
       prisma.drawing.findUnique.mockResolvedValue(mockDrawing);
       prisma.drawing.findFirst.mockResolvedValue(mockDrawing);
       prisma.drawingSnapshot.findFirst.mockResolvedValue(null);
 
-      const res = await request(app).post(`/drawings/${MOCK_DRAWING_ID}/history/nonexistent/restore`);
+      const res = await request(app)
+        .post(`/drawings/${MOCK_DRAWING_ID}/history/nonexistent/restore`)
+        .send({ version: 5 });
 
       expect(res.status).toBe(404);
+    });
+
+    it("returns a conflict without creating a backup when the client version is stale", async () => {
+      prisma.drawing.findUnique.mockResolvedValue(mockDrawing);
+      prisma.drawing.findFirst.mockResolvedValue(mockDrawing);
+      prisma.drawingSnapshot.findFirst.mockResolvedValue(mockSnapshot);
+      prisma.drawing.updateMany.mockResolvedValue({ count: 0 });
+
+      const res = await request(app)
+        .post(`/drawings/${MOCK_DRAWING_ID}/history/${MOCK_SNAPSHOT_ID}/restore`)
+        .send({ version: 4 });
+
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe("VERSION_CONFLICT");
+      expect(prisma.drawingSnapshot.create).not.toHaveBeenCalled();
     });
   });
 

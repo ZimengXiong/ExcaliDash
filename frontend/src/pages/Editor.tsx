@@ -1,4 +1,5 @@
 import React, { Suspense, useCallback, useEffect, useState, useRef } from "react";
+import { restoreElements } from "@excalidraw/excalidraw";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { getInitialLangCode } from "../components/LanguageSelector";
 import type { UserIdentity } from "../utils/identity";
@@ -26,10 +27,11 @@ import { useEditorGridStep } from "./editor/useEditorGridStep";
 import { DEFAULT_GRID_STEP } from "../components/GridStepSelector";
 import { useEngineGate } from "./editor/useEngineGate";
 import { EditorLoading } from "./editor/TldrawUnavailable";
-
+import { captureAgentCanvas } from "./editor/captureAgentCanvas";
+import { normalizeTextElementDimensions } from "./editor/normalizeTextElements";
+import { useEditorTextNormalization } from "./editor/useEditorTextNormalization";
 // Code-split: excalidraw-only users download zero tldraw bytes (~1.6MB).
 const TldrawEditorPage = React.lazy(() => import("./tldraw/TldrawEditorPage"));
-
 // Dispatcher: resolve the drawing's engine before mounting the (heavy,
 // excalidraw-specific) editor, so a tldraw row never initializes excalidraw.
 export const Editor: React.FC = () => {
@@ -110,6 +112,9 @@ const ExcalidrawEditor: React.FC = () => {
   const lastPersistedElementsRef = useRef<readonly any[]>([]);
   const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const suspiciousBlankLoadRef = useRef(false);
+  const libraryItemsRef = useRef<readonly any[]>([]);
+  const libraryVersionRef = useRef(0);
+  const libraryHydratedRef = useRef(false);
   const hasSceneChangesSinceLoadRef = useRef(false);
   const lastLocalChangeAtRef = useRef<number>(0);
   const editorContainerRef = useRef<HTMLDivElement>(null);
@@ -117,6 +122,11 @@ const ExcalidrawEditor: React.FC = () => {
   // Agent op batch ids this client originated (chat panel) so the collaboration
   // layer replays them with IMMEDIATELY capture for native Ctrl+Z (D5).
   const selfAgentBatchIdsRef = useRef<Set<string>>(new Set());
+  const normalizeTextDimensions = useCallback(
+    (elements: readonly any[]) =>
+      normalizeTextElementDimensions(elements, restoreElements as any),
+    [],
+  );
   const { resolveSafeSnapshot, normalizeImageElementStatus } =
     useEditorSnapshotGuards({
       lastPersistedElementsRef,
@@ -135,7 +145,7 @@ const ExcalidrawEditor: React.FC = () => {
       replace: true,
     });
   }, [id, location.hash, location.pathname, location.search, navigate]);
-  const { peers, socketMeRef, socketRef, isSyncing, onPointerUpdate } =
+  const { peers, socketMeRef, socketRef, socket, isSyncing, onPointerUpdate } =
     useEditorCollaboration({
       drawingId: id,
       me,
@@ -148,9 +158,18 @@ const ExcalidrawEditor: React.FC = () => {
       latestFilesRef,
       computeElementOrderSig,
       recordElementVersion,
+      normalizeTextElementDimensions: normalizeTextDimensions,
       onAccessDenied: handleSocketAccessDenied,
       selfAgentBatchIdsRef,
     });
+  useEditorTextNormalization({
+    isReady,
+    excalidrawAPI,
+    isSyncing,
+    latestElementsRef,
+    normalizeTextElementDimensions: normalizeTextDimensions,
+    recordElementVersion,
+  });
   const { scanNow: scanFileUploads } = useEditorFileUploads({
     drawingId: id,
     isReady,
@@ -175,7 +194,6 @@ const ExcalidrawEditor: React.FC = () => {
     scanFileUploads,
     setIsReady,
   });
-  useLibraryImportFromUrl({ excalidrawAPIRef: excalidrawAPI, isReady, user });
   useEditorGridStep({ excalidrawAPI, isReady, gridStep });
   const persistenceRefs = React.useMemo(
     () => ({
@@ -194,6 +212,9 @@ const ExcalidrawEditor: React.FC = () => {
       saveQueue: saveQueueRef,
       suspiciousBlankLoad: suspiciousBlankLoadRef,
       uploadedRefs: uploadedFileRefsRef,
+      libraryItems: libraryItemsRef,
+      libraryVersion: libraryVersionRef,
+      libraryHydrated: libraryHydratedRef,
     }),
     [isSyncing],
   );
@@ -210,6 +231,13 @@ const ExcalidrawEditor: React.FC = () => {
     user,
     normalizeImageElementStatus,
     resolveSafeSnapshot,
+  });
+  useLibraryImportFromUrl({
+    excalidrawAPIRef: excalidrawAPI,
+    isReady,
+    user,
+    libraryItemsRef,
+    libraryVersionRef,
   });
   const markSceneChangedSinceLoad = useCallback(() => {
     hasSceneChangesSinceLoadRef.current = true;
@@ -247,6 +275,9 @@ const ExcalidrawEditor: React.FC = () => {
       currentDrawingVersion: currentDrawingVersionRef,
       lastPersistedElements: lastPersistedElementsRef,
       suspiciousBlankLoad: suspiciousBlankLoadRef,
+      libraryItems: libraryItemsRef,
+      libraryVersion: libraryVersionRef,
+      libraryHydrated: libraryHydratedRef,
       hasSceneChangesSinceLoad: hasSceneChangesSinceLoadRef,
       excalidrawAPI,
       latestAppState: latestAppStateRef,
@@ -269,6 +300,7 @@ const ExcalidrawEditor: React.FC = () => {
     setLoadError,
     recordElementVersion,
     normalizeImageElementStatus,
+    normalizeTextElementDimensions: normalizeTextDimensions,
   });
   const canvasHandlerRefs = React.useMemo(
     () => ({
@@ -309,6 +341,9 @@ const ExcalidrawEditor: React.FC = () => {
       savePreview: savePreviewRef,
       suspiciousBlankLoad: suspiciousBlankLoadRef,
       uploadedRefs: uploadedFileRefsRef,
+      libraryItems: libraryItemsRef,
+      libraryVersion: libraryVersionRef,
+      libraryHydrated: libraryHydratedRef,
     }),
     [saveDataRef, savePreviewRef],
   );
@@ -382,6 +417,7 @@ const ExcalidrawEditor: React.FC = () => {
       <EditorDialogs
         drawingId={id}
         drawingName={drawingName}
+        getCurrentVersion={() => currentDrawingVersionRef.current}
         excalidrawAPIRef={excalidrawAPI}
         isHistoryOpen={isHistoryOpen}
         isShareOpen={isShareOpen}
@@ -391,8 +427,11 @@ const ExcalidrawEditor: React.FC = () => {
       />
       <ChatPanel
         drawingId={id}
+        canView={accessLevel !== "none"}
         canEdit={canEdit}
+        socket={socket}
         selfAgentBatchIdsRef={selfAgentBatchIdsRef}
+        captureCanvasContext={() => captureAgentCanvas(excalidrawAPI.current)}
       />
     </>
   );

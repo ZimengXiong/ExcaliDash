@@ -36,8 +36,8 @@ export const registerDrawingHistoryRoutes = (
         return res.status(404).json({ error: "Drawing not found" });
       }
 
-      const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
-      const offset = parseInt(req.query.offset as string) || 0;
+      const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 200);
+      const offset = Math.min(Math.max(parseInt(req.query.offset as string) || 0, 0), 10_000);
 
       const [snapshots, totalCount] = await Promise.all([
         prisma.drawingSnapshot.findMany({
@@ -103,37 +103,34 @@ export const registerDrawingHistoryRoutes = (
         return res.status(404).json({ error: "Drawing not found" });
       }
 
-      const [drawing, snapshot] = await Promise.all([
-        prisma.drawing.findUnique({ where: { id } }),
-        prisma.drawingSnapshot.findFirst({
-          where: { id: snapshotId, drawingId: id },
-        }),
-      ]);
-      if (!drawing) return res.status(404).json({ error: "Drawing not found" });
-      if (!snapshot)
-        return res.status(404).json({ error: "Snapshot not found" });
-
-      // Snapshot current state before restoring (so restore is reversible)
-      await prisma.drawingSnapshot.create({
-        data: {
-          drawingId: id,
-          version: drawing.version,
-          elements: drawing.elements,
-          appState: drawing.appState,
-          files: drawing.files,
-        },
+      const expectedVersion = req.body?.version;
+      if (!Number.isInteger(expectedVersion) || expectedVersion < 0) {
+        return res.status(400).json({
+          error: "Validation error",
+          message: "A current drawing version is required to restore history.",
+        });
+      }
+      const result = await prisma.$transaction(async (tx) => {
+        const [drawing, snapshot] = await Promise.all([
+          tx.drawing.findUnique({ where: { id } }),
+          tx.drawingSnapshot.findFirst({ where: { id: snapshotId, drawingId: id } }),
+        ]);
+        if (!drawing) return { kind: "missing-drawing" as const };
+        if (!snapshot) return { kind: "missing-snapshot" as const };
+        const update = await tx.drawing.updateMany({
+          where: { id, version: expectedVersion },
+          data: { elements: snapshot.elements, appState: snapshot.appState, files: snapshot.files, version: { increment: 1 } },
+        });
+        if (update.count === 0) return { kind: "conflict" as const };
+        // The backup and guarded write commit together, so a conflict cannot
+        // leave a stale "current" snapshot behind.
+        await tx.drawingSnapshot.create({ data: { drawingId: id, version: drawing.version, elements: drawing.elements, appState: drawing.appState, files: drawing.files } });
+        return { kind: "updated" as const, drawing: await tx.drawing.findUniqueOrThrow({ where: { id } }) };
       });
-
-      // Apply snapshot
-      const updated = await prisma.drawing.update({
-        where: { id },
-        data: {
-          elements: snapshot.elements,
-          appState: snapshot.appState,
-          files: snapshot.files,
-          version: { increment: 1 },
-        },
-      });
+      if (result.kind === "missing-drawing") return res.status(404).json({ error: "Drawing not found" });
+      if (result.kind === "missing-snapshot") return res.status(404).json({ error: "Snapshot not found" });
+      if (result.kind === "conflict") return res.status(409).json({ error: "Conflict", code: "VERSION_CONFLICT", message: "Drawing has changed since it was loaded for restore." });
+      const updated = result.drawing;
 
       invalidateDrawingsCache();
 
