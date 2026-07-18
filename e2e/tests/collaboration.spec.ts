@@ -49,8 +49,8 @@ test.describe("Real-time Collaboration", () => {
       await Promise.all([waitForEditor(page1), waitForEditor(page2)]);
 
       // The header always contains the local avatar; the second avatar is the peer.
-      await expect(page1.locator("header div.relative.group")).toHaveCount(2);
-      await expect(page2.locator("header div.relative.group")).toHaveCount(2);
+      await expect(page1.getByTestId("collaborator-avatar")).toHaveCount(2);
+      await expect(page2.getByTestId("collaborator-avatar")).toHaveCount(2);
     } finally {
       await context1.close();
       await context2.close();
@@ -74,7 +74,7 @@ test.describe("Real-time Collaboration", () => {
       await page1.goto(`/editor/${drawing.id}`);
       await page2.goto(`/editor/${drawing.id}`);
       await Promise.all([waitForEditor(page1), waitForEditor(page2)]);
-      await expect(page1.locator("header div.relative.group")).toHaveCount(2);
+      await expect(page1.getByTestId("collaborator-avatar")).toHaveCount(2);
 
       const canvas = interactiveCanvas(page1);
       const box = await canvas.boundingBox();
@@ -130,7 +130,7 @@ test.describe("Real-time Collaboration", () => {
       await page1.goto(`/editor/${drawing.id}`);
       await page2.goto(`/editor/${drawing.id}`);
       await Promise.all([waitForEditor(page1), waitForEditor(page2)]);
-      await expect(page1.locator("header div.relative.group")).toHaveCount(2);
+      await expect(page1.getByTestId("collaborator-avatar")).toHaveCount(2);
 
       const box = await interactiveCanvas(page1).boundingBox();
       if (!box) throw new Error("Interactive canvas not found");

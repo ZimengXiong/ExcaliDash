@@ -11,6 +11,7 @@ import {
   isAxiosError,
   startOidcSignOut,
 } from '../api';
+import { toast } from 'sonner';
 import { clearOidcAutoLoginSuppression, suppressOidcAutoLogin } from '../utils/oidcLogout';
 
 export interface User {
@@ -247,10 +248,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const logout = async () => {
+    let oidcLogout = false;
+    try {
+      oidcLogout = (await authLogout()).oidcLogout;
+    } catch (error) {
+      // Do not claim that the user signed out when the server session could
+      // still be refreshed. This also avoids an enforced-OIDC redirect loop.
+      console.error("Logout failed", error);
+      toast.error("Could not sign out. Please try again.");
+      return;
+    }
     suppressOidcAutoLogin();
-    const oidcLogout = await authLogout()
-      .then((result) => result.oidcLogout)
-      .catch(() => false);
     localStorage.removeItem(USER_KEY);
     setUser(null);
     if (oidcLogout) {

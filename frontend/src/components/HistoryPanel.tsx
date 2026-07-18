@@ -6,6 +6,7 @@ import clsx from "clsx";
 
 type Props = {
   drawingId: string;
+  getCurrentVersion: () => number | null;
   isOpen: boolean;
   onClose: () => void;
   onRestore: (snapshot: api.DrawingSnapshotFull) => void;
@@ -27,6 +28,7 @@ function timeAgo(dateStr: string): string {
 
 export const HistoryPanel: React.FC<Props> = ({
   drawingId,
+  getCurrentVersion,
   isOpen,
   onClose,
   onRestore,
@@ -99,7 +101,11 @@ export const HistoryPanel: React.FC<Props> = ({
       if (!data || data.id !== snapshotId) {
         data = await api.getDrawingSnapshot(drawingId, snapshotId);
       }
-      await api.restoreDrawingSnapshot(drawingId, snapshotId);
+      const version = getCurrentVersion();
+      if (version === null) {
+        throw new Error("Drawing is still loading. Please try again.");
+      }
+      await api.restoreDrawingSnapshot(drawingId, snapshotId, version);
       onRestore(data);
       onClose();
     } catch {

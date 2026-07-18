@@ -201,8 +201,7 @@ export const useEditorCommands = ({
   const handleLibraryChange = useCallback(
     (items: readonly any[]) => {
       if (!canEdit || !user) return;
-      if (items.length > 0 && refs.libraryHydrated) refs.libraryHydrated.current = true;
-      if (items.length === 0 && refs.libraryHydrated?.current === false && (refs.libraryItems?.current.length ?? 0) > 0) return;
+      if (refs.libraryHydrated?.current === false) return;
       debouncedSaveLibrary([...items]);
     },
     [canEdit, debouncedSaveLibrary, user],

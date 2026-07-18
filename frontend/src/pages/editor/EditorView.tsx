@@ -71,7 +71,7 @@ const UserAvatar = ({
   label: string;
   inactive?: boolean;
 }) => (
-  <div className="relative group">
+  <div className="relative group" data-testid="collaborator-avatar">
     <div
       className={clsx(
         "w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-white shadow-sm transition-all duration-300",

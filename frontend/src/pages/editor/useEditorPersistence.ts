@@ -302,7 +302,7 @@ export const useEditorPersistence = ({
 
   saveLibraryRef.current = async (items: any[]) => {
     if (!user) return;
-    if (items.length === 0 && refs.libraryHydrated?.current === false && (refs.libraryItems?.current.length ?? 0) > 0) return;
+    if (refs.libraryHydrated?.current === false) return;
     librarySaveQueueRef.current = librarySaveQueueRef.current.then(async () => {
       try {
         const saved = await api.updateLibrary(items, refs.libraryVersion?.current ?? 0);
