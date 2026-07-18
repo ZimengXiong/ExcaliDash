@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DrawingSummary } from "../../types";
 import { getSelectionBounds, type Point, type SelectionBounds } from "./shared";
 
@@ -19,6 +19,21 @@ export const useDashboardSelection = ({
   const [isDragSelecting, setIsDragSelecting] = useState(false);
   const [dragStart, setDragStart] = useState<Point | null>(null);
   const [dragCurrent, setDragCurrent] = useState<Point | null>(null);
+  const drawingsRef = useRef(drawings);
+  const selectedIdsRef = useRef(selectedIds);
+  const dragStartRef = useRef<Point | null>(null);
+  const dragCurrentRef = useRef<Point | null>(null);
+
+  // Document-level listeners intentionally stay stable while the dashboard
+  // re-renders. Sync their inputs after render rather than mutating refs while
+  // rendering, which also keeps the listeners current for keyboard shortcuts.
+  useEffect(() => {
+    drawingsRef.current = drawings;
+  }, [drawings]);
+
+  useEffect(() => {
+    selectedIdsRef.current = selectedIds;
+  }, [selectedIds]);
 
   const resetSelection = useCallback(() => {
     setSelectedIds(new Set());
@@ -30,21 +45,25 @@ export const useDashboardSelection = ({
   }, [dragStart, dragCurrent]);
 
   useEffect(() => {
-    if (!isDragSelecting) return;
     const handleMouseMove = (event: MouseEvent) => {
-      setDragCurrent({ x: event.clientX, y: event.clientY });
+      if (!dragStartRef.current) return;
+      const point = { x: event.clientX, y: event.clientY };
+      dragCurrentRef.current = point;
+      setDragCurrent(point);
     };
     const handleMouseUp = () => {
-      if (!dragStart || !dragCurrent) {
+      const start = dragStartRef.current;
+      const current = dragCurrentRef.current;
+      if (!start || !current) {
         setIsDragSelecting(false);
         setDragStart(null);
         setDragCurrent(null);
         return;
       }
-      const selectionRect = getSelectionBounds(dragStart, dragCurrent);
+      const selectionRect = getSelectionBounds(start, current);
       if (selectionRect.width > 5 || selectionRect.height > 5) {
-        const nextSelectedIds = new Set(selectedIds);
-        drawings.forEach((drawing) => {
+        const nextSelectedIds = new Set(selectedIdsRef.current);
+        drawingsRef.current.forEach((drawing) => {
           const card = document.getElementById(`drawing-card-${drawing.id}`);
           if (!card) return;
           const rect = card.getBoundingClientRect();
@@ -62,6 +81,8 @@ export const useDashboardSelection = ({
       setIsDragSelecting(false);
       setDragStart(null);
       setDragCurrent(null);
+      dragStartRef.current = null;
+      dragCurrentRef.current = null;
     };
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
@@ -69,7 +90,7 @@ export const useDashboardSelection = ({
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragSelecting, dragStart, dragCurrent, drawings, selectedIds, setSelectedIds]);
+  }, [setSelectedIds]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -81,7 +102,9 @@ export const useDashboardSelection = ({
           return;
         }
         event.preventDefault();
-        setSelectedIds(new Set(drawings.map((drawing) => drawing.id)));
+        setSelectedIds(
+          new Set(drawingsRef.current.map((drawing) => drawing.id)),
+        );
       }
       if (event.key === "Escape") {
         event.preventDefault();
@@ -95,7 +118,7 @@ export const useDashboardSelection = ({
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [drawings, searchInputRef, setSelectedIds]);
+  }, [searchInputRef, setSelectedIds]);
 
   const handleMouseDown = (event: React.MouseEvent) => {
     if (
@@ -114,9 +137,12 @@ export const useDashboardSelection = ({
     if (!event.shiftKey && !event.ctrlKey && !event.metaKey) {
       setSelectedIds(new Set());
     }
+    const point = { x: event.clientX, y: event.clientY };
+    dragStartRef.current = point;
+    dragCurrentRef.current = point;
     setIsDragSelecting(true);
-    setDragStart({ x: event.clientX, y: event.clientY });
-    setDragCurrent({ x: event.clientX, y: event.clientY });
+    setDragStart(point);
+    setDragCurrent(point);
   };
 
   const handleToggleSelection = (id: string, event: React.MouseEvent) => {

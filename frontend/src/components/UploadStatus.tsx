@@ -64,7 +64,7 @@ export const UploadStatus: React.FC = () => {
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2 isolate" ref={popoverRef}>
       {isOpen && (
-        <div className="w-80 bg-white dark:bg-neutral-900 rounded-xl border-2 border-black dark:border-neutral-700 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] overflow-hidden animate-in slide-in-from-bottom-5 fade-in duration-200 mb-2">
+        <div className="w-80 bg-white dark:bg-neutral-900 rounded-xl border-2 border-black dark:border-neutral-700 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] overflow-hidden animate-in slide-in-from-bottom-5 fade-in duration-200 mb-2" role="status" aria-live="polite">
           <div className="p-3 border-b border-slate-100 dark:border-neutral-800 flex items-center justify-between bg-slate-50 dark:bg-neutral-800/50">
             <h3 className="font-bold text-sm text-slate-700 dark:text-slate-200">
               Uploads ({activeCount > 0 ? `${activeCount} active` : 'Done'})
@@ -98,6 +98,7 @@ export const UploadStatus: React.FC = () => {
                     <button 
                       onClick={() => removeTask(task.id)}
                       className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-opacity p-0.5"
+                      aria-label={`Remove ${task.fileName} from uploads`}
                     >
                       <X size={14} />
                     </button>
@@ -114,7 +115,7 @@ export const UploadStatus: React.FC = () => {
                       />
                     </div>
                     {task.status === 'error' ? (
-                       <span className="text-[10px] text-rose-500 font-medium truncate max-w-[80px]" title={task.error}>Failed</span>
+                       <span className="text-[10px] text-rose-500 font-medium truncate max-w-[80px]" title={task.error}>{task.error || 'Failed'}</span>
                     ) : (
                        <span className="text-[10px] text-slate-400 font-medium w-8 text-right">{task.progress}%</span>
                     )}
@@ -128,6 +129,8 @@ export const UploadStatus: React.FC = () => {
 
       <button
         onClick={() => setIsOpen(!isOpen)}
+        aria-label={isOpen ? 'Hide upload status' : 'Show upload status'}
+        aria-expanded={isOpen}
         className={clsx(
           "h-12 w-12 rounded-full border-2 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] flex items-center justify-center transition-all hover:-translate-y-1 active:translate-y-0 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] bg-white dark:bg-neutral-800 text-slate-900 dark:text-white relative",
           isOpen && "bg-slate-100 dark:bg-neutral-700 translate-y-0 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)]"
