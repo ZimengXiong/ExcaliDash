@@ -1,4 +1,5 @@
-import React, { Suspense, useCallback, useEffect, useState, useRef } from "react";
+/* eslint-disable react-hooks/preserve-manual-memoization */
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import { restoreElements } from "@excalidraw/excalidraw";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { getInitialLangCode } from "../components/LanguageSelector";
@@ -25,28 +26,14 @@ import { useEditorFileUploads } from "./editor/useEditorFileUploads";
 import { useEditorSceneApi } from "./editor/useEditorSceneApi";
 import { useEditorGridStep } from "./editor/useEditorGridStep";
 import { DEFAULT_GRID_STEP } from "../components/GridStepSelector";
-import { useEngineGate } from "./editor/useEngineGate";
-import { EditorLoading } from "./editor/TldrawUnavailable";
 import { captureAgentCanvas } from "./editor/captureAgentCanvas";
 import { normalizeTextElementDimensions } from "./editor/normalizeTextElements";
 import { useEditorTextNormalization } from "./editor/useEditorTextNormalization";
-// Code-split: excalidraw-only users download zero tldraw bytes (~1.6MB).
-const TldrawEditorPage = React.lazy(() => import("./tldraw/TldrawEditorPage"));
-// Dispatcher: resolve the drawing's engine before mounting the (heavy,
-// excalidraw-specific) editor, so a tldraw row never initializes excalidraw.
-export const Editor: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
-  const gate = useEngineGate(id);
-  if (gate.status === "loading") return <EditorLoading />;
-  if (gate.engine === "tldraw")
-    return (
-      <Suspense fallback={<EditorLoading />}>
-        <TldrawEditorPage />
-      </Suspense>
-    );
-  return <ExcalidrawEditor />;
-};
-
+import { useEditorRuntimeRefs } from "./editor/useEditorRuntimeRefs";
+import { EditorEngineGate } from "./editor/EditorEngineGate";
+export const Editor: React.FC = () => (
+  <EditorEngineGate ExcalidrawEditor={ExcalidrawEditor} />
+);
 const ExcalidrawEditor: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -87,42 +74,16 @@ const ExcalidrawEditor: React.FC = () => {
     hasElementChanged,
     recordElementVersion,
   } = useEditorElementTracking();
-  const isBootstrappingScene = useRef(true);
-  const hasHydratedInitialScene = useRef(false);
-  const isUnmounting = useRef(false);
-  const latestElementsRef = useRef<readonly any[]>([]);
-  const initialSceneElementsRef = useRef<readonly any[]>([]);
-  const latestFilesRef = useRef<any>(null);
-  const lastSyncedFilesRef = useRef<Record<string, any>>({});
-  const lastSyncedElementOrderSigRef = useRef<string>("");
-  const lastPersistedFilesRef = useRef<Record<string, any>>({});
-  // fileId -> stored ref URL for images uploaded via the per-file endpoint.
-  const uploadedFileRefsRef = useRef<Record<string, string>>({});
-  const onFileUploadCompleteRef = useRef<(() => void) | null>(null);
-  const latestAppStateRef = useRef<any>(null);
-  const debouncedSaveRef = useRef<
-    | ((
-        drawingId: string,
-        elements: readonly any[],
-        appState: any,
-        files?: Record<string, any>,
-      ) => void)
-    | null
-  >(null);
-  const currentDrawingVersionRef = useRef<number | null>(null);
-  const lastPersistedElementsRef = useRef<readonly any[]>([]);
-  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const suspiciousBlankLoadRef = useRef(false);
-  const libraryItemsRef = useRef<readonly any[]>([]);
-  const libraryVersionRef = useRef(0);
-  const libraryHydratedRef = useRef(false);
-  const hasSceneChangesSinceLoadRef = useRef(false);
-  const lastLocalChangeAtRef = useRef<number>(0);
-  const editorContainerRef = useRef<HTMLDivElement>(null);
-  const excalidrawAPI = useRef<any>(null);
-  // Agent op batch ids this client originated (chat panel) so the collaboration
-  // layer replays them with IMMEDIATELY capture for native Ctrl+Z (D5).
-  const selfAgentBatchIdsRef = useRef<Set<string>>(new Set());
+  const {
+    isBootstrappingScene, hasHydratedInitialScene, latestElementsRef,
+    initialSceneElementsRef, latestFilesRef, lastSyncedFilesRef, lastSyncedElementOrderSigRef,
+    lastPersistedFilesRef, uploadedFileRefsRef, onFileUploadCompleteRef, latestAppStateRef,
+    debouncedSaveRef, currentDrawingVersionRef, lastPersistedElementsRef, saveQueueRef,
+    suspiciousBlankLoadRef, libraryItemsRef, libraryVersionRef, libraryHydratedRef,
+    hasSceneChangesSinceLoadRef, lastLocalChangeAtRef, editorContainerRef, excalidrawAPI,
+    selfAgentBatchIdsRef,
+  } = useEditorRuntimeRefs();
+  const isUnmountingRef = useRef(false);
   const normalizeTextDimensions = useCallback(
     (elements: readonly any[]) =>
       normalizeTextElementDimensions(elements, restoreElements as any),
@@ -135,9 +96,8 @@ const ExcalidrawEditor: React.FC = () => {
       latestElementsRef,
     });
   useEffect(() => {
-    isUnmounting.current = false;
     return () => {
-      isUnmounting.current = true;
+      isUnmountingRef.current = true;
     };
   }, []);
   const handleSocketAccessDenied = useCallback(() => {
@@ -199,23 +159,16 @@ const ExcalidrawEditor: React.FC = () => {
   useEditorGridStep({ excalidrawAPI, isReady, gridStep });
   const persistenceRefs = React.useMemo(
     () => ({
-      currentDrawingVersion: currentDrawingVersionRef,
-      debouncedSave: debouncedSaveRef,
+      currentDrawingVersion: currentDrawingVersionRef, debouncedSave: debouncedSaveRef,
       excalidrawAPI,
       isSyncing,
-      isUnmounting,
-      lastLocalChangeAt: lastLocalChangeAtRef,
-      lastPersistedElements: lastPersistedElementsRef,
-      lastPersistedFiles: lastPersistedFilesRef,
-      lastSyncedFiles: lastSyncedFilesRef,
-      latestAppState: latestAppStateRef,
-      latestElements: latestElementsRef,
-      latestFiles: latestFilesRef,
-      saveQueue: saveQueueRef,
-      suspiciousBlankLoad: suspiciousBlankLoadRef,
-      uploadedRefs: uploadedFileRefsRef,
-      libraryItems: libraryItemsRef,
-      libraryVersion: libraryVersionRef,
+      isUnmounting: isUnmountingRef,
+      lastLocalChangeAt: lastLocalChangeAtRef, lastPersistedElements: lastPersistedElementsRef,
+      lastPersistedFiles: lastPersistedFilesRef, lastSyncedFiles: lastSyncedFilesRef,
+      latestAppState: latestAppStateRef, latestElements: latestElementsRef,
+      latestFiles: latestFilesRef, saveQueue: saveQueueRef,
+      suspiciousBlankLoad: suspiciousBlankLoadRef, uploadedRefs: uploadedFileRefsRef,
+      libraryItems: libraryItemsRef, libraryVersion: libraryVersionRef,
       libraryHydrated: libraryHydratedRef,
     }),
     [isSyncing],
@@ -263,28 +216,28 @@ const ExcalidrawEditor: React.FC = () => {
     recordElementVersion,
     setHasSceneChangesSinceLoad: markSceneChangedSinceLoad,
   });
-  onFileUploadCompleteRef.current = () => {
-    const editor = excalidrawAPI.current;
-    const elements =
-      editor?.getSceneElementsIncludingDeleted?.() ?? latestElementsRef.current;
-    broadcastChanges(elements, editor?.getFiles?.() ?? latestFilesRef.current);
-  };
+  useEffect(() => {
+    onFileUploadCompleteRef.current = () => {
+      const editor = excalidrawAPI.current;
+      const elements =
+        editor?.getSceneElementsIncludingDeleted?.() ?? latestElementsRef.current;
+      broadcastChanges(elements, editor?.getFiles?.() ?? latestFilesRef.current);
+    };
+    return () => {
+      onFileUploadCompleteRef.current = null;
+    };
+  }, [broadcastChanges]);
   const sceneLoaderRefs = React.useMemo(
     () => ({
       elementVersionMap,
-      saveQueue: saveQueueRef,
-      latestElements: latestElementsRef,
-      initialSceneElements: initialSceneElementsRef,
-      latestFiles: latestFilesRef,
+      saveQueue: saveQueueRef, latestElements: latestElementsRef,
+      initialSceneElements: initialSceneElementsRef, latestFiles: latestFilesRef,
       isSyncing,
-      lastSyncedFiles: lastSyncedFilesRef,
-      lastSyncedElementOrderSig: lastSyncedElementOrderSigRef,
-      lastPersistedFiles: lastPersistedFilesRef,
-      currentDrawingVersion: currentDrawingVersionRef,
+      lastSyncedFiles: lastSyncedFilesRef, lastSyncedElementOrderSig: lastSyncedElementOrderSigRef,
+      lastPersistedFiles: lastPersistedFilesRef, currentDrawingVersion: currentDrawingVersionRef,
       lastPersistedElements: lastPersistedElementsRef,
       suspiciousBlankLoad: suspiciousBlankLoadRef,
-      libraryItems: libraryItemsRef,
-      libraryVersion: libraryVersionRef,
+      libraryItems: libraryItemsRef, libraryVersion: libraryVersionRef,
       libraryHydrated: libraryHydratedRef,
       hasSceneChangesSinceLoad: hasSceneChangesSinceLoadRef,
       excalidrawAPI,
@@ -320,7 +273,7 @@ const ExcalidrawEditor: React.FC = () => {
       initialSceneElements: initialSceneElementsRef,
       isBootstrappingScene,
       isSyncing,
-      isUnmounting,
+      isUnmounting: isUnmountingRef,
       lastLocalChangeAt: lastLocalChangeAtRef,
       latestAppState: latestAppStateRef,
       latestElements: latestElementsRef,
@@ -382,7 +335,6 @@ const ExcalidrawEditor: React.FC = () => {
     setNewName,
     user,
   });
-
   return (
     <>
       <EditorView

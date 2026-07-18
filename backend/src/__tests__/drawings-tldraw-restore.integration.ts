@@ -88,14 +88,14 @@ describe("Drawings - tldraw history restore & shared readonly access", () => {
       .set("User-Agent", userAgent);
   };
 
-  const restore = async (id: string, snapshotId: string) => {
+  const restore = async (id: string, snapshotId: string, version: number) => {
     const { agent, csrfHeader, csrfToken } = await agentWithCsrf();
     return agent
       .post(`/drawings/${id}/history/${snapshotId}/restore`)
       .set("Authorization", `Bearer ${ownerToken}`)
       .set("User-Agent", userAgent)
       .set(csrfHeader, csrfToken)
-      .send();
+      .send({ version });
   };
 
   const createLinkShare = async (
@@ -180,7 +180,7 @@ describe("Drawings - tldraw history restore & shared readonly access", () => {
 
       // Restoring returns the drawing to the v1 document verbatim and bumps
       // the version forward (restore is itself a versioned write).
-      const restored = await restore(id, snap.id);
+      const restored = await restore(id, snap.id, updated.body.version);
       expect(restored.status).toBe(200);
       expect(restored.body.elements).toEqual(v1Doc);
       expect(restored.body.version).toBe(updated.body.version + 1);

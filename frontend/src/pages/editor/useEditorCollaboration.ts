@@ -7,11 +7,14 @@ import { filesNeedRehydration, rehydrateFilesFromUrls } from "../../utils/rehydr
 import { buildRemoteSceneUpdate } from "./shared";
 import { useAgentBatchApplier } from "./useAgentBatchApplier";
 import { attachCanvasZoomForwarding } from "./canvasZoomForwarding";
-
+import {
+  createDemandDrivenRafScheduler,
+  getSocketUrl,
+} from "./editorCollaborationScheduler";
+export { createDemandDrivenRafScheduler } from "./editorCollaborationScheduler";
 interface Peer extends UserIdentity {
   isActive: boolean;
 }
-
 type UseEditorCollaborationInput = {
   drawingId?: string;
   me: UserIdentity;
@@ -30,31 +33,6 @@ type UseEditorCollaborationInput = {
   // IMMEDIATELY-capture so native Ctrl+Z works (D5). See useAgentBatchApplier.
   selfAgentBatchIdsRef?: MutableRefObject<Set<string>>;
 };
-
-const getSocketUrl = () =>
-  import.meta.env.VITE_API_URL === "/api"
-    ? window.location.origin
-    : import.meta.env.VITE_API_URL ||
-      import.meta.env.VITE_DEV_BACKEND_URL ||
-      "http://localhost:8000";
-
-export const createDemandDrivenRafScheduler = (callback: () => void) => {
-  let frameId: number | null = null;
-  return {
-    schedule: () => {
-      if (frameId !== null) return;
-      frameId = requestAnimationFrame(() => {
-        frameId = null;
-        callback();
-      });
-    },
-    cancel: () => {
-      if (frameId !== null) cancelAnimationFrame(frameId);
-      frameId = null;
-    },
-  };
-};
-
 export const useEditorCollaboration = ({
   drawingId,
   me,
@@ -97,15 +75,12 @@ export const useEditorCollaboration = ({
     normalizeTextElementDimensions,
     selfAgentBatchIdsRef,
   });
-
   useEffect(() => {
     setSocketMe(me);
   }, [me.id, me.name, me.initials, me.color]);
-
   useEffect(() => {
     socketMeRef.current = socketMe;
   }, [socketMe]);
-
   useEffect(() => {
     if (!drawingId || !isReady) return;
     const socket = io(getSocketUrl(), {
@@ -390,7 +365,6 @@ export const useEditorCollaboration = ({
     onAccessDenied,
     enqueueAgentBatch,
   ]);
-
   const onPointerUpdate = useCallback(
     (payload: any) => {
       const now = Date.now();
@@ -409,7 +383,6 @@ export const useEditorCollaboration = ({
     },
     [drawingId],
   );
-
   return {
     peers,
     socketMeRef,

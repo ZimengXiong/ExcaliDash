@@ -221,6 +221,9 @@ describe("Drawing Version History", () => {
     });
 
     it("rejects a restore without a client version instead of overwriting unseen edits", async () => {
+      prisma.drawing.findUnique.mockResolvedValue(mockDrawing);
+      prisma.drawing.findFirst.mockResolvedValue(mockDrawing);
+
       const res = await request(app)
         .post(`/drawings/${MOCK_DRAWING_ID}/history/${MOCK_SNAPSHOT_ID}/restore`)
         .send({});

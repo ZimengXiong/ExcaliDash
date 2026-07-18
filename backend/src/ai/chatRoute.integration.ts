@@ -10,11 +10,7 @@ import {
 } from "../__tests__/testUtils";
 import { encryptSecret } from "./crypto";
 import { encodeStoredAiProfiles } from "./settings";
-
-// Scripted provider completions, controlled per test. Hoisted so the vi.mock
-// factory (also hoisted) can close over the same reference.
 const scripted = vi.hoisted(() => ({ queue: [] as any[], calls: 0, requests: [] as any[] }));
-
 vi.mock("./providers/anthropic", () => ({
   anthropicAdapter: {
     complete: async (req: any) => {
@@ -27,9 +23,7 @@ vi.mock("./providers/anthropic", () => ({
     },
   },
 }));
-
 import { registerAiRoutes } from "./chatRoute";
-
 const parseJsonField = <T>(raw: string | null | undefined, fallback: T): T => {
   if (!raw) return fallback;
   try {
@@ -38,9 +32,7 @@ const parseJsonField = <T>(raw: string | null | undefined, fallback: T): T => {
     return fallback;
   }
 };
-
 type Emitted = { room: string; event: string; payload: any };
-
 const buildApp = (prisma: PrismaClient, userId: string, emitted: Emitted[], credentialType = "jwt") => {
   const app = express();
   app.use(express.json());
@@ -67,7 +59,6 @@ const buildApp = (prisma: PrismaClient, userId: string, emitted: Emitted[], cred
   });
   return app;
 };
-
 const createDrawing = async (prisma: PrismaClient, userId: string) =>
   prisma.drawing.create({
     data: {
@@ -78,7 +69,6 @@ const createDrawing = async (prisma: PrismaClient, userId: string) =>
       userId,
     },
   });
-
 const enableAi = async (prisma: PrismaClient) => {
   await prisma.systemConfig.upsert({
     where: { id: "default" },
@@ -86,11 +76,9 @@ const enableAi = async (prisma: PrismaClient) => {
     create: { id: "default", aiProvider: "anthropic", aiApiKeyEncrypted: encryptSecret("sk-test") },
   });
 };
-
 describe("ai/chatRoute", () => {
   let prisma: PrismaClient;
   let userId: string;
-
   beforeAll(async () => {
     setupTestDb();
     prisma = getTestPrisma();
@@ -100,18 +88,15 @@ describe("ai/chatRoute", () => {
     });
     userId = user.id;
   });
-
   afterAll(async () => {
     await cleanupTestDb(prisma);
   });
-
   beforeEach(async () => {
     scripted.queue = [];
     scripted.calls = 0;
     scripted.requests = [];
     await prisma.systemConfig.deleteMany({});
   });
-
   it("GET /ai/status reports availability", async () => {
     await enableAi(prisma);
     const app = buildApp(prisma, userId, []);
@@ -120,10 +105,8 @@ describe("ai/chatRoute", () => {
     expect(res.body.available).toBe(true);
     expect(res.body.provider).toBe("anthropic");
     expect(res.body.keyConfigured).toBe(true);
-    // Never leak the key material.
     expect(JSON.stringify(res.body)).not.toContain("sk-test");
   });
-
   it("prompts users to connect the built-in ChatGPT provider", async () => {
     const app = buildApp(prisma, userId, []);
     const drawing = await createDrawing(prisma, userId);
@@ -133,7 +116,6 @@ describe("ai/chatRoute", () => {
     expect(res.status).toBe(409);
     expect(res.body.code).toBe("CHATGPT_RECONNECT");
   });
-
   it("rejects agent/API-key principals", async () => {
     await enableAi(prisma);
     const drawing = await createDrawing(prisma, userId);
@@ -143,7 +125,6 @@ describe("ai/chatRoute", () => {
       .send({ drawingId: drawing.id, messages: [{ role: "user", content: "hi" }] });
     expect(res.status).toBe(403);
   });
-
   it("runs the tool loop, applies ops, and streams SSE events", async () => {
     await enableAi(prisma);
     const drawing = await createDrawing(prisma, userId);
@@ -165,7 +146,6 @@ describe("ai/chatRoute", () => {
     const res = await request(app)
       .post("/ai/chat")
       .send({ drawingId: drawing.id, messages: [{ role: "user", content: "add a box" }] });
-
     expect(res.status).toBe(200);
     expect(scripted.calls).toBe(2);
     expect(res.text).toContain("event: tool_call");
@@ -173,17 +153,12 @@ describe("ai/chatRoute", () => {
     expect(res.text).toContain("event: ops_applied");
     expect(res.text).toContain("event: token");
     expect(res.text).toContain("event: done");
-
-    // Ops persisted: version bumped and an element exists.
     const updated = await prisma.drawing.findUnique({ where: { id: drawing.id } });
     expect(updated!.version).toBeGreaterThan(drawing.version);
     const elements = parseJsonField<any[]>(updated!.elements, []);
     expect(elements.some((el) => el.type === "rectangle")).toBe(true);
-
-    // Broadcast to the drawing room.
     expect(emitted.some((e) => e.event === "element-update" && e.room === `drawing_${drawing.id}`)).toBe(true);
   });
-
   it("streams thinking summaries independently from answer tokens", async () => {
     await enableAi(prisma);
     const drawing = await createDrawing(prisma, userId);
@@ -197,14 +172,12 @@ describe("ai/chatRoute", () => {
     const res = await request(buildApp(prisma, userId, []))
       .post("/ai/chat")
       .send({ drawingId: drawing.id, messages: [{ role: "user", content: "review" }] });
-
     expect(res.status).toBe(200);
     expect(res.text).toContain("event: thinking");
     expect(res.text).toContain('{"text":"Inspecting "}');
     expect(res.text).toContain('{"text":"the canvas."}');
     expect(res.text.match(/event: token/g)).toHaveLength(1);
   });
-
   it("persists one shared drawing transcript and uses it as server-owned context", async () => {
     await enableAi(prisma);
     const drawing = await createDrawing(prisma, userId);
@@ -242,7 +215,6 @@ describe("ai/chatRoute", () => {
     });
     expect(duplicate.status).toBe(200);
     expect(scripted.calls).toBe(1);
-
     const collaboratorApp = buildApp(prisma, collaborator.id, emitted);
     const shared = await request(collaboratorApp)
       .get(`/ai/chat/${drawing.id}/messages`);
@@ -251,7 +223,6 @@ describe("ai/chatRoute", () => {
       { role: "user", text: "First question", author: { name: "Owner" } },
       { role: "assistant", text: "First answer.", status: "complete" },
     ]);
-
     const second = await request(collaboratorApp).post("/ai/chat").send({
       drawingId: drawing.id,
       message: "Second question",
@@ -267,7 +238,6 @@ describe("ai/chatRoute", () => {
       canvasState: "unavailable",
     });
     expect(scripted.requests[1].turns[2].text).toContain("Second question");
-
     const refreshed = await request(ownerApp)
       .get(`/ai/chat/${drawing.id}/messages`);
     expect(refreshed.body.messages).toHaveLength(4);
@@ -279,7 +249,6 @@ describe("ai/chatRoute", () => {
     expect(emitted.some((event) => event.event === "ai-chat-message")).toBe(true);
     expect(emitted.some((event) => event.event === "ai-chat-event")).toBe(true);
   });
-
   it("selects a configured provider profile, model, and reasoning effort", async () => {
     const aiProviderProfiles = encodeStoredAiProfiles([
       {
@@ -317,7 +286,6 @@ describe("ai/chatRoute", () => {
         reasoningEffort: "high",
         messages: [{ role: "user", content: "review this" }],
       });
-
     expect(res.status).toBe(200);
     expect(scripted.requests[0].settings).toMatchObject({
       id: "reviewer",
@@ -326,7 +294,6 @@ describe("ai/chatRoute", () => {
     });
     expect(scripted.requests[0].reasoningEffort).toBe("high");
   });
-
   it("provides a live canvas image through view_canvas", async () => {
     await enableAi(prisma);
     const drawing = await createDrawing(prisma, userId);
@@ -347,7 +314,6 @@ describe("ai/chatRoute", () => {
         canvasImage: image,
         canvasState: "captured",
       });
-
     expect(res.status).toBe(200);
     expect(scripted.requests[0].turns[0]).toMatchObject({
       role: "user",
@@ -370,7 +336,6 @@ describe("ai/chatRoute", () => {
       ],
     });
   });
-
   it("treats a blank canvas as valid context instead of a capture failure", async () => {
     await enableAi(prisma);
     const drawing = await createDrawing(prisma, userId);
@@ -385,7 +350,6 @@ describe("ai/chatRoute", () => {
         message: "What is here?",
         canvasState: "blank",
       });
-
     expect(res.status).toBe(200);
     expect(scripted.requests[0].turns[0]).toMatchObject({
       role: "user",
@@ -397,7 +361,6 @@ describe("ai/chatRoute", () => {
     expect(res.text).toContain('"ok":true');
     expect(res.text).toContain("Canvas is blank (0 elements)");
   });
-
   it("reports tool-loop exhaustion instead of silently completing", async () => {
     await enableAi(prisma);
     const drawing = await createDrawing(prisma, userId);
@@ -409,11 +372,9 @@ describe("ai/chatRoute", () => {
     const res = await request(app)
       .post("/ai/chat")
       .send({ drawingId: drawing.id, messages: [{ role: "user", content: "loop" }] });
-
     expect(res.text).toContain("TOOL_LIMIT_REACHED");
     expect(res.text).not.toContain("event: done");
   });
-
   it("returns invalid ops as recoverable tool results", async () => {
     await enableAi(prisma);
     const drawing = await createDrawing(prisma, userId);
