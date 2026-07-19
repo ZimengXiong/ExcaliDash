@@ -119,13 +119,8 @@ export const HistoryPanel: React.FC<Props> = ({
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[90] flex justify-end">
-      <div
-        className="absolute inset-0 bg-neutral-900/20 backdrop-blur-sm"
-        onClick={onClose}
-      />
-
-      <div className="ui-side-panel relative w-full max-w-sm border-l animate-in slide-in-from-right duration-200 flex flex-col h-full">
+    <div className="fixed inset-0 z-[90] flex justify-end pointer-events-none">
+      <div className="ui-side-panel pointer-events-auto relative w-full md:w-96 border-l animate-in slide-in-from-right duration-200 flex flex-col h-full shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
           <div className="flex items-center gap-2">

@@ -33,6 +33,7 @@ type EditorViewProps = {
   editorContainerRef: React.RefObject<HTMLDivElement>;
   initialData: any;
   isHeaderVisible: boolean;
+  isHistoryOpen: boolean;
   isRenaming: boolean;
   isSavingOnLeave: boolean;
   isSceneLoading: boolean;
@@ -97,6 +98,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
   editorContainerRef,
   initialData,
   isHeaderVisible,
+  isHistoryOpen,
   isRenaming,
   isSavingOnLeave,
   isSceneLoading,
@@ -128,7 +130,8 @@ export const EditorView: React.FC<EditorViewProps> = ({
   <div className="h-screen flex flex-col bg-white dark:bg-neutral-950 overflow-hidden">
     <header
       className={clsx(
-        "h-16 bg-white dark:bg-neutral-900 border-b border-gray-200 dark:border-neutral-800 flex items-center px-4 justify-between z-10 fixed top-0 left-0 right-0 transition-transform duration-300",
+        "h-16 bg-white dark:bg-neutral-900 border-b border-gray-200 dark:border-neutral-800 flex items-center px-4 justify-between z-10 fixed top-0 left-0 right-0 transition-all duration-300",
+        isHistoryOpen && "md:right-96",
         isHeaderVisible ? "translate-y-0" : "-translate-y-full",
       )}
     >
@@ -236,7 +239,10 @@ export const EditorView: React.FC<EditorViewProps> = ({
     </header>
     <div
       ref={editorContainerRef}
-      className="flex-1 w-full relative transition-all duration-300"
+      className={clsx(
+        "flex-1 w-full relative transition-all duration-300",
+        isHistoryOpen && "md:pr-96",
+      )}
       onDropCapture={onCanvasDropCapture}
       style={{
         height: isHeaderVisible ? "calc(100vh - 4rem)" : "100vh",
@@ -271,7 +277,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
           onLibraryChange={onLibraryChange}
           excalidrawAPI={onSetExcalidrawAPI}
           UIOptions={UIOptions}
-          viewModeEnabled={!canEdit}
+          viewModeEnabled={!canEdit || isHistoryOpen}
         >
           <MainMenu>
             <MainMenu.DefaultItems.ToggleTheme />
