@@ -107,6 +107,36 @@ describe("ai/chatRoute", () => {
     expect(res.body.keyConfigured).toBe(true);
     expect(JSON.stringify(res.body)).not.toContain("sk-test");
   });
+  it("clears a drawing chat and broadcasts the change", async () => {
+    await enableAi(prisma);
+    const drawing = await createDrawing(prisma, userId);
+    await prisma.drawingChatMessage.create({
+      data: {
+        drawingId: drawing.id,
+        turnId: `turn-${drawing.id}`,
+        role: "user",
+        content: "Please draw a box",
+      },
+    });
+    const emitted: Emitted[] = [];
+    const app = buildApp(prisma, userId, emitted);
+
+    const cleared = await request(app).delete(
+      `/ai/chat/${drawing.id}/messages`,
+    );
+
+    expect(cleared.status).toBe(204);
+    expect(
+      await prisma.drawingChatMessage.count({
+        where: { drawingId: drawing.id },
+      }),
+    ).toBe(0);
+    expect(emitted).toContainEqual({
+      room: `drawing_${drawing.id}`,
+      event: "ai-chat-cleared",
+      payload: { drawingId: drawing.id },
+    });
+  });
   it("prompts users to connect the built-in ChatGPT provider", async () => {
     const app = buildApp(prisma, userId, []);
     const drawing = await createDrawing(prisma, userId);
@@ -334,6 +364,7 @@ describe("ai/chatRoute", () => {
       canvasState: "unavailable",
     });
     expect(scripted.requests[1].turns[2].text).toContain("Second question");
+    expect(scripted.requests[1].signal).toBeInstanceOf(AbortSignal);
     const refreshed = await request(ownerApp)
       .get(`/ai/chat/${drawing.id}/messages`);
     expect(refreshed.body.messages).toHaveLength(4);

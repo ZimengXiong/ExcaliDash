@@ -110,6 +110,12 @@ describe("agent semantic layout operations", () => {
     expect(label.text).toContain("\n");
     expect(label.width).toBeLessThanOrEqual(100);
     expect(label.autoResize).toBe(false);
+    const labeledShape = result.elements.find((el) => el.type === "rectangle");
+    expect(labeledShape.height).toBeGreaterThanOrEqual(label.height + 20);
+    expect(label.y).toBeGreaterThanOrEqual(labeledShape.y);
+    expect(label.y + label.height).toBeLessThanOrEqual(
+      labeledShape.y + labeledShape.height,
+    );
 
     const summary = buildStructuralSummary({
       name: "Architecture",
@@ -121,5 +127,63 @@ describe("agent semantic layout operations", () => {
     expect(summary).toContain("types:");
     expect(summary).toContain("viewport:");
     expect(summary).toContain("warnings: overlaps");
+  });
+
+  it("refits and grows an existing container after label text changes", () => {
+    const created = apply([
+      {
+        op: "add_shape",
+        ref: "node",
+        shape: "rectangle",
+        x: 10,
+        y: 20,
+        w: 120,
+        h: 60,
+        label: "Short",
+      },
+      {
+        op: "set_text",
+        id: "$node",
+        text: "A much longer replacement label that needs several wrapped lines",
+      },
+    ]);
+    const shape = created.elements.find((el) => el.type === "rectangle");
+    const label = created.elements.find((el) => el.type === "text");
+
+    expect(label.originalText).toContain("much longer");
+    expect(label.text).toContain("\n");
+    expect(shape.height).toBeGreaterThan(60);
+    expect(label.x + label.width / 2).toBe(shape.x + shape.width / 2);
+    expect(label.y + label.height / 2).toBe(shape.y + shape.height / 2);
+  });
+
+  it("reports bound labels that overflow imported or legacy containers", () => {
+    const summary = buildStructuralSummary({
+      version: 1,
+      elements: [
+        {
+          id: "box",
+          type: "rectangle",
+          x: 0,
+          y: 0,
+          width: 100,
+          height: 40,
+          isDeleted: false,
+        },
+        {
+          id: "label",
+          type: "text",
+          x: 10,
+          y: -10,
+          width: 80,
+          height: 60,
+          text: "overflow",
+          containerId: "box",
+          isDeleted: false,
+        },
+      ],
+    });
+
+    expect(summary).toContain("warnings: label-overflow box→label");
   });
 });

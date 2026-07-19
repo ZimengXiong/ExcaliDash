@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createTextElement } from "./elementFactory";
+import { createTextElement, wrapText } from "./elementFactory";
 
 describe("createTextElement", () => {
   it("keeps standalone text positioned from its top-left corner", () => {
@@ -27,5 +27,14 @@ describe("createTextElement", () => {
     expect(text.height).toBe(50);
     expect(text.x + text.width / 2).toBe(150);
     expect(text.y + text.height / 2).toBe(120);
+  });
+
+  it("breaks a single token that is wider than the wrapping constraint", () => {
+    const wrapped = wrapText("averylongunbrokentoken", 60, 20);
+
+    expect(wrapped).toContain("\n");
+    for (const line of wrapped.split("\n")) {
+      expect(line.length).toBeLessThan("averylongunbrokentoken".length);
+    }
   });
 });

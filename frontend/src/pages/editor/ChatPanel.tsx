@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import type { Socket } from "socket.io-client";
-import { Loader2, Send, Sparkles, X } from "lucide-react";
+import { Send, Sparkles, Square, Trash2, X } from "lucide-react";
 import {
   getAiStatus,
   type AiModelOption,
@@ -26,8 +26,25 @@ const STR = {
   inputLabel: "Message the assistant",
   send: "Send",
   stop: "Stop",
+  clear: "Clear chat",
   empty: "What should I draw?",
 } as const;
+
+const CHAT_SELECTION_STORAGE_KEY = "excalidash:ai-chat-selection";
+
+const loadChatSelection = (): { providerId: string; modelId: string } => {
+  try {
+    const parsed = JSON.parse(
+      window.localStorage.getItem(CHAT_SELECTION_STORAGE_KEY) ?? "{}",
+    );
+    return {
+      providerId: typeof parsed.providerId === "string" ? parsed.providerId : "",
+      modelId: typeof parsed.modelId === "string" ? parsed.modelId : "",
+    };
+  } catch {
+    return { providerId: "", modelId: "" };
+  }
+};
 
 type ChatPanelProps = {
   drawingId?: string;
@@ -46,14 +63,19 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   selfAgentBatchIdsRef,
   captureCanvasContext,
 }) => {
+  const initialSelection = useRef(loadChatSelection());
   const { aiEnabled } = useAuth();
   const [available, setAvailable] = useState(false);
   const [providers, setProviders] = useState<AiProviderProfile[]>([]);
-  const [selectedProviderId, setSelectedProviderId] = useState("");
+  const [selectedProviderId, setSelectedProviderId] = useState(
+    initialSelection.current.providerId,
+  );
   const [chatgpt, setChatgpt] = useState<ChatGptConnectionStatus | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [draft, setDraft] = useState("");
-  const [selectedModel, setSelectedModel] = useState("");
+  const [selectedModel, setSelectedModel] = useState(
+    initialSelection.current.modelId,
+  );
   const [reasoningEffort, setReasoningEffort] = useState("medium");
   const listRef = useRef<HTMLDivElement>(null);
   const selectedProvider = providers.find(
@@ -75,7 +97,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     [selfAgentBatchIdsRef],
   );
 
-  const { messages, isStreaming, isLoading, sendMessage, stop, undoBatch } =
+  const { messages, isStreaming, isLoading, sendMessage, stop, undoBatch, clear } =
     useAgentChat({
       drawingId,
       providerId: selectedProviderId || undefined,
@@ -161,6 +183,27 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
   useEffect(() => {
     if (
+      !selectedProviderId ||
+      !selectedModel ||
+      !models.some((model) => model.id === selectedModel)
+    ) {
+      return;
+    }
+    try {
+      window.localStorage.setItem(
+        CHAT_SELECTION_STORAGE_KEY,
+        JSON.stringify({
+          providerId: selectedProviderId,
+          modelId: selectedModel,
+        }),
+      );
+    } catch {
+      // Preferences remain usable for this session when storage is unavailable.
+    }
+  }, [models, selectedModel, selectedProviderId]);
+
+  useEffect(() => {
+    if (
       reasoningEfforts.length > 0 &&
       !reasoningEfforts.includes(reasoningEffort)
     ) {
@@ -196,6 +239,17 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     },
     [handleSubmit],
   );
+
+  const handleClear = useCallback(() => {
+    if (
+      messages.length === 0 ||
+      isStreaming ||
+      !window.confirm("Clear this drawing's shared assistant chat?")
+    ) {
+      return;
+    }
+    void clear();
+  }, [clear, isStreaming, messages.length]);
 
   if (
     !aiEnabled ||
@@ -235,15 +289,29 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           </span>
           {STR.title}
         </span>
-        <button
-          type="button"
-          aria-label={STR.close}
-          title={STR.close}
-          onClick={() => setIsOpen(false)}
-          className="ui-icon-button"
-        >
-          <X size={18} />
-        </button>
+        <div className="flex items-center gap-1">
+          {canEdit && messages.length > 0 ? (
+            <button
+              type="button"
+              aria-label={STR.clear}
+              title={STR.clear}
+              onClick={handleClear}
+              disabled={isStreaming || isLoading}
+              className="ui-icon-button text-slate-500 hover:text-red-600 dark:text-neutral-400 dark:hover:text-red-400"
+            >
+              <Trash2 size={17} />
+            </button>
+          ) : null}
+          <button
+            type="button"
+            aria-label={STR.close}
+            title={STR.close}
+            onClick={() => setIsOpen(false)}
+            className="ui-icon-button"
+          >
+            <X size={18} />
+          </button>
+        </div>
       </header>
 
       {canEdit && providers.length > 0 ? (
@@ -318,9 +386,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   onClick={stop}
                   title={STR.stop}
                   aria-label={STR.stop}
-                  className="ui-button-secondary h-11 w-11 p-0"
+                  className="ui-button-secondary h-11 w-11 border-red-200 p-0 text-red-600 hover:border-red-300 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40"
                 >
-                  <Loader2 size={18} className="animate-spin" />
+                  <Square size={16} fill="currentColor" />
                 </button>
               ) : (
                 <button

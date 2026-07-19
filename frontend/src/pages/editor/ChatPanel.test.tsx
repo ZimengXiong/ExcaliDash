@@ -33,6 +33,16 @@ const Harness = () => {
 describe("ChatPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    const entries = new Map<string, string>();
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (key: string) => entries.get(key) ?? null,
+        setItem: (key: string, value: string) => entries.set(key, value),
+        removeItem: (key: string) => entries.delete(key),
+        clear: () => entries.clear(),
+      },
+    });
     useAgentChatMock.mockReturnValue(chatValue());
   });
 
@@ -121,6 +131,99 @@ describe("ChatPanel", () => {
     fireEvent.change(screen.getByLabelText("Provider"), { target: { value: "deep" } });
     await waitFor(() => expect(screen.getByLabelText("Model")).toHaveValue("gemini-deep"));
     expect(screen.getByLabelText("Thinking")).toHaveValue("high");
+  });
+
+  it("remembers the last selected provider and model", async () => {
+    const status = {
+      available: true,
+      provider: "openai" as const,
+      model: "gpt-fast",
+      keyConfigured: true,
+      keySource: "db" as const,
+      chatgptEnabled: true,
+      defaultProviderId: "fast",
+      providers: [
+        {
+          id: "fast",
+          label: "Fast",
+          provider: "openai" as const,
+          available: true,
+          enabled: true,
+          baseUrl: "https://api.openai.com/v1",
+          models: [{ id: "gpt-fast", label: "GPT Fast", reasoningEfforts: [] }],
+          customModels: [],
+          keyConfigured: true,
+          keySource: "db" as const,
+        },
+        {
+          id: "deep",
+          label: "Deep",
+          provider: "custom" as const,
+          available: true,
+          enabled: true,
+          baseUrl: "https://example.test/v1",
+          models: [
+            { id: "gemini-deep", label: "Gemini Deep", reasoningEfforts: [] },
+          ],
+          customModels: [],
+          keyConfigured: true,
+          keySource: "db" as const,
+        },
+      ],
+    };
+    getAiStatusMock.mockResolvedValue(status);
+    const first = render(<Harness />);
+    fireEvent.click(await screen.findByLabelText("Open canvas assistant"));
+    fireEvent.change(screen.getByLabelText("Provider"), {
+      target: { value: "deep" },
+    });
+    await waitFor(() =>
+      expect(screen.getByLabelText("Model")).toHaveValue("gemini-deep"),
+    );
+    await waitFor(() =>
+      expect(
+        JSON.parse(
+          window.localStorage.getItem("excalidash:ai-chat-selection") ?? "{}",
+        ),
+      ).toEqual({ providerId: "deep", modelId: "gemini-deep" }),
+    );
+    first.unmount();
+
+    render(<Harness />);
+    fireEvent.click(await screen.findByLabelText("Open canvas assistant"));
+    expect(screen.getByLabelText("Provider")).toHaveValue("deep");
+    expect(screen.getByLabelText("Model")).toHaveValue("gemini-deep");
+  });
+
+  it("clears the shared transcript after confirmation", async () => {
+    const clear = vi.fn();
+    useAgentChatMock.mockReturnValue(
+      chatValue({
+        clear,
+        messages: [
+          {
+            id: "u1",
+            role: "user",
+            text: "hello",
+            batches: [],
+            streaming: false,
+          },
+        ],
+      }),
+    );
+    getAiStatusMock.mockResolvedValue({
+      available: true,
+      provider: "anthropic",
+      model: "claude",
+      keyConfigured: true,
+      keySource: "env",
+      chatgptEnabled: true,
+    });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<Harness />);
+    fireEvent.click(await screen.findByLabelText("Open canvas assistant"));
+    fireEvent.click(screen.getByLabelText("Clear chat"));
+    expect(clear).toHaveBeenCalledOnce();
   });
 
   it("renders an applied batch card and undoes it", async () => {

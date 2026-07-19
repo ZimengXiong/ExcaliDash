@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  clearAgentChatMessages,
   discoverAiProviderModels,
   streamAgentChat,
   testAiProviderConnection,
@@ -9,7 +10,7 @@ import {
 import { api } from "./client";
 
 vi.mock("./client", () => ({
-  api: { get: vi.fn(), post: vi.fn() },
+  api: { get: vi.fn(), post: vi.fn(), delete: vi.fn() },
   API_URL: "/api",
 }));
 
@@ -184,6 +185,14 @@ describe("revertOpsBatch", () => {
       ops: [{ op: "revert_to_snapshot", version: 4 }],
     });
     expect(result).toEqual({ opsBatchId: "b2", version: 6, revertVersion: 5 });
+  });
+});
+
+describe("clearAgentChatMessages", () => {
+  it("deletes the drawing transcript", async () => {
+    vi.mocked(api.delete).mockResolvedValue({} as never);
+    await clearAgentChatMessages("d1");
+    expect(api.delete).toHaveBeenCalledWith("/ai/chat/d1/messages");
   });
 });
 

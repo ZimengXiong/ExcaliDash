@@ -6,6 +6,8 @@ import {
   Star,
   Trash2,
 } from "lucide-react";
+import type { AiProviderDefinition } from "../../api/ai";
+import { PlayfulSelect } from "../../components/PlayfulSelect";
 import { PlayfulSwitch } from "../../components/PlayfulSwitch";
 import type { AiProviderDraft, ConfigurableAiProvider } from "./useAiSettings";
 
@@ -89,6 +91,7 @@ export const ProviderEditor: React.FC<{
   profile: AiProviderDraft;
   readOnly?: boolean;
   saving: boolean;
+  providerDefinitions: AiProviderDefinition[];
   isDefault: boolean;
   expanded: boolean;
   onToggleExpanded: () => void;
@@ -99,6 +102,7 @@ export const ProviderEditor: React.FC<{
   profile,
   readOnly = false,
   saving,
+  providerDefinitions,
   isDefault,
   expanded,
   onToggleExpanded,
@@ -111,6 +115,16 @@ export const ProviderEditor: React.FC<{
   const isChatGpt = profile.provider === "chatgpt";
   const isCustom = profile.provider === "custom";
   const isManagedProvider = !isChatGpt && !isCustom;
+  const providerOptions: Array<{
+    value: ConfigurableAiProvider;
+    label: string;
+  }> =
+    providerDefinitions.length > 0
+      ? providerDefinitions.map((definition) => ({
+          value: definition.id,
+          label: definition.label,
+        }))
+      : PROVIDERS;
 
   return (
     <div>
@@ -231,6 +245,20 @@ export const ProviderEditor: React.FC<{
 
       {expanded ? (
         <div className="border-t-2 border-dashed border-slate-200 px-4 pb-4 pt-4 dark:border-neutral-700 sm:px-5">
+          <div className="mb-4 max-w-xs">
+            <span className={labelClass}>Provider</span>
+            <PlayfulSelect
+              ariaLabel="Provider type"
+              value={profile.provider}
+              onChange={(value) =>
+                onChange({ provider: value as ConfigurableAiProvider })
+              }
+              options={providerOptions}
+              align="left"
+              disabled={saving}
+              className="w-full"
+            />
+          </div>
           {isChatGpt ? (
             <div className="flex max-w-3xl items-start gap-2 rounded-xl border-2 border-indigo-200 bg-indigo-50 px-3 py-2.5 text-sm font-medium text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-200">
                 <Sparkles size={16} className="mt-0.5 shrink-0" />

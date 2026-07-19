@@ -139,6 +139,27 @@ export const buildStructuralSummary = (drawing: {
     }
   }
   if (overlaps.length > 0) scene.push(`warnings: overlaps ${overlaps.join(" ")}`);
+  const byId = new Map(live.map((el) => [el.id, el]));
+  const overflowingLabels = live
+    .filter((el) => el.type === "text" && typeof el.containerId === "string")
+    .filter((label) => {
+      const container = byId.get(label.containerId);
+      if (!container || container.type === "arrow" || container.type === "line") {
+        return false;
+      }
+      const tolerance = 1;
+      return (
+        label.x < container.x - tolerance ||
+        label.y < container.y - tolerance ||
+        label.x + label.width > container.x + container.width + tolerance ||
+        label.y + label.height > container.y + container.height + tolerance
+      );
+    })
+    .slice(0, 10)
+    .map((label) => `${label.containerId}→${label.id}`);
+  if (overflowingLabels.length > 0) {
+    scene.push(`warnings: label-overflow ${overflowingLabels.join(" ")}`);
+  }
   return [header, ...scene, "elements (z-order):", ...live.map(elementLine)].join("\n");
 };
 

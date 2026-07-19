@@ -146,6 +146,12 @@ export const getAgentChatMessages = async (
   return response.data.messages;
 };
 
+export const clearAgentChatMessages = async (
+  drawingId: string,
+): Promise<void> => {
+  await api.delete(`/ai/chat/${drawingId}/messages`);
+};
+
 export type OpError = {
   opIndex: number;
   code: string;

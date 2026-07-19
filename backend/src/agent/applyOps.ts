@@ -10,6 +10,7 @@ import {
   createShapeElement,
   createTextElement,
   edgePointToward,
+  fitBoundTextToContainer,
   genId,
   removeBoundElement,
   touchElement,
@@ -71,6 +72,7 @@ const applyAddShape = (scene: Scene, op: Extract<Op, { op: "add_shape" }>) => {
       el.id,
       Math.max(20, w - 20),
     );
+    fitBoundTextToContainer(el, label, { preserveCenter: false });
     addBoundElement(el, { id: label.id, type: "text" });
     scene.add(label);
     createdIds.push(label.id);
@@ -141,13 +143,11 @@ const applySetText = (scene: Scene, op: Extract<Op, { op: "set_text" }>) => {
     el.text = text;
     el.originalText = text;
     const container = el.containerId ? scene.getLive(el.containerId) : null;
-    const containerCenter = container ? centerOf(container) : null;
-    updateTextMetrics(el, {
-      ...(container ? { maxWidth: Math.max(20, (container.width ?? 120) - 20) } : {}),
-      ...(containerCenter
-        ? { center: { x: containerCenter.cx, y: containerCenter.cy } }
-        : {}),
-    });
+    if (container) {
+      if (fitBoundTextToContainer(container, el)) scene.markChanged(container);
+    } else {
+      updateTextMetrics(el);
+    }
     scene.markChanged(el);
     return {};
   }
@@ -156,6 +156,8 @@ const applySetText = (scene: Scene, op: Extract<Op, { op: "set_text" }>) => {
   if (label) {
     label.text = text;
     label.originalText = text;
+    fitBoundTextToContainer(el, label);
+    scene.markChanged(el);
     scene.markChanged(label);
     return {};
   }
@@ -181,13 +183,11 @@ const applySetStyle = (scene: Scene, op: Extract<Op, { op: "set_style" }>) => {
   if (err) return { error: err };
   if (el.type === "text") {
     const container = el.containerId ? scene.getLive(el.containerId) : null;
-    const containerCenter = container ? centerOf(container) : null;
-    updateTextMetrics(el, {
-      ...(container ? { maxWidth: Math.max(20, (container.width ?? 120) - 20) } : {}),
-      ...(containerCenter
-        ? { center: { x: containerCenter.cx, y: containerCenter.cy } }
-        : {}),
-    });
+    if (container) {
+      if (fitBoundTextToContainer(container, el)) scene.markChanged(container);
+    } else {
+      updateTextMetrics(el);
+    }
   }
   scene.markChanged(el);
   return {};
