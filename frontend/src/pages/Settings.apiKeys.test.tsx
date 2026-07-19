@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type React from "react";
+import React, { useState } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Profile } from "./Profile";
+import { ApiKeysCard } from "./profile/ApiKeysCard";
 import * as api from "../api";
 
 const { mockLogout, mockAuthUser, mockAuthEnabled } = vi.hoisted(() => ({
@@ -58,7 +58,19 @@ const existingApiKey = {
   revokedAt: null,
 };
 
-describe("Profile API keys", () => {
+const ApiKeysHarness: React.FC<{ disabled?: boolean }> = ({
+  disabled = false,
+}) => {
+  const [success, setSuccess] = useState("");
+  return (
+    <>
+      {success ? <p>{success}</p> : null}
+      <ApiKeysCard disabled={disabled} onSuccess={setSuccess} />
+    </>
+  );
+};
+
+describe("Settings API keys", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockAuthUser.mockReturnValue({
@@ -94,7 +106,7 @@ describe("Profile API keys", () => {
   it("lists, creates, copies, and revokes API keys", async () => {
     render(
       <MemoryRouter>
-        <Profile />
+        <ApiKeysHarness />
       </MemoryRouter>,
     );
 
@@ -146,20 +158,18 @@ describe("Profile API keys", () => {
     expect(await screen.findByText("API key revoked")).toBeInTheDocument();
   });
 
-  it("shows API key management without account-only controls in single-user mode", async () => {
+  it("shows API key management independently of authentication mode", async () => {
     mockAuthEnabled.mockReturnValue(false);
     mockAuthUser.mockReturnValue(null);
 
     render(
       <MemoryRouter>
-        <Profile />
+        <ApiKeysHarness />
       </MemoryRouter>,
     );
 
     expect(await screen.findByText("Existing Key")).toBeInTheDocument();
     expect(screen.getByText("API Keys")).toBeInTheDocument();
-    expect(screen.queryByText("Personal Information")).not.toBeInTheDocument();
-    expect(screen.queryByText("Change Password")).not.toBeInTheDocument();
   });
 
   it("does not load or show API key management while password reset is required", async () => {
@@ -172,7 +182,7 @@ describe("Profile API keys", () => {
 
     render(
       <MemoryRouter>
-        <Profile />
+        <ApiKeysHarness disabled />
       </MemoryRouter>,
     );
 
@@ -199,7 +209,7 @@ describe("Profile API keys", () => {
 
     render(
       <MemoryRouter>
-        <Profile />
+        <ApiKeysHarness />
       </MemoryRouter>,
     );
 
@@ -221,7 +231,7 @@ describe("Profile API keys", () => {
   it("submits and displays custom API key scopes", async () => {
     render(
       <MemoryRouter>
-        <Profile />
+        <ApiKeysHarness />
       </MemoryRouter>,
     );
 
@@ -247,7 +257,7 @@ describe("Profile API keys", () => {
   it("disables API key creation and shows validation when no scopes are selected", async () => {
     render(
       <MemoryRouter>
-        <Profile />
+        <ApiKeysHarness />
       </MemoryRouter>,
     );
 
@@ -285,7 +295,7 @@ describe("Profile API keys", () => {
 
     render(
       <MemoryRouter>
-        <Profile />
+        <ApiKeysHarness />
       </MemoryRouter>,
     );
 

@@ -1,8 +1,16 @@
 import React from "react";
-import { ChevronDown, KeyRound, Sparkles, Star, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  KeyRound,
+  Sparkles,
+  Star,
+  Trash2,
+} from "lucide-react";
 import { PlayfulSelect } from "../../components/PlayfulSelect";
 import { PlayfulSwitch } from "../../components/PlayfulSwitch";
+import type { AiProviderDefinition } from "../../api/ai";
 import type { AiProviderDraft, ConfigurableAiProvider } from "./useAiSettings";
+import { AiProviderTools } from "./AiProviderTools";
 
 const inputClass =
   "w-full rounded-lg border-2 border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white";
@@ -82,6 +90,8 @@ const KeyStatusChip: React.FC<{ profile: AiProviderDraft }> = ({ profile }) => {
 
 export const ProviderEditor: React.FC<{
   profile: AiProviderDraft;
+  providerDefinitions: AiProviderDefinition[];
+  readOnly?: boolean;
   saving: boolean;
   isDefault: boolean;
   expanded: boolean;
@@ -89,8 +99,12 @@ export const ProviderEditor: React.FC<{
   onSetDefault: () => void;
   onChange: (patch: Partial<AiProviderDraft>) => void;
   onRemove: () => void;
+  onDiscover: (refresh?: boolean) => void;
+  onTest: () => void;
 }> = ({
   profile,
+  providerDefinitions,
+  readOnly = false,
   saving,
   isDefault,
   expanded,
@@ -98,6 +112,8 @@ export const ProviderEditor: React.FC<{
   onSetDefault,
   onChange,
   onRemove,
+  onDiscover,
+  onTest,
 }) => {
   const meta = PROVIDER_META[profile.provider];
   const models = splitCsv(profile.modelsText);
@@ -108,9 +124,10 @@ export const ProviderEditor: React.FC<{
       <div className="flex items-center gap-2 px-4 py-3.5 sm:gap-3 sm:px-5">
         <button
           type="button"
-          onClick={onToggleExpanded}
+          onClick={readOnly ? undefined : onToggleExpanded}
           aria-expanded={expanded}
-          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+          disabled={readOnly}
+          className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-default"
         >
           <span
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 text-sm font-black ${meta.tile}`}
@@ -159,52 +176,62 @@ export const ProviderEditor: React.FC<{
 
         <KeyStatusChip profile={profile} />
 
-        <button
-          type="button"
-          onClick={onSetDefault}
-          aria-pressed={isDefault}
-          aria-label={
-            isDefault ? "Default provider" : `Set ${profile.label} as default`
-          }
-          title={isDefault ? "Default provider" : "Set as default"}
-          className="shrink-0 rounded-lg p-1.5 transition-colors hover:bg-amber-50 dark:hover:bg-amber-950/30"
-        >
-          <Star
-            size={18}
-            className={
-              isDefault
-                ? "fill-amber-300 text-amber-500"
-                : "text-slate-300 dark:text-neutral-600"
-            }
-          />
-        </button>
-        <PlayfulSwitch
-          checked={profile.enabled}
-          disabled={saving}
-          onChange={(enabled) => onChange({ enabled })}
-          ariaLabel={profile.enabled ? "Disable provider" : "Enable provider"}
-        />
-        <button
-          type="button"
-          onClick={onRemove}
-          disabled={saving}
-          aria-label={`Remove ${profile.label}`}
-          className="shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
-        >
-          <Trash2 size={17} />
-        </button>
-        <button
-          type="button"
-          onClick={onToggleExpanded}
-          aria-expanded={expanded}
-          aria-label={expanded ? "Collapse details" : "Edit details"}
-          className="shrink-0 rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-neutral-800"
-        >
-          <ChevronDown
-            size={18}
-            className={`transition-transform ${expanded ? "rotate-180" : ""}`}
-          />
-        </button>
+        {readOnly ? null : (
+          <>
+            <button
+              type="button"
+              onClick={onSetDefault}
+              aria-pressed={isDefault}
+              aria-label={
+                isDefault
+                  ? "Default provider"
+                  : `Set ${profile.label} as default`
+              }
+              title={isDefault ? "Default provider" : "Set as default"}
+              className="shrink-0 rounded-lg p-1.5 transition-colors hover:bg-amber-50 dark:hover:bg-amber-950/30"
+            >
+              <Star
+                size={18}
+                className={
+                  isDefault
+                    ? "fill-amber-300 text-amber-500"
+                    : "text-slate-300 dark:text-neutral-600"
+                }
+              />
+            </button>
+            <PlayfulSwitch
+              checked={profile.enabled}
+              disabled={saving}
+              onChange={(enabled) => onChange({ enabled })}
+              ariaLabel={
+                profile.enabled ? "Disable provider" : "Enable provider"
+              }
+            />
+            <button
+              type="button"
+              onClick={onRemove}
+              disabled={saving}
+              aria-label={`Remove ${profile.label}`}
+              className="shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
+            >
+              <Trash2 size={17} />
+            </button>
+            <button
+              type="button"
+              onClick={onToggleExpanded}
+              aria-expanded={expanded}
+              aria-label={expanded ? "Collapse details" : "Edit details"}
+              className="shrink-0 rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-neutral-800"
+            >
+              <ChevronDown
+                size={18}
+                className={`transition-transform ${
+                  expanded ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+          </>
+        )}
       </div>
 
       {expanded ? (
@@ -332,6 +359,15 @@ export const ProviderEditor: React.FC<{
                   ) : null}
                 </div>
               )}
+
+              <AiProviderTools
+                profile={profile}
+                providerDefinitions={providerDefinitions}
+                saving={saving}
+                onChange={onChange}
+                onDiscover={onDiscover}
+                onTest={onTest}
+              />
             </div>
           ) : null}
         </div>

@@ -102,12 +102,10 @@ const defaultsForProvider = (
 };
 export const useAiSettings = ({
   authEnabled,
-  isAdmin,
   setError,
   onFeatureFlagChanged,
 }: {
   authEnabled: boolean | null;
-  isAdmin: boolean;
   setError: (message: string) => void;
   onFeatureFlagChanged?: () => Promise<void>;
 }) => {
@@ -362,8 +360,8 @@ export const useAiSettings = ({
     }
   }, [applyResponse, defaultProviderId, providers, saving, setError]);
   useEffect(() => {
-    if (authEnabled !== null && isAdmin) void load();
-  }, [authEnabled, isAdmin, load]);
+    if (authEnabled !== null) void load();
+  }, [authEnabled, load]);
   return {
     enabled,
     loading,

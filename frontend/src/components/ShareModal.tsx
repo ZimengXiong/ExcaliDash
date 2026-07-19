@@ -281,11 +281,11 @@ export const ShareModal: React.FC<Props> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 bg-neutral-900/20 backdrop-blur-sm"
+        className="absolute inset-0 bg-slate-200/60 backdrop-blur-md dark:bg-neutral-950/60"
         onClick={onClose}
       />
 
-      <div className="relative flex max-h-[calc(100vh-2rem)] w-full max-w-[520px] flex-col overflow-hidden rounded-2xl border-2 border-black bg-white font-sans shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] animate-in fade-in zoom-in-95 duration-200 dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-[8px_8px_0px_0px_rgba(255,255,255,0.15)]">
+      <div className="relative flex max-h-[calc(100vh-2rem)] w-full max-w-[520px] flex-col overflow-hidden rounded-2xl border-2 border-black bg-white font-sans shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] animate-in fade-in zoom-in-95 duration-200 dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.15)]">
         {/* Header */}
         <div className="flex items-center gap-3 border-b-2 border-slate-100 px-5 py-4 dark:border-neutral-800">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-300">

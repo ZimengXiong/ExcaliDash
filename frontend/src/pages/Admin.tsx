@@ -7,7 +7,6 @@ import { Toaster } from "sonner";
 import { getPasswordPolicy } from "../utils/passwordPolicy";
 import { getApiErrorMessage } from "../utils/getApiErrorMessage";
 import { AccessControlCard } from "./admin/AccessControlCard";
-import { AiSettingsCard } from "./admin/AiSettingsCard";
 import { AdminHeader, AdminStatusMessages } from "./admin/AdminShell";
 import { CreateUserForm, type CreateUserInput } from "./admin/CreateUserForm";
 import { LoginRateLimitCard } from "./admin/LoginRateLimitCard";
@@ -17,7 +16,6 @@ import type { AdminUser } from "./admin/types";
 import { useAccessControlSettings } from "./admin/useAccessControlSettings";
 import { useAdminCollections } from "./admin/useAdminCollections";
 import { useLoginRateLimitSettings } from "./admin/useLoginRateLimitSettings";
-import { useAiSettings } from "./admin/useAiSettings";
 import {
   IMPERSONATION_KEY,
   type ImpersonationState,
@@ -26,7 +24,7 @@ import {
 } from "../utils/impersonation";
 export const Admin: React.FC = () => {
   const navigate = useNavigate();
-  const { user: authUser, authEnabled, retryAuthStatus } = useAuth();
+  const { user: authUser, authEnabled } = useAuth();
   const isSingleUserOwner = authEnabled === false;
   const isAdmin = isSingleUserOwner || authUser?.role === "ADMIN";
   const passwordPolicy = getPasswordPolicy();
@@ -54,12 +52,6 @@ export const Admin: React.FC = () => {
     tempPassword: string;
   } | null>(null);
   const accessControl = useAccessControlSettings(isAdmin, setError, setSuccess);
-  const aiSettings = useAiSettings({
-    authEnabled,
-    isAdmin,
-    setError,
-    onFeatureFlagChanged: retryAuthStatus,
-  });
   const loginRateLimit = useLoginRateLimitSettings({
     authEnabled,
     isAdmin,
@@ -266,23 +258,6 @@ export const Admin: React.FC = () => {
             onReset={loginRateLimit.reset}
           />
         ) : null}{" "}
-        <AiSettingsCard
-          enabled={aiSettings.enabled}
-          loading={aiSettings.loading}
-          saving={aiSettings.saving}
-          providers={aiSettings.providers}
-          defaultProviderId={aiSettings.defaultProviderId}
-          status={aiSettings.status}
-          providerDefinitions={aiSettings.providerDefinitions}
-          onDefaultProviderChange={aiSettings.setDefaultProviderId}
-          onAddProvider={aiSettings.addProvider}
-          onUpdateProvider={aiSettings.updateProvider}
-          onRemoveProvider={aiSettings.removeProvider}
-          onDiscoverModels={aiSettings.discoverModels}
-          onTestProvider={aiSettings.testProvider}
-          onSave={aiSettings.save}
-          onEnabledChange={aiSettings.setEnabled}
-        />{" "}
         {authEnabled ? (
           <UsersTable
             users={users}

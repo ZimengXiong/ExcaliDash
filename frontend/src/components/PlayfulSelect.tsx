@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import clsx from "clsx";
 import { Check, ChevronDown } from "lucide-react";
 
@@ -22,6 +23,7 @@ type PlayfulSelectProps = {
   size?: "sm" | "md";
   variant?: "playful" | "plain";
   showCheck?: boolean;
+  portal?: boolean;
 };
 
 export const PlayfulSelect: React.FC<PlayfulSelectProps> = ({
@@ -37,15 +39,24 @@ export const PlayfulSelect: React.FC<PlayfulSelectProps> = ({
   size = "md",
   variant = "playful",
   showCheck = true,
+  portal = false,
 }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [portalPosition, setPortalPosition] = useState<React.CSSProperties>();
   const current = options.find((option) => option.value === value) ?? options[0];
 
   useEffect(() => {
     if (!open) return;
     const handlePointerDown = (event: MouseEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        ref.current &&
+        !ref.current.contains(target) &&
+        !menuRef.current?.contains(target)
+      ) {
         setOpen(false);
       }
     };
@@ -60,9 +71,92 @@ export const PlayfulSelect: React.FC<PlayfulSelectProps> = ({
     };
   }, [open]);
 
+  useLayoutEffect(() => {
+    if (!open || !portal) return;
+
+    const updatePosition = () => {
+      const button = buttonRef.current;
+      if (!button) return;
+
+      const rect = button.getBoundingClientRect();
+      const menuHeight = menuRef.current?.offsetHeight ?? 0;
+      const gap = 8;
+      const openUpward =
+        menuHeight > 0 &&
+        rect.bottom + gap + menuHeight > window.innerHeight &&
+        rect.top - gap - menuHeight >= 0;
+
+      setPortalPosition({
+        position: "fixed",
+        top: openUpward ? rect.top - gap - menuHeight : rect.bottom + gap,
+        left: align === "left" ? rect.left : undefined,
+        right: align === "right" ? window.innerWidth - rect.right : undefined,
+        minWidth: rect.width,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [align, open, portal]);
+
+  const menu = open ? (
+    <div
+      ref={menuRef}
+      role="listbox"
+      style={portal ? portalPosition : undefined}
+      className={clsx(
+        "ui-menu z-[200] w-max min-w-full animate-in fade-in zoom-in-95 duration-100",
+        portal
+          ? "fixed"
+          : "absolute top-full mt-2",
+        !portal && (align === "right" ? "right-0" : "left-0"),
+        menuClassName,
+      )}
+    >
+      {options.map((option) => {
+        const selected = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="option"
+            aria-selected={selected}
+            onClick={(event) => {
+              event.stopPropagation();
+              onChange(option.value);
+              setOpen(false);
+            }}
+            className={clsx(
+              "ui-menu-item",
+              size === "sm" && "px-2 py-1.5 text-xs",
+              selected && showCheck && "ui-menu-item-selected",
+              option.danger && "ui-menu-item-danger",
+            )}
+          >
+            {option.icon ? (
+              <span className="shrink-0 text-indigo-500 dark:text-indigo-400">
+                {option.icon}
+              </span>
+            ) : null}
+            <span className="truncate">{option.label}</span>
+            {selected && showCheck ? (
+              <Check size={13} strokeWidth={3} className="ml-auto shrink-0" />
+            ) : null}
+          </button>
+        );
+      })}
+    </div>
+  ) : null;
+
   return (
     <div className={clsx("relative inline-flex", className)} ref={ref}>
       <button
+        ref={buttonRef}
         type="button"
         aria-label={ariaLabel}
         aria-haspopup="listbox"
@@ -99,49 +193,7 @@ export const PlayfulSelect: React.FC<PlayfulSelectProps> = ({
         />
       </button>
 
-      {open ? (
-        <div
-          role="listbox"
-          className={clsx(
-            "ui-menu absolute top-full z-[200] mt-2 w-max min-w-full animate-in fade-in zoom-in-95 duration-100",
-            align === "right" ? "right-0" : "left-0",
-            menuClassName,
-          )}
-        >
-          {options.map((option) => {
-            const selected = option.value === value;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                role="option"
-                aria-selected={selected}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onChange(option.value);
-                  setOpen(false);
-                }}
-                className={clsx(
-                  "ui-menu-item",
-                  size === "sm" && "px-2 py-1.5 text-xs",
-                  selected && showCheck && "ui-menu-item-selected",
-                  option.danger && "ui-menu-item-danger",
-                )}
-              >
-                {option.icon ? (
-                  <span className="shrink-0 text-indigo-500 dark:text-indigo-400">
-                    {option.icon}
-                  </span>
-                ) : null}
-                <span className="truncate">{option.label}</span>
-                {selected && showCheck ? (
-                  <Check size={13} strokeWidth={3} className="ml-auto shrink-0" />
-                ) : null}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
+      {portal && menu ? createPortal(menu, document.body) : menu}
     </div>
   );
 };
