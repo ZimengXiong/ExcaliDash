@@ -74,7 +74,7 @@ describe("ChatPanel", () => {
 
     fireEvent.click(await screen.findByLabelText("Open canvas assistant"));
 
-    const textarea = screen.getByLabelText(/Message the canvas agent/i);
+    const textarea = screen.getByLabelText(/Message the assistant/i);
     fireEvent.change(textarea, { target: { value: "draw a box" } });
     fireEvent.keyDown(textarea, { key: "Enter" });
 

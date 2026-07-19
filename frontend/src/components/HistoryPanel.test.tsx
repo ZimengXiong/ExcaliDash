@@ -23,7 +23,7 @@ describe("HistoryPanel", () => {
       />,
     );
 
-    expect(screen.getByText("Version History")).toBeInTheDocument();
+    expect(screen.getByText("Version history")).toBeInTheDocument();
     expect(document.querySelector(".backdrop-blur-sm")).not.toBeInTheDocument();
     expect(document.querySelector(".pointer-events-none")).toBeInTheDocument();
     expect(document.querySelector(".ui-side-panel")).toHaveClass(

@@ -77,7 +77,7 @@ export const CustomSelect: React.FC<Props> = ({
       {isOpen && (
         <div
           className={clsx(
-            "ui-popover absolute top-full z-[100] mt-1.5 min-w-[140px] overflow-hidden animate-in fade-in zoom-in-95 duration-100",
+            "ui-menu absolute top-full z-[100] mt-1.5 min-w-[140px] animate-in fade-in zoom-in-95 duration-100",
             align === "right" ? "right-0" : "left-0",
           )}
         >
@@ -92,12 +92,9 @@ export const CustomSelect: React.FC<Props> = ({
                 setIsOpen(false);
               }}
               className={clsx(
-                "w-full text-left px-3 py-2 text-xs font-semibold transition-colors flex items-center justify-between border-b last:border-b-0 border-slate-100 dark:border-neutral-800",
-                option.value === value && showCheck
-                  ? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400"
-                  : option.danger
-                    ? "text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20"
-                    : "text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-800",
+                "ui-menu-item justify-between px-2 py-1.5 text-xs",
+                option.value === value && showCheck && "ui-menu-item-selected",
+                option.danger && "ui-menu-item-danger",
               )}
             >
               {option.label}

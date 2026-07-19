@@ -8,16 +8,16 @@ import {
 
 const STR = {
   heading: "Connect ChatGPT",
-  intro: "Use your subscription—no API key.",
-  reconnect: "Connection expired. Reconnect to continue.",
+  intro: "Sign in with your ChatGPT subscription — no API key needed.",
+  reconnect: "Your connection expired — reconnect to keep going.",
   connect: "Connect ChatGPT",
   opening: "Opening ChatGPT…",
-  step2: "Approve in ChatGPT, then paste the URL from your address bar.",
+  step2: "Approve the sign-in, then paste the full URL from your browser's address bar.",
   pasteLabel: "Redirect URL",
   pastePlaceholder: "http://localhost:1455/auth/callback?code=…&state=…",
-  finish: "Finish connecting",
+  finish: "Finish",
   finishing: "Connecting…",
-  unofficial: "Uses Codex sign-in; availability may change.",
+  unofficial: "This uses OpenAI's Codex sign-in and could break if OpenAI changes it.",
 } as const;
 
 type ChatGptConnectProps = {

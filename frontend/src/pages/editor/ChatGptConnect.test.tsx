@@ -63,7 +63,7 @@ describe("ChatGptConnect", () => {
     fireEvent.change(paste, {
       target: { value: "http://localhost:1455/auth/callback?code=c&state=s" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /finish connecting/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^finish$/i }));
 
     await waitFor(() => expect(completeMock).toHaveBeenCalledWith(
       "http://localhost:1455/auth/callback?code=c&state=s",
