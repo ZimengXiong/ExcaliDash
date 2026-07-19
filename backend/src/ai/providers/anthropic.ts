@@ -88,6 +88,7 @@ export const anthropicAdapter: AiProviderAdapter = {
       tools,
       signal,
       reasoningEffort,
+      toolChoice,
       onTextDelta,
       onThinkingDelta,
     } = req;
@@ -107,6 +108,11 @@ export const anthropicAdapter: AiProviderAdapter = {
         description: t.description,
         input_schema: t.inputSchema,
       })),
+      ...(toolChoice === "required"
+        ? { tool_choice: { type: "any" as const } }
+        : toolChoice === "none"
+          ? { tool_choice: { type: "none" as const } }
+          : {}),
       ...(useAnthropicReasoning
         ? { output_config: { effort: reasoningEffort } }
         : {}),

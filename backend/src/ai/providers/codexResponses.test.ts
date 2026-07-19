@@ -126,6 +126,17 @@ describe("buildResponsesBody", () => {
     });
     expect(body.reasoning).toMatchObject({ effort: "xhigh" });
   });
+
+  it("requires a tool on canvas mutation turns", () => {
+    const body = buildResponsesBody({
+      model: "gpt-5.5",
+      system: "sys",
+      turns: [{ role: "user", text: "draw" }],
+      tools: TOOLS,
+      toolChoice: "required",
+    });
+    expect(body.tool_choice).toBe("required");
+  });
 });
 
 describe("CodexStreamAccumulator", () => {

@@ -104,7 +104,7 @@ export const resolveAiConfig = (): AiConfig => ({
   apiKey: readOptionalString("AI_API_KEY"),
   baseUrl: readOptionalString("AI_BASE_URL"),
   model: readOptionalString("AI_MODEL"),
-  maxTokensPerRequest: readNumber("AI_MAX_TOKENS_PER_REQUEST", 4096),
+  maxTokensPerRequest: readNumber("AI_MAX_TOKENS_PER_REQUEST", 32_000),
   rateLimitMax: readNumber("AI_RATE_LIMIT_MAX", 60),
   rateLimitWindowMs: readNumber("AI_RATE_LIMIT_WINDOW_MS", 60000),
   chatgpt: resolveChatGptConfig(),

@@ -107,6 +107,7 @@ export const buildResponsesBody = (params: {
   turns: ConversationTurn[];
   tools: AgentTool[];
   reasoningEffort?: string;
+  toolChoice?: "auto" | "required" | "none";
 }): Record<string, unknown> => ({
   model: params.model,
   instructions: params.system,
@@ -118,7 +119,7 @@ export const buildResponsesBody = (params: {
     parameters: t.inputSchema,
     strict: false,
   })),
-  tool_choice: "auto",
+  tool_choice: params.toolChoice ?? "auto",
   parallel_tool_calls: false,
   store: false,
   stream: true,

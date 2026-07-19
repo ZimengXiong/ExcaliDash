@@ -39,4 +39,17 @@ describe("readOpenAiStream", () => {
       toolCalls: [],
     });
   });
+
+  it("preserves the provider finish reason from the stream", async () => {
+    const result = await readOpenAiStream(sseResponse([
+      { choices: [{ delta: { reasoning_content: "Planning." } }] },
+      { choices: [{ delta: {}, finish_reason: "length" }] },
+    ]));
+
+    expect(result).toMatchObject({
+      text: "",
+      toolCalls: [],
+      finishReason: "length",
+    });
+  });
 });

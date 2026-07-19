@@ -42,6 +42,8 @@ export type CompletionResult = {
   toolCalls: ToolCall[];
   streamedText?: boolean;
   assistantMetadata?: Record<string, unknown>;
+  /** Provider-native reason the response stopped (for example "stop" or "length"). */
+  finishReason?: string;
 };
 
 export type CompletionRequest = {
@@ -56,6 +58,7 @@ export type CompletionRequest = {
    */
   codexAuth?: { accessToken: string; accountId: string };
   reasoningEffort?: string;
+  toolChoice?: "auto" | "required" | "none";
   onTextDelta?: (delta: string) => void;
   onThinkingDelta?: (delta: string) => void;
 };

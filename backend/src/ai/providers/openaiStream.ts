@@ -36,13 +36,19 @@ export const readOpenAiStream = async (
   signal?: AbortSignal,
   onTextDelta?: (delta: string) => void,
   onThinkingDelta?: (delta: string) => void,
-): Promise<{ text: string; toolCalls: ToolCall[]; error?: string }> => {
+): Promise<{
+  text: string;
+  toolCalls: ToolCall[];
+  finishReason?: string;
+  error?: string;
+}> => {
   const reader = response.body?.getReader();
   if (!reader) return { text: "", toolCalls: [], error: "Missing response stream" };
   const decoder = new TextDecoder();
   const calls = new Map<number, PendingCall>();
   let buffer = "";
   let text = "";
+  let finishReason: string | undefined;
   let failure: string | undefined;
   const consume = (frame: string) => {
     const data = frame.split(/\r?\n/).filter((line) => line.startsWith("data:"))
@@ -51,6 +57,10 @@ export const readOpenAiStream = async (
     try {
       const payload = JSON.parse(data);
       if (payload.error?.message) failure = payload.error.message;
+      const rawFinishReason = payload.choices?.[0]?.finish_reason;
+      if (typeof rawFinishReason === "string" && rawFinishReason) {
+        finishReason = rawFinishReason;
+      }
       const delta = payload.choices?.[0]?.delta ?? {};
       if (typeof delta.content === "string") {
         text += delta.content;
@@ -93,5 +103,10 @@ export const readOpenAiStream = async (
         : {}),
     };
   });
-  return { text, toolCalls, ...(failure ? { error: failure } : {}) };
+  return {
+    text,
+    toolCalls,
+    ...(finishReason ? { finishReason } : {}),
+    ...(failure ? { error: failure } : {}),
+  };
 };

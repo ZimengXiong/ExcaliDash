@@ -35,7 +35,7 @@ export const aiEnv: readonly EnvVarSpec[] = [
     name: "AI_MAX_TOKENS_PER_REQUEST",
     group: "AI",
     kind: "number",
-    default: "4096",
+    default: "32000",
     doc: "Maximum output tokens the chat proxy requests per model call.",
   },
   {
