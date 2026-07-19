@@ -102,7 +102,7 @@ export const NewDrawingControl: React.FC<NewDrawingControlProps> = ({
       {menuOpen && !disabled && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
-          <div className="ui-popover absolute right-0 top-full mt-2 z-50 min-w-[200px] py-1 animate-in fade-in zoom-in-95 duration-100">
+          <div className="ui-menu absolute right-0 top-full mt-2 z-50 min-w-[200px] animate-in fade-in zoom-in-95 duration-100">
             {otherEngines.map((engine) => (
               <button
                 key={engine}
@@ -111,7 +111,7 @@ export const NewDrawingControl: React.FC<NewDrawingControlProps> = ({
                   setMenuOpen(false);
                   onCreate(engine);
                 }}
-                className="w-full px-3 py-2 text-sm text-left flex items-center gap-2 text-slate-600 dark:text-neutral-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+                className="ui-menu-item"
               >
                 <Plus size={14} strokeWidth={2.5} />
                 New {ENGINE_META[engine].label} drawing

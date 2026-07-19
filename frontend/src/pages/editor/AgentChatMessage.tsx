@@ -11,7 +11,7 @@ const BatchCard: React.FC<{ batch: ChatBatch; onUndo: (batch: ChatBatch) => void
     <div className="mt-2 rounded-xl border-2 border-indigo-200 bg-indigo-50/70 p-2.5 text-xs dark:border-indigo-900/60 dark:bg-indigo-950/30">
       <div className="flex items-center justify-between gap-2">
         <span className="font-bold text-indigo-700 dark:text-indigo-300">Applied to canvas</span>
-        <button type="button" onClick={() => onUndo(batch)} disabled={batch.status === "reverting" || batch.status === "reverted"} className="inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 font-bold text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 dark:text-indigo-300 dark:hover:bg-indigo-900/40">
+        <button type="button" onClick={() => onUndo(batch)} disabled={batch.status === "reverting" || batch.status === "reverted"} className="inline-flex items-center gap-1 rounded-lg border-2 border-indigo-200 bg-white px-2 py-0.5 font-bold text-indigo-700 transition-colors hover:border-indigo-400 disabled:opacity-50 dark:border-indigo-900 dark:bg-neutral-900 dark:text-indigo-300 dark:hover:border-indigo-700">
           {batch.status === "reverting" ? <Loader2 size={12} className="animate-spin" /> : <Undo2 size={12} />}
           {batch.status === "reverting" ? "Undoing…" : batch.status === "reverted" ? "Undone" : batch.status === "revert-failed" ? "Undo failed — retry" : "Undo"}
         </button>
@@ -48,7 +48,7 @@ export const AgentChatMessage: React.FC<{
         {!isUser && message.tools?.length ? <AgentToolActivityList tools={message.tools} /> : null}
         {!isUser ? message.batches.map((batch) => <BatchCard key={batch.opsBatchId} batch={batch} onUndo={onUndo} />) : null}
         {message.error ? (
-          <div className="mt-2 flex items-start gap-1.5 rounded-lg bg-red-50 p-2 text-xs text-red-700 dark:bg-red-950/40 dark:text-red-300">
+          <div className="mt-2 flex items-start gap-1.5 rounded-lg border-2 border-red-200 bg-red-50 p-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
             <AlertTriangle size={14} className="mt-0.5 shrink-0" />
             <div className="min-w-0"><p className="break-words">{message.error}</p>{message.opErrors?.map((error, index) => <p key={index}>#{error.opIndex}: {error.message}</p>)}</div>
           </div>

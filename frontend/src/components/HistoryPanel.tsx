@@ -13,6 +13,9 @@ type Props = {
   onPreview: (snapshot: api.DrawingSnapshotFull | null) => void;
 };
 
+const smallButtonClass =
+  "flex items-center gap-1 rounded-lg border-2 border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 transition-colors hover:border-black disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:border-neutral-400";
+
 function timeAgo(dateStr: string): string {
   const seconds = Math.floor(
     (Date.now() - new Date(dateStr).getTime()) / 1000
@@ -120,124 +123,126 @@ export const HistoryPanel: React.FC<Props> = ({
 
   return createPortal(
     <div className="fixed inset-0 z-[90] flex justify-end pointer-events-none">
-      <div className="ui-side-panel pointer-events-auto relative w-full md:w-96 border-l animate-in slide-in-from-right duration-200 flex flex-col h-full shadow-2xl">
+      <div className="ui-side-panel pointer-events-auto relative flex h-full w-full flex-col border-l-2 border-black bg-white animate-in slide-in-from-right duration-200 dark:border-neutral-700 dark:bg-neutral-900 md:w-96">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-neutral-800 bg-white dark:bg-neutral-900">
-          <div className="flex items-center gap-2">
-            <Clock size={18} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
-            <h2 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
-              Version History
-            </h2>
-            {totalCount > 0 && (
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800">
-                {totalCount}
-              </span>
-            )}
+        <div className="flex items-center gap-3 border-b-2 border-slate-100 px-4 py-3.5 dark:border-neutral-800">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border-2 border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-300">
+            <Clock size={17} />
           </div>
+          <h2 className="text-base font-bold text-slate-900 dark:text-white">
+            Version history
+          </h2>
+          {totalCount > 0 && (
+            <span className="rounded-full border-2 border-black bg-white px-2 py-0.5 text-[11px] font-black dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200">
+              {totalCount}
+            </span>
+          )}
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-neutral-400 hover:text-neutral-950 dark:hover:text-white transition-colors"
+            aria-label="Close version history"
+            className="ml-auto rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-neutral-800 dark:hover:text-white"
           >
             <X size={18} />
           </button>
         </div>
 
         {/* Snapshot list */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div className="flex-1 overflow-y-auto">
           {loading ? (
-            <div className="flex items-center justify-center py-12 text-neutral-400">
-              <span className="text-sm font-bold">Loading history...</span>
+            <div className="flex items-center justify-center py-12 text-slate-400">
+              <span className="text-sm font-bold">Loading history…</span>
             </div>
           ) : snapshots.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-neutral-400 gap-2">
+            <div className="flex flex-col items-center justify-center gap-2 py-12 text-slate-400">
               <Clock size={32} />
               <span className="text-sm font-bold">No history yet</span>
-              <span className="text-xs text-center font-semibold">
-                Version history is created automatically when you save changes.
+              <span className="text-center text-xs font-medium">
+                Versions are saved automatically as you edit.
               </span>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="divide-y divide-slate-100 dark:divide-neutral-800">
               {snapshots.map((snap) => (
                 <div
                   key={snap.id}
                   className={clsx(
-                    "rounded-xl border transition-colors duration-150 flex flex-col overflow-hidden",
-                    previewId === snap.id
-                      ? "border-indigo-400 dark:border-indigo-500 bg-indigo-50/60 dark:bg-indigo-900/15 ring-2 ring-indigo-500/10"
-                      : "border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:border-slate-300 dark:hover:border-neutral-600 hover:shadow-sm"
+                    "px-4 py-3 transition-colors",
+                    previewId === snap.id &&
+                      "bg-indigo-50/60 dark:bg-indigo-900/10",
                   )}
                 >
-                  <div className="p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
-                        Version {snap.version}
-                      </span>
-                      <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400">
-                        {timeAgo(snap.createdAt)}
-                      </span>
+                  <div className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-sm font-bold text-slate-900 dark:text-white">
+                          Version {snap.version}
+                        </span>
+                        <span className="rounded-full border-2 border-slate-200 px-1.5 py-px text-[10px] font-bold text-slate-500 dark:border-neutral-700 dark:text-neutral-400">
+                          {timeAgo(snap.createdAt)}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 text-[11px] font-medium text-slate-400 dark:text-neutral-500">
+                        {new Date(snap.createdAt).toLocaleString()}
+                      </div>
                     </div>
-                    <div className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500 mb-3">
-                      {new Date(snap.createdAt).toLocaleString()}
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handlePreview(snap.id)}
-                        className={clsx(
-                          "flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg border transition-colors duration-150",
-                          previewId === snap.id
-                            ? "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
-                            : "bg-white dark:bg-neutral-900 text-slate-700 dark:text-neutral-300 border-slate-300 dark:border-neutral-600 hover:bg-slate-50 dark:hover:bg-neutral-800"
-                        )}
-                      >
-                        <Eye size={12} strokeWidth={2.5} />
-                        {previewId === snap.id ? "Hide" : "Preview"}
-                      </button>
-                      <button
-                        onClick={() => handleRestore(snap.id)}
-                        disabled={restoring}
-                        className={clsx(
-                          "flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold rounded-lg border transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed",
-                          confirmRestore === snap.id
-                            ? "bg-amber-500 text-white border-amber-500 hover:bg-amber-600"
-                            : "bg-white dark:bg-neutral-900 text-slate-700 dark:text-neutral-300 border-slate-300 dark:border-neutral-600 hover:bg-slate-50 dark:hover:bg-neutral-800"
-                        )}
-                      >
-                        <RotateCcw size={12} strokeWidth={2.5} />
-                        {confirmRestore === snap.id
-                          ? "Confirm?"
-                          : restoring
-                          ? "Restoring..."
+                    <button
+                      onClick={() => handlePreview(snap.id)}
+                      className={clsx(
+                        smallButtonClass,
+                        previewId === snap.id &&
+                          "border-black bg-indigo-600 text-white hover:bg-indigo-500 dark:border-neutral-600 dark:hover:bg-indigo-500 dark:hover:border-neutral-600",
+                      )}
+                    >
+                      <Eye size={12} strokeWidth={2.5} />
+                      {previewId === snap.id ? "Hide" : "Preview"}
+                    </button>
+                    <button
+                      onClick={() => handleRestore(snap.id)}
+                      disabled={restoring}
+                      className={clsx(
+                        smallButtonClass,
+                        confirmRestore === snap.id &&
+                          "border-black bg-amber-400 text-amber-950 hover:bg-amber-300 dark:border-neutral-600 dark:hover:bg-amber-300 dark:hover:border-neutral-600",
+                      )}
+                    >
+                      <RotateCcw size={12} strokeWidth={2.5} />
+                      {confirmRestore === snap.id
+                        ? "Confirm?"
+                        : restoring
+                          ? "Restoring…"
                           : "Restore"}
-                      </button>
-                    </div>
+                    </button>
                   </div>
 
-                  {/* Preview info pane */}
                   {previewId === snap.id && (
-                    <div className="border-t border-indigo-200/70 dark:border-indigo-800/50 p-3 bg-indigo-50/20 dark:bg-indigo-900/5">
+                    <div className="mt-2 rounded-lg border-2 border-dashed border-indigo-200 px-2.5 py-1.5 dark:border-indigo-800">
                       {previewLoading ? (
-                        <span className="text-[10px] font-semibold text-neutral-400">
-                          Loading preview...
+                        <span className="text-[11px] font-medium text-slate-400">
+                          Loading preview…
                         </span>
                       ) : previewData ? (
-                        <div className="text-[11px] text-neutral-500 dark:text-neutral-400 space-y-1 font-semibold">
+                        <div className="text-[11px] font-medium text-slate-500 dark:text-neutral-400">
                           {Array.isArray(previewData.elements) ? (
-                            <div>
-                              <span className="font-bold text-neutral-600 dark:text-neutral-300">Active Elements:</span>{" "}
-                              {previewData.elements.filter(
-                                (e) => !(e as Record<string, unknown>).isDeleted
-                              ).length}
-                            </div>
+                            <>
+                              <span className="font-bold text-slate-600 dark:text-neutral-300">
+                                Active elements:
+                              </span>{" "}
+                              {
+                                previewData.elements.filter(
+                                  (e) =>
+                                    !(e as Record<string, unknown>).isDeleted,
+                                ).length
+                              }
+                            </>
                           ) : (
                             // Non-array scenes (e.g. a tldraw document snapshot) have no
                             // flat element list to count; show a neutral note instead of a
                             // misleading "0 elements".
-                            <div>Snapshot captured for this version.</div>
+                            "Snapshot captured for this version."
                           )}
                         </div>
                       ) : (
-                        <span className="text-[10px] font-bold text-red-500">
+                        <span className="text-[11px] font-bold text-rose-500">
                           Failed to load preview
                         </span>
                       )}
@@ -250,8 +255,8 @@ export const HistoryPanel: React.FC<Props> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-200 dark:border-neutral-800 bg-slate-50 dark:bg-neutral-800/50">
-          <p className="text-[10px] font-bold uppercase tracking-wide text-neutral-400 dark:text-neutral-500 text-center">
+        <div className="border-t-2 border-slate-100 px-4 py-3 dark:border-neutral-800">
+          <p className="text-center text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-neutral-500">
             Versions are kept for 2 days
           </p>
         </div>

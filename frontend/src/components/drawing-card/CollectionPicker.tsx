@@ -79,16 +79,16 @@ export const CollectionPicker: React.FC<CollectionPickerProps> = ({
       {!isShared && isOpen && (
         <>
           <div className="fixed inset-0 z-10" onClick={onClose} />
-          <div className="ui-popover absolute right-0 bottom-full mb-1.5 w-48 z-20 py-1 max-h-56 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-bottom-2 duration-150">
+          <div className="ui-menu absolute right-0 bottom-full mb-1.5 w-48 z-20 max-h-56 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-bottom-2 duration-150">
             <CollectionMoveOptions
               collections={collections}
               currentCollectionId={drawing.collectionId}
               drawingId={drawing.id}
               onMoveToCollection={onMoveToCollection}
               onDone={onClose}
-              optionClassName="w-full px-3 py-2 text-xs text-left flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors truncate"
-              selectedClassName="text-neutral-900 dark:text-white font-bold bg-neutral-100 dark:bg-neutral-800"
-              unselectedClassName="text-slate-600 dark:text-neutral-400"
+              optionClassName="ui-menu-item justify-between text-xs"
+              selectedClassName="ui-menu-item-selected"
+              unselectedClassName=""
               checkSize={12}
             />
           </div>

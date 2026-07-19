@@ -3,7 +3,7 @@ import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import type { AgentToolActivity } from "./useAgentChat";
 
 const LABELS: Record<string, string> = {
-  view_canvas: "Inspect canvas",
+  view_canvas: "Read canvas",
   apply_ops: "Edit canvas",
 };
 

@@ -22,11 +22,11 @@ const STR = {
   title: "Assistant",
   open: "Open canvas assistant",
   close: "Close assistant",
-  placeholder: "Ask or edit the canvas…",
-  inputLabel: "Message the canvas agent",
+  placeholder: "Ask me to draw or edit something…",
+  inputLabel: "Message the assistant",
   send: "Send",
   stop: "Stop",
-  empty: "What should we make?",
+  empty: "What should I draw?",
 } as const;
 
 type ChatPanelProps = {
@@ -306,7 +306,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 onKeyDown={handleKeyDown}
                 rows={1}
                 placeholder={
-                  canEdit ? STR.placeholder : "Read-only shared conversation"
+                  canEdit ? STR.placeholder : "You have view-only access"
                 }
                 aria-label={STR.inputLabel}
                 disabled={!canEdit}
