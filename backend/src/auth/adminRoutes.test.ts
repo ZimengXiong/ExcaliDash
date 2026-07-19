@@ -2,10 +2,13 @@ import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { registerAdminRoutes } from "./adminRoutes";
+import { encodeStoredAiProfiles } from "../ai/settings";
 
 const buildApp = (options?: {
   authMode?: "local" | "hybrid" | "oidc_enforced";
   oidcEnabled?: boolean;
+  role?: "ADMIN" | "USER";
+  authEnabled?: boolean;
 }) => {
   const router = express.Router();
   router.use(express.json());
@@ -14,6 +17,7 @@ const buildApp = (options?: {
     systemConfig: {
       findUnique: vi.fn(),
       upsert: vi.fn(),
+      findUnique: vi.fn().mockResolvedValue(null),
       update: vi.fn(),
     },
     user: {
@@ -31,13 +35,19 @@ const buildApp = (options?: {
         id: "admin-id",
         email: "admin@test.local",
         name: "Admin",
-        role: "ADMIN",
+        role: options?.role ?? "ADMIN",
       };
       next();
     }) as any,
     accountActionRateLimiter: ((_req: any, _res: any, next: any) =>
       next()) as any,
-    ensureAuthEnabled: vi.fn().mockResolvedValue(true),
+    ensureAuthEnabled: vi.fn().mockImplementation(async (res: any) => {
+      if (options?.authEnabled === false) {
+        res.status(404).json({ error: "Not found" });
+        return false;
+      }
+      return true;
+    }),
     ensureSystemConfig: vi.fn().mockResolvedValue({
       id: "default",
       oidcJitProvisioningEnabled: null,
@@ -52,8 +62,11 @@ const buildApp = (options?: {
       .fn()
       .mockReturnValue({ enabled: true, windowMs: 900000, max: 20 }),
     resetLoginAttemptKey: vi.fn(),
-    requireAdmin: ((req: any, _res: any) =>
-      Boolean(req.user && req.user.role === "ADMIN")) as any,
+    requireAdmin: ((req: any, res: any) => {
+      if (req.user?.role === "ADMIN") return true;
+      res.status(403).json({ error: "Forbidden" });
+      return false;
+    }) as any,
     findUserByIdentifier: vi.fn(),
     countActiveAdmins: vi.fn().mockResolvedValue(1),
     sanitizeText: (input: unknown) => String(input ?? "").trim(),
@@ -211,5 +224,91 @@ describe("admin OIDC access controls", () => {
       windowMs: 900000,
       max: 20,
     });
+  });
+});
+
+describe("AI provider administration", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    ["local", false],
+    ["hybrid", true],
+    ["oidc_enforced", true],
+  ] as const)(
+    "is admin-authorized and independent of identity-provider mode (%s)",
+    async (authMode, oidcEnabled) => {
+      const { app } = buildApp({ authMode, oidcEnabled });
+      const response = await request(app).get("/ai/settings");
+      expect(response.status).toBe(200);
+      expect(response.body.providerDefinitions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: "openai" }),
+          expect.objectContaining({ id: "opencode_go" }),
+        ]),
+      );
+      expect(JSON.stringify(response.body)).not.toContain("apiKeyEncrypted");
+    },
+  );
+
+  it("remains available to the bootstrap admin when authentication is disabled", async () => {
+    const { app } = buildApp({
+      authMode: "local",
+      oidcEnabled: false,
+      authEnabled: false,
+    });
+    const response = await request(app).get("/ai/settings");
+    expect(response.status).toBe(200);
+  });
+
+  it("rejects non-admin provider tests before making an external request", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const { app } = buildApp({ role: "USER" });
+    const response = await request(app).post("/ai/providers/test").send({
+      provider: "openai",
+      apiKey: "sk-secret",
+      model: "gpt-5.4",
+    });
+    expect(response.status).toBe(403);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("tests unsaved edits with a stored key without returning the secret", async () => {
+    const { app, prisma } = buildApp();
+    prisma.systemConfig.findUnique.mockResolvedValue({
+      aiProviderProfiles: encodeStoredAiProfiles([
+        {
+          id: "stored",
+          label: "Stored",
+          provider: "openai",
+          enabled: true,
+          baseUrl: null,
+          models: [{ id: "gpt-5.4", label: "GPT-5.4", reasoningEfforts: [] }],
+          apiKey: "sk-stored-secret",
+        },
+      ]),
+    });
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(JSON.stringify({ data: [{ id: "gpt-5.4" }] }), {
+          status: 200,
+        }),
+      );
+    const response = await request(app).post("/ai/providers/test").send({
+      profileId: "stored",
+      provider: "openai",
+      model: "gpt-5.4",
+    });
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ ok: true, code: "success" });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.openai.com/v1/models",
+      expect.objectContaining({
+        headers: { authorization: "Bearer sk-stored-secret" },
+      }),
+    );
+    expect(JSON.stringify(response.body)).not.toContain("sk-stored-secret");
   });
 });

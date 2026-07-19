@@ -273,10 +273,13 @@ export const Admin: React.FC = () => {
           providers={aiSettings.providers}
           defaultProviderId={aiSettings.defaultProviderId}
           status={aiSettings.status}
+          providerDefinitions={aiSettings.providerDefinitions}
           onDefaultProviderChange={aiSettings.setDefaultProviderId}
           onAddProvider={aiSettings.addProvider}
           onUpdateProvider={aiSettings.updateProvider}
           onRemoveProvider={aiSettings.removeProvider}
+          onDiscoverModels={aiSettings.discoverModels}
+          onTestProvider={aiSettings.testProvider}
           onSave={aiSettings.save}
           onEnabledChange={aiSettings.setEnabled}
         />{" "}

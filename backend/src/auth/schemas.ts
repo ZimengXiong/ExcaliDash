@@ -55,7 +55,7 @@ const aiModelOptionSchema = z.object({
 const aiProviderProfileSchema = z.object({
   id: z.string().trim().regex(/^[a-zA-Z0-9_-]+$/).max(64),
   label: z.string().trim().min(1).max(100),
-  provider: z.enum(["anthropic", "openai", "gemini", "custom", "chatgpt"]),
+  provider: z.enum(["anthropic", "openai", "gemini", "opencode_go", "custom", "chatgpt"]),
   enabled: z.boolean(),
   baseUrl: z.string().trim().max(2000).nullable(),
   models: z.array(aiModelOptionSchema).max(50),
@@ -73,7 +73,7 @@ const aiProviderProfileSchema = z.object({
 
 export const aiSettingsUpdateSchema = z.object({
   provider: z
-    .enum(["disabled", "anthropic", "openai", "gemini", "custom", "chatgpt"])
+    .enum(["disabled", "anthropic", "openai", "gemini", "opencode_go", "custom", "chatgpt"])
     .nullable()
     .optional(),
   baseUrl: z.string().trim().max(2000).nullable().optional(),
@@ -81,6 +81,22 @@ export const aiSettingsUpdateSchema = z.object({
   apiKey: z.string().max(4000).optional(),
   providers: z.array(aiProviderProfileSchema).max(20).optional(),
   defaultProviderId: z.string().trim().max(64).nullable().optional(),
+});
+
+export const aiProviderProbeSchema = z.object({
+  profileId: z.string().trim().max(64).optional(),
+  provider: z.enum([
+    "anthropic",
+    "openai",
+    "gemini",
+    "opencode_go",
+    "custom",
+    "chatgpt",
+  ]),
+  apiKey: z.string().max(4000).optional(),
+  baseUrl: z.string().trim().max(2000).nullable().optional(),
+  model: z.string().trim().max(200).nullable().optional(),
+  refresh: z.boolean().optional(),
 });
 
 export const oidcJitProvisioningToggleSchema = z.object({

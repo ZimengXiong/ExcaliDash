@@ -19,6 +19,8 @@ import {
 import { encryptSecret } from "../ai/crypto";
 import { config as appConfig } from "../config";
 import { ensureAiEnabled } from "../ai/featureFlag";
+import { getProviderDefinitions } from "../ai/providerDefinitions";
+import { registerAiProviderUtilityRoutes } from "./aiProviderUtilityRoutes";
 
 export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
   const {
@@ -121,6 +123,7 @@ export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
           // When an env key is set it always wins — the DB key field is locked.
           envKeyConfigured: Boolean(appConfig.ai.apiKey),
           dbKeyConfigured: Boolean(row?.aiApiKeyEncrypted),
+          providerDefinitions: getProviderDefinitions(),
         });
       } catch (error) {
         console.error("Get AI settings error:", error);
@@ -217,6 +220,7 @@ export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
           },
           envKeyConfigured: Boolean(appConfig.ai.apiKey),
           dbKeyConfigured: Boolean(updated.aiApiKeyEncrypted),
+          providerDefinitions: getProviderDefinitions(),
         });
       } catch (error) {
         console.error("Update AI settings error:", error);
@@ -227,6 +231,15 @@ export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
       }
     },
   );
+
+  registerAiProviderUtilityRoutes({
+    router,
+    requireAuth,
+    requireCsrf,
+    requireAdmin,
+    loadAiRow,
+    ensureEnabled: (res) => ensureAiEnabled(prisma, res, defaultSystemConfigId),
+  });
 
   router.post(
     "/registration/toggle",

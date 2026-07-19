@@ -1,72 +1,114 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import type { AiProviderDefinition } from "../../api/ai";
 import { AiSettingsCard } from "./AiSettingsCard";
+import type { AiProviderDraft } from "./useAiSettings";
 
-const renderCard = (enabled: boolean, onEnabledChange = vi.fn()) =>
-  render(
-    <AiSettingsCard
-      loading={false}
-      saving={false}
-      enabled={enabled}
-      provider="anthropic"
-      baseUrl="https://api.anthropic.com/v1"
-      model="preserved-model"
-      apiKey=""
-      chatgptEnabled
-      status={null}
-      envKeyConfigured={false}
-      dbKeyConfigured
-      onEnabledChange={onEnabledChange}
-      onProviderChange={vi.fn()}
-      onBaseUrlChange={vi.fn()}
-      onModelChange={vi.fn()}
-      onApiKeyChange={vi.fn()}
-      onChatgptEnabledChange={vi.fn()}
-      onSave={vi.fn()}
-      onClearDbKey={vi.fn()}
-    />,
-  );
+const definitions: AiProviderDefinition[] = [
+  {
+    id: "openai",
+    label: "OpenAI",
+    baseUrl: "https://api.openai.com/v1",
+    defaultModel: "gpt-5.4",
+    protocol: "openai-chat-completions",
+    discovery: "live",
+    help: "OpenAI help",
+  },
+  {
+    id: "opencode_go",
+    label: "OpenCode Go",
+    baseUrl: "https://opencode.ai/zen/go/v1",
+    defaultModel: "kimi-k3",
+    protocol: "mixed",
+    discovery: "live",
+    help: "OpenCode help",
+  },
+];
 
-describe("AiSettingsCard global feature switch", () => {
-  it("keeps only the global switch visible when disabled", () => {
-    renderCard(false);
-    expect(screen.getByLabelText("Enable AI features")).toBeInTheDocument();
-    expect(screen.queryByText("Provider")).not.toBeInTheDocument();
-    expect(screen.queryByText("Model")).not.toBeInTheDocument();
-    expect(screen.queryByText("API key")).not.toBeInTheDocument();
-    expect(screen.queryByText("Save AI settings")).not.toBeInTheDocument();
-  });
+const profile: AiProviderDraft = {
+  id: "draft",
+  label: "OpenAI",
+  provider: "openai",
+  enabled: true,
+  baseUrl: "",
+  modelsText: "manual-model",
+  reasoningEffortsText: "",
+  apiKey: "",
+  keyConfigured: true,
+  keySource: "db",
+  discoveredModels: [
+    { id: "manual-model", label: "Manual model", reasoningEfforts: [] },
+    { id: "gpt-5.4", label: "GPT-5.4", reasoningEfforts: ["medium"] },
+  ],
+  discoverySource: "cache",
+};
 
-  it("can re-enable the feature and restores provider controls when enabled", () => {
-    const onEnabledChange = vi.fn();
-    const { rerender } = renderCard(false, onEnabledChange);
-    fireEvent.click(screen.getByLabelText("Enable AI features"));
-    expect(onEnabledChange).toHaveBeenCalledWith(true);
-
-    rerender(
+describe("AiSettingsCard", () => {
+  it("keeps advanced settings secondary and exposes test/refresh/model selection", () => {
+    const onUpdateProvider = vi.fn();
+    const onDiscoverModels = vi.fn();
+    const onTestProvider = vi.fn();
+    const { container } = render(
       <AiSettingsCard
+        enabled
         loading={false}
         saving={false}
-        enabled
-        provider="anthropic"
-        baseUrl=""
-        model="preserved-model"
-        apiKey=""
-        chatgptEnabled
+        providers={[profile]}
+        providerDefinitions={definitions}
+        defaultProviderId="draft"
         status={null}
-        envKeyConfigured={false}
-        dbKeyConfigured
-        onEnabledChange={onEnabledChange}
-        onProviderChange={vi.fn()}
-        onBaseUrlChange={vi.fn()}
-        onModelChange={vi.fn()}
-        onApiKeyChange={vi.fn()}
-        onChatgptEnabledChange={vi.fn()}
+        onDefaultProviderChange={vi.fn()}
+        onAddProvider={vi.fn()}
+        onUpdateProvider={onUpdateProvider}
+        onRemoveProvider={vi.fn()}
+        onDiscoverModels={onDiscoverModels}
+        onTestProvider={onTestProvider}
         onSave={vi.fn()}
-        onClearDbKey={vi.fn()}
+        onEnabledChange={vi.fn()}
       />,
     );
-    expect(screen.getByText("Provider")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("preserved-model")).toBeInTheDocument();
+
+    expect(
+      (container.querySelector("details") as HTMLDetailsElement).open,
+    ).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Test connection" }));
+    expect(onTestProvider).toHaveBeenCalledWith("draft");
+    fireEvent.click(screen.getByRole("button", { name: "Refresh models" }));
+    expect(onDiscoverModels).toHaveBeenCalledWith("draft", true);
+    fireEvent.change(screen.getByDisplayValue("Manual model"), {
+      target: { value: "gpt-5.4" },
+    });
+    expect(onUpdateProvider).toHaveBeenCalledWith("draft", {
+      modelsText: "gpt-5.4",
+    });
+  });
+
+  it("keeps the global switch available while provider controls are disabled", () => {
+    const onEnabledChange = vi.fn();
+    render(
+      <AiSettingsCard
+        enabled={false}
+        loading={false}
+        saving={false}
+        providers={[profile]}
+        providerDefinitions={definitions}
+        defaultProviderId="draft"
+        status={null}
+        onDefaultProviderChange={vi.fn()}
+        onAddProvider={vi.fn()}
+        onUpdateProvider={vi.fn()}
+        onRemoveProvider={vi.fn()}
+        onDiscoverModels={vi.fn()}
+        onTestProvider={vi.fn()}
+        onSave={vi.fn()}
+        onEnabledChange={onEnabledChange}
+      />,
+    );
+    expect(screen.getByLabelText("Enable AI features")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Test connection" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Enable AI features"));
+    expect(onEnabledChange).toHaveBeenCalledWith(true);
   });
 });

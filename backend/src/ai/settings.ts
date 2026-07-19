@@ -2,6 +2,7 @@ import { config } from "../config";
 import type { AiProvider } from "../config/ai";
 import { decryptSecret, encryptSecret } from "./crypto";
 import { reasoningEffortsForChatGptModel } from "./chatgpt/models";
+import { getProviderDefinition } from "./providerDefinitions";
 
 export type AiProviderKind = Exclude<AiProvider, "disabled">;
 
@@ -60,24 +61,6 @@ export type ResolvedAiRegistry = {
   chatgptEnabled: boolean;
 };
 
-const DEFAULT_BASE_URL: Record<AiProvider, string | null> = {
-  disabled: null,
-  anthropic: "https://api.anthropic.com/v1",
-  openai: "https://api.openai.com/v1",
-  gemini: "https://generativelanguage.googleapis.com/v1beta/openai",
-  custom: null,
-  chatgpt: null,
-};
-
-const DEFAULT_MODEL: Record<AiProvider, string | null> = {
-  disabled: null,
-  anthropic: "claude-opus-4-8",
-  openai: "gpt-4o",
-  gemini: "gemini-2.5-pro",
-  custom: null,
-  chatgpt: null,
-};
-
 const trimOrNull = (value: unknown): string | null => {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -90,6 +73,7 @@ const parseProvider = (value: unknown): AiProvider | null => {
     normalized === "anthropic" ||
     normalized === "openai" ||
     normalized === "gemini" ||
+    normalized === "opencode_go" ||
     normalized === "custom" ||
     normalized === "chatgpt"
     ? normalized
@@ -194,7 +178,7 @@ const resolveProfile = (
   const defaultModel =
     profile.provider === "chatgpt"
       ? (config.ai.chatgpt.models[0] ?? null)
-      : DEFAULT_MODEL[profile.provider];
+      : getProviderDefinition(profile.provider).defaultModel;
   const models =
     profile.provider === "chatgpt"
       ? config.ai.chatgpt.models.map((id) => ({
@@ -210,7 +194,7 @@ const resolveProfile = (
   const baseUrl =
     profile.provider === "chatgpt"
       ? null
-      : (profile.baseUrl ?? DEFAULT_BASE_URL[profile.provider]);
+      : (profile.baseUrl ?? getProviderDefinition(profile.provider).baseUrl);
   const enabled =
     profile.enabled && (profile.provider !== "chatgpt" || chatgptEnabled);
   const available =
@@ -243,7 +227,9 @@ const legacyProfile = (
     config.ai.model ??
     (provider === "chatgpt"
       ? (config.ai.chatgpt.models[0] ?? null)
-      : DEFAULT_MODEL[provider]);
+      : provider === "disabled"
+        ? null
+        : getProviderDefinition(provider).defaultModel);
   return {
     id: "legacy",
     label:

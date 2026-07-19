@@ -15,6 +15,12 @@ type RawModel = {
   supported_reasoning_levels?: unknown;
 };
 
+const CHATGPT_MODEL_CACHE_TTL_MS = 5 * 60 * 1000;
+const chatGptModelCache = new Map<
+  string,
+  { expiresAt: number; models: ChatGptModel[] }
+>();
+
 export const reasoningEffortsForChatGptModel = (id: string): string[] =>
   id.startsWith("gpt-5.6-")
     ? ["none", "low", "medium", "high", "xhigh", "max"]
@@ -52,6 +58,9 @@ export const mergeChatGptModels = (
 /** Reads the catalog exposed to this specific ChatGPT subscription. */
 export const fetchChatGptModels = async (auth: ChatGptAuth): Promise<ChatGptModel[]> => {
   const c = config.ai.chatgpt;
+  const cacheKey = `${auth.accountId}:${c.codexBaseUrl}:${c.clientVersion}`;
+  const cached = chatGptModelCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.models;
   const url = new URL(`${c.codexBaseUrl}/models`);
   url.searchParams.set("client_version", c.clientVersion);
   try {
@@ -62,9 +71,9 @@ export const fetchChatGptModels = async (auth: ChatGptAuth): Promise<ChatGptMode
         originator: c.originator,
       },
     });
-    if (!response.ok) return fallbackModels();
+    if (!response.ok) return cached?.models ?? fallbackModels();
     const payload = (await response.json()) as { models?: unknown };
-    if (!Array.isArray(payload.models)) return fallbackModels();
+    if (!Array.isArray(payload.models)) return cached?.models ?? fallbackModels();
     const models: ChatGptModel[] = [];
     for (const raw of payload.models as RawModel[]) {
       if (raw.supported_in_api !== true || raw.visibility !== "list" || typeof raw.slug !== "string") continue;
@@ -83,8 +92,17 @@ export const fetchChatGptModels = async (auth: ChatGptAuth): Promise<ChatGptMode
         reasoningEfforts,
       });
     }
-    return mergeChatGptModels(fallbackModels(), models);
+    const merged = mergeChatGptModels(fallbackModels(), models);
+    chatGptModelCache.set(cacheKey, {
+      expiresAt: Date.now() + CHATGPT_MODEL_CACHE_TTL_MS,
+      models: merged,
+    });
+    return merged;
   } catch {
-    return fallbackModels();
+    return cached?.models ?? fallbackModels();
   }
+};
+
+export const clearChatGptModelCacheForTests = (): void => {
+  chatGptModelCache.clear();
 };

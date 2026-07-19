@@ -5,6 +5,7 @@ export type AiProvider =
   | "anthropic"
   | "openai"
   | "gemini"
+  | "opencode_go"
   | "custom"
   | "chatgpt"
   | "disabled";
@@ -26,6 +27,61 @@ export type AiProviderProfile = {
   keyConfigured: boolean;
   keySource: "env" | "db" | null;
 };
+
+export type AiProviderDefinition = {
+  id: Exclude<AiProvider, "disabled">;
+  label: string;
+  baseUrl: string | null;
+  defaultModel: string | null;
+  protocol:
+    | "openai-chat-completions"
+    | "anthropic-messages"
+    | "mixed"
+    | "chatgpt-subscription";
+  discovery: "live" | "fallback" | "subscription";
+  help: string;
+};
+
+export type AiProviderProbe = {
+  profileId?: string;
+  provider: Exclude<AiProvider, "disabled">;
+  apiKey?: string;
+  baseUrl?: string | null;
+  model?: string | null;
+  refresh?: boolean;
+};
+
+export type AiModelDiscoveryResult = {
+  models: AiModelOption[];
+  source: "live" | "cache" | "fallback" | "configured";
+  warning?: string;
+  fetchedAt: string;
+};
+
+export type AiConnectionTestResult = {
+  ok: boolean;
+  code:
+    | "success"
+    | "authentication_failure"
+    | "unreachable"
+    | "unsupported_model"
+    | "rate_limited"
+    | "malformed_response"
+    | "configuration_error";
+  message: string;
+  guidance?: string;
+  models?: AiModelOption[];
+};
+
+export const discoverAiProviderModels = async (
+  input: AiProviderProbe,
+): Promise<AiModelDiscoveryResult> =>
+  (await api.post<AiModelDiscoveryResult>("/auth/ai/providers/models", input)).data;
+
+export const testAiProviderConnection = async (
+  input: AiProviderProbe,
+): Promise<AiConnectionTestResult> =>
+  (await api.post<AiConnectionTestResult>("/auth/ai/providers/test", input)).data;
 
 /** Availability probe mirroring the backend `GET /ai/status` payload. */
 export type AiStatus = {

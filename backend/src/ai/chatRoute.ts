@@ -15,6 +15,7 @@ import {
 } from "./settings";
 import { anthropicAdapter } from "./providers/anthropic";
 import { openaiAdapter } from "./providers/openai";
+import { opencodeGoAdapter } from "./providers/opencodeGo";
 import { codexAdapter } from "./providers/codex";
 import { ensureFreshAuth, type ChatGptAuth } from "./chatgpt/store";
 import { fetchChatGptModels } from "./chatgpt/models";
@@ -50,6 +51,7 @@ const adapterFor = (provider: string): AiProviderAdapter | null => {
   if (provider === "anthropic") return anthropicAdapter;
   if (provider === "openai" || provider === "gemini" || provider === "custom")
     return openaiAdapter;
+  if (provider === "opencode_go") return opencodeGoAdapter;
   if (provider === "chatgpt") return codexAdapter;
   return null;
 };
@@ -145,12 +147,10 @@ export const registerAiRoutes = (
       const canvasImage = parseCanvasImage(body.canvasImage);
       const canvasState = parseCanvasState(body.canvasState, canvasImage);
       if (!drawingId || !userText || userText.length > 50_000) {
-        return res
-          .status(400)
-          .json({
-            error: "Bad request",
-            message: "drawingId and message are required",
-          });
+        return res.status(400).json({
+          error: "Bad request",
+          message: "drawingId and message are required",
+        });
       }
 
       const access = await getDrawingAccess({
@@ -159,11 +159,9 @@ export const registerAiRoutes = (
         drawingId,
       });
       if (!canEditDrawing(access)) {
-        return res
-          .status(canViewDrawing(access) ? 403 : 404)
-          .json({
-            error: canViewDrawing(access) ? "Forbidden" : "Drawing not found",
-          });
+        return res.status(canViewDrawing(access) ? 403 : 404).json({
+          error: canViewDrawing(access) ? "Forbidden" : "Drawing not found",
+        });
       }
 
       const requestedProviderId =
@@ -186,12 +184,10 @@ export const registerAiRoutes = (
         typeof body.reasoningEffort === "string" ? body.reasoningEffort : null;
       const adapter = adapterFor(settings.provider);
       if (!settings.available || !adapter) {
-        return res
-          .status(503)
-          .json({
-            error: "AI unavailable",
-            message: "The AI chat proxy is not configured",
-          });
+        return res.status(503).json({
+          error: "AI unavailable",
+          message: "The AI chat proxy is not configured",
+        });
       }
 
       const drawing = await prisma.drawing.findUnique({
@@ -220,34 +216,28 @@ export const registerAiRoutes = (
         const selected =
           models.find((model) => model.id === requestedModel) ?? models[0];
         if (!selected) {
-          return res
-            .status(503)
-            .json({
-              error: "AI unavailable",
-              message: "No supported ChatGPT models",
-            });
+          return res.status(503).json({
+            error: "AI unavailable",
+            message: "No supported ChatGPT models",
+          });
         }
         if (
           requestedModel &&
           !models.some((model) => model.id === requestedModel)
         ) {
-          return res
-            .status(400)
-            .json({
-              error: "Bad request",
-              message: "Unsupported ChatGPT model",
-            });
+          return res.status(400).json({
+            error: "Bad request",
+            message: "Unsupported ChatGPT model",
+          });
         }
         if (
           requestedReasoningEffort &&
           !selected.reasoningEfforts.includes(requestedReasoningEffort)
         ) {
-          return res
-            .status(400)
-            .json({
-              error: "Bad request",
-              message: "Unsupported reasoning effort",
-            });
+          return res.status(400).json({
+            error: "Bad request",
+            message: "Unsupported reasoning effort",
+          });
         }
         settings = { ...settings, model: selected.id };
       } else {
