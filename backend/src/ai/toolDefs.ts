@@ -30,11 +30,21 @@ const opSchema = {
       description: "Create a rectangle, ellipse, diamond, text, or frame.",
       properties: {
         op: { const: "add_shape" },
+        ref: {
+          type: "string",
+          pattern: "^[A-Za-z][A-Za-z0-9_-]{0,63}$",
+          description:
+            'Optional batch-local name. Later ops in this batch can target the created shape as "$name".',
+        },
         shape: { type: "string", enum: [...SHAPE_KINDS] },
         x: { type: "number" },
         y: { type: "number" },
-        w: { type: "number", description: "Width (optional)." },
-        h: { type: "number", description: "Height (optional)." },
+        w: {
+          type: "number",
+          description:
+            "Width. Use at least 120 for labeled shapes; for standalone text this is the wrap width.",
+        },
+        h: { type: "number", description: "Height; use at least 60 for labeled shapes." },
         label: {
           type: "string",
           description:
@@ -104,6 +114,93 @@ const opSchema = {
     },
     {
       type: "object",
+      title: "resize",
+      description:
+        "Resize around the element center. Bound text is rewrapped and connected arrows are rerouted.",
+      properties: {
+        op: { const: "resize" },
+        id: { type: "string", description: 'Element id or earlier "$ref".' },
+        w: { type: "number", exclusiveMinimum: 0 },
+        h: { type: "number", exclusiveMinimum: 0 },
+      },
+      required: ["op", "id", "w", "h"],
+      additionalProperties: false,
+    },
+    {
+      type: "object",
+      title: "align",
+      description: "Align two or more elements while moving their bound labels.",
+      properties: {
+        op: { const: "align" },
+        ids: {
+          type: "array",
+          minItems: 2,
+          items: { type: "string" },
+          description: 'Element ids or earlier "$ref" values.',
+        },
+        alignment: {
+          type: "string",
+          enum: ["left", "center", "right", "top", "middle", "bottom"],
+        },
+      },
+      required: ["op", "ids", "alignment"],
+      additionalProperties: false,
+    },
+    {
+      type: "object",
+      title: "distribute",
+      description:
+        "Distribute elements in their current spatial order. Supply gap for predictable whitespace.",
+      properties: {
+        op: { const: "distribute" },
+        ids: { type: "array", minItems: 2, items: { type: "string" } },
+        direction: { type: "string", enum: ["horizontal", "vertical"] },
+        gap: { type: "number", minimum: 0 },
+      },
+      required: ["op", "ids", "direction"],
+      additionalProperties: false,
+    },
+    {
+      type: "object",
+      title: "layout",
+      description:
+        "Place elements as a clean row, column, or grid in ids order. Use this instead of hand-computing many coordinates; connected arrows are rerouted afterward.",
+      properties: {
+        op: { const: "layout" },
+        ids: { type: "array", minItems: 1, items: { type: "string" } },
+        direction: { type: "string", enum: ["horizontal", "vertical", "grid"] },
+        gap: {
+          type: "number",
+          minimum: 0,
+          maximum: 2000,
+          description: "Whitespace between cells; 60-100 is a readable default.",
+        },
+        columns: {
+          type: "integer",
+          minimum: 1,
+          maximum: 20,
+          description: "Grid columns only; defaults to a near-square grid.",
+        },
+        x: { type: "number", description: "Optional layout top-left x." },
+        y: { type: "number", description: "Optional layout top-left y." },
+      },
+      required: ["op", "ids", "direction"],
+      additionalProperties: false,
+    },
+    {
+      type: "object",
+      title: "group",
+      description:
+        "Semantically group two or more elements so users can select and move them together.",
+      properties: {
+        op: { const: "group" },
+        ids: { type: "array", minItems: 2, items: { type: "string" } },
+      },
+      required: ["op", "ids"],
+      additionalProperties: false,
+    },
+    {
+      type: "object",
       title: "delete",
       description: "Soft-delete an element and its bound label.",
       properties: {
@@ -120,8 +217,10 @@ export const APPLY_OPS_TOOL: AgentTool = {
   name: "apply_ops",
   description:
     "Apply a batch of semantic drawing operations to the current Excalidraw canvas. " +
-    "Element ids come from the structural summary in the system prompt. The batch " +
-    "is applied atomically: if any op is invalid the whole batch is rejected.",
+    "Use add_shape.ref plus $ref targets to create and connect a whole diagram in one call. " +
+    "Prefer layout/align/distribute over manual coordinate arithmetic. Keep labeled shapes " +
+    "at least 120×60 with 60-100px gaps, use restrained consistent colors, and inspect " +
+    "the returned scene warnings. The batch is atomic: any invalid op rejects all changes.",
   inputSchema: {
     type: "object",
     properties: {

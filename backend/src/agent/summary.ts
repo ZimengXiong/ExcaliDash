@@ -31,6 +31,12 @@ const bindingSuffix = (el: ExcalidrawElement): string => {
   if (typeof el.containerId === "string" && el.containerId.length > 0) {
     parts.push(`in:${el.containerId}`);
   }
+  if (typeof el.frameId === "string" && el.frameId.length > 0) {
+    parts.push(`frame:${el.frameId}`);
+  }
+  if (Array.isArray(el.groupIds) && el.groupIds.length > 0) {
+    parts.push(`groups:${el.groupIds.join(",")}`);
+  }
   return parts.length ? ` ${parts.join(" ")}` : "";
 };
 
@@ -68,11 +74,72 @@ export const buildStructuralSummary = (drawing: {
   name?: string | null;
   version: number;
   elements: ExcalidrawElement[];
+  appState?: Record<string, unknown>;
 }): string => {
   const live = drawing.elements.filter((el) => el && !el.isDeleted);
   const header = `# drawing "${drawing.name ?? "Untitled"}" v${drawing.version} (${live.length} elements)`;
-  const lines = live.map(elementLine);
-  return [header, ...lines].join("\n");
+  if (live.length === 0) {
+    return [
+      header,
+      "scene bounds: empty; start near (0,0), use 120×60 minimum labeled shapes and 60-100px gaps",
+    ].join("\n");
+  }
+  const minX = Math.min(...live.map((el) => Number(el.x) || 0));
+  const minY = Math.min(...live.map((el) => Number(el.y) || 0));
+  const maxX = Math.max(
+    ...live.map((el) => (Number(el.x) || 0) + (Number(el.width) || 0)),
+  );
+  const maxY = Math.max(
+    ...live.map((el) => (Number(el.y) || 0) + (Number(el.height) || 0)),
+  );
+  const counts = new Map<string, number>();
+  for (const el of live) counts.set(el.type, (counts.get(el.type) ?? 0) + 1);
+  const scene = [
+    `scene bounds: (${num(minX)},${num(minY)})→(${num(maxX)},${num(maxY)}) ${num(maxX - minX)}×${num(maxY - minY)}`,
+    `types: ${[...counts.entries()].map(([type, count]) => `${type}=${count}`).join(" ")}`,
+  ];
+  const appState = drawing.appState ?? {};
+  const zoom = (appState.zoom as { value?: unknown } | undefined)?.value;
+  if (
+    typeof appState.scrollX === "number" ||
+    typeof appState.scrollY === "number" ||
+    typeof zoom === "number"
+  ) {
+    scene.push(
+      `viewport: scroll=(${num(appState.scrollX)},${num(appState.scrollY)}) zoom=${num(zoom ?? 1)}`,
+    );
+  }
+  const groupMap = new Map<string, string[]>();
+  for (const el of live) {
+    for (const groupId of Array.isArray(el.groupIds) ? el.groupIds : []) {
+      groupMap.set(groupId, [...(groupMap.get(groupId) ?? []), el.id]);
+    }
+  }
+  if (groupMap.size > 0) {
+    scene.push(
+      `groups: ${[...groupMap].map(([id, ids]) => `${id}=[${ids.join(",")}]`).join(" ")}`,
+    );
+  }
+  const visual = live.filter(
+    (el) =>
+      !["arrow", "line", "freedraw"].includes(el.type) &&
+      typeof el.containerId !== "string" &&
+      (Number(el.width) || 0) > 0 &&
+      (Number(el.height) || 0) > 0,
+  );
+  const overlaps: string[] = [];
+  for (let i = 0; i < visual.length && overlaps.length < 10; i += 1) {
+    for (let j = i + 1; j < visual.length && overlaps.length < 10; j += 1) {
+      const a = visual[i];
+      const b = visual[j];
+      if (a.type === "frame" || b.type === "frame") continue;
+      const overlapW = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+      const overlapH = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+      if (overlapW > 4 && overlapH > 4) overlaps.push(`${a.id}↔${b.id}`);
+    }
+  }
+  if (overlaps.length > 0) scene.push(`warnings: overlaps ${overlaps.join(" ")}`);
+  return [header, ...scene, "elements (z-order):", ...live.map(elementLine)].join("\n");
 };
 
 /**

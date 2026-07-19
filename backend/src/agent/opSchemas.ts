@@ -36,6 +36,7 @@ const styleSchema = z.record(z.string(), z.any());
 
 const addShapeSchema = z.object({
   op: z.literal("add_shape"),
+  ref: z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/).optional(),
   shape: z.enum(SHAPE_KINDS),
   x: z.number(),
   y: z.number(),
@@ -87,6 +88,41 @@ const moveSchema = z
     { message: "move requires either (dx,dy) or (x,y), not both" },
   );
 
+const resizeSchema = z.object({
+  op: z.literal("resize"),
+  id: z.string().min(1),
+  w: z.number().positive(),
+  h: z.number().positive(),
+});
+
+const alignSchema = z.object({
+  op: z.literal("align"),
+  ids: z.array(z.string().min(1)).min(2).max(100),
+  alignment: z.enum(["left", "center", "right", "top", "middle", "bottom"]),
+});
+
+const distributeSchema = z.object({
+  op: z.literal("distribute"),
+  ids: z.array(z.string().min(1)).min(2).max(100),
+  direction: z.enum(["horizontal", "vertical"]),
+  gap: z.number().nonnegative().optional(),
+});
+
+const layoutSchema = z.object({
+  op: z.literal("layout"),
+  ids: z.array(z.string().min(1)).min(1).max(100),
+  direction: z.enum(["horizontal", "vertical", "grid"]),
+  gap: z.number().nonnegative().max(2000).optional(),
+  columns: z.number().int().positive().max(20).optional(),
+  x: z.number().optional(),
+  y: z.number().optional(),
+});
+
+const groupSchema = z.object({
+  op: z.literal("group"),
+  ids: z.array(z.string().min(1)).min(2).max(100),
+});
+
 const deleteSchema = z.object({
   op: z.literal("delete"),
   id: z.string().min(1),
@@ -108,6 +144,11 @@ export const opSchema = z.discriminatedUnion("op", [
   setTextSchema,
   setStyleSchema,
   moveSchema,
+  resizeSchema,
+  alignSchema,
+  distributeSchema,
+  layoutSchema,
+  groupSchema,
   deleteSchema,
   importElementsSchema,
   revertToSnapshotSchema,
@@ -124,6 +165,11 @@ export type ConnectOp = z.infer<typeof connectSchema>;
 export type SetTextOp = z.infer<typeof setTextSchema>;
 export type SetStyleOp = z.infer<typeof setStyleSchema>;
 export type MoveOp = z.infer<typeof moveSchema>;
+export type ResizeOp = z.infer<typeof resizeSchema>;
+export type AlignOp = z.infer<typeof alignSchema>;
+export type DistributeOp = z.infer<typeof distributeSchema>;
+export type LayoutOp = z.infer<typeof layoutSchema>;
+export type GroupOp = z.infer<typeof groupSchema>;
 export type DeleteOp = z.infer<typeof deleteSchema>;
 export type ImportElementsOp = z.infer<typeof importElementsSchema>;
 export type RevertToSnapshotOp = z.infer<typeof revertToSnapshotSchema>;
@@ -135,6 +181,9 @@ export type OpError = {
     | "ELEMENT_NOT_FOUND"
     | "INVALID_STYLE_KEY"
     | "INVALID_OP"
+    | "DUPLICATE_REF"
+    | "INVALID_REFERENCE"
+    | "INVALID_ELEMENT_SET"
     | "SNAPSHOT_NOT_FOUND"
     | "UNSUPPORTED";
   message: string;

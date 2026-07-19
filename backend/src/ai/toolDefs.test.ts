@@ -36,4 +36,15 @@ describe("ai/toolDefs", () => {
     expect(titles).not.toContain("revert_to_snapshot");
     expect(titles).not.toContain("import_elements");
   });
+
+  it("exposes semantic layout operations and batch-local references", () => {
+    const ops = (APPLY_OPS_TOOL.inputSchema as any).properties.ops.items.oneOf;
+    const titles = ops.map((o: any) => o.title);
+    expect(titles).toEqual(
+      expect.arrayContaining(["resize", "align", "distribute", "layout", "group"]),
+    );
+    const addShape = ops.find((o: any) => o.title === "add_shape");
+    expect(addShape.properties.ref.pattern).toContain("A-Za-z");
+    expect(APPLY_OPS_TOOL.description).toContain("$ref");
+  });
 });
