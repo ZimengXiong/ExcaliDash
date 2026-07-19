@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import clsx from "clsx";
 import { Bot, Check, Copy, Plus, Trash2 } from "lucide-react";
 import * as api from "../../api";
+import { useAuth } from "../../context/AuthContext";
 import { buildAgentSkill } from "./agentSkill";
 
 type Props = {
@@ -17,7 +18,8 @@ const smallButtonClass =
 // minting. If the current user is not the drawing owner the backend answers
 // 403/404 and the whole section hides itself.
 export const AgentAccessSection: React.FC<Props> = ({ drawingId, isOpen }) => {
-  const [available, setAvailable] = useState(true);
+  const { aiEnabled } = useAuth();
+  const [available, setAvailable] = useState(false);
   const [tokens, setTokens] = useState<api.AgentTokenRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,12 +44,15 @@ export const AgentAccessSection: React.FC<Props> = ({ drawingId, isOpen }) => {
   }, [drawingId]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !aiEnabled) {
+      setAvailable(false);
+      return;
+    }
     setFreshToken(null);
     setError(null);
     setCopied(null);
     void refresh();
-  }, [isOpen, refresh]);
+  }, [aiEnabled, isOpen, refresh]);
 
   const handleCreate = async () => {
     setBusy(true);
@@ -87,7 +92,7 @@ export const AgentAccessSection: React.FC<Props> = ({ drawingId, isOpen }) => {
     }
   };
 
-  if (!available) return null;
+  if (!aiEnabled || !available) return null;
 
   return (
     <section className="border-t-2 border-slate-100 pt-4 dark:border-neutral-800">
@@ -98,7 +103,10 @@ export const AgentAccessSection: React.FC<Props> = ({ drawingId, isOpen }) => {
         <button
           onClick={() => void handleCreate()}
           disabled={busy}
-          className={clsx(smallButtonClass, "text-indigo-600 dark:text-indigo-400")}
+          className={clsx(
+            smallButtonClass,
+            "text-indigo-600 dark:text-indigo-400",
+          )}
         >
           <Plus size={12} strokeWidth={3} />
           New token

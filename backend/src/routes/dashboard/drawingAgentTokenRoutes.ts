@@ -12,6 +12,7 @@ import {
   serializeApiKeyScopes,
 } from "../../auth/apiKeys";
 import type { DrawingRouteContext } from "./drawingRouteContext";
+import { ensureAiEnabled } from "../../ai/featureFlag";
 
 const agentTokenCreateSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
@@ -77,6 +78,9 @@ export const registerDrawingAgentTokenRoutes = (
     legacyHeaders: false,
     validate: { trustProxy: false, xForwardedForHeader: false },
   });
+  const requireAiFeatures = asyncHandler(async (_req, res, next) => {
+    if (await ensureAiEnabled(prisma, res)) next();
+  });
 
   // Resolve owner access or send the appropriate status. Returns the owner
   // userId on success, null (response already sent) otherwise.
@@ -118,6 +122,7 @@ export const registerDrawingAgentTokenRoutes = (
   app.get(
     "/drawings/:id/agent-tokens",
     requireAuth,
+    requireAiFeatures,
     asyncHandler(async (req, res) => {
       const { id } = req.params;
       const ownerId = await requireOwner(req, res, id);
@@ -136,6 +141,7 @@ export const registerDrawingAgentTokenRoutes = (
   app.post(
     "/drawings/:id/agent-tokens",
     requireAuth,
+    requireAiFeatures,
     tokenMutationLimiter,
     asyncHandler(async (req, res) => {
       const { id } = req.params;
@@ -187,6 +193,7 @@ export const registerDrawingAgentTokenRoutes = (
   app.delete(
     "/drawings/:id/agent-tokens/:tokenId",
     requireAuth,
+    requireAiFeatures,
     tokenMutationLimiter,
     asyncHandler(async (req, res) => {
       const { id, tokenId } = req.params;

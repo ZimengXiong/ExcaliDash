@@ -91,6 +91,7 @@ export const buildAuthStatusPayload = ({
   };
   systemConfig: {
     registrationEnabled: boolean;
+    aiEnabled?: boolean | null;
   };
   effectiveAuthEnabled: boolean;
   oidcJitProvisioningEnabled: boolean;
@@ -115,6 +116,7 @@ export const buildAuthStatusPayload = ({
     oidcEnforced: oidc.enforced,
     oidcProvider: oidc.providerName,
     oidcJitProvisioningEnabled,
+    aiEnabled: systemConfig.aiEnabled ?? true,
     registrationEnabled: effectiveAuthEnabled
       ? getEffectiveRegistrationEnabled(authMode, systemConfig.registrationEnabled)
       : false,

@@ -352,7 +352,9 @@ ExcaliDash ships a built-in HTTPS API for AI agents and scripts to read and edit
 a drawing through atomic semantic ops, with live updates to open editors. Mint a
 per-drawing token from the Share dialog and see [docs/AGENT_API.md](docs/AGENT_API.md)
 for the full flow (summary, ops batch, element inspection, undo), the op schema,
-and the error-code catalog.
+and the error-code catalog. Administrators can disable all AI features from
+Admin → AI Assistant; doing so hides agent controls and blocks the Agent API
+without deleting existing tokens or provider configuration.
 
 # Community & Integrations
 

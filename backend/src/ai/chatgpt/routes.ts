@@ -23,6 +23,7 @@ import {
   reasoningEffortsForChatGptModel,
 } from "./models";
 import { config } from "../../config";
+import { ensureAiEnabled } from "../featureFlag";
 
 // Session-only OAuth endpoints for the ChatGPT (subscription) provider. Each
 // user connects their own account; tokens are stored per-user, encrypted, and
@@ -64,6 +65,7 @@ export const registerChatGptRoutes = (deps: RegisterChatGptRoutesDeps): void => 
     "/ai/chatgpt/status",
     requireAuth,
     asyncHandler(async (req, res) => {
+      if (!(await ensureAiEnabled(prisma, res))) return;
       const user = requireSessionUser(req, res);
       if (!user) return;
       const settings = await loadAiSettings();
@@ -90,6 +92,7 @@ export const registerChatGptRoutes = (deps: RegisterChatGptRoutesDeps): void => 
     "/ai/chatgpt/connect",
     requireAuth,
     asyncHandler(async (req, res) => {
+      if (!(await ensureAiEnabled(prisma, res))) return;
       const user = requireSessionUser(req, res);
       if (!user) return;
       const settings = await loadAiSettings();
@@ -118,6 +121,7 @@ export const registerChatGptRoutes = (deps: RegisterChatGptRoutesDeps): void => 
     "/ai/chatgpt/callback",
     requireAuth,
     asyncHandler(async (req, res) => {
+      if (!(await ensureAiEnabled(prisma, res))) return;
       const user = requireSessionUser(req, res);
       if (!user) return;
       const body = req.body ?? {};
@@ -174,6 +178,7 @@ export const registerChatGptRoutes = (deps: RegisterChatGptRoutesDeps): void => 
     "/ai/chatgpt/disconnect",
     requireAuth,
     asyncHandler(async (req, res) => {
+      if (!(await ensureAiEnabled(prisma, res))) return;
       const user = requireSessionUser(req, res);
       if (!user) return;
       await disconnect(prisma, user.id);

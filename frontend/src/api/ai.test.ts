@@ -123,6 +123,31 @@ describe("streamAgentChat", () => {
     expect(c.errors).toEqual([{ code: "HTTP_503", message: "AI unavailable" }]);
   });
 
+  it("preserves the machine-readable global disabled error code", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          code: "AI_FEATURES_DISABLED",
+          message: "AI features are disabled by an administrator.",
+        }),
+        { status: 403 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const c = collectHandlers();
+    await streamAgentChat(
+      { drawingId: "d1", messages: [{ role: "user", content: "hi" }] },
+      c.handlers,
+    );
+    expect(c.errors).toEqual([
+      {
+        code: "AI_FEATURES_DISABLED",
+        message: "AI features are disabled by an administrator.",
+      },
+    ]);
+  });
+
   it("surfaces error frames with op-level details", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(

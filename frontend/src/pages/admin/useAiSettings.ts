@@ -108,11 +108,14 @@ export const useAiSettings = ({
   authEnabled,
   isAdmin,
   setError,
+  onFeatureFlagChanged,
 }: {
   authEnabled: boolean | null;
   isAdmin: boolean;
   setError: (message: string) => void;
+  onFeatureFlagChanged?: () => Promise<void>;
 }) => {
+  const [enabled, setEnabledState] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [providers, setProviders] = useState<AiProviderDraft[]>([]);
@@ -132,6 +135,15 @@ export const useAiSettings = ({
     setLoading(true);
     setError("");
     try {
+      const flag = await api.api.get<{ enabled: boolean }>("/auth/ai/enabled");
+      const nextEnabled = flag.data.enabled !== false;
+      setEnabledState(nextEnabled);
+      if (!nextEnabled) {
+        setProviders([]);
+        setDefaultProviderId("");
+        setStatus(null);
+        return;
+      }
       applyResponse(
         (await api.api.get<AiSettingsResponse>("/auth/ai/settings")).data,
       );
@@ -145,6 +157,43 @@ export const useAiSettings = ({
       setLoading(false);
     }
   }, [applyResponse, setError]);
+
+  const setEnabled = useCallback(
+    async (nextEnabled: boolean) => {
+      if (saving) return;
+      setSaving(true);
+      setError("");
+      try {
+        const response = await api.api.put<{ enabled: boolean }>(
+          "/auth/ai/enabled",
+          { enabled: nextEnabled },
+        );
+        const savedEnabled = response.data.enabled !== false;
+        setEnabledState(savedEnabled);
+        if (savedEnabled) {
+          await load();
+        } else {
+          setProviders([]);
+          setDefaultProviderId("");
+          setStatus(null);
+        }
+        await onFeatureFlagChanged?.();
+        toast.success(
+          savedEnabled ? "AI features enabled" : "AI features disabled",
+        );
+      } catch (error) {
+        setError(
+          api.isAxiosError(error)
+            ? (error.response?.data?.message ??
+                "Failed to update AI feature setting")
+            : "Failed to update AI feature setting",
+        );
+      } finally {
+        setSaving(false);
+      }
+    },
+    [load, onFeatureFlagChanged, saving, setError],
+  );
 
   const addProvider = useCallback(() => {
     const id = `provider_${Date.now().toString(36)}`;
@@ -248,6 +297,7 @@ export const useAiSettings = ({
   }, [authEnabled, isAdmin, load]);
 
   return {
+    enabled,
     loading,
     saving,
     providers,
@@ -258,5 +308,6 @@ export const useAiSettings = ({
     updateProvider,
     removeProvider,
     save,
+    setEnabled,
   };
 };

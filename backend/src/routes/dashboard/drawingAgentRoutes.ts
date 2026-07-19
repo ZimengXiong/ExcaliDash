@@ -16,6 +16,7 @@ import { opsBatchSchema, type OpError } from "../../agent/opSchemas";
 import { buildStructuralSummary, summarizeElements } from "../../agent/summary";
 import { applySceneUpdateTx, isVersionConflict } from "./sceneUpdate";
 import type { DrawingRouteContext } from "./drawingRouteContext";
+import { ensureAiEnabled } from "../../ai/featureFlag";
 
 // Distinct sentinel so applySceneUpdateTx's caller can tell an op-validation
 // abort (422) apart from a version conflict (409). Thrown from inside the tx to
@@ -50,6 +51,9 @@ export const registerDrawingAgentRoutes = (
     rateLimitMaxRequests: 120,
     rateLimitWindowMs: 60000,
   };
+  const requireAiFeatures = asyncHandler(async (_req, res, next) => {
+    if (await ensureAiEnabled(prisma, res)) next();
+  });
 
   const opsRateLimiter = rateLimit({
     windowMs: agentOps.rateLimitWindowMs,
@@ -69,6 +73,7 @@ export const registerDrawingAgentRoutes = (
   app.post(
     "/drawings/:id/ops",
     requireAuth,
+    requireAiFeatures,
     opsRateLimiter,
     asyncHandler(async (req, res) => {
       const { id } = req.params;
@@ -224,6 +229,7 @@ export const registerDrawingAgentRoutes = (
   app.get(
     "/drawings/:id/summary",
     requireAuth,
+    requireAiFeatures,
     asyncHandler(async (req, res) => {
       const { id } = req.params;
       if (!req.principal) return res.status(401).json({ error: "Unauthorized" });
@@ -256,6 +262,7 @@ export const registerDrawingAgentRoutes = (
   app.get(
     "/drawings/:id/elements/:elementId",
     requireAuth,
+    requireAiFeatures,
     asyncHandler(async (req, res) => {
       const { id, elementId } = req.params;
       if (!req.principal) return res.status(401).json({ error: "Unauthorized" });

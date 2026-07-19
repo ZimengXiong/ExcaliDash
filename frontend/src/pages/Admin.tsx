@@ -26,7 +26,7 @@ import {
 } from "../utils/impersonation";
 export const Admin: React.FC = () => {
   const navigate = useNavigate();
-  const { user: authUser, authEnabled } = useAuth();
+  const { user: authUser, authEnabled, retryAuthStatus } = useAuth();
   const isSingleUserOwner = authEnabled === false;
   const isAdmin = isSingleUserOwner || authUser?.role === "ADMIN";
   const passwordPolicy = getPasswordPolicy();
@@ -54,7 +54,12 @@ export const Admin: React.FC = () => {
     tempPassword: string;
   } | null>(null);
   const accessControl = useAccessControlSettings(isAdmin, setError, setSuccess);
-  const aiSettings = useAiSettings({ authEnabled, isAdmin, setError });
+  const aiSettings = useAiSettings({
+    authEnabled,
+    isAdmin,
+    setError,
+    onFeatureFlagChanged: retryAuthStatus,
+  });
   const loginRateLimit = useLoginRateLimitSettings({
     authEnabled,
     isAdmin,
@@ -262,6 +267,7 @@ export const Admin: React.FC = () => {
           />
         ) : null}{" "}
         <AiSettingsCard
+          enabled={aiSettings.enabled}
           loading={aiSettings.loading}
           saving={aiSettings.saving}
           providers={aiSettings.providers}
@@ -272,6 +278,7 @@ export const Admin: React.FC = () => {
           onUpdateProvider={aiSettings.updateProvider}
           onRemoveProvider={aiSettings.removeProvider}
           onSave={aiSettings.save}
+          onEnabledChange={aiSettings.setEnabled}
         />{" "}
         {authEnabled ? (
           <UsersTable

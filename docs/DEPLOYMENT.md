@@ -381,9 +381,9 @@ For Unraid or other Docker templates, map the host directory to container path `
 <details>
 <summary>Agent API</summary>
 
-ExcaliDash exposes a built-in HTTPS Agent API for programmatic read/edit of a
-drawing (atomic semantic ops, live socket updates). It is always available — no
-extra service to run. Tokens are minted per drawing from the Share dialog. The
+ExcaliDash exposes a built-in HTTPS Agent API for atomic, live drawing edits.
+The global **Enable AI features** switch blocks it without deleting tokens or
+configuration. Tokens are minted per drawing from the Share dialog when enabled. The
 ops endpoint has its own rate limiter (`AGENT_OPS_RATE_LIMIT_MAX` /
 `AGENT_OPS_RATE_LIMIT_WINDOW_MS`, see the [Configuration Reference](CONFIGURATION.md))
 and emits `agent_ops_applied` / `agent_token_created` / `agent_token_revoked`
