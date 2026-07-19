@@ -110,10 +110,10 @@ export const PlayfulSelect: React.FC<PlayfulSelectProps> = ({
       role="listbox"
       style={portal ? portalPosition : undefined}
       className={clsx(
-        "ui-menu z-[200] w-max min-w-full animate-in fade-in zoom-in-95 duration-100",
+        "ui-menu z-[200] w-max animate-in fade-in zoom-in-95 duration-100",
         portal
           ? "fixed"
-          : "absolute top-full mt-2",
+          : "absolute top-full mt-2 min-w-full",
         !portal && (align === "right" ? "right-0" : "left-0"),
         menuClassName,
       )}
@@ -164,6 +164,17 @@ export const PlayfulSelect: React.FC<PlayfulSelectProps> = ({
         disabled={disabled}
         onClick={(event) => {
           event.stopPropagation();
+          if (!open && portal && buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+            setPortalPosition({
+              position: "fixed",
+              top: rect.bottom + 8,
+              left: align === "left" ? rect.left : undefined,
+              right:
+                align === "right" ? window.innerWidth - rect.right : undefined,
+              minWidth: rect.width,
+            });
+          }
           setOpen((previous) => !previous);
         }}
         className={clsx(

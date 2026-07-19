@@ -8,10 +8,10 @@ import { AgentThinkingTrace } from "./AgentThinkingTrace";
 const BatchCard: React.FC<{ batch: ChatBatch; onUndo: (batch: ChatBatch) => void }> = ({ batch, onUndo }) => {
   const lines = batch.summaryDelta.filter((line) => line.trim());
   return (
-    <div className="mt-2 rounded-lg border border-indigo-200 bg-indigo-50/70 p-2.5 text-xs dark:border-indigo-900/60 dark:bg-indigo-950/30">
+    <div className="mt-2 rounded-xl border-2 border-indigo-200 bg-indigo-50/70 p-2.5 text-xs dark:border-indigo-900/60 dark:bg-indigo-950/30">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-semibold text-indigo-700 dark:text-indigo-300">Applied to canvas</span>
-        <button type="button" onClick={() => onUndo(batch)} disabled={batch.status === "reverting" || batch.status === "reverted"} className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium text-indigo-700 disabled:opacity-50 dark:text-indigo-300">
+        <span className="font-bold text-indigo-700 dark:text-indigo-300">Applied to canvas</span>
+        <button type="button" onClick={() => onUndo(batch)} disabled={batch.status === "reverting" || batch.status === "reverted"} className="inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 font-bold text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 dark:text-indigo-300 dark:hover:bg-indigo-900/40">
           {batch.status === "reverting" ? <Loader2 size={12} className="animate-spin" /> : <Undo2 size={12} />}
           {batch.status === "reverting" ? "Undoing…" : batch.status === "reverted" ? "Undone" : batch.status === "revert-failed" ? "Undo failed — retry" : "Undo"}
         </button>
@@ -33,7 +33,7 @@ export const AgentChatMessage: React.FC<{
   const isUser = message.role === "user";
   return (
     <div className={clsx("flex", isUser ? "justify-end" : "justify-start")}>
-      <div className={clsx("max-w-[85%] rounded-2xl px-3 py-2 text-sm", isUser ? "rounded-br-sm bg-indigo-600 text-white" : "rounded-bl-sm bg-gray-100 text-gray-900 dark:bg-neutral-800 dark:text-gray-100")}>
+      <div className={clsx("max-w-[88%] rounded-2xl border-2 px-3 py-2 text-sm", isUser ? "rounded-br-md border-black bg-indigo-600 text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:border-neutral-600" : "rounded-bl-md border-slate-200 bg-white text-slate-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100")}>
         {isUser && message.author?.name ? (
           <p className="mb-1 text-[10px] font-medium text-indigo-100">
             {message.author.name}

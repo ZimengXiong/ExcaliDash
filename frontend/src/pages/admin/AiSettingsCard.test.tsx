@@ -32,6 +32,7 @@ const profile: AiProviderDraft = {
   enabled: true,
   baseUrl: "",
   modelsText: "manual-model",
+  customModelsText: "",
   reasoningEffortsText: "",
   apiKey: "",
   keyConfigured: true,
@@ -44,10 +45,8 @@ const profile: AiProviderDraft = {
 };
 
 describe("AiSettingsCard", () => {
-  it("keeps advanced settings secondary and exposes test/refresh/model selection", () => {
+  it("keeps known providers key-only and puts custom model IDs in Advanced", () => {
     const onUpdateProvider = vi.fn();
-    const onDiscoverModels = vi.fn();
-    const onTestProvider = vi.fn();
     render(
       <AiSettingsCard
         enabled
@@ -61,25 +60,21 @@ describe("AiSettingsCard", () => {
         onAddProvider={vi.fn()}
         onUpdateProvider={onUpdateProvider}
         onRemoveProvider={vi.fn()}
-        onDiscoverModels={onDiscoverModels}
-        onTestProvider={onTestProvider}
         onSave={vi.fn()}
         onEnabledChange={vi.fn()}
       />,
     );
 
-    expect(
-      screen.queryByRole("button", { name: "Test connection" }),
-    ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Edit details" }));
-    fireEvent.click(screen.getByRole("button", { name: "Test connection" }));
-    expect(onTestProvider).toHaveBeenCalledWith("draft");
-    fireEvent.click(screen.getByRole("button", { name: "Refresh models" }));
-    expect(onDiscoverModels).toHaveBeenCalledWith("draft", true);
-    fireEvent.click(screen.getByRole("button", { name: "Detected model" }));
-    fireEvent.click(screen.getByRole("option", { name: "GPT-5.4" }));
+    expect(screen.getByLabelText("OpenAI API key")).toBeInTheDocument();
+    expect(screen.queryByText("Base URL")).not.toBeInTheDocument();
+    expect(screen.queryByText("Provider tools")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Advanced"));
+    fireEvent.change(screen.getByLabelText("Custom model names"), {
+      target: { value: "future-model" },
+    });
     expect(onUpdateProvider).toHaveBeenCalledWith("draft", {
-      modelsText: "gpt-5.4",
+      customModelsText: "future-model",
     });
   });
 
@@ -98,8 +93,6 @@ describe("AiSettingsCard", () => {
         onAddProvider={vi.fn()}
         onUpdateProvider={vi.fn()}
         onRemoveProvider={vi.fn()}
-        onDiscoverModels={vi.fn()}
-        onTestProvider={vi.fn()}
         onSave={vi.fn()}
         onEnabledChange={onEnabledChange}
       />,
@@ -127,8 +120,6 @@ describe("AiSettingsCard", () => {
         onAddProvider={vi.fn()}
         onUpdateProvider={vi.fn()}
         onRemoveProvider={vi.fn()}
-        onDiscoverModels={vi.fn()}
-        onTestProvider={vi.fn()}
         onSave={vi.fn()}
         onEnabledChange={vi.fn()}
       />,

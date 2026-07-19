@@ -3,6 +3,65 @@
 @tailwind utilities;
 
 @layer components {
+  /* Core ExcaliDash surfaces. Keep these primitives shared so feature areas
+     (including editor overlays) feel like the same product. */
+  .ui-card {
+    @apply rounded-2xl border-2 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.18)];
+  }
+
+  .ui-card-soft {
+    @apply rounded-xl border-2 border-slate-200 bg-slate-50 dark:border-neutral-700 dark:bg-neutral-800;
+  }
+
+  .ui-button-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border-2 border-black bg-indigo-600 px-3 py-2 text-sm font-bold text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all hover:-translate-y-0.5 hover:bg-indigo-500 active:translate-y-0 active:shadow-none disabled:pointer-events-none disabled:opacity-45 dark:border-neutral-600;
+  }
+
+  .ui-button-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border-2 border-black bg-white px-3 py-2 text-sm font-bold text-slate-900 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all hover:-translate-y-0.5 hover:bg-slate-50 active:translate-y-0 active:shadow-none disabled:pointer-events-none disabled:opacity-45 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.16)] dark:hover:bg-neutral-700;
+  }
+
+  .ui-icon-button {
+    @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border-2 border-transparent text-slate-500 transition-colors hover:border-slate-200 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-45 dark:text-neutral-400 dark:hover:border-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-white;
+  }
+
+  .ui-input {
+    @apply rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 hover:border-slate-300 focus:border-indigo-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:placeholder:text-neutral-500 dark:hover:border-neutral-600;
+  }
+
+  .ui-field-label {
+    @apply text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-neutral-400;
+  }
+
+  .ui-link {
+    @apply font-bold text-indigo-600 transition-colors hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300;
+  }
+
+  .ui-alert-error {
+    @apply rounded-xl border-2 border-rose-200 bg-rose-50 p-3 text-sm font-medium text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300;
+  }
+
+  .auth-page {
+    @apply flex min-h-screen items-center justify-center bg-transparent px-4 py-8;
+  }
+
+  .auth-wrap {
+    @apply w-full max-w-md space-y-6;
+  }
+
+  .auth-heading {
+    @apply mt-4 text-4xl text-slate-900 dark:text-white;
+    font-family: var(--excalidash-display-font), sans-serif;
+  }
+
+  .auth-panel {
+    @apply ui-card space-y-5 p-5 sm:p-6;
+  }
+
+  .font-display {
+    font-family: var(--excalidash-display-font), sans-serif;
+  }
+
   /* Shared secondary-surface language: rounded and playful, without the
      heavy offset shadows reserved for the dashboard's primary cards. */
   .ui-popover {

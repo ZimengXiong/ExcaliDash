@@ -19,6 +19,7 @@ export type AiProviderProfileInput = {
   enabled: boolean;
   baseUrl?: string | null;
   models: AiModelOption[];
+  customModels?: AiModelOption[];
   apiKey?: string;
   clearApiKey?: boolean;
 };
@@ -47,6 +48,7 @@ export type ResolvedAiSettings = {
   baseUrl: string | null;
   model: string | null;
   models: AiModelOption[];
+  customModels: AiModelOption[];
   maxTokensPerRequest: number;
   keySource: "env" | "db" | null;
   available: boolean;
@@ -122,6 +124,7 @@ export const readStoredAiProfiles = (
           enabled: value.enabled !== false,
           baseUrl: trimOrNull(value.baseUrl),
           models: normalizeModels(value.models),
+          customModels: normalizeModels(value.customModels),
           apiKeyEncrypted: trimOrNull(value.apiKeyEncrypted),
         },
       ];
@@ -161,6 +164,8 @@ export const encodeStoredAiProfiles = (
         enabled: input.enabled,
         baseUrl: input.provider === "chatgpt" ? null : (input.baseUrl ?? null),
         models: input.provider === "chatgpt" ? [] : input.models,
+        customModels:
+          input.provider === "chatgpt" ? [] : (input.customModels ?? []),
         apiKeyEncrypted,
       } satisfies StoredAiProviderProfile;
     }),
@@ -191,6 +196,8 @@ const resolveProfile = (
         : defaultModel
           ? [{ id: defaultModel, label: defaultModel, reasoningEfforts: [] }]
           : [];
+  const customModels =
+    profile.provider === "chatgpt" ? [] : (profile.customModels ?? []);
   const baseUrl =
     profile.provider === "chatgpt"
       ? null
@@ -210,6 +217,7 @@ const resolveProfile = (
     baseUrl,
     model: models[0]?.id ?? null,
     models,
+    customModels,
     maxTokensPerRequest: config.ai.maxTokensPerRequest,
     keySource,
     available,
@@ -253,6 +261,7 @@ const builtInChatGptProfile = (): StoredAiProviderProfile => ({
   enabled: true,
   baseUrl: null,
   models: [],
+  customModels: [],
   apiKeyEncrypted: null,
 });
 
@@ -264,6 +273,7 @@ const disabledProfile = (chatgptEnabled: boolean): ResolvedAiSettings => ({
   baseUrl: null,
   model: null,
   models: [],
+  customModels: [],
   maxTokensPerRequest: config.ai.maxTokensPerRequest,
   keySource: null,
   available: false,
@@ -343,6 +353,7 @@ export type AiStatus = {
     enabled: boolean;
     baseUrl: string | null;
     models: AiModelOption[];
+    customModels: AiModelOption[];
     keyConfigured: boolean;
     keySource: "env" | "db" | null;
   }>;
@@ -380,6 +391,7 @@ export const toAiStatus = (
       enabled: profile.enabled,
       baseUrl: profile.baseUrl,
       models: profile.models,
+      customModels: profile.customModels,
       keyConfigured: Boolean(profile.apiKey),
       keySource: profile.keySource,
     })),

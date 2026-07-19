@@ -19,14 +19,14 @@ import type { AgentCanvasCapture } from "./captureAgentCanvas";
 import { useAuth } from "../../context/AuthContext";
 
 const STR = {
-  title: "Canvas assistant",
+  title: "Assistant",
   open: "Open canvas assistant",
   close: "Close assistant",
-  placeholder: "Message the canvas agent…",
+  placeholder: "Ask or edit the canvas…",
+  inputLabel: "Message the canvas agent",
   send: "Send",
   stop: "Stop",
-  empty:
-    "Ask a question, brainstorm, or describe a canvas change. You can iterate naturally.",
+  empty: "What should we make?",
 } as const;
 
 type ChatPanelProps = {
@@ -124,6 +124,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                       },
                     ]
                   : [],
+                customModels: [],
                 keyConfigured: status.keyConfigured,
                 keySource: status.keySource,
               },
@@ -215,7 +216,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         aria-label={STR.open}
         title={STR.open}
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg hover:bg-indigo-500 transition-colors"
+        className="ui-button-primary fixed bottom-20 right-4 z-40 h-12 w-12 p-0 sm:right-5"
       >
         <Sparkles size={22} />
       </button>
@@ -224,19 +225,22 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
   return (
     <aside
-      className="fixed top-0 right-0 z-40 flex h-screen w-full max-w-sm flex-col border-l border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xl"
+      className="ui-card fixed inset-2 z-40 ml-auto flex w-auto flex-col overflow-hidden sm:inset-y-3 sm:left-auto sm:right-3 sm:w-[25rem]"
       aria-label={STR.title}
     >
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 dark:border-neutral-800 px-4">
-        <span className="flex items-center gap-2 font-semibold text-gray-900 dark:text-gray-100">
-          <Sparkles size={18} className="text-indigo-500" />
+      <header className="flex h-14 shrink-0 items-center justify-between border-b-2 border-slate-100 px-3.5 dark:border-neutral-800">
+        <span className="font-display flex items-center gap-2 text-xl text-slate-900 dark:text-white">
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl border-2 border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300">
+            <Sparkles size={16} />
+          </span>
           {STR.title}
         </span>
         <button
           type="button"
           aria-label={STR.close}
+          title={STR.close}
           onClick={() => setIsOpen(false)}
-          className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+          className="ui-icon-button"
         >
           <X size={18} />
         </button>
@@ -268,13 +272,18 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         <>
           <div
             ref={listRef}
-            className="flex-1 space-y-3 overflow-y-auto p-4"
+            className="flex-1 space-y-3 overflow-y-auto bg-slate-50/60 p-3.5 dark:bg-neutral-950/25"
             data-testid="chat-messages"
           >
             {messages.length === 0 ? (
-              <p className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                {STR.empty}
-              </p>
+              <div className="flex h-full min-h-48 flex-col items-center justify-center gap-3 text-center">
+                <span className="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-dashed border-indigo-300 bg-white text-indigo-500 dark:border-indigo-800 dark:bg-neutral-900 dark:text-indigo-300">
+                  <Sparkles size={20} />
+                </span>
+                <p className="font-display text-xl text-slate-600 dark:text-neutral-300">
+                  {STR.empty}
+                </p>
+              </div>
             ) : (
               messages.map((message) => (
                 <AgentChatMessage
@@ -288,7 +297,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
           <form
             onSubmit={handleSubmit}
-            className="shrink-0 border-t border-gray-200 dark:border-neutral-800 p-3"
+            className="shrink-0 border-t-2 border-slate-100 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900"
           >
             <div className="flex items-end gap-2">
               <textarea
@@ -299,9 +308,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 placeholder={
                   canEdit ? STR.placeholder : "Read-only shared conversation"
                 }
-                aria-label={STR.placeholder}
+                aria-label={STR.inputLabel}
                 disabled={!canEdit}
-                className="max-h-32 min-h-[2.5rem] flex-1 resize-none rounded-xl border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-indigo-500"
+                className="ui-input max-h-32 min-h-11 flex-1 resize-none"
               />
               {isStreaming ? (
                 <button
@@ -309,7 +318,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   onClick={stop}
                   title={STR.stop}
                   aria-label={STR.stop}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-200 dark:bg-neutral-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-neutral-600 transition-colors"
+                  className="ui-button-secondary h-11 w-11 p-0"
                 >
                   <Loader2 size={18} className="animate-spin" />
                 </button>
@@ -319,7 +328,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   disabled={!canEdit || draft.trim().length === 0}
                   title={STR.send}
                   aria-label={STR.send}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-default transition-colors"
+                  className="ui-button-primary h-11 w-11 p-0"
                 >
                   <Send size={18} />
                 </button>

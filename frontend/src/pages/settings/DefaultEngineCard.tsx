@@ -35,7 +35,7 @@ export const DefaultEngineCard: React.FC = () => {
       icon={<Shapes size={20} />}
       tileClassName="border-violet-200 bg-violet-50 text-violet-600 dark:border-violet-900 dark:bg-violet-950/30 dark:text-violet-300"
       title="Default engine"
-      description="Used when creating a new drawing"
+      description="For new drawings"
     >
       <PlayfulSelect
         ariaLabel="Default engine"

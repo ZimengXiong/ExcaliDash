@@ -2,7 +2,7 @@ import React from "react";
 import type { AiModelOption, AiProviderProfile } from "../../api/ai";
 
 const selectClass =
-  "min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-gray-100";
+  "ui-input min-w-0 w-full appearance-none py-1.5 pl-2.5 pr-6 text-xs font-bold";
 
 export const AgentModelSelector: React.FC<{
   providers: AiProviderProfile[];
@@ -27,17 +27,17 @@ export const AgentModelSelector: React.FC<{
   onModelChange,
   onReasoningChange,
 }) => (
-  <div className="space-y-2 border-b border-gray-200 px-3 py-2 dark:border-neutral-800">
-    <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-      <span className="w-14 shrink-0 font-medium">Provider</span>
+  <div className="grid grid-cols-2 gap-2 border-b-2 border-slate-100 bg-white px-3 py-2.5 dark:border-neutral-800 dark:bg-neutral-900">
+    <label className="min-w-0">
+      <span className="ui-field-label mb-1 block">Provider</span>
       <select value={providerId} onChange={(e) => onProviderChange(e.target.value)} disabled={disabled} className={selectClass}>
         {providers.map((provider) => (
           <option key={provider.id} value={provider.id}>{provider.label}</option>
         ))}
       </select>
     </label>
-    <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-      <span className="w-14 shrink-0 font-medium">Model</span>
+    <label className="min-w-0">
+      <span className="ui-field-label mb-1 block">Model</span>
       <select value={modelId} onChange={(e) => onModelChange(e.target.value)} disabled={disabled} className={selectClass}>
         {models.map((model) => (
           <option key={model.id} value={model.id}>{model.label}</option>
@@ -45,8 +45,8 @@ export const AgentModelSelector: React.FC<{
       </select>
     </label>
     {reasoningEfforts.length > 0 ? (
-      <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-        <span className="w-14 shrink-0 font-medium">Thinking</span>
+      <label className="col-span-2 min-w-0">
+        <span className="ui-field-label mb-1 block">Thinking</span>
         <select value={reasoningEffort} onChange={(e) => onReasoningChange(e.target.value)} disabled={disabled} className={selectClass}>
           {reasoningEfforts.map((effort) => <option key={effort} value={effort}>{effort}</option>)}
         </select>

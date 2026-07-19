@@ -150,11 +150,11 @@ export const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-      <div className="max-w-md w-full space-y-8">
+    <div className="auth-page">
+      <div className="auth-wrap">
         <div className="text-center">
           <Logo className="mx-auto h-12 w-auto" />
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900 dark:text-white">
+          <h2 className="auth-heading">
             {mustReset
               ? 'Reset your password'
               : oidcEnforced
@@ -166,29 +166,21 @@ export const Login: React.FC = () => {
               Or{' '}
               <Link
                 to="/register"
-                className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400"
+                className="ui-link"
               >
                 create a new account
               </Link>
             </p>
-          ) : !mustReset && !oidcEnforced ? (
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              Sign in with an existing account.
-            </p>
           ) : mustReset ? (
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              Your admin requires you to set a new password before using ExcaliDash.
+              Choose a new password to continue.
             </p>
-          ) : (
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              You will be redirected to {oidcProvider || 'your identity provider'}.
-            </p>
-          )}
+          ) : null}
         </div>
-        <form className="mt-8 space-y-6" onSubmit={mustReset ? handleMustReset : handleSubmit}>
+        <form className="auth-panel" onSubmit={mustReset ? handleMustReset : handleSubmit}>
           {error && (
-            <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-4">
-              <div className="text-sm text-red-800 dark:text-red-200">{error}</div>
+            <div className="ui-alert-error">
+              <div>{error}</div>
             </div>
           )}
           {oidcEnforced && !mustReset ? (
@@ -199,14 +191,14 @@ export const Login: React.FC = () => {
                   clearOidcAutoLoginSuppression();
                   api.startOidcSignIn(oidcReturnTo);
                 }}
-                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="ui-button-primary w-full"
               >
                 Continue with {oidcProvider || 'OIDC'}
               </button>
             </div>
           ) : (
             <>
-              <div className="rounded-md shadow-sm -space-y-px">
+              <div className="space-y-3">
                 {!mustReset ? (
                 <>
                   <div>
@@ -219,7 +211,7 @@ export const Login: React.FC = () => {
                       type="email"
                       autoComplete="email"
                       required
-                      className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white dark:bg-gray-800 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                      className="ui-input block w-full"
                       placeholder="Email address"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -235,7 +227,7 @@ export const Login: React.FC = () => {
                       type="password"
                       autoComplete="current-password"
                       required
-                      className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white dark:bg-gray-800 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                      className="ui-input block w-full"
                       placeholder="Password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -257,7 +249,7 @@ export const Login: React.FC = () => {
                       minLength={passwordPolicy.minLength}
                       maxLength={passwordPolicy.maxLength}
                       pattern={passwordPolicy.patternHtml}
-                      className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white dark:bg-gray-800 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                      className="ui-input block w-full"
                       placeholder="New password"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
@@ -275,7 +267,7 @@ export const Login: React.FC = () => {
                       required
                       minLength={passwordPolicy.minLength}
                       maxLength={passwordPolicy.maxLength}
-                      className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white dark:bg-gray-800 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                      className="ui-input block w-full"
                       placeholder="Confirm new password"
                       value={confirmNewPassword}
                       onChange={(e) => setConfirmNewPassword(e.target.value)}
@@ -298,7 +290,7 @@ export const Login: React.FC = () => {
             <div className="flex justify-end">
               <Link
                 to="/reset-password"
-                className="text-sm font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400"
+                className="ui-link text-sm"
               >
                 Forgot your password?
               </Link>
@@ -310,7 +302,7 @@ export const Login: React.FC = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="ui-button-primary w-full"
               >
                 {mustReset
                   ? (loading ? 'Updating...' : 'Set new password')
@@ -327,7 +319,7 @@ export const Login: React.FC = () => {
                   clearOidcAutoLoginSuppression();
                   api.startOidcSignIn('/');
                 }}
-                className="group relative w-full flex justify-center py-2 px-4 border border-gray-300 dark:border-gray-700 text-sm font-medium rounded-md text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="ui-button-secondary w-full"
               >
                 Continue with {oidcProvider || 'OIDC'}
               </button>
@@ -343,7 +335,7 @@ export const Login: React.FC = () => {
                   setConfirmNewPassword('');
                   logout();
                 }}
-                className="text-sm font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400"
+                className="ui-link text-sm"
               >
                 Sign in as a different user
               </button>

@@ -24,6 +24,7 @@ export type AiProviderProfile = {
   enabled: boolean;
   baseUrl: string | null;
   models: AiModelOption[];
+  customModels: AiModelOption[];
   keyConfigured: boolean;
   keySource: "env" | "db" | null;
 };

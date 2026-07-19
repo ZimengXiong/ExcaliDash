@@ -303,8 +303,6 @@ export const Settings: React.FC = () => {
           onAddProvider={aiSettings.addProvider}
           onUpdateProvider={aiSettings.updateProvider}
           onRemoveProvider={aiSettings.removeProvider}
-          onDiscoverModels={aiSettings.discoverModels}
-          onTestProvider={aiSettings.testProvider}
           onSave={aiSettings.save}
           onEnabledChange={aiSettings.setEnabled}
         />
