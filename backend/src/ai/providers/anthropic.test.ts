@@ -45,4 +45,94 @@ describe("Anthropic provider", () => {
       },
     ]);
   });
+
+  it("does not send Anthropic-only effort controls through OpenCode Go", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      content: [{ type: "text", text: "ok" }],
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await anthropicAdapter.complete({
+      settings: {
+        id: "go",
+        label: "OpenCode Go",
+        provider: "opencode_go",
+        apiKey: "secret",
+        baseUrl: "https://opencode.ai/zen/go/v1",
+        model: "minimax-m3",
+        models: [],
+        maxTokensPerRequest: 4096,
+        keySource: "db",
+        available: true,
+        enabled: true,
+        chatgptEnabled: true,
+      },
+      system: "system",
+      turns: [{ role: "user", text: "think" }],
+      tools: [],
+      reasoningEffort: "high",
+    });
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body).not.toHaveProperty("output_config");
+    expect(body).not.toHaveProperty("thinking");
+  });
+
+  it("preserves signed thinking blocks in non-streamed responses", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      content: [
+        { type: "thinking", thinking: "summary", signature: "opaque" },
+        { type: "text", text: "done" },
+      ],
+    }), { status: 200 })));
+    const result = await anthropicAdapter.complete({
+      settings: {
+        id: "claude",
+        label: "Claude",
+        provider: "anthropic",
+        apiKey: "secret",
+        baseUrl: "https://api.anthropic.com/v1",
+        model: "claude-opus-4-8",
+        models: [],
+        maxTokensPerRequest: 4096,
+        keySource: "db",
+        available: true,
+        enabled: true,
+        chatgptEnabled: true,
+      },
+      system: "system",
+      turns: [{ role: "user", text: "think" }],
+      tools: [],
+    });
+    expect(result.assistantMetadata).toEqual({
+      anthropicThinkingBlocks: [{
+        type: "thinking",
+        thinking: "summary",
+        signature: "opaque",
+      }],
+    });
+  });
+
+  it("preserves provider HTTP status for normalized upstream errors", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response('{"type":"error"}', { status: 529 }),
+    ));
+    await expect(anthropicAdapter.complete({
+      settings: {
+        id: "claude",
+        label: "Claude",
+        provider: "anthropic",
+        apiKey: "secret",
+        baseUrl: "https://api.anthropic.com/v1",
+        model: "claude-opus-4-8",
+        models: [],
+        maxTokensPerRequest: 4096,
+        keySource: "db",
+        available: true,
+        enabled: true,
+        chatgptEnabled: true,
+      },
+      system: "system",
+      turns: [{ role: "user", text: "hello" }],
+      tools: [],
+    })).rejects.toMatchObject({ status: 529 });
+  });
 });

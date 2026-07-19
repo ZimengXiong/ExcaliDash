@@ -28,4 +28,15 @@ describe("readOpenAiStream", () => {
       providerMetadata: { openaiExtraContent: signature },
     }]);
   });
+
+  it("parses CRLF SSE frames and multi-line data payloads", async () => {
+    const response = new Response(
+      'data: {"choices":[{"delta":\r\ndata: {"content":"hello"}}]}\r\n\r\ndata: [DONE]\r\n\r\n',
+      { headers: { "content-type": "text/event-stream" } },
+    );
+    await expect(readOpenAiStream(response)).resolves.toMatchObject({
+      text: "hello",
+      toolCalls: [],
+    });
+  });
 });

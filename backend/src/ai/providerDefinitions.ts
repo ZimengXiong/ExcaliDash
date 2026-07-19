@@ -50,18 +50,95 @@ export const openCodeGoProtocolForModel = (
 export const isSupportedOpenCodeGoModel = (model: string): boolean =>
   openCodeGoProtocolForModel(model) !== null;
 
+export const reasoningEffortsForGeminiModel = (model: string): string[] => {
+  const id = model.toLowerCase();
+  if (/gemini-3\.1-flash-lite-image/.test(id)) return ["minimal", "high"];
+  if (/gemini-3(?:\.5)?-flash/.test(id) || /gemini-3\.1-flash-lite/.test(id)) {
+    return ["minimal", "low", "medium", "high"];
+  }
+  if (/gemini-3\.1-pro/.test(id)) return ["low", "medium", "high"];
+  if (/gemini-3-pro/.test(id)) return ["low", "high"];
+  if (/gemini-2\.5-pro/.test(id)) return ["minimal", "low", "medium", "high"];
+  if (/gemini-2\.5-flash/.test(id)) {
+    return ["none", "minimal", "low", "medium", "high"];
+  }
+  return [];
+};
+
+export const reasoningEffortsForOpenAiModel = (model: string): string[] => {
+  const id = model.toLowerCase();
+  if (/^gpt-5\.6(?:-|$)/.test(id)) {
+    return ["none", "low", "medium", "high", "xhigh", "max"];
+  }
+  if (/^gpt-5\.[45](?:-|$)/.test(id)) {
+    return ["none", "low", "medium", "high", "xhigh"];
+  }
+  if (/^gpt-5(?:-|$)/.test(id)) {
+    return ["minimal", "low", "medium", "high"];
+  }
+  return [];
+};
+
+export const reasoningEffortsForAnthropicModel = (model: string): string[] => {
+  const id = model.toLowerCase();
+  const supportsEffort =
+    /claude-(?:fable-5|mythos-(?:5|preview)|sonnet-(?:5|4-6)|opus-4-[5-8])/.test(id);
+  if (!supportsEffort) return [];
+  const supportsXHigh =
+    /claude-(?:fable-5|mythos-5|sonnet-5|opus-4-[78])/.test(id);
+  return [
+    "low",
+    "medium",
+    "high",
+    ...(supportsXHigh ? ["xhigh"] : []),
+    "max",
+  ];
+};
+
+export const anthropicAdaptiveThinkingForModel = (model: string): boolean =>
+  /claude-(?:opus-4-[678]|sonnet-4-6)(?:-|$)/i.test(model);
+
 export const FALLBACK_MODELS: Record<AiProviderKind, AiModelOption[]> = {
   anthropic: [
-    { id: "claude-opus-4-8", label: "Claude Opus 4.8", reasoningEfforts: [] },
-    { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", reasoningEfforts: [] },
+    {
+      id: "claude-opus-4-8",
+      label: "Claude Opus 4.8",
+      reasoningEfforts: reasoningEffortsForAnthropicModel("claude-opus-4-8"),
+    },
+    {
+      id: "claude-sonnet-4-6",
+      label: "Claude Sonnet 4.6",
+      reasoningEfforts: reasoningEffortsForAnthropicModel("claude-sonnet-4-6"),
+    },
   ],
   openai: [
-    { id: "gpt-5.4", label: "GPT-5.4", reasoningEfforts: ["low", "medium", "high"] },
-    { id: "gpt-5.4-mini", label: "GPT-5.4 mini", reasoningEfforts: ["low", "medium", "high"] },
+    {
+      id: "gpt-5.6-sol",
+      label: "GPT-5.6 Sol",
+      reasoningEfforts: reasoningEffortsForOpenAiModel("gpt-5.6-sol"),
+    },
+    {
+      id: "gpt-5.6-terra",
+      label: "GPT-5.6 Terra",
+      reasoningEfforts: reasoningEffortsForOpenAiModel("gpt-5.6-terra"),
+    },
   ],
   gemini: [
-    { id: "gemini-3.5-pro", label: "Gemini 3.5 Pro", reasoningEfforts: ["low", "medium", "high"] },
-    { id: "gemini-3.5-flash", label: "Gemini 3.5 Flash", reasoningEfforts: ["low", "medium", "high"] },
+    {
+      id: "gemini-3.5-flash",
+      label: "Gemini 3.5 Flash",
+      reasoningEfforts: reasoningEffortsForGeminiModel("gemini-3.5-flash"),
+    },
+    {
+      id: "gemini-3.1-pro-preview",
+      label: "Gemini 3.1 Pro Preview",
+      reasoningEfforts: reasoningEffortsForGeminiModel("gemini-3.1-pro-preview"),
+    },
+    {
+      id: "gemini-3.1-flash-lite",
+      label: "Gemini 3.1 Flash-Lite",
+      reasoningEfforts: reasoningEffortsForGeminiModel("gemini-3.1-flash-lite"),
+    },
   ],
   opencode_go: [
     { id: "kimi-k3", label: "Kimi K3", reasoningEfforts: [] },

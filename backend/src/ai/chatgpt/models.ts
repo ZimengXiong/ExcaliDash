@@ -24,7 +24,7 @@ const chatGptModelCache = new Map<
 export const reasoningEffortsForChatGptModel = (id: string): string[] =>
   id.startsWith("gpt-5.6-")
     ? ["none", "low", "medium", "high", "xhigh", "max"]
-    : id === "gpt-5.5" || id === "gpt-5.4"
+    : /^gpt-5\.[45](?:-|$)/.test(id)
       ? ["none", "low", "medium", "high", "xhigh"]
       : ["low", "medium", "high", "xhigh"];
 
@@ -39,20 +39,17 @@ export const mergeChatGptModels = (
   configured: ChatGptModel[],
   live: ChatGptModel[],
 ): ChatGptModel[] => {
-  const liveById = new Map(live.map((model) => [model.id, model]));
-  const merged = configured.map((model) => {
-    const liveModel = liveById.get(model.id);
-    if (!liveModel) return model;
+  const configuredById = new Map(configured.map((model) => [model.id, model]));
+  return live.map((model) => {
+    const registered = configuredById.get(model.id);
     return {
-      ...liveModel,
+      ...model,
       reasoningEfforts:
-        liveModel.reasoningEfforts.length > 0
-          ? liveModel.reasoningEfforts
-          : model.reasoningEfforts,
+        model.reasoningEfforts.length > 0
+          ? model.reasoningEfforts
+          : (registered?.reasoningEfforts ?? []),
     };
   });
-  const configuredIds = new Set(configured.map((model) => model.id));
-  return [...merged, ...live.filter((model) => !configuredIds.has(model.id))];
 };
 
 /** Reads the catalog exposed to this specific ChatGPT subscription. */
@@ -92,7 +89,12 @@ export const fetchChatGptModels = async (auth: ChatGptAuth): Promise<ChatGptMode
         reasoningEfforts,
       });
     }
+    // A successful per-account catalog is authoritative. Re-introducing
+    // configured models that the account did not receive makes the UI offer
+    // slugs the backend will reject. Static models remain a network/error-only
+    // fallback.
     const merged = mergeChatGptModels(fallbackModels(), models);
+    if (merged.length === 0) return cached?.models ?? fallbackModels();
     chatGptModelCache.set(cacheKey, {
       expiresAt: Date.now() + CHATGPT_MODEL_CACHE_TTL_MS,
       models: merged,

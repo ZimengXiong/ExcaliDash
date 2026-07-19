@@ -17,10 +17,13 @@ import {
 // (SSE); we aggregate the stream into the same neutral {text, toolCalls} the
 // other adapters return.
 
-const parseSse = (accumulator: CodexStreamAccumulator, chunk: string): void => {
-  for (const frame of chunk.split("\n\n")) {
+export const parseCodexSse = (
+  accumulator: CodexStreamAccumulator,
+  chunk: string,
+): void => {
+  for (const frame of chunk.split(/\r?\n\r?\n/)) {
     const dataLines: string[] = [];
-    for (const line of frame.split("\n")) {
+    for (const line of frame.split(/\r?\n/)) {
       if (line.startsWith("data:")) dataLines.push(line.slice(5).trim());
     }
     if (dataLines.length === 0) continue;
@@ -44,7 +47,7 @@ const readStream = async (
   const body = response.body;
   if (!body) {
     const text = await response.text().catch(() => "");
-    parseSse(accumulator, text);
+    parseCodexSse(accumulator, text);
     return accumulator;
   }
   const reader = (body as ReadableStream<Uint8Array>).getReader();
@@ -55,13 +58,15 @@ const readStream = async (
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
-    let sep: number;
-    while ((sep = buffer.indexOf("\n\n")) !== -1) {
-      parseSse(accumulator, buffer.slice(0, sep + 2));
-      buffer = buffer.slice(sep + 2);
+    let separator: RegExpExecArray | null;
+    while ((separator = /\r?\n\r?\n/.exec(buffer)) !== null) {
+      const end = separator.index + separator[0].length;
+      parseCodexSse(accumulator, buffer.slice(0, end));
+      buffer = buffer.slice(end);
     }
   }
-  if (buffer.trim().length > 0) parseSse(accumulator, buffer);
+  buffer += decoder.decode();
+  if (buffer.trim().length > 0) parseCodexSse(accumulator, buffer);
   return accumulator;
 };
 

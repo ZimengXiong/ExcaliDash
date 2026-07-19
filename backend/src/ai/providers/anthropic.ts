@@ -7,11 +7,9 @@ import {
   type ToolCall,
 } from "./types";
 import { readAnthropicStream } from "./anthropicStream";
+import { anthropicAdaptiveThinkingForModel } from "../providerDefinitions";
 
 const ANTHROPIC_VERSION = "2023-06-01";
-
-const supportsAdaptiveThinking = (model: string): boolean =>
-  /(?:opus-4-[678]|sonnet-4-6|(?:fable|mythos|sonnet)-5)/i.test(model);
 
 type AnthropicBlock =
   | { type: "text"; text: string }
@@ -97,6 +95,8 @@ export const anthropicAdapter: AiProviderAdapter = {
       throw new AiProviderError("AI provider is not configured", 503);
     }
 
+    const useAnthropicReasoning =
+      settings.provider === "anthropic" && Boolean(reasoningEffort);
     const body = {
       model: settings.model,
       max_tokens: settings.maxTokensPerRequest,
@@ -107,10 +107,11 @@ export const anthropicAdapter: AiProviderAdapter = {
         description: t.description,
         input_schema: t.inputSchema,
       })),
-      ...(reasoningEffort
+      ...(useAnthropicReasoning
         ? { output_config: { effort: reasoningEffort } }
         : {}),
-      ...(supportsAdaptiveThinking(settings.model)
+      ...(useAnthropicReasoning &&
+      anthropicAdaptiveThinkingForModel(settings.model)
         ? { thinking: { type: "adaptive", display: "summarized" } }
         : {}),
       ...(onTextDelta || onThinkingDelta ? { stream: true } : {}),
@@ -138,7 +139,9 @@ export const anthropicAdapter: AiProviderAdapter = {
       const detail = await response.text().catch(() => "");
       throw new AiProviderError(
         `Anthropic API error ${response.status}: ${detail.slice(0, 500)}`,
-        response.status === 429 ? 429 : 502,
+        response.status >= 400 && response.status <= 599
+          ? response.status
+          : 502,
       );
     }
 
@@ -165,13 +168,22 @@ export const anthropicAdapter: AiProviderAdapter = {
     };
     let text = "";
     const toolCalls: ToolCall[] = [];
+    const thinkingBlocks: AnthropicBlock[] = [];
     for (const block of data.content ?? []) {
       if (block.type === "text") {
         text += block.text;
+      } else if (block.type === "thinking") {
+        thinkingBlocks.push(block);
       } else if (block.type === "tool_use") {
         toolCalls.push({ id: block.id, name: block.name, input: block.input });
       }
     }
-    return { text, toolCalls };
+    return {
+      text,
+      toolCalls,
+      ...(thinkingBlocks.length > 0
+        ? { assistantMetadata: { anthropicThinkingBlocks: thinkingBlocks } }
+        : {}),
+    };
   },
 };
