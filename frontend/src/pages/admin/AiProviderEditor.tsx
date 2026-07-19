@@ -341,9 +341,7 @@ export const ProviderEditor: React.FC<{
                       className={inputClass}
                     />
                     <p className="mt-2 text-xs font-medium text-slate-500 dark:text-neutral-400">
-                      ExcaliDash loads the provider&apos;s available models and
-                      endpoint automatically. Add IDs here only when a new model
-                      is missing from the provider catalog.
+                      ExcaliDash auto-loads models. Only add custom IDs if a model is missing.
                     </p>
                   </div>
                 </details>

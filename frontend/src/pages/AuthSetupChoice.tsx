@@ -109,7 +109,7 @@ export const AuthSetupChoice: React.FC = () => {
           </p>
         </div>
 
-        <div className="rounded-2xl border-2 border-black dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 sm:p-8 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.15)]">
+        <div className="rounded-2xl border-2 border-slate-800 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-6 sm:p-8 shadow-[3px_3px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.18)]">
           {error && (
             <div className="mb-5 rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-800 dark:text-red-200">
               {error}
@@ -118,20 +118,10 @@ export const AuthSetupChoice: React.FC = () => {
 
           {step === 'choice' ? (
             <>
-              <div className="mb-6 rounded-lg border border-slate-200 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800 p-4 text-sm text-slate-700 dark:text-neutral-200">
-                <div className="font-semibold mb-1">Enable authentication now?</div>
-                <div>If enabled, users must sign in and you will set up the first admin account.</div>
+              <div className="mb-6 rounded-lg border border-indigo-200 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-950/20 p-4 text-sm text-slate-700 dark:text-neutral-200">
+                <div className="font-semibold text-indigo-900 dark:text-indigo-200 mb-1">Secure ExcaliDash</div>
+                <div>Enabling authentication sets up the first admin account to restrict drawing access. Highly recommended for production.</div>
               </div>
-
-              <div className="mb-6 rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-900/20 p-4 text-sm text-emerald-800 dark:text-emerald-200">
-                Recommendation: choose <strong>Enable Authentication</strong>.
-              </div>
-
-              {isMigrationMode && (
-                <div className="mb-6 rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50 dark:bg-blue-900/20 p-4 text-sm text-blue-800 dark:text-blue-200">
-                  ExcaliDash v0.4 adds multi-user and OIDC support. Enabling authentication secures upgraded instances before sharing access.
-                </div>
-              )}
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <button
@@ -140,7 +130,7 @@ export const AuthSetupChoice: React.FC = () => {
                   onClick={() => {
                     void applyChoice(true);
                   }}
-                  className="flex items-center justify-center gap-2 rounded-xl border-2 border-black bg-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 transition-all disabled:opacity-60"
+                  className="flex items-center justify-center gap-2 rounded-xl border-2 border-slate-800 bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] hover:-translate-y-0.5 transition-all disabled:opacity-60"
                 >
                   <Shield size={18} />
                   Enable Authentication
@@ -150,7 +140,7 @@ export const AuthSetupChoice: React.FC = () => {
                   type="button"
                   disabled={submitting}
                   onClick={() => setStep('confirm-disable')}
-                  className="flex items-center justify-center gap-2 rounded-xl border-2 border-black bg-white dark:bg-neutral-800 px-4 py-3 text-sm font-bold text-gray-900 dark:text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 transition-all disabled:opacity-60"
+                  className="flex items-center justify-center gap-2 rounded-xl border-2 border-slate-800 bg-white dark:bg-neutral-800 px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] hover:-translate-y-0.5 transition-all disabled:opacity-60"
                 >
                   <ShieldOff size={18} />
                   Keep Disabled
@@ -159,12 +149,11 @@ export const AuthSetupChoice: React.FC = () => {
             </>
           ) : (
             <>
-              <div className="mb-6 rounded-lg border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-900/20 p-4 text-sm text-rose-800 dark:text-rose-200">
+              <div className="mb-6 rounded-lg border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-900/20 p-4 text-sm text-rose-850 dark:text-rose-200">
                 <div className="flex items-start gap-2">
-                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400" />
                   <div>
-                    With authentication disabled, anyone who can access this instance can use all data and settings.
-                    They can also enable authentication themselves and lock you out.
+                    <strong>Security Warning:</strong> Anyone with network access will have full access to view, edit, or delete all drawings and configurations.
                   </div>
                 </div>
               </div>
@@ -174,7 +163,7 @@ export const AuthSetupChoice: React.FC = () => {
                   type="button"
                   disabled={submitting}
                   onClick={() => setStep('choice')}
-                  className="rounded-xl border-2 border-black bg-white dark:bg-neutral-800 px-4 py-3 text-sm font-bold text-gray-900 dark:text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 transition-all disabled:opacity-60"
+                  className="rounded-xl border-2 border-slate-800 bg-white dark:bg-neutral-800 px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] hover:-translate-y-0.5 transition-all disabled:opacity-60"
                 >
                   Go Back
                 </button>
@@ -185,7 +174,7 @@ export const AuthSetupChoice: React.FC = () => {
                   onClick={() => {
                     void applyChoice(false);
                   }}
-                  className="rounded-xl border-2 border-black bg-rose-600 px-4 py-3 text-sm font-bold text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 transition-all disabled:opacity-60"
+                  className="rounded-xl border-2 border-slate-800 bg-rose-600 px-4 py-3 text-sm font-semibold text-white shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] hover:-translate-y-0.5 transition-all disabled:opacity-60"
                 >
                   Confirm Disable Authentication
                 </button>
