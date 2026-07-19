@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, RotateCcw, Eye, Clock } from "lucide-react";
+import { X, RotateCcw, Clock, ChevronDown } from "lucide-react";
 import * as api from "../api";
 import clsx from "clsx";
 
@@ -12,9 +12,6 @@ type Props = {
   onRestore: (snapshot: api.DrawingSnapshotFull) => void;
   onPreview: (snapshot: api.DrawingSnapshotFull | null) => void;
 };
-
-const smallButtonClass =
-  "flex items-center gap-1 rounded-lg border-2 border-slate-200 bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 transition-colors hover:border-black disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:border-neutral-400";
 
 function timeAgo(dateStr: string): string {
   const seconds = Math.floor(
@@ -42,7 +39,6 @@ export const HistoryPanel: React.FC<Props> = ({
   const [loading, setLoading] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<api.DrawingSnapshotFull | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [confirmRestore, setConfirmRestore] = useState<string | null>(null);
 
@@ -80,15 +76,12 @@ export const HistoryPanel: React.FC<Props> = ({
       return;
     }
     setPreviewId(snapshotId);
-    setPreviewLoading(true);
     try {
       const data = await api.getDrawingSnapshot(drawingId, snapshotId);
       setPreviewData(data);
       onPreview(data);
     } catch {
       setPreviewData(null);
-    } finally {
-      setPreviewLoading(false);
     }
   };
 
@@ -123,17 +116,17 @@ export const HistoryPanel: React.FC<Props> = ({
 
   return createPortal(
     <div className="fixed inset-0 z-[90] flex justify-end pointer-events-none">
-      <div className="ui-side-panel pointer-events-auto relative flex h-full w-full flex-col border-l-2 border-black bg-white animate-in slide-in-from-right duration-200 dark:border-neutral-700 dark:bg-neutral-900 md:w-96">
+      <div className="ui-side-panel pointer-events-auto relative flex h-full w-full flex-col border-l-2 border-slate-800 bg-white animate-in slide-in-from-right duration-200 dark:border-neutral-700 dark:bg-neutral-900 md:w-96">
         {/* Header */}
         <div className="flex items-center gap-3 border-b-2 border-slate-100 px-4 py-3.5 dark:border-neutral-800">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border-2 border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-300">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border-2 border-slate-800 bg-indigo-400 text-slate-900 dark:border-neutral-700 dark:bg-indigo-400 dark:text-black">
             <Clock size={17} />
           </div>
           <h2 className="text-base font-bold text-slate-900 dark:text-white">
             Version history
           </h2>
           {totalCount > 0 && (
-            <span className="rounded-full border-2 border-black bg-white px-2 py-0.5 text-[11px] font-black dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200">
+            <span className="rounded-full border-2 border-slate-800 bg-white px-2 py-0.5 text-[11px] font-semibold dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200">
               {totalCount}
             </span>
           )}
@@ -150,12 +143,12 @@ export const HistoryPanel: React.FC<Props> = ({
         <div className="flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center py-12 text-slate-400">
-              <span className="text-sm font-bold">Loading history…</span>
+              <span className="text-sm font-semibold">Loading history…</span>
             </div>
           ) : snapshots.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 py-12 text-slate-400">
               <Clock size={32} />
-              <span className="text-sm font-bold">No history yet</span>
+              <span className="text-sm font-semibold">No history yet</span>
               <span className="text-center text-xs font-medium">
                 Versions are saved automatically as you edit.
               </span>
@@ -165,89 +158,53 @@ export const HistoryPanel: React.FC<Props> = ({
               {snapshots.map((snap) => (
                 <div
                   key={snap.id}
+                  onClick={() => handlePreview(snap.id)}
                   className={clsx(
-                    "px-4 py-3 transition-colors",
+                    "px-4 py-3.5 transition-colors cursor-pointer select-none hover:bg-slate-50 dark:hover:bg-neutral-800/40 flex items-center justify-between gap-3",
                     previewId === snap.id &&
-                      "bg-indigo-50/60 dark:bg-indigo-900/10",
+                      "bg-indigo-50/30 dark:bg-indigo-900/10",
                   )}
                 >
-                  <div className="flex items-center gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-sm font-bold text-slate-900 dark:text-white">
-                          Version {snap.version}
-                        </span>
-                        <span className="rounded-full border-2 border-slate-200 px-1.5 py-px text-[10px] font-bold text-slate-500 dark:border-neutral-700 dark:text-neutral-400">
-                          {timeAgo(snap.createdAt)}
-                        </span>
-                      </div>
-                      <div className="mt-0.5 text-[11px] font-medium text-slate-400 dark:text-neutral-500">
-                        {new Date(snap.createdAt).toLocaleString()}
-                      </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-slate-900 dark:text-white">
+                        Version {snap.version}
+                      </span>
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 dark:bg-neutral-800 dark:text-neutral-400">
+                        {timeAgo(snap.createdAt)}
+                      </span>
                     </div>
-                    <button
-                      onClick={() => handlePreview(snap.id)}
-                      className={clsx(
-                        smallButtonClass,
-                        previewId === snap.id &&
-                          "border-black bg-indigo-600 text-white hover:bg-indigo-500 dark:border-neutral-600 dark:hover:bg-indigo-500 dark:hover:border-neutral-600",
-                      )}
-                    >
-                      <Eye size={12} strokeWidth={2.5} />
-                      {previewId === snap.id ? "Hide" : "Preview"}
-                    </button>
-                    <button
-                      onClick={() => handleRestore(snap.id)}
-                      disabled={restoring}
-                      className={clsx(
-                        smallButtonClass,
-                        confirmRestore === snap.id &&
-                          "border-black bg-amber-400 text-amber-950 hover:bg-amber-300 dark:border-neutral-600 dark:hover:bg-amber-300 dark:hover:border-neutral-600",
-                      )}
-                    >
-                      <RotateCcw size={12} strokeWidth={2.5} />
-                      {confirmRestore === snap.id
-                        ? "Confirm?"
-                        : restoring
-                          ? "Restoring…"
-                          : "Restore"}
-                    </button>
+                    <div className="mt-1 text-[11px] font-medium text-slate-400 dark:text-neutral-500">
+                      {new Date(snap.createdAt).toLocaleString()}
+                    </div>
                   </div>
 
-                  {previewId === snap.id && (
-                    <div className="mt-2 rounded-lg border-2 border-dashed border-indigo-200 px-2.5 py-1.5 dark:border-indigo-800">
-                      {previewLoading ? (
-                        <span className="text-[11px] font-medium text-slate-400">
-                          Loading preview…
-                        </span>
-                      ) : previewData ? (
-                        <div className="text-[11px] font-medium text-slate-500 dark:text-neutral-400">
-                          {Array.isArray(previewData.elements) ? (
-                            <>
-                              <span className="font-bold text-slate-600 dark:text-neutral-300">
-                                Active elements:
-                              </span>{" "}
-                              {
-                                previewData.elements.filter(
-                                  (e) =>
-                                    !(e as Record<string, unknown>).isDeleted,
-                                ).length
-                              }
-                            </>
-                          ) : (
-                            // Non-array scenes (e.g. a tldraw document snapshot) have no
-                            // flat element list to count; show a neutral note instead of a
-                            // misleading "0 elements".
-                            "Snapshot captured for this version."
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-[11px] font-bold text-rose-500">
-                          Failed to load preview
-                        </span>
-                      )}
-                    </div>
-                  )}
+                  <div className="shrink-0 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    {previewId === snap.id ? (
+                      <button
+                        onClick={() => handleRestore(snap.id)}
+                        disabled={restoring}
+                        className={clsx(
+                          "flex items-center gap-1.5 rounded-lg border-2 px-2.5 py-1 text-xs font-semibold shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] transition-all hover:-translate-y-0.5 disabled:hover:translate-y-0 disabled:opacity-50",
+                          confirmRestore === snap.id
+                            ? "border-slate-800 bg-amber-400 text-black dark:border-neutral-600 dark:bg-amber-400 dark:text-black"
+                            : "border-slate-800 bg-indigo-600 text-white dark:border-neutral-600"
+                        )}
+                      >
+                        <RotateCcw size={12} strokeWidth={2.5} />
+                        {confirmRestore === snap.id
+                          ? "Confirm?"
+                          : restoring
+                            ? "Restoring…"
+                            : "Restore"}
+                      </button>
+                    ) : (
+                      <ChevronDown
+                        size={16}
+                        className="text-slate-350 dark:text-neutral-700"
+                      />
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -256,7 +213,7 @@ export const HistoryPanel: React.FC<Props> = ({
 
         {/* Footer */}
         <div className="border-t-2 border-slate-100 px-4 py-3 dark:border-neutral-800">
-          <p className="text-center text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-neutral-500">
+          <p className="text-center text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">
             Versions are kept for 2 days
           </p>
         </div>

@@ -39,7 +39,7 @@ export const SettingsMainGrid = ({
   <SettingsCard>
     <SettingsRow
       icon={theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
-      tileClassName="border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300"
+      tileClassName="border-black bg-amber-400 text-black dark:border-neutral-700 dark:bg-amber-400 dark:text-black"
       title="Appearance"
     >
       <PlayfulSwitch
@@ -51,7 +51,7 @@ export const SettingsMainGrid = ({
 
     <SettingsRow
       icon={imageCompression ? <Zap size={20} /> : <ZapOff size={20} />}
-      tileClassName="border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300"
+      tileClassName="border-black bg-blue-400 text-black dark:border-neutral-700 dark:bg-blue-400 dark:text-black"
       title="Optimized images"
       description={imageCompression ? "Smaller uploads" : "Original quality"}
     >
@@ -66,7 +66,7 @@ export const SettingsMainGrid = ({
 
     <SettingsRow
       icon={<Archive size={20} />}
-      tileClassName="border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-300"
+      tileClassName="border-black bg-indigo-400 text-black dark:border-neutral-700 dark:bg-indigo-400 dark:text-black"
       title="Export backup"
     >
       <button onClick={exportBackup} className={settingsPrimaryButtonClass}>

@@ -285,10 +285,10 @@ export const ShareModal: React.FC<Props> = ({
         onClick={onClose}
       />
 
-      <div className="relative flex max-h-[calc(100vh-2rem)] w-full max-w-[520px] flex-col overflow-hidden rounded-2xl border-2 border-black bg-white font-sans shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] animate-in fade-in zoom-in-95 duration-200 dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.15)]">
+      <div className="relative flex max-h-[calc(100vh-2rem)] w-full max-w-[520px] flex-col overflow-hidden rounded-2xl border-2 border-slate-800 bg-white font-sans shadow-[3px_3px_0px_0px_rgba(30,41,59,0.9)] animate-in fade-in zoom-in-95 duration-200 dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.18)]">
         {/* Header */}
         <div className="flex items-center gap-3 border-b-2 border-slate-100 px-5 py-4 dark:border-neutral-800">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-300">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 border-slate-800 bg-indigo-400 text-slate-900 dark:border-neutral-700 dark:bg-indigo-400 dark:text-black">
             <Share2 size={20} />
           </div>
           <h2
@@ -349,10 +349,10 @@ export const ShareModal: React.FC<Props> = ({
             onClick={() => handleCopy(currentLinkUrl)}
             disabled={!activeLink}
             className={clsx(
-              "flex items-center gap-2 rounded-xl border-2 px-4 py-2 text-sm font-bold transition-all",
+              "flex items-center gap-2 rounded-xl border-2 px-4 py-2 text-sm font-semibold transition-all",
               isCopied
-                ? "border-black bg-emerald-500 text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:border-neutral-600"
-                : "border-black bg-white text-slate-900 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)]",
+                ? "border-slate-800 bg-emerald-500 text-white shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:border-neutral-600"
+                : "border-slate-800 bg-white text-slate-900 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] hover:-translate-y-0.5 hover:shadow-[2.5px_2.5px_0px_0px_rgba(30,41,59,0.9)] dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)]",
               !activeLink && "cursor-not-allowed opacity-40 shadow-none",
             )}
           >
@@ -366,7 +366,7 @@ export const ShareModal: React.FC<Props> = ({
 
           <button
             onClick={onClose}
-            className="rounded-xl border-2 border-black bg-indigo-600 px-5 py-2 text-sm font-bold text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all hover:-translate-y-0.5 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:border-neutral-600 dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)]"
+            className="rounded-xl border-2 border-slate-800 bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] transition-all hover:-translate-y-0.5 hover:shadow-[2.5px_2.5px_0px_0px_rgba(30,41,59,0.9)] dark:border-neutral-600 dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)]"
           >
             Done
           </button>

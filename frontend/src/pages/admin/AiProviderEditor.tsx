@@ -25,35 +25,6 @@ const PROVIDERS: Array<{ value: ConfigurableAiProvider; label: string }> = [
   { value: "chatgpt", label: "ChatGPT subscription" },
 ];
 
-const PROVIDER_META: Record<
-  ConfigurableAiProvider,
-  { label: string; tile: string }
-> = {
-  anthropic: {
-    label: "Anthropic",
-    tile: "border-orange-300 bg-orange-100 text-orange-700 dark:border-orange-800 dark:bg-orange-950/40 dark:text-orange-300",
-  },
-  openai: {
-    label: "OpenAI",
-    tile: "border-emerald-300 bg-emerald-100 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300",
-  },
-  gemini: {
-    label: "Gemini",
-    tile: "border-sky-300 bg-sky-100 text-sky-700 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300",
-  },
-  opencode_go: {
-    label: "OpenCode Go",
-    tile: "border-cyan-300 bg-cyan-100 text-cyan-700 dark:border-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-300",
-  },
-  custom: {
-    label: "Compatible",
-    tile: "border-violet-300 bg-violet-100 text-violet-700 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-300",
-  },
-  chatgpt: {
-    label: "ChatGPT",
-    tile: "border-slate-900 bg-slate-900 text-white dark:border-neutral-400 dark:bg-neutral-100 dark:text-slate-900",
-  },
-};
 
 const splitCsv = (value: string): string[] =>
   value
@@ -110,7 +81,6 @@ export const ProviderEditor: React.FC<{
   onChange,
   onRemove,
 }) => {
-  const meta = PROVIDER_META[profile.provider];
   const models = splitCsv(profile.modelsText);
   const isChatGpt = profile.provider === "chatgpt";
   const isCustom = profile.provider === "custom";
@@ -134,13 +104,8 @@ export const ProviderEditor: React.FC<{
           onClick={readOnly ? undefined : onToggleExpanded}
           aria-expanded={expanded}
           disabled={readOnly}
-          className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:cursor-default"
+          className="flex min-w-0 flex-1 items-center text-left disabled:cursor-default"
         >
-          <span
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 text-sm font-black ${meta.tile}`}
-          >
-            {meta.label.charAt(0)}
-          </span>
           <span className="min-w-0">
             <span className="flex items-center gap-2">
               <span className="truncate font-bold text-slate-900 dark:text-white">

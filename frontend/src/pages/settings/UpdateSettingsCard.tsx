@@ -50,7 +50,7 @@ export const UpdateSettingsCard = ({
       icon={
         <RefreshCw size={20} className={updateLoading ? "animate-spin" : ""} />
       }
-      tileClassName="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300"
+      tileClassName="border-black bg-emerald-400 text-black dark:border-neutral-700 dark:bg-emerald-400 dark:text-black"
       title="Updates"
       description={
         <>

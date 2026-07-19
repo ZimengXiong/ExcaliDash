@@ -33,7 +33,7 @@ export const DefaultEngineCard: React.FC = () => {
   return (
     <SettingsRow
       icon={<Shapes size={20} />}
-      tileClassName="border-violet-200 bg-violet-50 text-violet-600 dark:border-violet-900 dark:bg-violet-950/30 dark:text-violet-300"
+      tileClassName="border-black bg-violet-400 text-black dark:border-neutral-700 dark:bg-violet-400 dark:text-black"
       title="Default engine"
       description="For new drawings"
     >

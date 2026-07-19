@@ -17,7 +17,7 @@ const API_KEY_SCOPE_LABELS: Record<string, string> = {
 };
 
 const createButtonClass =
-  "rounded-lg border-2 border-black bg-emerald-600 px-3 py-1.5 text-sm font-bold text-white transition-colors hover:bg-emerald-500 disabled:opacity-50 dark:border-neutral-600 dark:bg-emerald-500 dark:hover:bg-emerald-400";
+  "rounded-lg border-2 border-slate-800 bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 disabled:opacity-50 dark:border-neutral-600 dark:bg-emerald-500 dark:hover:bg-emerald-400";
 
 const getApiErrorMessage = (err: unknown, fallback: string) => {
   if (api.isAxiosError(err)) {
@@ -152,7 +152,7 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
     <section>
       <SettingsSectionHeader
         icon={<KeyRound size={20} />}
-        tileClassName="border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300"
+        tileClassName="border-black bg-emerald-400 text-black dark:border-neutral-700 dark:bg-emerald-400 dark:text-black"
         title="API Keys"
         subtitle="Bearer tokens for scripts — shown only once"
       />
@@ -193,7 +193,7 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
                   <button
                     onClick={() => void handleCopyGeneratedToken()}
                     aria-label="Copy generated API token"
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border-2 border-black bg-amber-500 px-3 py-1.5 text-sm font-bold text-white transition-colors hover:bg-amber-400 dark:border-neutral-600"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border-2 border-slate-800 bg-amber-500 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-amber-400 dark:border-neutral-600"
                   >
                     <Copy size={14} />
                     {copiedToken ? "Copied" : "Copy"}
@@ -288,8 +288,8 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
                           <span
                             className={
                               revoked
-                                ? "rounded-full border border-red-200 bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-800 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200"
-                                : "rounded-full border border-green-200 bg-green-100 px-2 py-0.5 text-[11px] font-bold text-green-800 dark:border-green-800 dark:bg-green-900/30 dark:text-green-200"
+                                ? "rounded-full border-2 border-black bg-rose-400 px-2 py-0.5 text-[11px] font-bold text-black dark:border-neutral-700 dark:bg-rose-400 dark:text-black"
+                                : "rounded-full border-2 border-black bg-emerald-400 px-2 py-0.5 text-[11px] font-bold text-black dark:border-neutral-700 dark:bg-emerald-400 dark:text-black"
                             }
                           >
                             {revoked ? "Revoked" : "Active"}
