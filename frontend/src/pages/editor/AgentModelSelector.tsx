@@ -2,7 +2,7 @@ import React from "react";
 import type { AiModelOption, AiProviderProfile } from "../../api/ai";
 
 const selectClass =
-  "ui-input min-w-0 w-full appearance-none py-1.5 pl-2.5 pr-6 text-xs font-bold";
+  "ui-input min-w-0 w-full appearance-none py-1.5 pl-2 pr-5 text-[11px] font-bold";
 
 export const AgentModelSelector: React.FC<{
   providers: AiProviderProfile[];
@@ -27,9 +27,9 @@ export const AgentModelSelector: React.FC<{
   onModelChange,
   onReasoningChange,
 }) => (
-  <div className="grid grid-cols-2 gap-2 border-b-2 border-slate-100 bg-white px-3 py-2.5 dark:border-neutral-800 dark:bg-neutral-900">
+  <div className="mb-2 grid grid-cols-3 gap-1.5">
     <label className="min-w-0">
-      <span className="ui-field-label mb-1 block">Provider</span>
+      <span className="sr-only">Provider</span>
       <select value={providerId} onChange={(e) => onProviderChange(e.target.value)} disabled={disabled} className={selectClass}>
         {providers.map((provider) => (
           <option key={provider.id} value={provider.id}>{provider.label}</option>
@@ -37,7 +37,7 @@ export const AgentModelSelector: React.FC<{
       </select>
     </label>
     <label className="min-w-0">
-      <span className="ui-field-label mb-1 block">Model</span>
+      <span className="sr-only">Model</span>
       <select value={modelId} onChange={(e) => onModelChange(e.target.value)} disabled={disabled} className={selectClass}>
         {models.map((model) => (
           <option key={model.id} value={model.id}>{model.label}</option>
@@ -45,8 +45,8 @@ export const AgentModelSelector: React.FC<{
       </select>
     </label>
     {reasoningEfforts.length > 0 ? (
-      <label className="col-span-2 min-w-0">
-        <span className="ui-field-label mb-1 block">Thinking</span>
+      <label className="min-w-0">
+        <span className="sr-only">Thinking</span>
         <select value={reasoningEffort} onChange={(e) => onReasoningChange(e.target.value)} disabled={disabled} className={selectClass}>
           {reasoningEfforts.map((effort) => <option key={effort} value={effort}>{effort}</option>)}
         </select>

@@ -147,7 +147,7 @@ export const UpdateBanner: React.FC = () => {
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <div className="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 flex-shrink-0">
-            <span className="text-[10px] font-black uppercase tracking-wider">Update available</span>
+            <span className="text-xs font-bold">Update available</span>
           </div>
           <div className="min-w-0 flex items-center gap-2">
             <span className="text-sm font-bold text-emerald-950 dark:text-emerald-50 truncate">
@@ -180,7 +180,7 @@ export const UpdateBanner: React.FC = () => {
               href={info.latestUrl}
               target="_blank"
               rel="noreferrer"
-              className="h-8 inline-flex items-center justify-center gap-1.5 px-3 rounded-lg bg-emerald-600 dark:bg-emerald-600/80 text-[11px] font-black uppercase tracking-wider text-white hover:bg-emerald-700 dark:hover:bg-emerald-500 transition-all shadow-sm shadow-emerald-900/10"
+              className="ui-button-primary h-8 px-3 text-xs"
             >
               <ExternalLink size={14} strokeWidth={2.5} />
               <span className="hidden sm:inline">Release</span>
@@ -195,7 +195,7 @@ export const UpdateBanner: React.FC = () => {
               safeSetSessionItem(closedVersionStorageKey(channel), latest);
               setClosedVersion(latest);
             }}
-            className="h-8 inline-flex items-center justify-center gap-1.5 px-3 rounded-lg bg-white/70 dark:bg-neutral-900/60 border border-emerald-200 dark:border-emerald-800/50 text-[11px] font-black uppercase tracking-wider text-emerald-900 dark:text-emerald-100 hover:bg-white dark:hover:bg-neutral-900 transition-colors"
+            className="ui-button-secondary h-8 px-3 text-[11px]"
             title="Close (will reappear later)"
           >
             <XCircle size={14} strokeWidth={2.5} />
@@ -210,7 +210,7 @@ export const UpdateBanner: React.FC = () => {
               safeSetItem(DISMISSED_VERSION_KEY, latest);
               setIgnoredVersion(latest);
             }}
-            className="h-8 inline-flex items-center justify-center gap-1.5 px-3 rounded-lg bg-emerald-100/70 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800/50 text-[11px] font-black uppercase tracking-wider text-emerald-900 dark:text-emerald-100 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
+            className="ui-button-secondary h-8 px-3 text-[11px]"
             title="Ignore this version"
           >
             <BellOff size={14} strokeWidth={2.5} />
@@ -221,7 +221,7 @@ export const UpdateBanner: React.FC = () => {
             type="button"
             onClick={() => void load(true)}
             disabled={loading}
-            className="h-8 w-8 inline-flex items-center justify-center rounded-lg bg-white/70 dark:bg-neutral-900/60 border border-emerald-200 dark:border-emerald-800/50 text-emerald-900 dark:text-emerald-100 hover:bg-white dark:hover:bg-neutral-900 transition-colors disabled:opacity-50"
+            className="ui-icon-button h-8 w-8"
             title="Re-check now"
             aria-label="Re-check now"
           >

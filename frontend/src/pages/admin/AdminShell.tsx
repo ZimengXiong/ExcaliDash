@@ -34,13 +34,13 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
         <button
           onClick={onRefreshUsers}
           disabled={loadingUsers}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-xl border-2 border-black dark:border-neutral-700 bg-white dark:bg-neutral-900 text-slate-900 dark:text-neutral-200 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-0.5 transition-all disabled:opacity-60"
+          className="ui-button-secondary px-4"
         >
           <RefreshCw size={16} /> Refresh
         </button>
         <button
           onClick={onToggleCreateUser}
-          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-xl border-2 border-black dark:border-neutral-700 bg-indigo-600 text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 transition-all"
+          className="ui-button-primary px-4"
         >
           <UserPlus size={16} /> New User
         </button>

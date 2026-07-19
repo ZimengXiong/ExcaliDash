@@ -111,11 +111,15 @@ describe("Settings API keys", () => {
     );
 
     expect(await screen.findByText("Existing Key")).toBeInTheDocument();
+    expect(screen.queryByText("exd_key_abc123")).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: /details for api key existing key/i }),
+    );
     expect(screen.getByText("exd_key_abc123")).toBeInTheDocument();
     expect(
       screen.getByText("drawings:read, drawings:write"),
     ).toBeInTheDocument();
-    expect(screen.getAllByText("Never").length).toBeGreaterThan(0);
+    expect(screen.getByText(/Last used/)).toHaveTextContent("Last used Never");
 
     fireEvent.change(screen.getByLabelText(/api key name/i), {
       target: { value: "CI Token" },
@@ -251,6 +255,9 @@ describe("Settings API keys", () => {
     expect(api.createApiKey).toHaveBeenCalledWith("Read Token", [
       "drawings:read",
     ]);
+    fireEvent.click(
+      screen.getByRole("button", { name: /details for api key read token/i }),
+    );
     expect(screen.getAllByText("drawings:read").length).toBeGreaterThan(0);
   });
 

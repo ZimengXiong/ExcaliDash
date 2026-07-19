@@ -283,10 +283,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       aria-label={STR.title}
     >
       <header className="flex h-14 shrink-0 items-center justify-between border-b-2 border-slate-100 px-3.5 dark:border-neutral-800">
-        <span className="font-display flex items-center gap-2 text-xl text-slate-900 dark:text-white">
-          <span className="flex h-8 w-8 items-center justify-center rounded-xl border-2 border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300">
-            <Sparkles size={16} />
-          </span>
+        <span className="font-display text-xl text-slate-900 dark:text-white">
           {STR.title}
         </span>
         <div className="flex items-center gap-1">
@@ -314,21 +311,6 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
       </header>
 
-      {canEdit && providers.length > 0 ? (
-        <AgentModelSelector
-          providers={providers}
-          providerId={selectedProviderId}
-          models={models}
-          modelId={selectedModel}
-          reasoningEfforts={reasoningEfforts}
-          reasoningEffort={reasoningEffort}
-          disabled={isStreaming}
-          onProviderChange={setSelectedProviderId}
-          onModelChange={setSelectedModel}
-          onReasoningChange={setReasoningEffort}
-        />
-      ) : null}
-
       {needsConnect ? (
         <div className="flex-1 overflow-y-auto" data-testid="chatgpt-connect">
           <ChatGptConnect
@@ -344,10 +326,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             data-testid="chat-messages"
           >
             {messages.length === 0 ? (
-              <div className="flex h-full min-h-48 flex-col items-center justify-center gap-3 text-center">
-                <span className="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-dashed border-indigo-300 bg-white text-indigo-500 dark:border-indigo-800 dark:bg-neutral-900 dark:text-indigo-300">
-                  <Sparkles size={20} />
-                </span>
+              <div className="flex h-full min-h-48 flex-col items-center justify-center text-center">
                 <p className="font-display text-xl text-slate-600 dark:text-neutral-300">
                   {STR.empty}
                 </p>
@@ -367,6 +346,20 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             onSubmit={handleSubmit}
             className="shrink-0 border-t-2 border-slate-100 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900"
           >
+            {canEdit && providers.length > 0 ? (
+              <AgentModelSelector
+                providers={providers}
+                providerId={selectedProviderId}
+                models={models}
+                modelId={selectedModel}
+                reasoningEfforts={reasoningEfforts}
+                reasoningEffort={reasoningEffort}
+                disabled={isStreaming}
+                onProviderChange={setSelectedProviderId}
+                onModelChange={setSelectedModel}
+                onReasoningChange={setReasoningEffort}
+              />
+            ) : null}
             <div className="flex items-end gap-2">
               <textarea
                 value={draft}

@@ -1,12 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import {
-  X,
   Link as LinkIcon,
   AlertTriangle,
   Check,
   RefreshCw,
-  Share2,
 } from "lucide-react";
 import * as api from "../api";
 import { useAuth } from "../context/AuthContext";
@@ -28,7 +26,6 @@ type Props = {
 
 export const ShareModal: React.FC<Props> = ({
   drawingId,
-  drawingName,
   isOpen,
   onClose,
 }) => {
@@ -279,35 +276,17 @@ export const ShareModal: React.FC<Props> = ({
   const currentLinkUrl = activeLink ? shareableEditorUrl : "";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <>
+      {/* Click-outside backdrop (completely transparent, no blur) */}
       <div
-        className="absolute inset-0 bg-slate-200/60 backdrop-blur-md dark:bg-neutral-950/60"
+        className="fixed inset-0 z-[150] bg-transparent cursor-default"
         onClick={onClose}
       />
 
-      <div className="relative flex max-h-[calc(100vh-2rem)] w-full max-w-[520px] flex-col overflow-hidden rounded-2xl border-2 border-slate-800 bg-white font-sans shadow-[3px_3px_0px_0px_rgba(30,41,59,0.9)] animate-in fade-in zoom-in-95 duration-200 dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.18)]">
-        {/* Header */}
-        <div className="flex items-center gap-3 border-b-2 border-slate-100 px-5 py-4 dark:border-neutral-800">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 border-slate-800 bg-indigo-400 text-slate-900 dark:border-neutral-700 dark:bg-indigo-400 dark:text-black">
-            <Share2 size={20} />
-          </div>
-          <h2
-            className="min-w-0 flex-1 truncate text-lg font-bold text-slate-900 dark:text-white"
-            title={drawingName}
-          >
-            Share "{drawingName}"
-          </h2>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-neutral-800 dark:hover:text-white"
-            aria-label="Close share dialog"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
+      {/* The popover container positioned under the share button */}
+      <div className="absolute right-0 top-full mt-2 z-[160] flex max-h-[calc(100vh-5rem)] w-[460px] flex-col overflow-hidden rounded-2xl border-2 border-slate-800 bg-white font-sans shadow-[3px_3px_0px_0px_rgba(30,41,59,0.9)] animate-in fade-in slide-in-from-top-3 duration-200 dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.18)]">
         {/* Content */}
-        <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">
+        <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
           {error && (
             <div className="flex items-center gap-2.5 rounded-xl border-2 border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-600 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-400">
               <AlertTriangle size={16} strokeWidth={2} />
@@ -344,15 +323,15 @@ export const ShareModal: React.FC<Props> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t-2 border-slate-100 px-5 py-4 dark:border-neutral-800">
+        <div className="flex items-center justify-between border-t-2 border-slate-100 px-4 py-3 dark:border-neutral-800 bg-slate-50 dark:bg-neutral-900/50">
           <button
             onClick={() => handleCopy(currentLinkUrl)}
             disabled={!activeLink}
             className={clsx(
-              "flex items-center gap-2 rounded-xl border-2 px-4 py-2 text-sm font-semibold transition-all",
+              "w-full py-2.5",
               isCopied
-                ? "border-slate-800 bg-emerald-500 text-white shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:border-neutral-600"
-                : "border-slate-800 bg-white text-slate-900 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] hover:-translate-y-0.5 hover:shadow-[2.5px_2.5px_0px_0px_rgba(30,41,59,0.9)] dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)]",
+                ? "ui-button-success"
+                : "ui-button-secondary",
               !activeLink && "cursor-not-allowed opacity-40 shadow-none",
             )}
           >
@@ -361,14 +340,7 @@ export const ShareModal: React.FC<Props> = ({
             ) : (
               <LinkIcon size={14} strokeWidth={2.5} />
             )}
-            {isCopied ? "Copied" : "Copy Link"}
-          </button>
-
-          <button
-            onClick={onClose}
-            className="rounded-xl border-2 border-slate-800 bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] transition-all hover:-translate-y-0.5 hover:shadow-[2.5px_2.5px_0px_0px_rgba(30,41,59,0.9)] dark:border-neutral-600 dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)]"
-          >
-            Done
+            {isCopied ? "Copied Link!" : "Copy Link"}
           </button>
         </div>
 
@@ -384,6 +356,6 @@ export const ShareModal: React.FC<Props> = ({
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 };

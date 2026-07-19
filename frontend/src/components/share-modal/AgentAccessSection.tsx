@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Bot, Check, Copy, Plus, Trash2 } from "lucide-react";
+import { Check, Copy, Plus, Trash2 } from "lucide-react";
 import * as api from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import { buildAgentSkill } from "./agentSkill";
+import { InfoPopover } from "../InfoPopover";
 
 type Props = {
   drawingId: string;
@@ -21,6 +22,7 @@ export const AgentAccessSection: React.FC<Props> = ({ drawingId, isOpen }) => {
   const [error, setError] = useState<string | null>(null);
   const [freshToken, setFreshToken] = useState<string | null>(null);
   const [copied, setCopied] = useState<"token" | "skill" | null>(null);
+  const [showAllTokens, setShowAllTokens] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -93,15 +95,15 @@ export const AgentAccessSection: React.FC<Props> = ({ drawingId, isOpen }) => {
   return (
     <section className="border-t-2 border-slate-100 pt-4 dark:border-neutral-800">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">
+        <h3 className="text-xs font-semibold text-slate-400 dark:text-neutral-500">
           Agent access
         </h3>
         <button
           onClick={() => void handleCreate()}
           disabled={busy}
-          className="flex items-center gap-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100/80 px-2 py-1 text-xs font-semibold transition-colors disabled:opacity-50"
+          className="ui-button-secondary px-3.5 py-2 text-indigo-600 dark:text-indigo-300"
         >
-          <Plus size={12} strokeWidth={2.5} />
+          <Plus size={14} strokeWidth={2.5} />
           New token
         </button>
       </div>
@@ -116,19 +118,19 @@ export const AgentAccessSection: React.FC<Props> = ({ drawingId, isOpen }) => {
         <div className="mt-3 space-y-3 rounded-xl border-2 border-slate-800 bg-slate-50/50 p-3.5 dark:border-neutral-700 dark:bg-neutral-800/30 animate-in fade-in duration-200 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)]">
           {/* Token display row */}
           <div className="flex items-center gap-2">
-            <code className="min-w-0 flex-1 truncate font-mono text-xs text-slate-850 dark:text-slate-250 select-all">
+            <code className="min-w-0 flex-1 select-all truncate text-xs font-semibold tracking-tight text-slate-850 dark:text-slate-250">
               {freshToken}
             </code>
             <button
               onClick={() => void handleCopy(freshToken, "token")}
-              className="flex shrink-0 items-center gap-1 rounded-lg border-2 border-slate-800 bg-white px-2.5 py-1 text-xs font-semibold text-slate-705 hover:bg-slate-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-205 shadow-[1px_1px_0px_0px_rgba(30,41,59,0.9)]"
+              className="ui-button-secondary shrink-0 px-2.5 py-1 text-xs"
             >
               {copied === "token" ? (
                 <Check size={12} strokeWidth={2.5} />
               ) : (
                 <Copy size={12} strokeWidth={2.5} />
               )}
-              {copied === "token" ? "Copied" : "Copy Token"}
+              {copied === "token" ? "Copied" : "Copy"}
             </button>
           </div>
 
@@ -143,52 +145,64 @@ export const AgentAccessSection: React.FC<Props> = ({ drawingId, isOpen }) => {
                 "skill",
               )
             }
-            className="flex w-full items-center justify-center gap-1.5 rounded-lg border-2 border-slate-800 bg-slate-800 px-3 py-2 text-xs font-semibold text-white transition-all hover:bg-slate-700 dark:border-neutral-600 dark:bg-slate-700 dark:hover:bg-neutral-600 shadow-[1px_1px_0px_0px_rgba(30,41,59,0.9)]"
+            className="ui-button-primary w-full text-xs"
           >
             {copied === "skill" ? (
               <Check size={13} strokeWidth={2.5} />
             ) : (
               <Copy size={13} strokeWidth={2.5} />
             )}
-            {copied === "skill" ? "SKILL.md copied!" : "Copy SKILL.md integration"}
+            {copied === "skill" ? "Copied" : "Copy setup"}
           </button>
         </div>
       )}
 
       {tokens.length === 0 ? (
         <p className="mt-2 text-xs font-medium text-slate-400 dark:text-neutral-500">
-          No agent tokens yet.
+          No tokens
         </p>
       ) : (
         <ul className="mt-3 divide-y divide-slate-100 dark:divide-neutral-800">
-          {tokens.map((token) => (
-            <li key={token.id} className="flex items-center gap-2.5 py-2">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500 dark:bg-neutral-850 dark:text-neutral-400">
-                <Bot size={14} />
-              </div>
+          {tokens.slice(0, showAllTokens ? tokens.length : 3).map((token) => (
+            <li key={token.id} className="flex flex-wrap items-center gap-2.5 py-2.5">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-semibold text-slate-700 dark:text-neutral-200">
                   {token.name}
                 </p>
-                <p className="truncate text-[10px] font-medium text-slate-400 dark:text-neutral-500">
-                  <span className="font-mono">{token.prefix}…</span>
-                  {token.expiresAt && Date.parse(token.expiresAt) <= Date.now()
-                    ? " · expired"
-                    : token.expiresAt
-                      ? ` · expires ${new Date(token.expiresAt).toLocaleDateString()}`
-                      : " · no expiry"}
-                </p>
               </div>
+              <InfoPopover label={`Details for ${token.name}`}>
+                <div className="space-y-1.5 text-slate-500 dark:text-neutral-400">
+                  <p><span className="font-bold text-slate-900 dark:text-white">Prefix</span> {token.prefix}…</p>
+                  <p>
+                    {token.expiresAt && Date.parse(token.expiresAt) <= Date.now()
+                      ? "Expired"
+                      : token.expiresAt
+                        ? `Expires ${new Date(token.expiresAt).toLocaleDateString()}`
+                        : "No expiry"}
+                  </p>
+                </div>
+              </InfoPopover>
               <button
                 onClick={() => void handleRevoke(token.id)}
                 disabled={busy}
                 title="Revoke token"
-                className="shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-600 disabled:opacity-40 dark:hover:bg-rose-950/30 dark:hover:text-rose-400"
+                className="ui-icon-button h-8 w-8 shrink-0 border-transparent bg-transparent text-slate-400 shadow-none hover:bg-rose-50 hover:text-rose-600 dark:bg-transparent dark:hover:bg-rose-950/30 dark:hover:text-rose-400"
               >
                 <Trash2 size={14} />
               </button>
             </li>
           ))}
+          {tokens.length > 3 ? (
+            <li className="py-3 text-center">
+              <button
+                type="button"
+                className="ui-button-secondary"
+                onClick={() => setShowAllTokens((value) => !value)}
+              >
+                {showAllTokens ? "Show less" : `Show ${tokens.length - 3} more`}
+              </button>
+            </li>
+          ) : null}
         </ul>
       )}
     </section>

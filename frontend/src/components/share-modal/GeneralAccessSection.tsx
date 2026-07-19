@@ -1,11 +1,11 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   Eye,
   Globe,
   Lock,
   Pencil,
   Clock,
-  ChevronDown,
   Check,
 } from "lucide-react";
 import * as api from "../../api";
@@ -14,7 +14,6 @@ import {
   EXPIRY_OPTIONS_FOR_EDIT,
   calculateExpiresAt,
   EXPIRY_OPTIONS,
-  formatAutoDisableText,
 } from "./shareUtils";
 import clsx from "clsx";
 
@@ -53,6 +52,9 @@ export const LinkExpirySelect: React.FC<{
 }) => {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [portalPosition, setPortalPosition] = useState<React.CSSProperties>();
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -66,7 +68,8 @@ export const LinkExpirySelect: React.FC<{
       }
       if (
         containerRef.current &&
-        !containerRef.current.contains(event.target as Node)
+        !containerRef.current.contains(event.target as Node) &&
+        !menuRef.current?.contains(event.target as Node)
       ) {
         setOpen(false);
       }
@@ -79,17 +82,111 @@ export const LinkExpirySelect: React.FC<{
     };
   }, [open]);
 
+  useLayoutEffect(() => {
+    if (!open) return;
+
+    const updatePosition = () => {
+      const button = buttonRef.current;
+      if (!button) return;
+
+      const rect = button.getBoundingClientRect();
+      const menuHeight = menuRef.current?.offsetHeight ?? 0;
+      const gap = 8;
+      const openUpward =
+        menuHeight > 0 &&
+        rect.bottom + gap + menuHeight > window.innerHeight &&
+        rect.top - gap - menuHeight >= 0;
+
+      setPortalPosition({
+        position: "fixed",
+        top: openUpward ? rect.top - gap - menuHeight : rect.bottom + gap,
+        right: window.innerWidth - rect.right,
+        minWidth: "240px",
+      });
+    };
+
+    updatePosition();
+    const r = requestAnimationFrame(updatePosition);
+
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      cancelAnimationFrame(r);
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
+
   const options =
     linkPermission === "edit" ? EXPIRY_OPTIONS_FOR_EDIT : EXPIRY_OPTIONS;
+
+  const menu = open ? (
+    <div
+      ref={menuRef}
+      role="listbox"
+      style={portalPosition}
+      className="ui-menu fixed z-[210] w-60 animate-in fade-in zoom-in-95 duration-100 flex flex-col p-1.5 gap-0.5"
+    >
+      {options.map((option) => {
+        const selected = expiryOption === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => {
+              setExpiryOption(option.value);
+              if (option.value !== "custom") {
+                void handleUpdateLink(
+                  undefined,
+                  calculateExpiresAt(option.value),
+                );
+                setOpen(false);
+              }
+            }}
+            className={clsx(
+              "ui-menu-item text-left w-full justify-between px-2.5 py-1.5 text-xs rounded-lg transition-colors",
+              selected && "ui-menu-item-selected",
+            )}
+          >
+            <span>{option.label}</span>
+            {selected && (
+              <Check
+                size={12}
+                strokeWidth={3}
+                className="ml-auto shrink-0 text-indigo-600 dark:text-indigo-400"
+              />
+            )}
+          </button>
+        );
+      })}
+
+      {expiryOption === "custom" && (
+        <div className="border-t border-slate-100 dark:border-neutral-800 pt-2 px-1.5 pb-1 mt-1.5 flex flex-col gap-1.5">
+          <span className="pl-0.5 text-xs font-semibold text-slate-400 dark:text-neutral-500">
+            Custom expiry time
+          </span>
+          <input
+            type="datetime-local"
+            value={customExpiry}
+            onChange={(event) => setCustomExpiry(event.target.value)}
+            onBlur={() => void handleUpdateLink()}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="w-full rounded-lg border-2 border-slate-800 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
+          />
+        </div>
+      )}
+    </div>
+  ) : null;
 
   return (
     <div className="relative inline-flex" ref={containerRef}>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen(!open)}
         className={clsx(
-          "flex h-8 w-8 items-center justify-center rounded-xl border-2 font-semibold transition-all outline-none shrink-0",
-          "border-slate-800 bg-white text-slate-700 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] hover:-translate-y-0.5 hover:bg-indigo-50 hover:shadow-[2.5px_2.5px_0px_0px_rgba(30,41,59,0.9)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)] dark:hover:bg-indigo-900/30 dark:hover:shadow-[2.5px_2.5px_0px_0px_rgba(255,255,255,0.18)]",
+          "ui-icon-button h-[38px] w-[38px]",
           open && "bg-indigo-50 dark:bg-indigo-900/30",
         )}
         title="Set link expiration"
@@ -101,59 +198,7 @@ export const LinkExpirySelect: React.FC<{
         />
       </button>
 
-      {open && (
-        <div className="ui-menu absolute right-0 top-full mt-2 z-[200] w-60 animate-in fade-in zoom-in-95 duration-100 flex flex-col p-1.5 gap-0.5">
-          {options.map((option) => {
-            const selected = expiryOption === option.value;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => {
-                  setExpiryOption(option.value);
-                  if (option.value !== "custom") {
-                    void handleUpdateLink(
-                      undefined,
-                      calculateExpiresAt(option.value),
-                    );
-                    setOpen(false);
-                  }
-                }}
-                className={clsx(
-                  "ui-menu-item text-left w-full justify-between px-2.5 py-1.5 text-xs rounded-lg transition-colors",
-                  selected && "ui-menu-item-selected",
-                )}
-              >
-                <span>{option.label}</span>
-                {selected && (
-                  <Check
-                    size={12}
-                    strokeWidth={3}
-                    className="ml-auto shrink-0 text-indigo-600 dark:text-indigo-400"
-                  />
-                )}
-              </button>
-            );
-          })}
-
-          {expiryOption === "custom" && (
-            <div className="border-t border-slate-100 dark:border-neutral-800 pt-2 px-1.5 pb-1 mt-1.5 flex flex-col gap-1.5">
-              <span className="text-[10px] font-bold text-slate-400 dark:text-neutral-500 uppercase tracking-wider pl-0.5">
-                Custom expiry time
-              </span>
-              <input
-                type="datetime-local"
-                value={customExpiry}
-                onChange={(event) => setCustomExpiry(event.target.value)}
-                onBlur={() => void handleUpdateLink()}
-                onClick={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
-                className="w-full rounded-lg border-2 border-slate-800 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700 outline-none focus:border-indigo-400 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-200"
-              />
-            </div>
-          )}
-        </div>
-      )}
+      {menu && createPortal(menu, document.body)}
     </div>
   );
 };
@@ -169,94 +214,61 @@ export const GeneralAccessSection: React.FC<Props> = ({
   handleRevokeLink,
 }) => (
   <section className="border-t-2 border-slate-100 pt-4 dark:border-neutral-800">
-    <h3 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">
+    <h3 className="mb-3 text-xs font-semibold text-slate-400 dark:text-neutral-500">
       General access
     </h3>
 
-    <div className="flex items-center gap-3">
-      {/* Circle Icon Badge */}
-      <div
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-slate-800 transition-colors ${
-          activeLink
-            ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400"
-            : "bg-slate-100 text-slate-500 dark:bg-neutral-800 dark:text-neutral-400"
-        }`}
-      >
-        {activeLink ? <Globe size={18} /> : <Lock size={18} />}
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0 flex-1">
+        <PlayfulSelect
+          ariaLabel="Link access"
+          value={activeLink ? "anyone" : "restricted"}
+          onChange={(value) => {
+            if (value === "anyone") void handleUpdateLink();
+            else void handleRevokeLink();
+          }}
+          options={[
+            {
+              label: "Restricted",
+              value: "restricted",
+              icon: <Lock size={14} />,
+            },
+            {
+              label: "Anyone with the link",
+              value: "anyone",
+              icon: <Globe size={14} />,
+            },
+          ]}
+          variant="playful"
+          showCheck={false}
+          buttonClassName="py-2 px-3 text-sm font-semibold"
+        />
       </div>
 
-      {/* Middle & Right Settings Block */}
-      <div className="flex-1 min-w-0 flex items-center justify-between gap-3">
-        <div className="min-w-0 flex-1">
+      {activeLink && (
+        <div className="flex items-center gap-2 shrink-0 animate-in fade-in duration-150">
+          <LinkExpirySelect
+            expiryOption={expiryOption}
+            customExpiry={customExpiry}
+            setExpiryOption={setExpiryOption}
+            setCustomExpiry={setCustomExpiry}
+            handleUpdateLink={handleUpdateLink}
+            linkPermission={linkPermission}
+          />
           <PlayfulSelect
-            ariaLabel="Link access"
-            value={activeLink ? "anyone" : "restricted"}
-            onChange={(value) => {
-              if (value === "anyone") void handleUpdateLink();
-              else void handleRevokeLink();
-            }}
+            ariaLabel="Link permission"
+            value={linkPermission}
+            onChange={(value) => handleUpdateLink(value as "view" | "edit")}
             options={[
-              {
-                label: "Restricted",
-                value: "restricted",
-                icon: <Lock size={14} />,
-              },
-              {
-                label: "Anyone with the link",
-                value: "anyone",
-                icon: <Globe size={14} />,
-              },
+              { label: "Viewer", value: "view", icon: <Eye size={14} /> },
+              { label: "Editor", value: "edit", icon: <Pencil size={14} /> },
             ]}
             variant="playful"
-            showCheck={false}
-            buttonClassName="py-1 px-2.5 text-xs font-semibold"
+            className="w-32"
+            buttonClassName="w-full justify-between py-2 px-3 text-sm font-semibold"
           />
-
-          <div className="mt-1 text-xs text-slate-400 dark:text-neutral-500">
-            <span>
-              {activeLink
-                ? linkPermission === "edit"
-                  ? "Anyone on the internet with the link can edit"
-                  : "Anyone on the internet with the link can view"
-                : "Only people with access can open with the link"}
-            </span>
-
-            {activeLink && activeLink.expiresAt && (
-              <>
-                <span className="mx-1.5 text-slate-300 dark:text-neutral-700 select-none">
-                  ·
-                </span>
-                <span>{formatAutoDisableText(activeLink.expiresAt)}</span>
-              </>
-            )}
-          </div>
         </div>
-
-        {activeLink && (
-          <div className="flex items-center gap-2 shrink-0 animate-in fade-in duration-150">
-            <LinkExpirySelect
-              expiryOption={expiryOption}
-              customExpiry={customExpiry}
-              setExpiryOption={setExpiryOption}
-              setCustomExpiry={setCustomExpiry}
-              handleUpdateLink={handleUpdateLink}
-              linkPermission={linkPermission}
-            />
-            <PlayfulSelect
-              ariaLabel="Link permission"
-              value={linkPermission}
-              onChange={(value) => handleUpdateLink(value as "view" | "edit")}
-              options={[
-                { label: "Viewer", value: "view", icon: <Eye size={14} /> },
-                { label: "Editor", value: "edit", icon: <Pencil size={14} /> },
-              ]}
-              variant="playful"
-              className="w-28"
-              buttonClassName="w-full justify-between py-1 px-2.5 text-xs font-semibold"
-            />
-          </div>
-        )}
-      </div>
+      )}
     </div>
   </section>
 );

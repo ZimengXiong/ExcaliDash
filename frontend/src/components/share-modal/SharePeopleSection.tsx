@@ -2,6 +2,7 @@ import React from "react";
 import { Eye, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import * as api from "../../api";
 import { PlayfulSelect } from "../PlayfulSelect";
+import { UserAvatar } from "../UserAvatar";
 
 type Props = {
   user: { name?: string | null; email?: string | null } | null | undefined;
@@ -70,9 +71,7 @@ export const SharePeopleSection: React.FC<Props> = ({
               onClick={() => handleAddUser(candidate.id)}
               className="ui-menu-item gap-3"
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-                {candidate.name.charAt(0).toUpperCase()}
-              </div>
+              <UserAvatar name={candidate.name} size="sm" />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-xs font-semibold text-slate-850 dark:text-neutral-100">
                   {candidate.name}
@@ -92,14 +91,12 @@ export const SharePeopleSection: React.FC<Props> = ({
     </section>
 
     <section>
-      <h3 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">
+      <h3 className="mb-3 text-xs font-semibold text-slate-400 dark:text-neutral-500">
         People
       </h3>
       <div className="divide-y divide-slate-100 dark:divide-neutral-800">
         <div className="flex items-center gap-3 py-2">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-            {user?.name?.charAt(0).toUpperCase() || "U"}
-          </div>
+          <UserAvatar name={user?.name || "User"} size="sm" />
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold text-slate-800 dark:text-neutral-100">
               {user?.name}{" "}
@@ -118,9 +115,7 @@ export const SharePeopleSection: React.FC<Props> = ({
 
         {(sharing?.permissions || []).map((permission) => (
           <div key={permission.id} className="flex items-center gap-3 py-2">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-              {permission.granteeUser.name.charAt(0).toUpperCase()}
-            </div>
+            <UserAvatar name={permission.granteeUser.name} size="sm" />
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-semibold text-slate-800 dark:text-neutral-100">
                 {permission.granteeUser.name}

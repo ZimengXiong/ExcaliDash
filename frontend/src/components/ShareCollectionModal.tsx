@@ -8,6 +8,7 @@ import type {
 } from "../types";
 import { useAuth } from "../context/AuthContext";
 import { RoleSelect } from "./RoleSelect";
+import { UserAvatar } from "./UserAvatar";
 
 type Props = {
   collectionId: string;
@@ -156,7 +157,7 @@ export const ShareCollectionModal: React.FC<Props> = ({
           </h2>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-neutral-400 hover:text-neutral-950 dark:hover:text-white transition-colors"
+            className="ui-icon-button h-8 w-8 border-transparent bg-transparent shadow-none dark:bg-transparent"
           >
             <X size={18} />
           </button>
@@ -200,11 +201,9 @@ export const ShareCollectionModal: React.FC<Props> = ({
                   <button
                     key={u.id}
                     onClick={() => handleAdd(u)}
-                    className="w-full text-left px-4 py-2.5 flex items-center gap-3 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors group border-b last:border-b-0 border-slate-100 dark:border-neutral-800"
+                    className="ui-menu-item gap-3 border-b border-slate-100 px-4 py-2.5 last:border-b-0 dark:border-neutral-800"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-700 dark:text-indigo-300 font-semibold text-xs border border-slate-350 dark:border-neutral-600">
-                      {u.name.charAt(0).toUpperCase()}
-                    </div>
+                    <UserAvatar name={u.name} size="sm" />
                     <div className="flex-1 min-w-0">
                       <div className="text-xs font-bold text-slate-900 dark:text-neutral-100 truncate">
                         {u.name}
@@ -233,9 +232,7 @@ export const ShareCollectionModal: React.FC<Props> = ({
             <div className="space-y-0.5">
               {/* Owner row */}
               <div className="flex items-center gap-3 px-1 py-1.5 min-h-[48px]">
-                <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-neutral-800 flex items-center justify-center text-slate-600 dark:text-neutral-300 font-semibold text-sm border border-slate-350 dark:border-neutral-650 shrink-0">
-                  {user?.name?.charAt(0).toUpperCase() ?? "U"}
-                </div>
+                <UserAvatar name={user?.name || "User"} size="sm" />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-bold text-slate-900 dark:text-neutral-100 leading-tight">
                     {user?.name}{" "}
@@ -266,9 +263,7 @@ export const ShareCollectionModal: React.FC<Props> = ({
                   key={s.id}
                   className="flex items-center gap-3 px-1 py-1.5 min-h-[48px] group"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-sm border-2 border-indigo-600 dark:border-indigo-500 shrink-0">
-                    {s.granteeUser.name.charAt(0).toUpperCase()}
-                  </div>
+                  <UserAvatar name={s.granteeUser.name} size="sm" />
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-bold text-slate-900 dark:text-neutral-100 leading-tight truncate">
                       {s.granteeUser.name}
@@ -300,7 +295,7 @@ export const ShareCollectionModal: React.FC<Props> = ({
         <div className="px-6 py-4 flex items-center justify-end border-t-2 border-slate-800 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800/50 rounded-b-[14px]">
           <button
             onClick={onClose}
-            className="px-6 py-2 rounded-xl bg-indigo-600 dark:bg-indigo-500 text-white border-2 border-slate-800 font-semibold text-xs hover:-translate-y-0.5 hover:shadow-[2.5px_2.5px_0px_0px_rgba(30,41,59,0.9)] active:translate-y-0 active:shadow-none transition-all shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)]"
+            className="ui-button-primary px-6 text-xs"
           >
             Done
           </button>

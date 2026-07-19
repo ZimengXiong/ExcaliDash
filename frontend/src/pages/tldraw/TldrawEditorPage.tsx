@@ -192,7 +192,7 @@ export const TldrawEditorPage: React.FC = () => {
 const BackButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
   <button
     onClick={onClick}
-    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border-2 border-black dark:border-neutral-700 bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 font-semibold hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+    className="ui-toolbar-button h-9 w-auto gap-2 px-3 font-semibold"
   >
     <ArrowLeft size={16} />
     Back
@@ -226,7 +226,7 @@ const TldrawTopBar: React.FC<TopBarProps> = ({
   };
 
   return (
-    <div className="flex items-center gap-3 px-3 py-2 border-b-2 border-black dark:border-neutral-800 bg-white dark:bg-neutral-950">
+    <div className="flex items-center gap-3 border-b border-slate-200 bg-white px-3 py-2 dark:border-neutral-800 dark:bg-neutral-950">
       <BackButton onClick={onBack} />
       {canEdit && isEditing ? (
         <input
@@ -257,7 +257,7 @@ const TldrawTopBar: React.FC<TopBarProps> = ({
       </span>
       <button
         onClick={onDownload}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border-2 border-black dark:border-neutral-700 bg-white dark:bg-neutral-900 text-gray-900 dark:text-gray-100 font-semibold hover:bg-gray-50 dark:hover:bg-neutral-800 transition-colors"
+        className="ui-toolbar-button h-9 w-auto gap-1.5 px-3 font-semibold"
       >
         <Download size={16} />
         .tldr

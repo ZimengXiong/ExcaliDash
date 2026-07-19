@@ -104,7 +104,7 @@ export const AiSettingsCard: React.FC<{
       {enabled ? (
         <>
           <div className="mt-5 mb-2 px-1">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-neutral-400">
+            <h4 className="text-xs font-semibold text-slate-500 dark:text-neutral-400">
               Configured AI Providers
             </h4>
           </div>
@@ -137,7 +137,7 @@ export const AiSettingsCard: React.FC<{
               <button
                 type="button"
                 onClick={handleAdd}
-                className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-800 bg-white px-4 py-2 text-sm font-semibold shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] transition-all hover:-translate-y-0.5 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)]"
+                className="ui-button-secondary px-4"
               >
                 <Plus size={16} /> Add provider
               </button>
@@ -152,7 +152,7 @@ export const AiSettingsCard: React.FC<{
                   type="button"
                   onClick={() => void onSave()}
                   disabled={saving}
-                  className="rounded-xl border-2 border-slate-800 bg-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] transition-all hover:-translate-y-0.5 disabled:opacity-60 dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)]"
+                  className="ui-button-primary px-5"
                 >
                   {saving ? "Testing & saving…" : "Save provider registry"}
                 </button>

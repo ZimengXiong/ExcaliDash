@@ -11,15 +11,15 @@ const BatchCard: React.FC<{ batch: ChatBatch; onUndo: (batch: ChatBatch) => void
     <div className="mt-2 rounded-xl border-2 border-indigo-200 bg-indigo-50/70 p-2.5 text-xs dark:border-indigo-900/60 dark:bg-indigo-950/30">
       <div className="flex items-center justify-between gap-2">
         <span className="font-bold text-indigo-700 dark:text-indigo-300">Applied to canvas</span>
-        <button type="button" onClick={() => onUndo(batch)} disabled={batch.status === "reverting" || batch.status === "reverted"} className="inline-flex items-center gap-1 rounded-lg border-2 border-indigo-200 bg-white px-2 py-0.5 font-bold text-indigo-700 transition-colors hover:border-indigo-400 disabled:opacity-50 dark:border-indigo-900 dark:bg-neutral-900 dark:text-indigo-300 dark:hover:border-indigo-700">
+        <button type="button" onClick={() => onUndo(batch)} disabled={batch.status === "reverting" || batch.status === "reverted"} className="ui-button-secondary px-2 py-0.5 text-xs text-indigo-700 dark:text-indigo-300">
           {batch.status === "reverting" ? <Loader2 size={12} className="animate-spin" /> : <Undo2 size={12} />}
           {batch.status === "reverting" ? "Undoing…" : batch.status === "reverted" ? "Undone" : batch.status === "revert-failed" ? "Undo failed — retry" : "Undo"}
         </button>
       </div>
       {lines.length ? (
         <ul className="mt-1.5 space-y-0.5 text-gray-600 dark:text-gray-400">
-          {lines.slice(0, 8).map((line, index) => <li key={index} className="truncate font-mono">{line}</li>)}
-          {lines.length > 8 ? <li>+{lines.length - 8} more</li> : null}
+          {lines.slice(0, 4).map((line, index) => <li key={index} className="truncate">{line}</li>)}
+          {lines.length > 4 ? <li>+{lines.length - 4} more</li> : null}
         </ul>
       ) : <p className="mt-1 text-gray-500 dark:text-gray-400">Updated the canvas</p>}
     </div>

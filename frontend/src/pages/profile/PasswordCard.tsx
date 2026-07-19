@@ -13,7 +13,7 @@ import {
 } from "../settings/SettingsRow";
 
 const roseButtonClass =
-  "rounded-lg border-2 border-slate-800 bg-rose-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-rose-500 disabled:opacity-50 dark:border-neutral-600 dark:bg-rose-500 dark:hover:bg-rose-400";
+  "ui-button-danger";
 
 type Props = {
   mustResetPassword: boolean;
@@ -87,7 +87,7 @@ export const PasswordCard: React.FC<Props> = ({
   };
 
   const fieldLabelClass =
-    "mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-neutral-400";
+    "mb-1 block text-xs font-semibold text-slate-500 dark:text-neutral-400";
 
   return (
     <section>

@@ -42,7 +42,7 @@ export const CollectionPicker: React.FC<CollectionPickerProps> = ({
           aria-expanded={isOpen}
           disabled={isShared || isSharedCollection}
           className={clsx(
-            "px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide max-w-[120px] truncate transition-all border",
+            "max-w-[120px] truncate rounded-md border px-2 py-0.5 text-[10px] font-semibold transition-all",
             isShared || isSharedCollection
               ? "bg-slate-50 dark:bg-neutral-800/40 text-slate-400 dark:text-neutral-500 border-neutral-100 dark:border-neutral-800 cursor-not-allowed"
               : "bg-slate-50 dark:bg-neutral-800 text-slate-500 dark:text-neutral-400 cursor-pointer border-neutral-200/60 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-700/50",
@@ -54,7 +54,7 @@ export const CollectionPicker: React.FC<CollectionPickerProps> = ({
         {drawing.creatorName && (
           <span
             title={drawing.creatorName}
-            className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide border bg-indigo-50/50 dark:bg-indigo-900/10 text-indigo-500 dark:text-indigo-400 border-indigo-100 dark:border-indigo-900/50 truncate max-w-[120px]"
+            className="max-w-[120px] truncate rounded-md border border-indigo-100 bg-indigo-50/50 px-2 py-0.5 text-[10px] font-semibold text-indigo-500 dark:border-indigo-900/50 dark:bg-indigo-900/10 dark:text-indigo-400"
           >
             {drawing.creatorName}
           </span>
@@ -65,7 +65,7 @@ export const CollectionPicker: React.FC<CollectionPickerProps> = ({
           drawing.accessLevel !== "owner" && (
             <span
               className={clsx(
-                "px-2 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wide border",
+                "rounded-md border px-2 py-0.5 text-[10px] font-semibold",
                 drawing.accessLevel === "edit"
                   ? "bg-emerald-50/50 dark:bg-emerald-900/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30"
                   : "bg-amber-50/50 dark:bg-amber-900/10 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-900/30",

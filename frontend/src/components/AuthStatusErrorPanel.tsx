@@ -17,7 +17,7 @@ export const AuthStatusErrorPanel: React.FC<AuthStatusErrorPanelProps> = ({
       <button
         type="button"
         onClick={() => void onRetry()}
-        className="mt-3 rounded-md bg-white/80 px-3 py-2 text-xs font-semibold text-red-900 hover:bg-white dark:bg-red-950/40 dark:text-red-100 dark:hover:bg-red-950/70"
+        className="ui-button-secondary mt-3 text-xs"
       >
         Retry connection
       </button>

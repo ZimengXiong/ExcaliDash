@@ -14,7 +14,7 @@ import type { AiProviderDraft, ConfigurableAiProvider } from "./useAiSettings";
 const inputClass =
   "w-full rounded-lg border-2 border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white";
 const labelClass =
-  "mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-neutral-400";
+  "mb-1 block text-xs font-semibold text-slate-500 dark:text-neutral-400";
 
 const PROVIDERS: Array<{ value: ConfigurableAiProvider; label: string }> = [
   { value: "anthropic", label: "Anthropic" },
@@ -113,20 +113,17 @@ export const ProviderEditor: React.FC<{
               </span>
               {isDefault ? (
                 <span className="shrink-0 rounded-full border-2 border-amber-300 bg-amber-100 px-2 py-0.5 text-[11px] font-black text-amber-700 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                  DEFAULT
+                  Default
                 </span>
               ) : null}
             </span>
-            <span className="mt-0.5 block truncate text-xs font-medium text-slate-500 dark:text-neutral-400">
-              {PROVIDERS.find((p) => p.value === profile.provider)?.label}
-              {isChatGpt
-                ? " · models managed automatically"
-                : isManagedProvider
-                  ? " · model catalog managed automatically"
-                  : models.length > 0
-                  ? ` · ${models.length} model${models.length === 1 ? "" : "s"}`
-                  : " · no models yet"}
-            </span>
+            {isCustom ? (
+              <span className="mt-0.5 block truncate text-xs font-medium text-slate-500 dark:text-neutral-400">
+                {models.length > 0
+                  ? `${models.length} model${models.length === 1 ? "" : "s"}`
+                  : "No models"}
+              </span>
+            ) : null}
           </span>
         </button>
 
@@ -135,7 +132,7 @@ export const ProviderEditor: React.FC<{
             {models.slice(0, 2).map((model) => (
               <span
                 key={model}
-                className="max-w-[140px] truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-mono text-[11px] text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+                className="max-w-[140px] truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold tracking-tight text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
               >
                 {model}
               </span>
@@ -186,7 +183,7 @@ export const ProviderEditor: React.FC<{
               onClick={onRemove}
               disabled={saving}
               aria-label={`Remove ${profile.label}`}
-              className="shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"
+              className="ui-icon-button h-8 w-8 shrink-0 border-transparent bg-transparent text-slate-400 shadow-none hover:bg-red-50 hover:text-red-600 dark:bg-transparent dark:hover:bg-red-950/30"
             >
               <Trash2 size={17} />
             </button>
@@ -195,7 +192,7 @@ export const ProviderEditor: React.FC<{
               onClick={onToggleExpanded}
               aria-expanded={expanded}
               aria-label={expanded ? "Collapse details" : "Edit details"}
-              className="shrink-0 rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 dark:hover:bg-neutral-800"
+              className="ui-icon-button h-8 w-8 shrink-0 border-transparent bg-transparent shadow-none dark:bg-transparent"
             >
               <ChevronDown
                 size={18}
@@ -314,7 +311,7 @@ export const ProviderEditor: React.FC<{
                           clearApiKey: true,
                         })
                       }
-                      className="shrink-0 rounded-xl border-2 border-slate-200 px-3 text-sm font-bold transition-colors hover:border-red-300 hover:text-red-600 dark:border-neutral-700"
+                      className="ui-button-secondary shrink-0 px-3 text-rose-600 dark:text-rose-400"
                     >
                       Clear
                     </button>

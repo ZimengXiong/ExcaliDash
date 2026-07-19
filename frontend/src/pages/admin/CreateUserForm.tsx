@@ -222,13 +222,13 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
         <button
           type="button"
           onClick={() => { reset(); onCancel(); }}
-          className="px-4 py-2 text-sm font-bold rounded-xl border-2 border-black dark:border-neutral-700 bg-white dark:bg-neutral-900 text-slate-900 dark:text-neutral-200"
+          className="ui-button-secondary px-4"
         >
           Cancel
         </button>
         <button
           type="submit"
-          className="px-4 py-2 text-sm font-bold rounded-xl border-2 border-black dark:border-neutral-700 bg-indigo-600 text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 transition-all"
+          className="ui-button-primary px-4"
         >
           Create
         </button>

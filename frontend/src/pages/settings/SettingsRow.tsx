@@ -1,18 +1,18 @@
 import React from "react";
 
 export const settingsSelectClass =
-  "rounded-lg border-2 border-slate-200 bg-white px-2.5 py-1.5 text-sm font-semibold text-slate-900 outline-none transition-colors hover:border-slate-400 focus:border-indigo-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white dark:hover:border-neutral-500";
+  "ui-input";
 
 export const settingsButtonClass =
-  "rounded-lg border-2 border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-900 transition-colors hover:border-slate-800 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:border-neutral-400";
+  "ui-button-secondary";
 
 export const settingsPrimaryButtonClass =
-  "rounded-lg border-2 border-slate-800 bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 disabled:opacity-50 dark:border-neutral-600";
+  "ui-button-primary";
 
 export const SettingsCard: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => (
-  <div className="divide-y divide-slate-100 rounded-2xl border-2 border-slate-800 bg-white shadow-[3px_3px_0px_0px_rgba(30,41,59,0.9)] dark:divide-neutral-800 dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.18)]">
+  <div className="ui-card overflow-hidden divide-y divide-slate-100 dark:divide-neutral-800">
     {children}
   </div>
 );

@@ -56,7 +56,7 @@ export const UserActionModals: React.FC<UserActionModalsProps> = ({
               </span>
               . They will be prompted to set a new password after signing in.
             </div>
-            <div className="px-3 py-2 rounded-xl border-2 border-black dark:border-neutral-700 bg-white dark:bg-neutral-900 font-mono text-sm text-slate-900 dark:text-neutral-100 break-all">
+            <div className="break-all rounded-xl border-2 border-black bg-white px-3 py-2 text-sm font-semibold tracking-tight text-slate-900 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100">
               {resetPasswordResult.tempPassword}
             </div>
           </div>

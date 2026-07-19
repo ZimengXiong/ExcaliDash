@@ -189,7 +189,7 @@ export const DrawingsGrid: React.FC<DrawingsGridProps> = ({
           {search && (
             <button
               onClick={onClearSearch}
-              className="mt-4 text-indigo-600 dark:text-indigo-400 font-medium hover:underline text-sm"
+              className="ui-button-secondary mt-4"
             >
               Clear search
             </button>

@@ -53,22 +53,22 @@ export const UpdateSettingsCard = ({
       tileClassName="border-black bg-emerald-400 text-black dark:border-neutral-700 dark:bg-emerald-400 dark:text-black"
       title="Updates"
       description={
-        <>
+        <span className="inline-flex flex-wrap items-center gap-2">
           {status}
           <a
             href="https://github.com/ZimengXiong/ExcaliDash/releases"
             target="_blank"
             rel="noreferrer"
-            className="ml-2 font-bold text-indigo-600 hover:underline dark:text-indigo-400"
+            className="inline-flex items-center font-bold text-indigo-600 hover:underline dark:text-indigo-400"
           >
             Releases
           </a>
           {updateInfo?.error && !updateLoading ? (
-            <span className="block text-red-500 dark:text-red-400">
+            <span className="basis-full text-red-500 dark:text-red-400">
               Error: {updateInfo.error}
             </span>
           ) : null}
-        </>
+        </span>
       }
     >
       <PlayfulSelect

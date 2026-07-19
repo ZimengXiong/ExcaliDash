@@ -164,7 +164,7 @@ export const Register: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => void copyBootstrapCommand()}
-                    className="shrink-0 inline-flex h-7 w-7 items-center justify-center rounded border border-amber-200/80 dark:border-amber-700/60 bg-amber-50/60 dark:bg-amber-900/35 text-amber-900 dark:text-amber-100 hover:bg-amber-50 dark:hover:bg-amber-900/50"
+                    className="ui-icon-button h-7 w-7 shrink-0"
                     aria-label={copiedBootstrapCmd ? 'Copied docker command' : 'Copy docker command'}
                     title={copiedBootstrapCmd ? 'Copied' : 'Copy'}
                   >
@@ -262,7 +262,7 @@ export const Register: React.FC = () => {
                   type="text"
                   autoComplete="one-time-code"
                   required
-                  className="ui-input block w-full border-amber-300 uppercase tracking-widest dark:border-amber-700"
+                  className="ui-input block w-full border-amber-300 dark:border-amber-700"
                   placeholder="One-time setup code"
                   value={setupCode}
                   onChange={(e) => setSetupCode(e.target.value.toUpperCase())}

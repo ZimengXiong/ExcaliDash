@@ -100,12 +100,12 @@ export const AuthSetupChoice: React.FC = () => {
           <h1 className="mt-6 text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">
             {step === 'choice' ? 'Choose Authentication Mode' : 'Keep Authentication Disabled?'}
           </h1>
-          <p className="mt-4 text-sm sm:text-base text-gray-600 dark:text-gray-300">
+          <p className="mt-3 text-sm text-slate-600 dark:text-neutral-300">
             {step === 'choice'
               ? isMigrationMode
-                ? 'We detected existing data from an earlier ExcaliDash version.'
-                : 'This looks like a new ExcaliDash setup.'
-              : 'This option is only recommended for private, trusted networks.'}
+                ? 'Existing data detected.'
+                : 'Secure this workspace.'
+              : 'Only use this on a trusted network.'}
           </p>
         </div>
 
@@ -120,7 +120,7 @@ export const AuthSetupChoice: React.FC = () => {
             <>
               <div className="mb-6 rounded-lg border border-indigo-200 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-950/20 p-4 text-sm text-slate-700 dark:text-neutral-200">
                 <div className="font-semibold text-indigo-900 dark:text-indigo-200 mb-1">Secure ExcaliDash</div>
-                <div>Enabling authentication sets up the first admin account to restrict drawing access. Highly recommended for production.</div>
+                <div>Create an admin account and restrict access.</div>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -130,7 +130,7 @@ export const AuthSetupChoice: React.FC = () => {
                   onClick={() => {
                     void applyChoice(true);
                   }}
-                  className="flex items-center justify-center gap-2 rounded-xl border-2 border-slate-800 bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] hover:-translate-y-0.5 transition-all disabled:opacity-60"
+                  className="ui-button-primary px-4 py-3"
                 >
                   <Shield size={18} />
                   Enable Authentication
@@ -140,7 +140,7 @@ export const AuthSetupChoice: React.FC = () => {
                   type="button"
                   disabled={submitting}
                   onClick={() => setStep('confirm-disable')}
-                  className="flex items-center justify-center gap-2 rounded-xl border-2 border-slate-800 bg-white dark:bg-neutral-800 px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] hover:-translate-y-0.5 transition-all disabled:opacity-60"
+                  className="ui-button-secondary px-4 py-3"
                 >
                   <ShieldOff size={18} />
                   Keep Disabled
@@ -153,7 +153,7 @@ export const AuthSetupChoice: React.FC = () => {
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400" />
                   <div>
-                    <strong>Security Warning:</strong> Anyone with network access will have full access to view, edit, or delete all drawings and configurations.
+                    Anyone on this network can access every drawing.
                   </div>
                 </div>
               </div>
@@ -163,7 +163,7 @@ export const AuthSetupChoice: React.FC = () => {
                   type="button"
                   disabled={submitting}
                   onClick={() => setStep('choice')}
-                  className="rounded-xl border-2 border-slate-800 bg-white dark:bg-neutral-800 px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] hover:-translate-y-0.5 transition-all disabled:opacity-60"
+                  className="ui-button-secondary px-4 py-3"
                 >
                   Go Back
                 </button>
@@ -174,9 +174,9 @@ export const AuthSetupChoice: React.FC = () => {
                   onClick={() => {
                     void applyChoice(false);
                   }}
-                  className="rounded-xl border-2 border-slate-800 bg-rose-600 px-4 py-3 text-sm font-semibold text-white shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] hover:-translate-y-0.5 transition-all disabled:opacity-60"
+                  className="ui-button-danger px-4 py-3"
                 >
-                  Confirm Disable Authentication
+                  Disable Authentication
                 </button>
               </div>
             </>

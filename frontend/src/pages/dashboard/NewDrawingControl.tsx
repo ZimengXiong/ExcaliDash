@@ -16,13 +16,12 @@ interface NewDrawingControlProps {
 }
 
 const BASE_BUTTON =
-  "h-[42px] flex items-center justify-center gap-2 px-6 border-2 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] transition-all font-bold text-sm whitespace-nowrap";
+  "ui-button-primary h-[42px] px-6 whitespace-nowrap";
 
-const ENABLED_BUTTON =
-  "bg-indigo-600 dark:bg-neutral-800 text-white hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-1 active:translate-y-0 active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:active:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)]";
+const ENABLED_BUTTON = "";
 
 const DISABLED_BUTTON =
-  "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border-slate-300 dark:border-slate-700 shadow-none cursor-not-allowed";
+  "border-slate-300 bg-slate-100 text-slate-400 shadow-none dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-500";
 
 export const NewDrawingControl: React.FC<NewDrawingControlProps> = ({
   disabled,

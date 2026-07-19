@@ -114,7 +114,7 @@ export const Layout: React.FC<LayoutProps> = ({
               <button
                 type="button"
                 onClick={() => setIsSidebarOpen(v => !v)}
-                className="inline-flex items-center justify-center h-11 w-11 rounded-xl border-2 border-slate-800 dark:border-neutral-700 bg-white/90 dark:bg-neutral-900/90 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)] text-slate-900 dark:text-neutral-200 hover:-translate-y-0.5 transition-all active:translate-y-0 active:shadow-none"
+                className="ui-icon-button h-11 w-11"
                 title={isSidebarOpen ? 'Close menu' : 'Open menu'}
                 aria-label={isSidebarOpen ? 'Close menu' : 'Open menu'}
               >
@@ -124,7 +124,7 @@ export const Layout: React.FC<LayoutProps> = ({
               <div className="ml-auto flex items-center gap-2">
                 <Logo className="w-8 h-8" />
                 <span className="text-xl text-slate-900 dark:text-white mt-1" style={{ fontFamily: displayFontFamily }}>ExcaliDash</span>
-                <span className="text-[10px] font-bold text-red-500 mt-2" style={{ fontFamily: 'sans-serif' }}>BETA</span>
+                <span className="mt-2 text-[10px] font-bold text-red-500">Beta</span>
               </div>
             </div>
 

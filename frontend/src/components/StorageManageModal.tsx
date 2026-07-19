@@ -172,7 +172,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
+            className="ui-icon-button h-8 w-8 border-transparent bg-transparent shadow-none dark:bg-transparent"
           >
             <X size={20} />
           </button>
@@ -201,7 +201,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                 setConfirmAction('trim');
                 setConfirmInput('');
               }}
-              className="px-4 py-2.5 font-semibold rounded-xl border-2 border-slate-800 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] hover:shadow-[2.5px_2.5px_0px_0px_rgba(30,41,59,0.9)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] transition-all duration-200 bg-rose-600 text-white flex items-center gap-2"
+              className="ui-button-danger px-4 py-2.5"
             >
               <Scissors size={16} />
               Trim History
@@ -222,7 +222,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
               <button
                 onClick={loadDiff}
                 disabled={loading}
-                className="px-3 py-1.5 text-sm font-semibold rounded-xl border-2 border-slate-800 dark:border-neutral-700 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[1px_1px_0px_0px_rgba(255,255,255,0.08)] hover:shadow-[2.5px_2.5px_0px_0px_rgba(30,41,59,0.9)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] transition-all duration-200 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 flex items-center gap-1.5 disabled:opacity-50"
+                className="ui-button-secondary px-3 py-1.5"
               >
                 <RefreshCw size={14} className={clsx(loading && 'animate-spin')} />
                 Refresh
@@ -280,7 +280,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                                   className="accent-rose-600 w-4 h-4 disabled:opacity-30"
                                 />
                               </td>
-                              <td className="px-3 py-2 text-neutral-900 dark:text-neutral-100 font-mono text-xs truncate max-w-[200px]" title={file.fileId}>
+                              <td className="max-w-[200px] truncate px-3 py-2 text-xs font-semibold tracking-tight text-neutral-900 dark:text-neutral-100" title={file.fileId}>
                                 {file.fileId}
                               </td>
                               <td className="px-3 py-2 text-center">
@@ -318,7 +318,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                       setConfirmInput('');
                     }}
                     disabled={selectedIds.size === 0}
-                    className="px-4 py-2.5 font-semibold rounded-xl border-2 border-slate-800 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] hover:shadow-[2.5px_2.5px_0px_0px_rgba(30,41,59,0.9)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] transition-all duration-200 bg-rose-600 text-white flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] disabled:hover:translate-y-0"
+                    className="ui-button-danger px-4 py-2.5"
                   >
                     <Trash2 size={16} />
                     Delete Selected Orphans ({selectedIds.size})
@@ -367,14 +367,14 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                     setConfirmInput('');
                   }}
                   disabled={actionLoading}
-                  className="flex-1 px-4 py-2.5 bg-emerald-50 dark:bg-neutral-800 text-emerald-700 dark:text-emerald-200 font-semibold rounded-xl border-2 border-emerald-200 dark:border-neutral-700 hover:bg-emerald-100 dark:hover:bg-neutral-700 hover:border-emerald-300 dark:hover:border-neutral-600 hover:-translate-y-0.5 transition-all duration-200"
+                  className="ui-button-secondary flex-1 px-4 py-2.5"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={confirmAction === 'trim' ? handleTrim : handleDeleteOrphans}
                   disabled={!confirmMatch || actionLoading}
-                  className="flex-1 px-4 py-2.5 font-semibold rounded-xl border-2 border-slate-800 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] hover:shadow-[2.5px_2.5px_0px_0px_rgba(30,41,59,0.9)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] transition-all duration-200 bg-rose-600 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] disabled:hover:translate-y-0 flex items-center justify-center gap-2"
+                  className="ui-button-danger flex-1 px-4 py-2.5"
                 >
                   {actionLoading && <Loader2 size={16} className="animate-spin" />}
                   Confirm
