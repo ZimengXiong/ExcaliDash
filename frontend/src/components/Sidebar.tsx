@@ -95,10 +95,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <Logo className="w-10 h-10" />
             <span className="mt-1">ExcaliDash</span>
             <span
-              className="text-xs font-bold text-red-500 mt-2"
-              style={{ fontFamily: "sans-serif" }}
+              className="mt-2 font-sans text-xs font-bold text-red-500"
             >
-              BETA
+              Beta
             </span>
           </h1>
         </div>
@@ -107,7 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           onContextMenu={handleBackgroundContextMenu}
         >
           <div className="space-y-1">
-            <div className="px-6 pb-2 text-[11px] font-bold text-slate-400 dark:text-neutral-500 uppercase tracking-wider">
+            <div className="px-6 pb-2 text-xs font-semibold text-slate-400 dark:text-neutral-500">
               Library
             </div>
             <div className="pl-3 pr-2">
@@ -149,7 +148,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
           <div className="space-y-1">
             <div className="flex items-center justify-between px-6 pb-2 group/header">
-              <span className="text-[11px] font-bold text-slate-400 dark:text-neutral-500 uppercase tracking-wider">
+              <span className="text-xs font-semibold text-slate-400 dark:text-neutral-500">
                 Collections
               </span>
               <button
@@ -157,7 +156,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   e.stopPropagation();
                   setIsCreating(true);
                 }}
-                className="p-1 text-slate-400 dark:text-neutral-500 hover:text-indigo-600 dark:hover:text-neutral-200 hover:bg-indigo-50 dark:hover:bg-neutral-800 rounded-md transition-all opacity-0 group-hover/header:opacity-100"
+                className="ui-icon-button h-7 w-7 border-transparent bg-transparent shadow-none opacity-0 group-hover/header:opacity-100 dark:bg-transparent"
                 title="New Collection"
               >
                 <Plus size={14} strokeWidth={2.5} />
@@ -211,14 +210,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <div className="flex items-center gap-1">
                       {/* Shared indicator — only for owned collections that have been shared */}
                       {collection.isOwner !== false && collection.isShared && (
-                        <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
+                        <span className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400">
                           Shared
                         </span>
                       )}
                       {/* Role badge */}
                       <span
                         className={clsx(
-                          "text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border shrink-0",
+                          "shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold",
                           collection.isOwner === false
                             ? collection.sharedRole === "edit"
                               ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800"

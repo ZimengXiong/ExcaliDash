@@ -52,6 +52,7 @@ const ExcalidrawEditor: React.FC = () => {
   const [isSavingOnLeave, setIsSavingOnLeave] = useState(false);
   const { autoHideEnabled, setAutoHideEnabled } = useEditorAutoHide(id);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const historyButtonRef = useRef<HTMLButtonElement>(null);
   const [langCode, setLangCode] = usePreference("language", getInitialLangCode());
   const [gridStep, setGridStep] = usePreference("gridStep", DEFAULT_GRID_STEP);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -347,6 +348,7 @@ const ExcalidrawEditor: React.FC = () => {
         initialData={initialData}
         isHeaderVisible={isHeaderVisible}
         isHistoryOpen={isHistoryOpen}
+        historyButtonRef={historyButtonRef}
         isRenaming={isRenaming}
         isSavingOnLeave={isSavingOnLeave}
         isSceneLoading={isSceneLoading}
@@ -372,19 +374,19 @@ const ExcalidrawEditor: React.FC = () => {
         gridStep={gridStep}
         onSetGridStep={setGridStep}
         onShareOpen={() => setIsShareOpen(true)}
+        isShareOpen={isShareOpen}
+        onCloseShare={() => setIsShareOpen(false)}
         onHistoryOpen={() => setIsHistoryOpen(true)}
         onToggleAutoHide={handleToggleAutoHide}
       />
       <EditorDialogs
         drawingId={id}
-        drawingName={drawingName}
+        historyButtonRef={historyButtonRef}
         getCurrentVersion={() => currentDrawingVersionRef.current}
         excalidrawAPIRef={excalidrawAPI}
         isHistoryOpen={isHistoryOpen}
-        isShareOpen={isShareOpen}
         previewBackupRef={previewBackup}
         onCloseHistory={() => setIsHistoryOpen(false)}
-        onCloseShare={() => setIsShareOpen(false)}
       />
       <ChatPanel
         drawingId={id}

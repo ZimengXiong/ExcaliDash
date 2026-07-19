@@ -6,6 +6,7 @@ import clsx from "clsx";
 
 type Props = {
   drawingId: string;
+  anchorRef?: React.RefObject<HTMLElement>;
   getCurrentVersion: () => number | null;
   isOpen: boolean;
   onClose: () => void;
@@ -28,6 +29,7 @@ function timeAgo(dateStr: string): string {
 
 export const HistoryPanel: React.FC<Props> = ({
   drawingId,
+  anchorRef,
   getCurrentVersion,
   isOpen,
   onClose,
@@ -41,6 +43,10 @@ export const HistoryPanel: React.FC<Props> = ({
   const [previewData, setPreviewData] = useState<api.DrawingSnapshotFull | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [confirmRestore, setConfirmRestore] = useState<string | null>(null);
+  const [position, setPosition] = useState<{ left?: number; right?: number; top: number }>({
+    right: 12,
+    top: 76,
+  });
 
   const loadHistory = useCallback(async () => {
     setLoading(true);
@@ -66,6 +72,25 @@ export const HistoryPanel: React.FC<Props> = ({
       if (previewId) onPreview(null);
     }
   }, [isOpen, loadHistory]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const updatePosition = () => {
+      const anchor = anchorRef?.current;
+      if (!anchor) {
+        setPosition({ right: 12, top: 76 });
+        return;
+      }
+      const rect = anchor.getBoundingClientRect();
+      setPosition({
+        left: Math.max(12, Math.min(rect.left, window.innerWidth - 372)),
+        top: rect.bottom + 8,
+      });
+    };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    return () => window.removeEventListener("resize", updatePosition);
+  }, [anchorRef, isOpen]);
 
   const handlePreview = async (snapshotId: string) => {
     if (previewId === snapshotId) {
@@ -115,8 +140,20 @@ export const HistoryPanel: React.FC<Props> = ({
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[90] flex justify-end pointer-events-none">
-      <div className="ui-side-panel pointer-events-auto relative flex h-full w-full flex-col border-l-2 border-slate-800 bg-white animate-in slide-in-from-right duration-200 dark:border-neutral-700 dark:bg-neutral-900 md:w-96">
+    <>
+      <div
+        data-testid="history-dismiss-layer"
+        className="fixed inset-0 z-[150] bg-transparent"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div
+        className="ui-card fixed z-[160] flex max-h-[min(32rem,calc(100vh-5.75rem))] w-[min(360px,calc(100vw-24px))] flex-col overflow-hidden animate-in fade-in slide-in-from-top-3 duration-200"
+        style={position}
+        role="dialog"
+        aria-modal="false"
+        aria-label="Version history"
+      >
         {/* Header */}
         <div className="flex items-center gap-3 border-b-2 border-slate-100 px-4 py-3.5 dark:border-neutral-800">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border-2 border-slate-800 bg-indigo-400 text-slate-900 dark:border-neutral-700 dark:bg-indigo-400 dark:text-black">
@@ -133,14 +170,14 @@ export const HistoryPanel: React.FC<Props> = ({
           <button
             onClick={onClose}
             aria-label="Close version history"
-            className="ml-auto rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-neutral-800 dark:hover:text-white"
+            className="ui-icon-button ml-auto h-8 w-8 border-transparent bg-transparent shadow-none hover:border-slate-200 dark:bg-transparent dark:hover:border-neutral-700"
           >
             <X size={18} />
           </button>
         </div>
 
         {/* Snapshot list */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center py-12 text-slate-400">
               <span className="text-sm font-semibold">Loading history…</span>
@@ -160,9 +197,9 @@ export const HistoryPanel: React.FC<Props> = ({
                   key={snap.id}
                   onClick={() => handlePreview(snap.id)}
                   className={clsx(
-                    "px-4 py-3.5 transition-colors cursor-pointer select-none hover:bg-slate-50 dark:hover:bg-neutral-800/40 flex items-center justify-between gap-3",
+                    "flex cursor-pointer select-none items-center justify-between gap-3 border-l-4 border-transparent px-4 py-3.5 transition-colors hover:bg-indigo-50/60 dark:hover:bg-neutral-800/40",
                     previewId === snap.id &&
-                      "bg-indigo-50/30 dark:bg-indigo-900/10",
+                      "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20",
                   )}
                 >
                   <div className="min-w-0 flex-1">
@@ -185,10 +222,10 @@ export const HistoryPanel: React.FC<Props> = ({
                         onClick={() => handleRestore(snap.id)}
                         disabled={restoring}
                         className={clsx(
-                          "flex items-center gap-1.5 rounded-lg border-2 px-2.5 py-1 text-xs font-semibold shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] transition-all hover:-translate-y-0.5 disabled:hover:translate-y-0 disabled:opacity-50",
+                          "ui-button-primary px-2.5 py-1 text-xs",
                           confirmRestore === snap.id
-                            ? "border-slate-800 bg-amber-400 text-black dark:border-neutral-600 dark:bg-amber-400 dark:text-black"
-                            : "border-slate-800 bg-indigo-600 text-white dark:border-neutral-600"
+                            ? "bg-amber-400 text-black hover:bg-amber-300 dark:bg-amber-400 dark:text-black"
+                            : ""
                         )}
                       >
                         <RotateCcw size={12} strokeWidth={2.5} />
@@ -213,12 +250,12 @@ export const HistoryPanel: React.FC<Props> = ({
 
         {/* Footer */}
         <div className="border-t-2 border-slate-100 px-4 py-3 dark:border-neutral-800">
-          <p className="text-center text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">
+          <p className="text-center text-xs font-semibold text-slate-400 dark:text-neutral-500">
             Versions are kept for 2 days
           </p>
         </div>
       </div>
-    </div>,
+    </>,
     document.body
   );
 };

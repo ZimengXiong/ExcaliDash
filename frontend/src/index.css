@@ -2,6 +2,46 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    --excalidash-display-font: Excalifont;
+    --excalidash-body-font: Inter, ui-sans-serif, system-ui, -apple-system,
+      BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --excalidash-ink: #1e293b;
+    --excalidash-muted: #64748b;
+    --excalidash-brand: #4f46e5;
+    --excalidash-border: 2px;
+    --excalidash-radius: 0.75rem;
+    --excalidash-shadow: 2px 2px 0 rgb(30 41 59 / 0.9);
+  }
+
+  html,
+  body,
+  button,
+  input,
+  select,
+  textarea,
+  code,
+  kbd,
+  pre {
+    font-family: var(--excalidash-body-font);
+  }
+
+  button,
+  [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button:focus-visible,
+  [role="button"]:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 3px solid rgb(99 102 241 / 0.28);
+    outline-offset: 2px;
+  }
+}
+
 @layer components {
   /* Core ExcaliDash surfaces. Keep these primitives shared so feature areas
      (including editor overlays) feel like the same product. */
@@ -13,16 +53,36 @@
     @apply rounded-xl border-2 border-slate-200 bg-slate-50 dark:border-neutral-700 dark:bg-neutral-800;
   }
 
+  .ui-button,
+  .ui-button-primary,
+  .ui-button-secondary,
+  .ui-button-success,
+  .ui-button-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border-2 px-3 py-2 text-sm font-bold transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 active:shadow-none disabled:pointer-events-none disabled:translate-y-0 disabled:shadow-none disabled:opacity-45;
+  }
+
   .ui-button-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl border-2 border-slate-800 bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] transition-all hover:-translate-y-0.5 hover:bg-indigo-500 active:translate-y-0 active:shadow-none disabled:pointer-events-none disabled:opacity-45 dark:border-neutral-600;
+    @apply border-slate-800 bg-indigo-600 text-white shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] hover:bg-indigo-500 dark:border-neutral-600 dark:bg-indigo-500 dark:hover:bg-indigo-400;
   }
 
   .ui-button-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl border-2 border-slate-800 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] transition-all hover:-translate-y-0.5 hover:bg-slate-50 active:translate-y-0 active:shadow-none disabled:pointer-events-none disabled:opacity-45 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)] dark:hover:bg-neutral-700;
+    @apply border-slate-800 bg-white text-slate-900 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] hover:bg-indigo-50 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)] dark:hover:bg-neutral-700;
+  }
+
+  .ui-button-success {
+    @apply border-slate-800 bg-emerald-500 text-slate-950 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] hover:bg-emerald-400 dark:border-neutral-600;
+  }
+
+  .ui-button-danger {
+    @apply border-slate-800 bg-rose-500 text-white shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] hover:bg-rose-400 dark:border-neutral-600;
   }
 
   .ui-icon-button {
-    @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border-2 border-transparent text-slate-500 transition-colors hover:border-slate-200 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-45 dark:text-neutral-400 dark:hover:border-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-white;
+    @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 border-slate-800 bg-white text-slate-600 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] transition-all hover:-translate-y-0.5 hover:bg-indigo-50 hover:text-indigo-600 active:translate-y-0 active:shadow-none disabled:pointer-events-none disabled:translate-y-0 disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-300 disabled:shadow-none dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)] dark:hover:bg-neutral-700 dark:hover:text-indigo-300;
+  }
+
+  .ui-toolbar-button {
+    @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-0 bg-transparent text-slate-600 shadow-none transition-colors hover:bg-slate-100 hover:text-indigo-600 disabled:pointer-events-none disabled:opacity-40 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-indigo-300;
   }
 
   .ui-input {
@@ -30,7 +90,7 @@
   }
 
   .ui-field-label {
-    @apply text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-neutral-400;
+    @apply text-xs font-semibold text-slate-500 dark:text-neutral-400;
   }
 
   .ui-link {
@@ -60,6 +120,10 @@
 
   .font-display {
     font-family: var(--excalidash-display-font), sans-serif;
+  }
+
+  .playful-avatar {
+    @apply relative isolate flex shrink-0 items-center justify-center rounded-[38%] border-2 border-slate-800 bg-amber-300 font-black text-white shadow-[2px_2px_0px_0px_rgba(30,41,59,0.9)] dark:border-neutral-600 dark:bg-amber-300 dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.18)];
   }
 
   /* Shared secondary-surface language: rounded and playful, without the
@@ -96,10 +160,6 @@
   .ui-menu-separator {
     @apply my-1 border-t-2 border-slate-100 dark:border-neutral-800;
   }
-}
-
-:root {
-  --excalidash-display-font: Excalifont;
 }
 
 html.dark body {

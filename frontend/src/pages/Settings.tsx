@@ -285,7 +285,7 @@ export const Settings: React.FC = () => {
           </p>
         </div>
       )}{" "}
-      <div className="space-y-6">
+      <div className="space-y-10">
         <ApiKeysCard
           disabled={mustResetPassword}
           onSuccess={setSettingsSuccess}
@@ -307,7 +307,7 @@ export const Settings: React.FC = () => {
           onEnabledChange={aiSettings.setEnabled}
         />
       </div>
-      <div className="mt-6">
+      <div className="mt-10">
         <SettingsMainGrid
           exportBackup={exportBackup}
           theme={theme}

@@ -72,7 +72,7 @@ export const UploadStatus: React.FC = () => {
             {(completedCount > 0 || errorCount > 0) && !isUploading && (
               <button 
                 onClick={clearCompleted}
-                className="text-xs text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 font-medium"
+                className="ui-button-secondary px-2 py-1 text-xs"
               >
                 Clear All
               </button>
@@ -97,7 +97,7 @@ export const UploadStatus: React.FC = () => {
                     </p>
                     <button 
                       onClick={() => removeTask(task.id)}
-                      className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-opacity p-0.5"
+                      className="ui-icon-button h-7 w-7 border-transparent bg-transparent shadow-none opacity-0 group-hover:opacity-100 dark:bg-transparent"
                       aria-label={`Remove ${task.fileName} from uploads`}
                     >
                       <X size={14} />

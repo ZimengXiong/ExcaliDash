@@ -26,7 +26,7 @@ export const AdvancedSettings = ({
   verifyBackupFile,
   confirmToggleAuthEnabled,
 }: AdvancedSettingsProps) => (
-  <details className="group mt-6 overflow-hidden rounded-2xl border-2 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)]">
+  <details className="group mt-10 overflow-hidden rounded-2xl border-2 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)]">
     <summary className="flex cursor-pointer select-none items-center gap-2 px-4 py-3.5 text-sm font-bold text-slate-800 dark:text-neutral-200 sm:px-5 sm:text-base">
       <ChevronRight
         size={16}
@@ -104,7 +104,7 @@ export const AdvancedSettings = ({
         title="Version"
         description={
           buildLabel ? (
-            <span className="font-bold uppercase tracking-wide text-red-500 dark:text-red-400">
+            <span className="font-bold text-red-500 dark:text-red-400">
               {buildLabel}
             </span>
           ) : undefined

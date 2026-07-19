@@ -38,7 +38,7 @@ export const RoleSelect: React.FC<{
           event.stopPropagation();
           setOpen(!open);
         }}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-semibold text-slate-700 dark:text-neutral-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-all outline-none"
+        className="ui-button-secondary px-2.5 py-1.5"
       >
         {current.label}
         <ChevronDown

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Copy, KeyRound, Trash2 } from "lucide-react";
 import * as api from "../../api";
 import { ConfirmModal } from "../../components/ConfirmModal";
+import { InfoPopover } from "../../components/InfoPopover";
 import {
   SettingsCard,
   SettingsSectionHeader,
@@ -17,7 +18,7 @@ const API_KEY_SCOPE_LABELS: Record<string, string> = {
 };
 
 const createButtonClass =
-  "rounded-lg border-2 border-slate-800 bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 disabled:opacity-50 dark:border-neutral-600 dark:bg-emerald-500 dark:hover:bg-emerald-400";
+  "ui-button-primary";
 
 const getApiErrorMessage = (err: unknown, fallback: string) => {
   if (api.isAxiosError(err)) {
@@ -48,6 +49,7 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
   const [generatedTokenName, setGeneratedTokenName] = useState("");
   const [copiedToken, setCopiedToken] = useState(false);
   const [apiKeyToRevoke, setApiKeyToRevoke] = useState<api.ApiKeyMetadata | null>(null);
+  const [showAllKeys, setShowAllKeys] = useState(false);
 
   useEffect(() => {
     if (disabled) {
@@ -154,7 +156,7 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
         icon={<KeyRound size={20} />}
         tileClassName="border-black bg-emerald-400 text-black dark:border-neutral-700 dark:bg-emerald-400 dark:text-black"
         title="API Keys"
-        subtitle="Bearer tokens for scripts — shown only once"
+        subtitle="Tokens for apps and scripts"
       />
 
       {disabled ? (
@@ -187,13 +189,13 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
                     aria-label={`Generated API token for ${generatedTokenName}`}
                     value={generatedToken}
                     readOnly
-                    className={`${settingsSelectClass} flex-1 font-mono text-xs`}
+                    className={`${settingsSelectClass} flex-1 text-xs font-semibold tracking-tight`}
                     onFocus={(event) => event.target.select()}
                   />
                   <button
                     onClick={() => void handleCopyGeneratedToken()}
                     aria-label="Copy generated API token"
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border-2 border-slate-800 bg-amber-500 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-amber-400 dark:border-neutral-600"
+                    className="ui-button-primary"
                   >
                     <Copy size={14} />
                     {copiedToken ? "Copied" : "Copy"}
@@ -243,7 +245,7 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
                 </button>
               </div>
               <fieldset className="mt-3">
-                <legend className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-neutral-400">
+                <legend className="text-xs font-semibold text-slate-500 dark:text-neutral-400">
                   Scopes
                 </legend>
                 <div className="mt-1.5 flex flex-wrap gap-2">
@@ -259,7 +261,6 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
                         className="h-3.5 w-3.5 accent-emerald-600"
                       />
                       <span>{API_KEY_SCOPE_LABELS[scope]}</span>
-                      <span className="font-mono text-[10px] text-slate-400 dark:text-neutral-500">{scope}</span>
                     </label>
                   ))}
                 </div>
@@ -275,7 +276,8 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
                 No API keys have been created yet.
               </p>
             ) : (
-              apiKeys.map((apiKey) => {
+              <>
+              {apiKeys.slice(0, showAllKeys ? apiKeys.length : 3).map((apiKey) => {
                 const revoked = Boolean(apiKey.revokedAt);
                 return (
                   <div key={apiKey.id} className="px-4 py-3.5 sm:px-5">
@@ -294,38 +296,58 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
                           >
                             {revoked ? "Revoked" : "Active"}
                           </span>
+                          <InfoPopover label={`Details for API key ${apiKey.name}`}>
+                              <p>
+                                <span className="font-bold text-slate-900 dark:text-white">Prefix</span>
+                                <span className="ml-2 text-slate-500 dark:text-neutral-400">{apiKey.prefix}</span>
+                              </p>
+                              <p>
+                                <span className="font-bold text-slate-900 dark:text-white">Scopes</span>
+                                <span className="ml-2 text-slate-500 dark:text-neutral-400">
+                                  {apiKey.scopes.length > 0 ? apiKey.scopes.join(", ") : "None"}
+                                </span>
+                              </p>
+                              <p className="text-slate-500 dark:text-neutral-400">
+                                Created {formatApiKeyDate(apiKey.createdAt)}
+                              </p>
+                              <p className="text-slate-500 dark:text-neutral-400">
+                                Last used {formatApiKeyDate(apiKey.lastUsedAt)}
+                              </p>
+                              {revoked ? (
+                                <p className="text-slate-500 dark:text-neutral-400">
+                                  Revoked {formatApiKeyDate(apiKey.revokedAt)}
+                                </p>
+                              ) : null}
+                          </InfoPopover>
                         </div>
-                        <p className="mt-0.5 text-xs font-medium text-slate-500 dark:text-neutral-400">
-                          <span className="font-mono">{apiKey.prefix}</span>
-                          {" · "}
-                          <span>
-                            {apiKey.scopes.length > 0 ? apiKey.scopes.join(", ") : "None"}
-                          </span>
-                          {" · Created "}
-                          <span>{formatApiKeyDate(apiKey.createdAt)}</span>
-                          {" · Last used "}
-                          <span>{formatApiKeyDate(apiKey.lastUsedAt)}</span>
-                          {revoked ? (
-                            <>
-                              {" · Revoked "}
-                              <span>{formatApiKeyDate(apiKey.revokedAt)}</span>
-                            </>
-                          ) : null}
-                        </p>
                       </div>
-                      <button
-                        onClick={() => setApiKeyToRevoke(apiKey)}
-                        disabled={actionLoading || revoked}
-                        className="ml-auto inline-flex items-center gap-1.5 rounded-lg border-2 border-slate-200 bg-white px-3 py-1.5 text-sm font-bold text-red-700 transition-colors hover:border-red-400 disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-red-300 dark:hover:border-red-800"
-                        aria-label={`Revoke API key ${apiKey.name}`}
-                      >
-                        <Trash2 size={14} />
-                        Revoke
-                      </button>
+                      {!revoked ? (
+                        <button
+                          onClick={() => setApiKeyToRevoke(apiKey)}
+                          disabled={actionLoading}
+                          className="ui-button-secondary ml-auto text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                          aria-label={`Revoke API key ${apiKey.name}`}
+                        >
+                          <Trash2 size={14} />
+                          Revoke
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 );
-              })
+              })}
+              {apiKeys.length > 3 ? (
+                <div className="px-4 py-3 text-center sm:px-5">
+                  <button
+                    type="button"
+                    className="ui-button-secondary"
+                    onClick={() => setShowAllKeys((value) => !value)}
+                  >
+                    {showAllKeys ? "Show less" : `Show ${apiKeys.length - 3} more`}
+                  </button>
+                </div>
+              ) : null}
+              </>
             )}
           </SettingsCard>
         </>

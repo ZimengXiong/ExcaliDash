@@ -1,6 +1,5 @@
 import React from "react";
 import { CaptureUpdateAction } from "@excalidraw/excalidraw";
-import { ShareModal } from "../../components/ShareModal";
 import { HistoryPanel } from "../../components/HistoryPanel";
 
 type PreviewBackup = {
@@ -11,14 +10,12 @@ type PreviewBackup = {
 
 type EditorDialogsProps = {
   drawingId?: string;
-  drawingName: string;
+  historyButtonRef: React.RefObject<HTMLButtonElement>;
   getCurrentVersion: () => number | null;
   excalidrawAPIRef: React.MutableRefObject<any>;
   isHistoryOpen: boolean;
-  isShareOpen: boolean;
   previewBackupRef: React.MutableRefObject<PreviewBackup | null>;
   onCloseHistory: () => void;
-  onCloseShare: () => void;
 };
 
 export const getHistoryPreviewAppState = (
@@ -33,27 +30,20 @@ export const getHistoryPreviewAppState = (
 
 export const EditorDialogs: React.FC<EditorDialogsProps> = ({
   drawingId,
-  drawingName,
+  historyButtonRef,
   getCurrentVersion,
   excalidrawAPIRef,
   isHistoryOpen,
-  isShareOpen,
   previewBackupRef,
   onCloseHistory,
-  onCloseShare,
 }) => {
   if (!drawingId) return null;
 
   return (
     <>
-      <ShareModal
-        drawingId={drawingId}
-        drawingName={drawingName}
-        isOpen={isShareOpen}
-        onClose={onCloseShare}
-      />
       <HistoryPanel
         drawingId={drawingId}
+        anchorRef={historyButtonRef}
         getCurrentVersion={getCurrentVersion}
         isOpen={isHistoryOpen}
         onClose={onCloseHistory}

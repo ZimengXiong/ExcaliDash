@@ -32,7 +32,7 @@ export const EnginePickerModal: React.FC<EnginePickerModalProps> = ({
         <button
           onClick={onCancel}
           aria-label="Close"
-          className="absolute right-4 top-4 text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
+          className="ui-icon-button absolute right-4 top-4 h-8 w-8 border-transparent bg-transparent shadow-none dark:bg-transparent"
         >
           <X size={20} />
         </button>
@@ -51,7 +51,7 @@ export const EnginePickerModal: React.FC<EnginePickerModalProps> = ({
                 key={engine}
                 data-testid={`engine-card-${engine}`}
                 onClick={() => onSelect(engine)}
-                className="flex flex-col items-start text-left gap-2 p-4 rounded-xl border-2 border-black dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.15)] hover:-translate-y-1 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] transition-all duration-200"
+                className="ui-button-secondary flex-col items-start gap-2 p-4 text-left"
               >
                 <span className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-neutral-900 flex items-center justify-center text-indigo-600 dark:text-indigo-400 border-2 border-indigo-100 dark:border-neutral-700">
                   {ENGINE_ICON[engine]}

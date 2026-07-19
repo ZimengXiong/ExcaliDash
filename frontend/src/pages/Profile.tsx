@@ -4,14 +4,13 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import * as api from "../api";
 import type { Collection } from "../types";
-import { User, Save } from "lucide-react";
+import { Save } from "lucide-react";
 import { displayFontFamily } from "../utils/displayFont";
 import { PasswordCard } from "./profile/PasswordCard";
 import { getApiErrorMessage } from "../utils/getApiErrorMessage";
+import { UserAvatar } from "../components/UserAvatar";
 import {
   SettingsCard,
-  SettingsRow,
-  SettingsSectionHeader,
   settingsButtonClass,
   settingsPrimaryButtonClass,
   settingsSelectClass,
@@ -185,13 +184,6 @@ export const Profile: React.FC = () => {
       <div className="space-y-6">
         {authEnabled ? (
           <section>
-            <SettingsSectionHeader
-              icon={<User size={20} />}
-              tileClassName="border-black bg-indigo-400 text-black dark:border-neutral-700 dark:bg-indigo-400 dark:text-black"
-              title="Personal information"
-              subtitle="How you appear to others"
-            />
-
             {mustResetPassword && (
               <div className="mb-3 p-3.5 bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800 rounded-xl">
                 <p className="text-amber-900 dark:text-amber-200 font-bold">
@@ -204,6 +196,37 @@ export const Profile: React.FC = () => {
             )}
 
             <SettingsCard>
+              {authUser && (
+                <div className="relative overflow-hidden bg-indigo-50/70 px-5 py-5 dark:bg-indigo-950/20 sm:px-6">
+                  <div className="relative flex flex-wrap items-center gap-5">
+                    <UserAvatar name={authUser.name} size="lg" />
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                      <input
+                        id="name"
+                        aria-label="Display name"
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className={`${settingsSelectClass} min-w-40 flex-1`}
+                        placeholder="Your name"
+                      />
+                      <button
+                        onClick={handleUpdateName}
+                        disabled={
+                          mustResetPassword ||
+                          loading ||
+                          !name.trim() ||
+                          name === authUser?.name
+                        }
+                        className={settingsPrimaryButtonClass}
+                      >
+                        <Save size={14} />
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="px-4 py-3.5 sm:px-5">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                   <div className="min-w-0 flex-1 basis-40">
@@ -235,7 +258,7 @@ export const Profile: React.FC = () => {
                     <div>
                       <label
                         htmlFor="email"
-                        className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-neutral-400"
+                        className="mb-1 block text-xs font-semibold text-slate-500 dark:text-neutral-400"
                       >
                         New email
                       </label>
@@ -250,7 +273,7 @@ export const Profile: React.FC = () => {
                     <div>
                       <label
                         htmlFor="emailCurrentPassword"
-                        className="mb-1 block text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-neutral-400"
+                        className="mb-1 block text-xs font-semibold text-slate-500 dark:text-neutral-400"
                       >
                         Current password
                       </label>
@@ -295,29 +318,6 @@ export const Profile: React.FC = () => {
                 )}
               </div>
 
-              <SettingsRow title="Display name" description="Shown to collaborators">
-                <input
-                  id="name"
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className={`${settingsSelectClass} w-48`}
-                  placeholder="Your name"
-                />
-                <button
-                  onClick={handleUpdateName}
-                  disabled={
-                    mustResetPassword ||
-                    loading ||
-                    !name.trim() ||
-                    name === authUser?.name
-                  }
-                  className={`${settingsPrimaryButtonClass} inline-flex items-center gap-1.5`}
-                >
-                  <Save size={14} />
-                  Save
-                </button>
-              </SettingsRow>
             </SettingsCard>
           </section>
         ) : null}
