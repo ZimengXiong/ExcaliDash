@@ -37,7 +37,7 @@ export const AdvancedSettings = ({
     <div className="divide-y divide-slate-100 border-t-2 border-slate-100 dark:divide-neutral-800 dark:border-neutral-800">
       <SettingsRow
         icon={<Upload size={20} />}
-        tileClassName="border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300"
+        tileClassName="border-black bg-blue-400 text-black dark:border-neutral-700 dark:bg-blue-400 dark:text-black"
         title="Import backup"
         description="Merge a .excalidash backup into your account"
       >
@@ -66,7 +66,7 @@ export const AdvancedSettings = ({
 
       <SettingsRow
         icon={<ShieldCheck size={20} />}
-        tileClassName="border-slate-200 bg-slate-50 text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+        tileClassName="border-black bg-slate-300 text-black dark:border-neutral-700 dark:bg-neutral-700 dark:text-white"
         title={authEnabled ? "Authentication on" : "Authentication off"}
         description={
           isManagedAuthMode
@@ -100,7 +100,7 @@ export const AdvancedSettings = ({
 
       <SettingsRow
         icon={<Info size={20} />}
-        tileClassName="border-gray-200 bg-gray-50 text-gray-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-400"
+        tileClassName="border-black bg-gray-300 text-black dark:border-neutral-700 dark:bg-neutral-700 dark:text-white"
         title="Version"
         description={
           buildLabel ? (

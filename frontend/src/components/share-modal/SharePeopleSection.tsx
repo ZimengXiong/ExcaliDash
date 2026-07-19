@@ -48,7 +48,7 @@ export const SharePeopleSection: React.FC<Props> = ({
             value={userQuery}
             onChange={(event) => setUserQuery(event.target.value)}
             placeholder="Add people by name or email"
-            className="w-full rounded-xl border-2 border-slate-200 bg-white py-2 pl-9 pr-3 text-sm font-medium text-slate-900 placeholder:font-normal placeholder:text-slate-400 transition-colors focus:border-indigo-400 focus:outline-none dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
+            className="w-full rounded-xl border-2 border-slate-200 bg-white py-2 pl-9 pr-3 text-sm font-semibold text-slate-800 placeholder:font-normal placeholder:text-slate-400 transition-colors focus:border-indigo-400 focus:outline-none dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100"
           />
         </div>
         <PlayfulSelect
@@ -70,11 +70,11 @@ export const SharePeopleSection: React.FC<Props> = ({
               onClick={() => handleAddUser(candidate.id)}
               className="ui-menu-item gap-3"
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border-2 border-indigo-200 bg-indigo-50 text-xs font-bold text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
                 {candidate.name.charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-xs font-bold text-slate-900 dark:text-neutral-100">
+                <div className="truncate text-xs font-semibold text-slate-850 dark:text-neutral-100">
                   {candidate.name}
                 </div>
                 <div className="truncate text-[10px] font-medium text-slate-500 dark:text-neutral-400">
@@ -92,16 +92,16 @@ export const SharePeopleSection: React.FC<Props> = ({
     </section>
 
     <section>
-      <h3 className="mb-2 text-xs font-black uppercase tracking-wider text-slate-400 dark:text-neutral-500">
+      <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">
         People
       </h3>
       <div className="divide-y divide-slate-100 dark:divide-neutral-800">
         <div className="flex items-center gap-3 py-2">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border-2 border-slate-200 bg-slate-100 text-sm font-bold text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
             {user?.name?.charAt(0).toUpperCase() || "U"}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-bold text-slate-900 dark:text-neutral-100">
+            <div className="truncate text-sm font-semibold text-slate-800 dark:text-neutral-100">
               {user?.name}{" "}
               <span className="font-medium text-slate-400 dark:text-neutral-500">
                 (you)
@@ -111,18 +111,18 @@ export const SharePeopleSection: React.FC<Props> = ({
               {user?.email}
             </div>
           </div>
-          <span className="shrink-0 rounded-full border-2 border-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-500 dark:border-neutral-700 dark:text-neutral-400">
+          <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-500 dark:bg-neutral-800 dark:text-neutral-400">
             Owner
           </span>
         </div>
 
         {(sharing?.permissions || []).map((permission) => (
           <div key={permission.id} className="flex items-center gap-3 py-2">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border-2 border-indigo-200 bg-indigo-50 text-sm font-bold text-indigo-600 dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
               {permission.granteeUser.name.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-bold text-slate-900 dark:text-neutral-100">
+              <div className="truncate text-sm font-semibold text-slate-800 dark:text-neutral-100">
                 {permission.granteeUser.name}
               </div>
               <div className="truncate text-xs font-medium text-slate-500 dark:text-neutral-400">

@@ -178,9 +178,9 @@ export const PlayfulSelect: React.FC<PlayfulSelectProps> = ({
           setOpen((previous) => !previous);
         }}
         className={clsx(
-          "flex w-full items-center gap-2 rounded-xl border-2 font-bold transition-all disabled:opacity-50",
+          "flex w-full items-center gap-2 rounded-xl border-2 font-semibold transition-all disabled:opacity-50",
           variant === "playful"
-            ? "border-black bg-white text-slate-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 hover:bg-indigo-50 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] disabled:hover:translate-y-0 disabled:hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] dark:hover:bg-indigo-900/30 dark:hover:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)]"
+            ? "border-slate-800 bg-white text-slate-700 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] hover:-translate-y-0.5 hover:bg-indigo-50 hover:shadow-[2.5px_2.5px_0px_0px_rgba(30,41,59,0.9)] disabled:hover:translate-y-0 disabled:hover:shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)] dark:hover:bg-indigo-900/30 dark:hover:shadow-[2.5px_2.5px_0px_0px_rgba(255,255,255,0.18)]"
             : "border-slate-200 bg-white text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:border-neutral-500 dark:hover:bg-neutral-700",
           open && variant === "playful" && "bg-indigo-50 dark:bg-indigo-900/30",
           size === "sm" ? "gap-1.5 px-2 py-1 text-xs" : "px-2.5 py-1.5 text-sm",

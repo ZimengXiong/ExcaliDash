@@ -52,7 +52,7 @@ export const LoginRateLimitCard: React.FC<LoginRateLimitCardProps> = ({
   <section className="mb-6">
     <SettingsSectionHeader
       icon={<Timer size={20} />}
-      tileClassName="border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300"
+      tileClassName="border-black bg-amber-400 text-black dark:border-neutral-700 dark:bg-amber-400 dark:text-black"
       title="Login rate limiting"
       subtitle="Throttle repeated login attempts"
     >

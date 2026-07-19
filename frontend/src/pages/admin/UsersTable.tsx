@@ -30,7 +30,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
   <section>
     <SettingsSectionHeader
       icon={<Shield size={20} />}
-      tileClassName="border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-300"
+      tileClassName="border-black bg-indigo-400 text-black dark:border-neutral-700 dark:bg-indigo-400 dark:text-black"
       title="Users"
     >
       {loading ? (
@@ -38,16 +38,16 @@ export const UsersTable: React.FC<UsersTableProps> = ({
       ) : null}
     </SettingsSectionHeader>
 
-    <div className="overflow-hidden rounded-2xl border-2 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)]">
+    <div className="overflow-hidden rounded-2xl border-2 border-slate-800 bg-white shadow-[3px_3px_0px_0px_rgba(30,41,59,0.9)] dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.18)]">
       <div className="overflow-x-auto">
       <table className="min-w-full text-sm">
         <thead className="bg-slate-50 dark:bg-neutral-800/70">
           <tr className="text-left">
-            <th className="px-4 sm:px-6 py-2.5 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-neutral-400">User</th>
-            <th className="px-4 sm:px-6 py-2.5 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-neutral-400">Role</th>
-            <th className="px-4 sm:px-6 py-2.5 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-neutral-400">Active</th>
-            <th className="px-4 sm:px-6 py-2.5 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-neutral-400">Reset?</th>
-            <th className="px-4 sm:px-6 py-2.5 text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-neutral-400">Actions</th>
+            <th className="px-4 sm:px-6 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-neutral-400">User</th>
+            <th className="px-4 sm:px-6 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-neutral-400">Role</th>
+            <th className="px-4 sm:px-6 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-neutral-400">Active</th>
+            <th className="px-4 sm:px-6 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-neutral-400">Reset?</th>
+            <th className="px-4 sm:px-6 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-neutral-400">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -78,10 +78,10 @@ export const UsersTable: React.FC<UsersTableProps> = ({
                 <button
                   onClick={() => onToggleActive(user)}
                   disabled={user.id === currentUserId}
-                  className={`inline-flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg border-2 font-bold ${
+                  className={`inline-flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg border-2 font-semibold shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.15)] hover:-translate-y-0.5 disabled:hover:translate-y-0 disabled:hover:shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] disabled:opacity-50 disabled:cursor-not-allowed transition-all ${
                     user.isActive
-                      ? 'border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
-                      : 'border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-slate-600 dark:text-neutral-300'
+                      ? 'border-slate-800 dark:border-neutral-700 bg-emerald-400 dark:bg-emerald-400 text-black'
+                      : 'border-slate-800 dark:border-neutral-700 bg-slate-200 dark:bg-neutral-700 text-slate-700 dark:text-neutral-300'
                   }`}
                 >
                   {user.isActive ? 'Active' : 'Inactive'}
@@ -90,10 +90,10 @@ export const UsersTable: React.FC<UsersTableProps> = ({
               <td className="px-4 sm:px-6 py-3">
                 <button
                   onClick={() => onToggleMustReset(user)}
-                  className={`inline-flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg border-2 font-bold ${
+                  className={`inline-flex items-center gap-2 px-2.5 py-1.5 text-xs rounded-lg border-2 font-semibold shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.15)] hover:-translate-y-0.5 disabled:hover:translate-y-0 disabled:hover:shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] disabled:opacity-50 disabled:cursor-not-allowed transition-all ${
                     user.mustResetPassword
-                      ? 'border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200'
-                      : 'border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-slate-600 dark:text-neutral-300'
+                      ? 'border-slate-800 dark:border-neutral-700 bg-amber-400 dark:bg-amber-400 text-black'
+                      : 'border-slate-800 dark:border-neutral-700 bg-slate-200 dark:bg-neutral-700 text-slate-700 dark:text-neutral-300'
                   }`}
                 >
                   {user.mustResetPassword ? 'Yes' : 'No'}
@@ -103,7 +103,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={() => onImpersonate(user)}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border-2 border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-slate-900 dark:text-neutral-200 font-bold hover:border-black dark:hover:border-neutral-400 transition-colors"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border-2 border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-slate-900 dark:text-neutral-200 font-semibold hover:border-slate-800 dark:hover:border-neutral-400 transition-colors"
                   >
                     <LogIn size={14} />
                     Impersonate
@@ -111,7 +111,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
                   <button
                     onClick={() => void onResetPassword(user)}
                     disabled={user.id === currentUserId || resetPasswordLoadingId === user.id}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border-2 border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-slate-900 dark:text-neutral-200 font-bold hover:border-black dark:hover:border-neutral-400 transition-colors disabled:opacity-60"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border-2 border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-slate-900 dark:text-neutral-200 font-semibold hover:border-slate-800 dark:hover:border-neutral-400 transition-colors disabled:opacity-60"
                     title={
                       user.id === currentUserId
                         ? 'Use Profile → Change Password for your own account'

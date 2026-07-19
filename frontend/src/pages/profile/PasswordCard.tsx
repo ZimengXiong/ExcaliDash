@@ -13,7 +13,7 @@ import {
 } from "../settings/SettingsRow";
 
 const roseButtonClass =
-  "rounded-lg border-2 border-black bg-rose-600 px-3 py-1.5 text-sm font-bold text-white transition-colors hover:bg-rose-500 disabled:opacity-50 dark:border-neutral-600 dark:bg-rose-500 dark:hover:bg-rose-400";
+  "rounded-lg border-2 border-slate-800 bg-rose-600 px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-rose-500 disabled:opacity-50 dark:border-neutral-600 dark:bg-rose-500 dark:hover:bg-rose-400";
 
 type Props = {
   mustResetPassword: boolean;
@@ -93,7 +93,7 @@ export const PasswordCard: React.FC<Props> = ({
     <section>
       <SettingsSectionHeader
         icon={<Lock size={20} />}
-        tileClassName="border-rose-200 bg-rose-50 text-rose-600 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300"
+        tileClassName="border-black bg-rose-400 text-black dark:border-neutral-700 dark:bg-rose-400 dark:text-black"
         title="Password"
         subtitle="Keep your account secure"
       />

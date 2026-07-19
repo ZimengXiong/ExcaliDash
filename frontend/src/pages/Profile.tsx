@@ -187,7 +187,7 @@ export const Profile: React.FC = () => {
           <section>
             <SettingsSectionHeader
               icon={<User size={20} />}
-              tileClassName="border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-300"
+              tileClassName="border-black bg-indigo-400 text-black dark:border-neutral-700 dark:bg-indigo-400 dark:text-black"
               title="Personal information"
               subtitle="How you appear to others"
             />
