@@ -253,6 +253,7 @@ export const registerDrawingAgentRoutes = (
         name: drawing.name,
         version: drawing.version,
         elements: parseJsonField(drawing.elements, []),
+        appState: parseJsonField(drawing.appState, {}),
       });
       res.type("text/plain").send(summary);
     }),

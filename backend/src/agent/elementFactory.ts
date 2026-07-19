@@ -21,6 +21,69 @@ export const genSeed = (): number => crypto.randomInt(0, 2 ** 31);
 
 export type ExcalidrawElement = Record<string, any>;
 
+const charWidthFactor = (char: string): number => {
+  if (/\s/.test(char)) return 0.33;
+  if (/[ilI1.,'`|!]/.test(char)) return 0.3;
+  if (/[MW@#%&]/.test(char)) return 0.9;
+  if (/[^\u0000-\u00ff]/.test(char)) return 1;
+  return 0.56;
+};
+
+export const estimateTextWidth = (text: string, fontSize: number): number =>
+  [...text].reduce((sum, char) => sum + charWidthFactor(char) * fontSize, 0);
+
+export const wrapText = (
+  text: string,
+  maxWidth: number,
+  fontSize: number,
+): string => {
+  if (!Number.isFinite(maxWidth) || maxWidth <= 0) return text;
+  const output: string[] = [];
+  for (const paragraph of text.split("\n")) {
+    const words = paragraph.split(/\s+/).filter(Boolean);
+    if (words.length === 0) {
+      output.push("");
+      continue;
+    }
+    let line = "";
+    for (const word of words) {
+      const candidate = line ? `${line} ${word}` : word;
+      if (line && estimateTextWidth(candidate, fontSize) > maxWidth) {
+        output.push(line);
+        line = word;
+      } else {
+        line = candidate;
+      }
+    }
+    output.push(line);
+  }
+  return output.join("\n");
+};
+
+export const updateTextMetrics = (
+  el: ExcalidrawElement,
+  options: { maxWidth?: number; center?: { x: number; y: number } } = {},
+): void => {
+  const fontSize =
+    typeof el.fontSize === "number" && el.fontSize > 0 ? el.fontSize : 20;
+  const lineHeight =
+    typeof el.lineHeight === "number" && el.lineHeight > 0 ? el.lineHeight : 1.25;
+  const original = typeof el.originalText === "string" ? el.originalText : el.text ?? "";
+  const text = options.maxWidth
+    ? wrapText(original, options.maxWidth, fontSize)
+    : original;
+  const lines = text.split("\n");
+  el.text = text;
+  el.originalText = original;
+  el.width = Math.max(10, ...lines.map((line) => estimateTextWidth(line, fontSize)));
+  el.height = Math.max(fontSize * lineHeight, Math.ceil(lines.length * fontSize * lineHeight));
+  el.autoResize = options.maxWidth === undefined;
+  if (options.center) {
+    el.x = options.center.x - el.width / 2;
+    el.y = options.center.y - el.height / 2;
+  }
+};
+
 const baseElement = (
   type: string,
   x: number,
@@ -75,23 +138,16 @@ export const createTextElement = (
   y: number,
   text: string,
   containerId: string | null = null,
+  maxWidth?: number,
 ): ExcalidrawElement => {
   const fontSize = 20;
   const lineHeight = 1.25;
-  const lines = text.length === 0 ? 1 : text.split("\n").length;
-  const width = Math.max(
-    10,
-    text.split("\n").reduce((m, l) => Math.max(m, l.length), 0) * fontSize * 0.6,
-  );
-  const height = Math.ceil(fontSize * lineHeight * lines);
   // Excalidraw's newTextElement() treats x/y as the alignment anchor and stores
   // the resulting top-left coordinates. Agent ops run on the server and cannot
   // use browser font metrics, but applying the same offset to our estimate is
   // essential: the client can refine an estimated box, whereas it cannot infer
   // that an unshifted x/y was intended to be the center of a bound label.
-  const storedX = containerId ? x - width / 2 : x;
-  const storedY = containerId ? y - height / 2 : y;
-  const el = baseElement("text", storedX, storedY, width, height);
+  const el = baseElement("text", x, y, 10, Math.ceil(fontSize * lineHeight));
   el.text = text;
   el.originalText = text;
   el.fontSize = fontSize;
@@ -101,6 +157,10 @@ export const createTextElement = (
   el.containerId = containerId;
   el.lineHeight = lineHeight;
   el.autoResize = true;
+  updateTextMetrics(el, {
+    maxWidth,
+    ...(containerId ? { center: { x, y } } : {}),
+  });
   return el;
 };
 
@@ -152,6 +212,19 @@ export const centerOf = (el: ExcalidrawElement): { cx: number; cy: number } => (
   cx: (el.x ?? 0) + (el.width ?? 0) / 2,
   cy: (el.y ?? 0) + (el.height ?? 0) / 2,
 });
+
+export const edgePointToward = (
+  el: ExcalidrawElement,
+  target: { cx: number; cy: number },
+): { x: number; y: number } => {
+  const { cx, cy } = centerOf(el);
+  const dx = target.cx - cx;
+  const dy = target.cy - cy;
+  const halfW = Math.max(1, (el.width ?? 0) / 2);
+  const halfH = Math.max(1, (el.height ?? 0) / 2);
+  const scale = 1 / Math.max(Math.abs(dx) / halfW, Math.abs(dy) / halfH, 1);
+  return { x: cx + dx * scale, y: cy + dy * scale };
+};
 
 /**
  * Apply a whitelisted style patch in place. Returns an OpError (without

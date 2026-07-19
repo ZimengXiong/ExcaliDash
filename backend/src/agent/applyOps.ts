@@ -1,5 +1,6 @@
 import { sanitizeElementText } from "../security";
 import type { Op, OpError } from "./opSchemas";
+import { resolveBatchRefs } from "./batchRefs";
 import {
   ExcalidrawElement,
   addBoundElement,
@@ -8,10 +9,14 @@ import {
   createArrowElement,
   createShapeElement,
   createTextElement,
+  edgePointToward,
   genId,
   removeBoundElement,
   touchElement,
+  updateTextMetrics,
 } from "./elementFactory";
+import { applyLayoutOp } from "./layoutOps";
+import { Scene } from "./scene";
 
 export type ApplyOpsContext = {
   // Pre-loaded snapshot element arrays keyed by version, for revert_to_snapshot
@@ -30,58 +35,6 @@ export type ApplyOpsSuccess = {
 
 export type ApplyOpsFailure = { ok: false; errors: OpError[] };
 
-// Working scene: array preserves z-order; map indexes elements by id (both hold
-// the same object references, so in-place mutation is visible through either).
-class Scene {
-  elements: ExcalidrawElement[];
-  private byId = new Map<string, ExcalidrawElement>();
-  changed = new Set<string>();
-  orderChanged = false;
-
-  constructor(elements: ExcalidrawElement[]) {
-    this.elements = elements.map((el) => ({ ...el }));
-    for (const el of this.elements) {
-      if (typeof el.id === "string") this.byId.set(el.id, el);
-    }
-  }
-
-  get(id: string): ExcalidrawElement | undefined {
-    return this.byId.get(id);
-  }
-
-  // A tombstoned element behaves as absent for ops that target live geometry.
-  getLive(id: string): ExcalidrawElement | undefined {
-    const el = this.byId.get(id);
-    if (!el || el.isDeleted) return undefined;
-    return el;
-  }
-
-  add(el: ExcalidrawElement): void {
-    this.elements.push(el);
-    if (typeof el.id === "string") this.byId.set(el.id, el);
-    this.changed.add(el.id);
-    this.orderChanged = true;
-  }
-
-  markChanged(el: ExcalidrawElement): void {
-    touchElement(el);
-    this.changed.add(el.id);
-  }
-
-  boundLabelOf(container: ExcalidrawElement): ExcalidrawElement | undefined {
-    const refs = Array.isArray(container.boundElements)
-      ? container.boundElements
-      : [];
-    for (const ref of refs) {
-      if (ref?.type === "text" && typeof ref.id === "string") {
-        const label = this.byId.get(ref.id);
-        if (label && !label.isDeleted) return label;
-      }
-    }
-    return undefined;
-  }
-}
-
 const applyAddShape = (scene: Scene, op: Extract<Op, { op: "add_shape" }>) => {
   const w = op.w ?? (op.shape === "text" ? 100 : 120);
   const h = op.h ?? (op.shape === "text" ? 25 : 60);
@@ -89,10 +42,11 @@ const applyAddShape = (scene: Scene, op: Extract<Op, { op: "add_shape" }>) => {
 
   if (op.shape === "text") {
     const text = sanitizeElementText(op.label ?? "");
-    const el = createTextElement(op.x, op.y, text);
+    const el = createTextElement(op.x, op.y, text, null, op.w);
     if (op.style) {
       const err = applyStylePatch(el, op.style);
       if (err) return { error: err };
+      updateTextMetrics(el, { maxWidth: op.w });
     }
     scene.add(el);
     createdIds.push(el.id);
@@ -110,7 +64,13 @@ const applyAddShape = (scene: Scene, op: Extract<Op, { op: "add_shape" }>) => {
   if (op.label !== undefined) {
     const text = sanitizeElementText(op.label);
     if (op.shape === "frame") { el.name = text || null; return { createdIds }; }
-    const label = createTextElement(op.x + w / 2, op.y + h / 2, text, el.id);
+    const label = createTextElement(
+      op.x + w / 2,
+      op.y + h / 2,
+      text,
+      el.id,
+      Math.max(20, w - 20),
+    );
     addBoundElement(el, { id: label.id, type: "text" });
     scene.add(label);
     createdIds.push(label.id);
@@ -129,12 +89,14 @@ const applyConnect = (scene: Scene, op: Extract<Op, { op: "connect" }>) => {
   }
   const a = centerOf(from);
   const b = centerOf(to);
+  const start = edgePointToward(from, b);
+  const end = edgePointToward(to, a);
   const arrow = createArrowElement(
-    a.cx,
-    a.cy,
+    start.x,
+    start.y,
     [
       [0, 0],
-      [b.cx - a.cx, b.cy - a.cy],
+      [end.x - start.x, end.y - start.y],
     ],
     op.arrowType ?? "arrow",
   );
@@ -153,7 +115,12 @@ const applyConnect = (scene: Scene, op: Extract<Op, { op: "connect" }>) => {
 
   const createdIds = [arrow.id];
   if (op.label !== undefined) {
-    const label = createTextElement(a.cx, a.cy, sanitizeElementText(op.label), arrow.id);
+    const label = createTextElement(
+      (start.x + end.x) / 2,
+      (start.y + end.y) / 2,
+      sanitizeElementText(op.label),
+      arrow.id,
+    );
     addBoundElement(arrow, { id: label.id, type: "text" });
     scene.add(label);
     createdIds.push(label.id);
@@ -173,6 +140,14 @@ const applySetText = (scene: Scene, op: Extract<Op, { op: "set_text" }>) => {
   if (el.type === "text") {
     el.text = text;
     el.originalText = text;
+    const container = el.containerId ? scene.getLive(el.containerId) : null;
+    const containerCenter = container ? centerOf(container) : null;
+    updateTextMetrics(el, {
+      ...(container ? { maxWidth: Math.max(20, (container.width ?? 120) - 20) } : {}),
+      ...(containerCenter
+        ? { center: { x: containerCenter.cx, y: containerCenter.cy } }
+        : {}),
+    });
     scene.markChanged(el);
     return {};
   }
@@ -186,7 +161,13 @@ const applySetText = (scene: Scene, op: Extract<Op, { op: "set_text" }>) => {
   }
 
   const c = centerOf(el);
-  const created = createTextElement(c.cx, c.cy, text, el.id);
+  const created = createTextElement(
+    c.cx,
+    c.cy,
+    text,
+    el.id,
+    Math.max(20, (el.width ?? 120) - 20),
+  );
   addBoundElement(el, { id: created.id, type: "text" });
   scene.markChanged(el);
   scene.add(created);
@@ -198,6 +179,16 @@ const applySetStyle = (scene: Scene, op: Extract<Op, { op: "set_style" }>) => {
   if (!el) return { error: notFound(op.id) };
   const err = applyStylePatch(el, op.style);
   if (err) return { error: err };
+  if (el.type === "text") {
+    const container = el.containerId ? scene.getLive(el.containerId) : null;
+    const containerCenter = container ? centerOf(container) : null;
+    updateTextMetrics(el, {
+      ...(container ? { maxWidth: Math.max(20, (container.width ?? 120) - 20) } : {}),
+      ...(containerCenter
+        ? { center: { x: containerCenter.cx, y: containerCenter.cy } }
+        : {}),
+    });
+  }
   scene.markChanged(el);
   return {};
 };
@@ -208,17 +199,7 @@ const applyMove = (scene: Scene, op: Extract<Op, { op: "move" }>) => {
   const dx = op.x !== undefined ? op.x - (el.x ?? 0) : op.dx ?? 0;
   const dy = op.y !== undefined ? op.y - (el.y ?? 0) : op.dy ?? 0;
 
-  el.x = (el.x ?? 0) + dx;
-  el.y = (el.y ?? 0) + dy;
-  scene.markChanged(el);
-
-  // The bound label rides along so the caption stays centered on the shape.
-  const label = scene.boundLabelOf(el);
-  if (label) {
-    label.x = (label.x ?? 0) + dx;
-    label.y = (label.y ?? 0) + dy;
-    scene.markChanged(label);
-  }
+  scene.moveBy(el, dx, dy);
   return {};
 };
 
@@ -356,6 +337,16 @@ const dispatch = (scene: Scene, op: Op, ctx: ApplyOpsContext): OpResult => {
       return applySetStyle(scene, op);
     case "move":
       return applyMove(scene, op);
+    case "resize":
+      return applyLayoutOp(scene, op);
+    case "align":
+      return applyLayoutOp(scene, op);
+    case "distribute":
+      return applyLayoutOp(scene, op);
+    case "layout":
+      return applyLayoutOp(scene, op);
+    case "group":
+      return applyLayoutOp(scene, op);
     case "delete":
       return applyDelete(scene, op);
     case "import_elements":
@@ -381,17 +372,26 @@ export const applyOps = (input: {
   const ctx = input.ctx ?? {};
   const results: { opIndex: number; createdIds?: string[] }[] = [];
   const errors: OpError[] = [];
+  const refs = new Map<string, string>();
 
   input.ops.forEach((op, opIndex) => {
-    const out = dispatch(scene, op, ctx);
+    const raw = op as Op & { ref?: string };
+    const resolved = resolveBatchRefs(raw, opIndex, refs);
+    if ("error" in resolved) {
+      errors.push(resolved.error);
+      return;
+    }
+    const out = dispatch(scene, resolved.op, ctx);
     if (out.error) {
       errors.push({ ...out.error, opIndex });
       return;
     }
+    if (raw.ref && out.createdIds?.[0]) refs.set(raw.ref, out.createdIds[0]);
     results.push({ opIndex, createdIds: out.createdIds });
   });
 
   if (errors.length > 0) return { ok: false, errors };
+  scene.rerouteBindings();
   return { ok: true, elements: scene.elements, results,
     changedIds: scene.changed, orderChanged: scene.orderChanged };
 };

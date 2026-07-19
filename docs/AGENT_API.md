@@ -86,7 +86,8 @@ curl -s "$BASE/drawings/$DRAWING/elements/a1B2c3" \
   "children": [ { "id": "lbl_a1", "type": "text", "containerId": "a1B2c3", ... } ] }
 ```
 ### 3. Apply an ops batch
-Add two boxes and connect them. The applier generates ids and bindings.
+Add, connect, and lay out two boxes atomically. `ref` gives a created shape a
+batch-local name; later ops target it with `$name`, without an id round-trip.
 ```bash
 curl -s -X POST "$BASE/drawings/$DRAWING/ops" \
   -H "Authorization: Bearer $TOKEN" \
@@ -94,10 +95,13 @@ curl -s -X POST "$BASE/drawings/$DRAWING/ops" \
   -d '{
     "clientBatchId": "demo-1",
     "ops": [
-      { "op": "add_shape", "shape": "rectangle", "x": 100, "y": 100,
+      { "op": "add_shape", "ref": "client", "shape": "rectangle", "x": 100, "y": 100,
         "w": 200, "h": 80, "label": "Client" },
-      { "op": "add_shape", "shape": "rectangle", "x": 500, "y": 100,
-        "w": 200, "h": 80, "label": "Server" }
+      { "op": "add_shape", "ref": "server", "shape": "rectangle", "x": 100, "y": 100,
+        "w": 200, "h": 80, "label": "Server" },
+      { "op": "connect", "fromId": "$client", "toId": "$server", "label": "HTTP" },
+      { "op": "layout", "ids": ["$client", "$server"],
+        "direction": "horizontal", "gap": 100 }
     ]
   }'
 ```
@@ -125,14 +129,8 @@ Success response:
 - `summaryDelta` — one line per changed element (deleted elements read
   `<id> deleted`).
 - `summary` — the full refreshed structural summary.
-Reference the returned ids in a later batch, e.g. to connect them:
-```bash
-curl -s -X POST "$BASE/drawings/$DRAWING/ops" \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{ "ops": [
-    { "op": "connect", "fromId": "a1B2c3", "toId": "d4E5f6", "label": "HTTP" }
-  ] }'
-```
+References are resolved strictly in order. A forward `$ref` or duplicate `ref`
+rejects the entire batch.
 ### 4. Undo a batch (revert to snapshot)
 `revert_to_snapshot` computes a compensating update from the `DrawingSnapshot`
 written before the target batch and applies it through the same transaction — so
@@ -152,20 +150,27 @@ already pruned (see `SNAPSHOT_RETENTION_DAYS` in the
 Batch envelope: `{ "ops": Op[]  (1..50), "clientBatchId"?: string }`.
 | Op | Params | Behavior |
 | --- | --- | --- |
-| `add_shape` | `shape` (`rectangle`\|`ellipse`\|`diamond`\|`text`\|`frame`), `x`, `y`, `w?`, `h?`, `label?`, `style?` | Creates a shape. `label` is a frame title for frames, otherwise bound text. Returns `createdIds`. |
+| `add_shape` | `ref?`, `shape` (`rectangle`\|`ellipse`\|`diamond`\|`text`\|`frame`), `x`, `y`, `w?`, `h?`, `label?`, `style?` | Creates a shape. `ref` names it for later `$ref` use in the same batch. Labels are bound and wrapped to the container. Returns `createdIds`. |
 | `connect` | `fromId`, `toId`, `label?`, `style?`, `arrowType?` (`arrow`\|`line`) | Creates an arrow/line with `startBinding`/`endBinding` and updates both endpoints' `boundElements`. `ELEMENT_NOT_FOUND` per missing endpoint. |
 | `set_text` | `id`, `text` | Sets text or a bound label; for frames, sets the native frame title (`name`). Text is sanitized. |
 | `set_style` | `id`, `style` | Whitelist patch. Allowed keys: `strokeColor`, `backgroundColor`, `fillStyle`, `strokeWidth`, `strokeStyle`, `opacity`, `roughness`, `fontSize`, `fontFamily`, `textAlign`, `roundness`. Unknown key → `INVALID_STYLE_KEY`. |
-| `move` | `id`, and **either** `dx,dy` **or** `x,y` (never both) | Moves the element with its bound label and rebinds attached arrows. |
+| `move` | `id`, and **either** `dx,dy` **or** `x,y` (never both) | Moves the element with its bound label and reroutes attached arrows edge-to-edge. |
+| `resize` | `id`, `w`, `h` | Resizes around the center, rewraps bound text, and reroutes connectors. |
+| `align` | `ids[]`, `alignment` (`left`\|`center`\|`right`\|`top`\|`middle`\|`bottom`) | Aligns two or more logical elements with their bound labels. |
+| `distribute` | `ids[]`, `direction` (`horizontal`\|`vertical`), `gap?` | Distributes in current spatial order; explicit `gap` gives deterministic whitespace. |
+| `layout` | `ids[]`, `direction` (`horizontal`\|`vertical`\|`grid`), `gap?`, `columns?`, `x?`, `y?` | Lays out ids in their supplied semantic order, then reroutes connectors. |
+| `group` | `ids[]` | Adds one shared native Excalidraw group id to the logical elements and bound labels. |
 | `delete` | `id` | Soft-deletes (`isDeleted:true`) the element and its bound label; detaches arrow bindings that referenced it. |
 | `import_elements` | `elements[]` (raw Excalidraw JSON, 1..5000) | Insert-only escape hatch. Ids are remapped to fresh ids (never overwrites), everything is sanitized, and intra-batch binding references are remapped. |
 | `revert_to_snapshot` | `version` | Compensating update from the snapshot at `version` (undo path). REST/UI only, not an LLM tool. |
 Notes:
 - `style` also accepts the same whitelisted keys as `set_style` on `add_shape`
   and `connect`.
-- Ids you reference (`id`, `fromId`, `toId`) must be **existing** element ids —
-  either already in the scene or created earlier **in the same batch**.
+- Id fields and `ids[]` accept existing element ids or `$name` for an
+  `add_shape.ref` created earlier in the same batch.
 - Text is always run through the server sanitizer; you cannot inject markup.
+- Structural summaries include scene/type bounds, viewport state when available,
+  groups, connections/bindings, and bounded overlap warnings.
 ---
 ## Error-code catalog
 ### Op-validation errors — `422 Unprocessable Entity`
@@ -180,6 +185,9 @@ If any op fails, **nothing is persisted**. The response lists every failing op:
 | `ELEMENT_NOT_FOUND` | A referenced `id`/`fromId`/`toId` does not exist in the scene (or earlier in the batch). `elementId` names it. |
 | `INVALID_STYLE_KEY` | A `style` object contained a key outside the whitelist. |
 | `INVALID_OP` | The op is structurally invalid beyond what the schema caught. |
+| `DUPLICATE_REF` | Two creation ops used the same batch-local `ref`. |
+| `INVALID_REFERENCE` | A `$ref` was missing or appeared before its creator. |
+| `INVALID_ELEMENT_SET` | A layout/group operation included a missing or deleted element. |
 | `SNAPSHOT_NOT_FOUND` | `revert_to_snapshot` referenced a version with no retained snapshot. |
 | `UNSUPPORTED` | The op or a parameter combination is not supported. |
 ### Other status codes

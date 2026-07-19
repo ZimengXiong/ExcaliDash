@@ -122,6 +122,31 @@ describe("Agent ops engine", () => {
     expect(label.y + label.height / 2).toBe(rect.y + rect.height / 2);
   });
 
+  it("creates, connects, and lays out referenced shapes in one REST batch", async () => {
+    const drawing = await createDrawing(prisma, userId);
+    const res = await request(app)
+      .post(`/drawings/${drawing.id}/ops`)
+      .send({
+        ops: [
+          { op: "add_shape", ref: "left", shape: "rectangle", x: 0, y: 0, label: "Left" },
+          { op: "add_shape", ref: "right", shape: "rectangle", x: 0, y: 0, label: "Right" },
+          { op: "connect", fromId: "$left", toId: "$right" },
+          { op: "layout", ids: ["$left", "$right"], direction: "horizontal", gap: 75 },
+        ],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.results).toHaveLength(4);
+    expect(res.body.summary).toContain("scene bounds:");
+    const stored = await prisma.drawing.findUnique({ where: { id: drawing.id } });
+    const elements = JSON.parse(stored!.elements);
+    const shapes = elements.filter((el: any) => el.type === "rectangle");
+    const arrow = elements.find((el: any) => el.type === "arrow");
+    expect(shapes[1].x - (shapes[0].x + shapes[0].width)).toBe(75);
+    expect(arrow.x).toBe(shapes[0].x + shapes[0].width);
+    expect(arrow.points[1][0]).toBe(75);
+  });
+
   it("is atomic: a batch with a bad element ref persists nothing (422)", async () => {
     const drawing = await createDrawing(prisma, userId);
     const res = await request(app)

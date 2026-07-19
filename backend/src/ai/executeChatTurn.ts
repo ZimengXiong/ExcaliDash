@@ -32,6 +32,11 @@ const buildSystemPrompt = (name: string | null, summary: string): string =>
     "tool would return the same capture. A blank canvas is valid, not an error.",
     "Element ids in the summary are the ids to reference in ops. After each",
     "apply_ops call you receive an updated summary; keep it in mind.",
+    "For multi-element diagrams, create shapes with short refs, connect them via",
+    "$ref in the same atomic batch, then finish that batch with layout/align/",
+    "distribute. Prefer 120×60 or larger labeled nodes, 60-100px whitespace,",
+    "short labels, consistent styles, and edge-bound connectors. Fix any overlap",
+    "warnings reported by the updated structural summary before finishing.",
     "Frame lines expose title=; set_text with the frame id edits that native title.",
     "Treat tool failures as recoverable feedback. Adjust and continue when safe.",
     "Never claim a canvas edit succeeded until apply_ops confirms it. Finish every",
@@ -67,7 +72,13 @@ export const executePersistentChatTurn = async (params: {
   req: express.Request;
   res: express.Response;
   deps: RegisterAiRoutesDeps;
-  drawing: { id: string; name: string; version: number; elements: string };
+  drawing: {
+    id: string;
+    name: string;
+    version: number;
+    elements: string;
+    appState: string;
+  };
   settings: ResolvedAiSettings;
   adapter: AiProviderAdapter;
   userText: string;
@@ -134,6 +145,7 @@ export const executePersistentChatTurn = async (params: {
     name: drawing.name,
     version: drawing.version,
     elements: deps.parseJsonField(drawing.elements, []),
+    appState: deps.parseJsonField(drawing.appState, {}),
   });
   const turns: ConversationTurn[] = [
     ...history,
