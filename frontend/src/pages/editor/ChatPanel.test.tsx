@@ -7,6 +7,9 @@ import { ChatPanel } from "./ChatPanel";
 
 vi.mock("../../api/ai", () => ({ getAiStatus: vi.fn() }));
 vi.mock("./useAgentChat", () => ({ useAgentChat: vi.fn() }));
+vi.mock("../../context/AuthContext", () => ({
+  useAuth: () => ({ aiEnabled: true }),
+}));
 
 const getAiStatusMock = vi.mocked(aiApi.getAiStatus);
 const useAgentChatMock = vi.mocked(agentChat.useAgentChat);
