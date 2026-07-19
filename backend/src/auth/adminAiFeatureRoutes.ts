@@ -21,9 +21,8 @@ export const registerAdminAiFeatureRoutes = (
   router.get(
     "/ai/enabled",
     requireAuth,
-    async (req: Request, res: Response) => {
+    async (_req: Request, res: Response) => {
       try {
-        if (!requireAdmin(req, res)) return;
         const row = await loadAiRow();
         res.json({ enabled: row?.aiEnabled ?? true });
       } catch (error) {

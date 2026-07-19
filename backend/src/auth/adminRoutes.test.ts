@@ -252,6 +252,29 @@ describe("AI provider administration", () => {
     },
   );
 
+  it("lets non-admin users view the registry without granting mutation access", async () => {
+    const { app } = buildApp({
+      authMode: "local",
+      oidcEnabled: false,
+      role: "USER",
+    });
+
+    const [enabledResponse, settingsResponse, updateResponse] =
+      await Promise.all([
+        request(app).get("/ai/enabled"),
+        request(app).get("/ai/settings"),
+        request(app).put("/ai/settings").send({
+          providers: [],
+          defaultProviderId: null,
+        }),
+      ]);
+
+    expect(enabledResponse.status).toBe(200);
+    expect(settingsResponse.status).toBe(200);
+    expect(settingsResponse.body).toHaveProperty("providers");
+    expect(updateResponse.status).toBe(403);
+  });
+
   it("remains available to the bootstrap admin when authentication is disabled", async () => {
     const { app } = buildApp({
       authMode: "local",

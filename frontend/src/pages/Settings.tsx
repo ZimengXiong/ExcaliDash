@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Layout } from "../components/Layout";
 import { useNavigate } from "react-router-dom";
 import * as api from "../api";
@@ -8,6 +8,10 @@ import { useAuth } from "../context/AuthContext";
 import { SettingsMainGrid } from "./settings/SettingsMainGrid";
 import { AdvancedSettings } from "./settings/AdvancedSettings";
 import { SettingsConfirmModals } from "./settings/SettingsConfirmModals";
+import { ApiKeysCard } from "./profile/ApiKeysCard";
+import { AiSettingsCard } from "./admin/AiSettingsCard";
+import { useAiSettings } from "./admin/useAiSettings";
+import { Toaster } from "sonner";
 import { displayFontFamily } from "../utils/displayFont";
 import {
   EXCALIDASH_REQUIRED_MESSAGE,
@@ -17,9 +21,22 @@ export const Settings: React.FC = () => {
   const [collections, setCollections] = useState<Collection[]>([]);
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
-  const { authEnabled, user, authMode } = useAuth();
+  const { authEnabled, user, authMode, retryAuthStatus } = useAuth();
+  const isSingleUserOwner = authEnabled === false;
+  const isAdmin = isSingleUserOwner || user?.role === "ADMIN";
+  const mustResetPassword = Boolean(user?.mustResetPassword);
+  const [settingsSuccess, setSettingsSuccess] = useState("");
   const [authToggleLoading, setAuthToggleLoading] = useState(false);
   const [authToggleError, setAuthToggleError] = useState<string | null>(null);
+  const setAiError = useCallback(
+    (message: string) => setAuthToggleError(message || null),
+    [],
+  );
+  const aiSettings = useAiSettings({
+    authEnabled,
+    setError: setAiError,
+    onFeatureFlagChanged: retryAuthStatus,
+  });
   const [authToggleConfirm, setAuthToggleConfirm] = useState<{
     isOpen: boolean;
     nextEnabled: boolean | null;
@@ -245,6 +262,7 @@ export const Settings: React.FC = () => {
     >
       {" "}
       <div className="mx-auto w-full max-w-3xl">
+      <Toaster position="top-right" />
       <h1
         className="text-3xl sm:text-4xl lg:text-5xl mb-6 lg:mb-8 text-slate-900 dark:text-white pl-1"
         style={{ fontFamily: displayFontFamily }}
@@ -260,27 +278,60 @@ export const Settings: React.FC = () => {
           </p>{" "}
         </div>
       )}{" "}
-      <SettingsMainGrid
-        exportBackup={exportBackup}
-        theme={theme}
-        toggleTheme={toggleTheme}
-        imageCompression={imageCompression}
-        toggleImageCompression={toggleImageCompression}
-        updateChannel={updateChannel}
-        updateInfo={updateInfo}
-        updateLoading={updateLoading}
-        updateError={updateError}
-        onUpdateChannelChange={(next) => {
-          try {
-            window.localStorage?.setItem?.(UPDATE_CHANNEL_KEY, next);
-          } catch {
-            // Ignore unavailable storage in private/embedded contexts.
-          }
-          setUpdateChannel(next);
-          void checkForUpdates(next);
-        }}
-        onCheckForUpdates={() => void checkForUpdates(updateChannel)}
-      />{" "}
+      {settingsSuccess && (
+        <div className="mb-6 rounded-xl border-2 border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20">
+          <p className="font-medium text-green-800 dark:text-green-200">
+            {settingsSuccess}
+          </p>
+        </div>
+      )}{" "}
+      <div className="space-y-6">
+        <ApiKeysCard
+          disabled={mustResetPassword}
+          onSuccess={setSettingsSuccess}
+        />
+        <AiSettingsCard
+          readOnly={!isAdmin}
+          enabled={aiSettings.enabled}
+          loading={aiSettings.loading}
+          saving={aiSettings.saving}
+          providers={aiSettings.providers}
+          defaultProviderId={aiSettings.defaultProviderId}
+          status={aiSettings.status}
+          providerDefinitions={aiSettings.providerDefinitions}
+          onDefaultProviderChange={aiSettings.setDefaultProviderId}
+          onAddProvider={aiSettings.addProvider}
+          onUpdateProvider={aiSettings.updateProvider}
+          onRemoveProvider={aiSettings.removeProvider}
+          onDiscoverModels={aiSettings.discoverModels}
+          onTestProvider={aiSettings.testProvider}
+          onSave={aiSettings.save}
+          onEnabledChange={aiSettings.setEnabled}
+        />
+      </div>
+      <div className="mt-6">
+        <SettingsMainGrid
+          exportBackup={exportBackup}
+          theme={theme}
+          toggleTheme={toggleTheme}
+          imageCompression={imageCompression}
+          toggleImageCompression={toggleImageCompression}
+          updateChannel={updateChannel}
+          updateInfo={updateInfo}
+          updateLoading={updateLoading}
+          updateError={updateError}
+          onUpdateChannelChange={(next) => {
+            try {
+              window.localStorage?.setItem?.(UPDATE_CHANNEL_KEY, next);
+            } catch {
+              // Ignore unavailable storage in private/embedded contexts.
+            }
+            setUpdateChannel(next);
+            void checkForUpdates(next);
+          }}
+          onCheckForUpdates={() => void checkForUpdates(updateChannel)}
+        />
+      </div>{" "}
       <AdvancedSettings
         authEnabled={authEnabled}
         authMode={authMode}

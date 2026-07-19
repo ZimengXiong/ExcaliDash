@@ -47,9 +47,8 @@ export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
   router.get(
     "/ai/settings",
     requireAuth,
-    async (req: Request, res: Response) => {
+    async (_req: Request, res: Response) => {
       try {
-        if (!requireAdmin(req, res)) return;
         if (!(await ensureAiEnabled(prisma, res, defaultSystemConfigId)))
           return;
         const row = await loadAiRow();

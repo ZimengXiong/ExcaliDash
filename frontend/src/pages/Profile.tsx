@@ -6,7 +6,6 @@ import * as api from "../api";
 import type { Collection } from "../types";
 import { User, Save } from "lucide-react";
 import { displayFontFamily } from "../utils/displayFont";
-import { ApiKeysCard } from "./profile/ApiKeysCard";
 import { PasswordCard } from "./profile/PasswordCard";
 import { getApiErrorMessage } from "../utils/getApiErrorMessage";
 import {
@@ -19,7 +18,8 @@ import {
 } from "./settings/SettingsRow";
 
 export const Profile: React.FC = () => {
-  const { user: authUser, logout, authEnabled, updateUser } = useAuth();
+  const { user: authUser, logout, authEnabled, authMode, updateUser } =
+    useAuth();
   const navigate = useNavigate();
   const mustResetPassword = Boolean(authUser?.mustResetPassword);
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -322,9 +322,7 @@ export const Profile: React.FC = () => {
           </section>
         ) : null}
 
-        <ApiKeysCard disabled={mustResetPassword} onSuccess={setSuccess} />
-
-        {authEnabled ? (
+        {authEnabled && authMode !== "oidc_enforced" ? (
           <PasswordCard
             mustResetPassword={mustResetPassword}
             logout={logout}

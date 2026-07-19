@@ -67,6 +67,7 @@ export const UsersTable: React.FC<UsersTableProps> = ({
                   disabled={user.id === currentUserId}
                   onChange={(role) => onRoleChange(user, role)}
                   size="sm"
+                  portal
                   options={[
                     { value: 'USER', label: 'USER', icon: <User size={13} /> },
                     { value: 'ADMIN', label: 'ADMIN', icon: <ShieldCheck size={13} /> },

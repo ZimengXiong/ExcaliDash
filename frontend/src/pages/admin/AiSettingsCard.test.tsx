@@ -48,7 +48,7 @@ describe("AiSettingsCard", () => {
     const onUpdateProvider = vi.fn();
     const onDiscoverModels = vi.fn();
     const onTestProvider = vi.fn();
-    const { container } = render(
+    render(
       <AiSettingsCard
         enabled
         loading={false}
@@ -69,15 +69,15 @@ describe("AiSettingsCard", () => {
     );
 
     expect(
-      (container.querySelector("details") as HTMLDetailsElement).open,
-    ).toBe(false);
+      screen.queryByRole("button", { name: "Test connection" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Edit details" }));
     fireEvent.click(screen.getByRole("button", { name: "Test connection" }));
     expect(onTestProvider).toHaveBeenCalledWith("draft");
     fireEvent.click(screen.getByRole("button", { name: "Refresh models" }));
     expect(onDiscoverModels).toHaveBeenCalledWith("draft", true);
-    fireEvent.change(screen.getByDisplayValue("Manual model"), {
-      target: { value: "gpt-5.4" },
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Detected model" }));
+    fireEvent.click(screen.getByRole("option", { name: "GPT-5.4" }));
     expect(onUpdateProvider).toHaveBeenCalledWith("draft", {
       modelsText: "gpt-5.4",
     });
@@ -110,5 +110,38 @@ describe("AiSettingsCard", () => {
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Enable AI features"));
     expect(onEnabledChange).toHaveBeenCalledWith(true);
+  });
+
+  it("shows the registry without mutation controls to non-admin users", () => {
+    render(
+      <AiSettingsCard
+        readOnly
+        enabled
+        loading={false}
+        saving={false}
+        providers={[profile]}
+        providerDefinitions={definitions}
+        defaultProviderId="draft"
+        status={null}
+        onDefaultProviderChange={vi.fn()}
+        onAddProvider={vi.fn()}
+        onUpdateProvider={vi.fn()}
+        onRemoveProvider={vi.fn()}
+        onDiscoverModels={vi.fn()}
+        onTestProvider={vi.fn()}
+        onSave={vi.fn()}
+        onEnabledChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Admin managed")).toBeInTheDocument();
+    expect(screen.getByText("OpenAI")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Edit details" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Add provider" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Enable AI features")).toBeDisabled();
   });
 });

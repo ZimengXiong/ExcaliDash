@@ -56,21 +56,6 @@ vi.mock("./admin/useAccessControlSettings", () => ({
   }),
 }));
 
-vi.mock("./admin/useAiSettings", () => ({
-  useAiSettings: () => ({
-    loading: false,
-    saving: false,
-    providers: [],
-    defaultProviderId: "",
-    status: null,
-    setDefaultProviderId: vi.fn(),
-    addProvider: vi.fn(),
-    updateProvider: vi.fn(),
-    removeProvider: vi.fn(),
-    save: vi.fn(),
-  }),
-}));
-
 vi.mock("./admin/useLoginRateLimitSettings", () => ({
   useLoginRateLimitSettings: () => ({
     loading: false,
@@ -93,9 +78,6 @@ vi.mock("./admin/useLoginRateLimitSettings", () => ({
 vi.mock("./admin/AdminShell", () => ({
   AdminHeader: () => <h1>Admin</h1>,
   AdminStatusMessages: () => null,
-}));
-vi.mock("./admin/AiSettingsCard", () => ({
-  AiSettingsCard: () => <section>AI provider registry</section>,
 }));
 vi.mock("./admin/AccessControlCard", () => ({
   AccessControlCard: () => <section>Access control</section>,
@@ -120,7 +102,7 @@ describe("Admin authentication mode visibility", () => {
     accessState.oidcEnabled = false;
   });
 
-  it("shows only AI configuration in auth-disabled single-user mode", () => {
+  it("hides account administration in auth-disabled single-user mode", () => {
     authState.authEnabled = false;
     authState.user = null;
 
@@ -130,20 +112,18 @@ describe("Admin authentication mode visibility", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("AI provider registry")).toBeInTheDocument();
     expect(screen.queryByText("Access control")).not.toBeInTheDocument();
     expect(screen.queryByText("Login rate limit")).not.toBeInTheDocument();
     expect(screen.queryByText("Users table")).not.toBeInTheDocument();
   });
 
-  it("shows AI configuration but not login limits for local auth", () => {
+  it("shows access control but not login limits for local auth", () => {
     render(
       <MemoryRouter>
         <Admin />
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("AI provider registry")).toBeInTheDocument();
     expect(screen.getByText("Access control")).toBeInTheDocument();
     expect(screen.queryByText("Login rate limit")).not.toBeInTheDocument();
   });
@@ -157,7 +137,6 @@ describe("Admin authentication mode visibility", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("AI provider registry")).toBeInTheDocument();
     expect(screen.getByText("Login rate limit")).toBeInTheDocument();
   });
 });
