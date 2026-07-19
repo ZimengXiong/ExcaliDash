@@ -48,12 +48,94 @@ describe("AI provider catalog", () => {
 
     expect(result.source).toBe("live");
     expect(result.models.map((model) => model.id)).toEqual(["gpt-5.4"]);
+    expect(result.models[0].reasoningEfforts).toEqual([
+      "none",
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+    ]);
     expect(fetchMock).toHaveBeenCalledWith(
       "https://api.openai.com/v1/models",
       expect.objectContaining({
         headers: { authorization: "Bearer sk-test" },
       }),
     );
+  });
+
+  it("derives documented Anthropic effort levels by model", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      data: [
+        { id: "claude-opus-4-8", display_name: "Claude Opus 4.8" },
+        { id: "claude-sonnet-4-6", display_name: "Claude Sonnet 4.6" },
+        { id: "claude-sonnet-4-5", display_name: "Claude Sonnet 4.5" },
+      ],
+    }), { status: 200 })));
+    const result = await discoverProviderModels({
+      provider: "anthropic",
+      apiKey: "sk-test",
+    });
+    expect(result.models.map((model) => model.reasoningEfforts)).toEqual([
+      ["low", "medium", "high", "xhigh", "max"],
+      ["low", "medium", "high", "max"],
+      [],
+    ]);
+  });
+
+  it("offers only documented Gemini reasoning levels for recognized models", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      models: [
+        {
+          name: "models/gemini-3-flash-preview",
+          displayName: "Gemini 3 Flash Preview",
+          supportedGenerationMethods: ["generateContent"],
+        },
+        {
+          name: "models/gemini-3-pro-preview",
+          displayName: "Gemini 3 Pro Preview",
+          supportedGenerationMethods: ["generateContent"],
+        },
+        {
+          name: "models/gemini-2.0-flash",
+          displayName: "Gemini 2.0 Flash",
+          supportedGenerationMethods: ["generateContent"],
+        },
+        {
+          name: "models/gemini-3.1-flash-image",
+          displayName: "Gemini 3.1 Flash Image",
+          supportedGenerationMethods: ["generateContent"],
+        },
+        {
+          name: "models/gemma-3-27b-it",
+          displayName: "Gemma 3",
+          supportedGenerationMethods: ["generateContent"],
+        },
+      ],
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await discoverProviderModels({
+      provider: "gemini",
+      apiKey: "gemini-test",
+    });
+
+    expect(result.models).toEqual([
+      {
+        id: "gemini-3-flash-preview",
+        label: "Gemini 3 Flash Preview",
+        reasoningEfforts: ["minimal", "low", "medium", "high"],
+      },
+      {
+        id: "gemini-3-pro-preview",
+        label: "Gemini 3 Pro Preview",
+        reasoningEfforts: ["low", "high"],
+      },
+      {
+        id: "gemini-2.0-flash",
+        label: "Gemini 2.0 Flash",
+        reasoningEfforts: [],
+      },
+    ]);
   });
 
   it("uses credential-scoped cache and explicit refresh bypasses it", async () => {

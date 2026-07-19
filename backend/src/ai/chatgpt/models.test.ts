@@ -24,7 +24,7 @@ describe("ChatGPT model catalog", () => {
     ]);
   });
 
-  it("keeps configured models when the live catalog omits them", () => {
+  it("does not offer configured models omitted by the live account catalog", () => {
     const configured: ChatGptModel[] = [
       {
         id: "gpt-5.6-luna",
@@ -36,10 +36,7 @@ describe("ChatGPT model catalog", () => {
       { id: "gpt-5.5", label: "GPT-5.5", reasoningEfforts: ["low"] },
     ];
 
-    expect(mergeChatGptModels(configured, live)).toEqual([
-      configured[0],
-      live[0],
-    ]);
+    expect(mergeChatGptModels(configured, live)).toEqual([live[0]]);
   });
 
   it("prefers live labels and capabilities for registered models", () => {
@@ -69,6 +66,10 @@ describe("ChatGPT model catalog", () => {
       ...live[0],
       reasoningEfforts: configured[0].reasoningEfforts,
     });
+  });
+
+  it("includes none for current GPT-5.4 family fallback models", () => {
+    expect(reasoningEffortsForChatGptModel("gpt-5.4-mini")).toContain("none");
   });
 
   it("caches the per-account live catalog", async () => {

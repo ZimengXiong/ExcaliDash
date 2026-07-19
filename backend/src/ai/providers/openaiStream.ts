@@ -7,6 +7,17 @@ type PendingCall = {
   extraContent?: unknown;
 };
 
+const takeSseFrame = (
+  buffer: string,
+): { frame: string; rest: string } | null => {
+  const separator = /\r?\n\r?\n/.exec(buffer);
+  if (!separator || separator.index === undefined) return null;
+  return {
+    frame: buffer.slice(0, separator.index),
+    rest: buffer.slice(separator.index + separator[0].length),
+  };
+};
+
 const thoughtText = (delta: Record<string, any>): string => {
   for (const value of [
     delta.reasoning_content,
@@ -34,7 +45,7 @@ export const readOpenAiStream = async (
   let text = "";
   let failure: string | undefined;
   const consume = (frame: string) => {
-    const data = frame.split("\n").filter((line) => line.startsWith("data:"))
+    const data = frame.split(/\r?\n/).filter((line) => line.startsWith("data:"))
       .map((line) => line.slice(5).trim()).join("\n");
     if (!data || data === "[DONE]") return;
     try {
@@ -62,12 +73,13 @@ export const readOpenAiStream = async (
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
-    let separator: number;
-    while ((separator = buffer.indexOf("\n\n")) !== -1) {
-      consume(buffer.slice(0, separator));
-      buffer = buffer.slice(separator + 2);
+    let next: ReturnType<typeof takeSseFrame>;
+    while ((next = takeSseFrame(buffer)) !== null) {
+      consume(next.frame);
+      buffer = next.rest;
     }
   }
+  buffer += decoder.decode();
   if (buffer.trim()) consume(buffer);
   const toolCalls = [...calls.values()].map((call) => {
     let input: unknown = {};

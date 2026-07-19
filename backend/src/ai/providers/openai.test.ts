@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { openaiAdapter, parseOpenAiToolCalls, toOpenAiMessages } from "./openai";
+import {
+  buildOpenAiTokenLimit,
+  buildOpenAiReasoningParameters,
+  openaiAdapter,
+  parseOpenAiToolCalls,
+  toOpenAiMessages,
+} from "./openai";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -87,7 +93,7 @@ describe("OpenAI-compatible conversation serialization", () => {
     ]);
   });
 
-  it("forwards a configured reasoning effort to compatible providers", async () => {
+  it("uses only Gemini thinking_config for Gemini 3 reasoning", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       choices: [{ message: { content: "ok", tool_calls: [] } }],
     }), { status: 200, headers: { "content-type": "application/json" } }));
@@ -97,10 +103,10 @@ describe("OpenAI-compatible conversation serialization", () => {
       settings: {
         id: "gemini",
         label: "Gemini",
-        provider: "custom",
+        provider: "gemini",
         apiKey: "secret",
-        baseUrl: "https://example.test/v1",
-        model: "gemini-reasoning",
+        baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+        model: "gemini-3-flash-preview",
         models: [],
         maxTokensPerRequest: 4096,
         keySource: "db",
@@ -115,9 +121,155 @@ describe("OpenAI-compatible conversation serialization", () => {
     });
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
-    expect(body.reasoning_effort).toBe("high");
+    expect(body).not.toHaveProperty("reasoning_effort");
     expect(body.extra_body).toEqual({
-      google: { thinking_config: { include_thoughts: true } },
+      google: {
+        thinking_config: {
+          thinking_level: "high",
+          include_thoughts: true,
+        },
+      },
     });
+  });
+
+  it("maps the reproduced Gemini 3 Flash Preview low request without duplicate controls", () => {
+    const params = buildOpenAiReasoningParameters({
+      id: "gemini",
+      label: "Gemini",
+      provider: "gemini",
+      apiKey: "secret",
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+      model: "gemini-3-flash-preview",
+      models: [],
+      maxTokensPerRequest: 4096,
+      keySource: "db",
+      available: true,
+      enabled: true,
+      chatgptEnabled: true,
+    }, "low");
+
+    expect(params).not.toHaveProperty("reasoning_effort");
+    expect(params).toEqual({
+      extra_body: {
+        google: {
+          thinking_config: {
+            thinking_level: "low",
+            include_thoughts: true,
+          },
+        },
+      },
+    });
+  });
+
+  it("maps Gemini 2.5 reasoning levels to documented thinking budgets", () => {
+    const settings = {
+      id: "gemini",
+      label: "Gemini",
+      provider: "gemini" as const,
+      apiKey: "secret",
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+      model: "gemini-2.5-flash",
+      models: [],
+      maxTokensPerRequest: 4096,
+      keySource: "db" as const,
+      available: true,
+      enabled: true,
+      chatgptEnabled: true,
+    };
+
+    expect(buildOpenAiReasoningParameters(settings, "medium")).toMatchObject({
+      extra_body: {
+        google: { thinking_config: { thinking_budget: 8192 } },
+      },
+    });
+    expect(buildOpenAiReasoningParameters(settings, "none")).toMatchObject({
+      extra_body: {
+        google: { thinking_config: { thinking_budget: 0 } },
+      },
+    });
+  });
+
+  it("keeps standard reasoning_effort for non-Gemini providers", () => {
+    expect(buildOpenAiReasoningParameters({
+      id: "openai",
+      label: "OpenAI",
+      provider: "openai",
+      apiKey: "secret",
+      baseUrl: "https://api.openai.com/v1",
+      model: "gpt-5.4",
+      models: [],
+      maxTokensPerRequest: 4096,
+      keySource: "db",
+      available: true,
+      enabled: true,
+      chatgptEnabled: true,
+    }, "high")).toEqual({ reasoning_effort: "high" });
+  });
+
+  it("uses max_completion_tokens for OpenAI and legacy max_tokens for compatible dialects", () => {
+    const base = {
+      id: "provider",
+      label: "Provider",
+      apiKey: "secret",
+      baseUrl: "https://example.test/v1",
+      model: "model",
+      models: [],
+      maxTokensPerRequest: 4096,
+      keySource: "db" as const,
+      available: true,
+      enabled: true,
+      chatgptEnabled: true,
+    };
+    expect(buildOpenAiTokenLimit({ ...base, provider: "openai" })).toEqual({
+      max_completion_tokens: 4096,
+    });
+    expect(buildOpenAiTokenLimit({ ...base, provider: "custom" })).toEqual({
+      max_tokens: 4096,
+    });
+    expect(buildOpenAiTokenLimit({ ...base, provider: "opencode_go" })).toEqual({
+      max_tokens: 4096,
+    });
+  });
+
+  it("does not forward OpenAI reasoning controls to OpenCode Go", () => {
+    expect(buildOpenAiReasoningParameters({
+      id: "go",
+      label: "OpenCode Go",
+      provider: "opencode_go",
+      apiKey: "secret",
+      baseUrl: "https://opencode.ai/zen/go/v1",
+      model: "kimi-k3",
+      models: [],
+      maxTokensPerRequest: 4096,
+      keySource: "db",
+      available: true,
+      enabled: true,
+      chatgptEnabled: true,
+    }, "high")).toEqual({});
+  });
+
+  it("preserves provider HTTP status for normalized upstream errors", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response('{"error":{"message":"invalid key"}}', { status: 401 }),
+    ));
+    await expect(openaiAdapter.complete({
+      settings: {
+        id: "openai",
+        label: "OpenAI",
+        provider: "openai",
+        apiKey: "bad",
+        baseUrl: "https://api.openai.com/v1",
+        model: "gpt-5.6-sol",
+        models: [],
+        maxTokensPerRequest: 4096,
+        keySource: "db",
+        available: true,
+        enabled: true,
+        chatgptEnabled: true,
+      },
+      system: "system",
+      turns: [{ role: "user", text: "hello" }],
+      tools: [],
+    })).rejects.toMatchObject({ status: 401 });
   });
 });

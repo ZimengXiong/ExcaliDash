@@ -27,4 +27,15 @@ describe("readAnthropicStream", () => {
       signature: "opaque",
     }]);
   });
+
+  it("parses CRLF SSE frames and multi-line data payloads", async () => {
+    const response = new Response(
+      'event: content_block_start\r\ndata: {"type":"content_block_start","index":0,\r\ndata: "content_block":{"type":"text","text":"hello"}}\r\n\r\n',
+      { headers: { "content-type": "text/event-stream" } },
+    );
+    await expect(readAnthropicStream(response)).resolves.toMatchObject({
+      text: "hello",
+      toolCalls: [],
+    });
+  });
 });

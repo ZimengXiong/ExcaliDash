@@ -5,6 +5,7 @@ import {
   normalizeCodexModel,
   toResponsesInput,
 } from "./codexResponses";
+import { parseCodexSse } from "./codex";
 import type { AgentTool } from "../toolDefs";
 import type { ConversationTurn } from "./types";
 
@@ -128,6 +129,15 @@ describe("buildResponsesBody", () => {
 });
 
 describe("CodexStreamAccumulator", () => {
+  it("parses CRLF SSE frames and multi-line data payloads", () => {
+    const acc = new CodexStreamAccumulator();
+    parseCodexSse(
+      acc,
+      'event: response.output_text.delta\r\ndata: {"type":"response.output_text.delta",\r\ndata: "delta":"hello"}\r\n\r\n',
+    );
+    expect(acc.result().text).toBe("hello");
+  });
+
   it("streams provider reasoning summaries separately from answer text", () => {
     const textDeltas: string[] = [];
     const thinkingDeltas: string[] = [];

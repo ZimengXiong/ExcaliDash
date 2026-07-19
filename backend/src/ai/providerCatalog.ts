@@ -4,6 +4,9 @@ import {
   FALLBACK_MODELS,
   getProviderDefinition,
   isSupportedOpenCodeGoModel,
+  reasoningEffortsForAnthropicModel,
+  reasoningEffortsForGeminiModel,
+  reasoningEffortsForOpenAiModel,
 } from "./providerDefinitions";
 export {
   getProviderDefinition,
@@ -138,7 +141,7 @@ const fetchOpenAiModels = async (
   return data.data
     .flatMap((item) => typeof item?.id === "string" ? [item.id] : [])
     .filter(isChatCapableOpenAiModel)
-    .map((id) => modelOption(id));
+    .map((id) => modelOption(id, null, reasoningEffortsForOpenAiModel(id)));
 };
 
 const fetchAnthropicModels = async (
@@ -159,7 +162,11 @@ const fetchAnthropicModels = async (
   if (!Array.isArray(data.data)) throw new Error("MALFORMED_RESPONSE");
   return data.data.flatMap((item) =>
     typeof item?.id === "string"
-      ? [modelOption(item.id, typeof item.display_name === "string" ? item.display_name : null)]
+      ? [modelOption(
+          item.id,
+          typeof item.display_name === "string" ? item.display_name : null,
+          reasoningEffortsForAnthropicModel(item.id),
+        )]
       : []
   );
 };
@@ -190,10 +197,20 @@ const fetchGeminiModels = async (
       : Array.isArray(item.supportedActions) ? item.supportedActions : [];
     if (!methods.includes("generateContent") || typeof item.name !== "string") return [];
     const id = item.name.replace(/^models\//, "");
+    // The canvas assistant requires text output and function calling. Gemini's
+    // model catalog does not expose per-model tool capabilities, so exclude
+    // known image/audio/live and non-Gemini families that also advertise
+    // generateContent but cannot run this tool loop.
+    if (
+      !/^gemini-/i.test(id) ||
+      /(?:image|audio|live|tts|embedding|robotics)/i.test(id)
+    ) {
+      return [];
+    }
     return [modelOption(
       id,
       typeof item.displayName === "string" ? item.displayName : null,
-      ["low", "medium", "high"],
+      reasoningEffortsForGeminiModel(id),
     )];
   });
 };

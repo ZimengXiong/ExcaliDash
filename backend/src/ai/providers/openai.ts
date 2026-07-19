@@ -39,6 +39,54 @@ type OpenAiResponseToolCall = {
   extra_content?: unknown;
 };
 
+const GEMINI_25_THINKING_BUDGETS: Record<string, number> = {
+  none: 0,
+  minimal: 1024,
+  low: 1024,
+  medium: 8192,
+  high: 24576,
+};
+
+export const buildOpenAiReasoningParameters = (
+  settings: CompletionRequest["settings"],
+  reasoningEffort?: string,
+): Record<string, unknown> => {
+  const isGemini =
+    settings.provider === "gemini" ||
+    /generativelanguage\.googleapis\.com/i.test(settings.baseUrl ?? "");
+  if (!isGemini) {
+    if (settings.provider === "opencode_go") return {};
+    return reasoningEffort ? { reasoning_effort: reasoningEffort } : {};
+  }
+
+  // Gemini's OpenAI compatibility endpoint rejects reasoning_effort when a
+  // custom thinking_config is also present. Keep one source of truth so that
+  // include_thoughts remains enabled for the streamed thinking UI.
+  const thinkingControl = reasoningEffort
+    ? /gemini-2\.5/i.test(settings.model ?? "")
+      ? { thinking_budget: GEMINI_25_THINKING_BUDGETS[reasoningEffort] }
+      : { thinking_level: reasoningEffort }
+    : {};
+
+  return {
+    extra_body: {
+      google: {
+        thinking_config: {
+          ...thinkingControl,
+          include_thoughts: true,
+        },
+      },
+    },
+  };
+};
+
+export const buildOpenAiTokenLimit = (
+  settings: CompletionRequest["settings"],
+): Record<string, number> =>
+  settings.provider === "openai"
+    ? { max_completion_tokens: settings.maxTokensPerRequest }
+    : { max_tokens: settings.maxTokensPerRequest };
+
 export const parseOpenAiToolCalls = (
   calls: OpenAiResponseToolCall[] | undefined,
 ): ToolCall[] =>
@@ -130,7 +178,7 @@ export const openaiAdapter: AiProviderAdapter = {
 
     const body = {
       model: settings.model,
-      max_tokens: settings.maxTokensPerRequest,
+      ...buildOpenAiTokenLimit(settings),
       messages: toOpenAiMessages(system, turns),
       tools: tools.map((t) => ({
         type: "function" as const,
@@ -141,15 +189,10 @@ export const openaiAdapter: AiProviderAdapter = {
         },
       })),
       tool_choice: "auto",
-      parallel_tool_calls: false,
-      ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
-      ...(/gemini/i.test(settings.model) || /generativelanguage\.googleapis\.com/i.test(settings.baseUrl)
-        ? {
-            extra_body: {
-              google: { thinking_config: { include_thoughts: true } },
-            },
-          }
+      ...(["openai", "gemini"].includes(settings.provider)
+        ? { parallel_tool_calls: false }
         : {}),
+      ...buildOpenAiReasoningParameters(settings, reasoningEffort),
       ...(onTextDelta || onThinkingDelta ? { stream: true } : {}),
     };
 
@@ -177,7 +220,9 @@ export const openaiAdapter: AiProviderAdapter = {
       const detail = await response.text().catch(() => "");
       throw new AiProviderError(
         `OpenAI-compatible API error ${response.status}: ${detail.slice(0, 500)}`,
-        response.status === 429 ? 429 : 502,
+        response.status >= 400 && response.status <= 599
+          ? response.status
+          : 502,
       );
     }
 
