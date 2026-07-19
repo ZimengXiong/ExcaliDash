@@ -132,6 +132,37 @@ describe("OpenAI-compatible conversation serialization", () => {
     });
   });
 
+  it("forwards required tool choice for canvas mutation turns", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      choices: [{ finish_reason: "tool_calls", message: { content: "", tool_calls: [] } }],
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await openaiAdapter.complete({
+      settings: {
+        id: "custom",
+        label: "Custom",
+        provider: "custom",
+        apiKey: "secret",
+        baseUrl: "https://example.test/v1",
+        model: "model",
+        models: [],
+        maxTokensPerRequest: 32_000,
+        keySource: "db",
+        available: true,
+        enabled: true,
+        chatgptEnabled: true,
+      },
+      system: "system",
+      turns: [{ role: "user", text: "draw" }],
+      tools: [],
+      toolChoice: "required",
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.tool_choice).toBe("required");
+  });
+
   it("maps the reproduced Gemini 3 Flash Preview low request without duplicate controls", () => {
     const params = buildOpenAiReasoningParameters({
       id: "gemini",

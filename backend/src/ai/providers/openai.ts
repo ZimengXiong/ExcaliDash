@@ -169,6 +169,7 @@ export const openaiAdapter: AiProviderAdapter = {
       tools,
       signal,
       reasoningEffort,
+      toolChoice,
       onTextDelta,
       onThinkingDelta,
     } = req;
@@ -188,7 +189,7 @@ export const openaiAdapter: AiProviderAdapter = {
           parameters: t.inputSchema,
         },
       })),
-      tool_choice: "auto",
+      tool_choice: toolChoice ?? "auto",
       ...(["openai", "gemini"].includes(settings.provider)
         ? { parallel_tool_calls: false }
         : {}),
@@ -238,11 +239,15 @@ export const openaiAdapter: AiProviderAdapter = {
         text: streamed.text,
         toolCalls: streamed.toolCalls,
         streamedText: Boolean(onTextDelta),
+        ...(streamed.finishReason
+          ? { finishReason: streamed.finishReason }
+          : {}),
       };
     }
 
     const data = (await response.json()) as {
       choices?: {
+        finish_reason?: string | null;
         message?: {
           content?: string | null;
           tool_calls?: {
@@ -253,9 +258,16 @@ export const openaiAdapter: AiProviderAdapter = {
         };
       }[];
     };
-    const message = data.choices?.[0]?.message;
+    const choice = data.choices?.[0];
+    const message = choice?.message;
     const text = message?.content ?? "";
     const toolCalls = parseOpenAiToolCalls(message?.tool_calls);
-    return { text, toolCalls };
+    return {
+      text,
+      toolCalls,
+      ...(choice?.finish_reason
+        ? { finishReason: choice.finish_reason }
+        : {}),
+    };
   },
 };

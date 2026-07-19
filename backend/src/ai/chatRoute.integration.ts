@@ -159,6 +159,102 @@ describe("ai/chatRoute", () => {
     expect(elements.some((el) => el.type === "rectangle")).toBe(true);
     expect(emitted.some((e) => e.event === "element-update" && e.room === `drawing_${drawing.id}`)).toBe(true);
   });
+  it("recovers when a drawing model exhausts its budget while only thinking", async () => {
+    await enableAi(prisma);
+    const drawing = await createDrawing(prisma, userId);
+    scripted.queue = [
+      {
+        text: "",
+        toolCalls: [],
+        thinkingDeltas: ["Planning coordinates until the response ends..."],
+        finishReason: "length",
+      },
+      {
+        text: "",
+        toolCalls: [
+          {
+            id: "recovered-draw",
+            name: "apply_ops",
+            input: {
+              ops: [
+                {
+                  op: "add_shape",
+                  shape: "ellipse",
+                  x: 20,
+                  y: 30,
+                  w: 120,
+                  h: 80,
+                },
+              ],
+            },
+          },
+        ],
+      },
+      { text: "I drew it.", toolCalls: [], finishReason: "stop" },
+    ];
+
+    const res = await request(buildApp(prisma, userId, []))
+      .post("/ai/chat")
+      .send({
+        drawingId: drawing.id,
+        message: "Draw a penguin",
+        clientRequestId: `recover-${drawing.id}`,
+      });
+
+    expect(res.status).toBe(200);
+    expect(scripted.calls).toBe(3);
+    expect(scripted.requests[0].toolChoice).toBe("required");
+    expect(scripted.requests[0].tools.map((tool: any) => tool.name)).toEqual([
+      "apply_ops",
+    ]);
+    expect(scripted.requests[2].toolChoice).toBe("auto");
+    expect(
+      scripted.requests[1].turns.some(
+        (turn: any) =>
+          turn.role === "user" &&
+          turn.text.includes("Call apply_ops immediately"),
+      ),
+    ).toBe(true);
+    expect(res.text).toContain("event: ops_applied");
+    expect(res.text).toContain("I drew it.");
+    expect(res.text).toContain("event: done");
+
+    const messages = await prisma.drawingChatMessage.findMany({
+      where: { drawingId: drawing.id },
+      orderBy: { position: "asc" },
+    });
+    expect(messages[1]).toMatchObject({
+      status: "complete",
+      providerMetadata: expect.stringContaining('"finishReason":"stop"'),
+    });
+  });
+  it("reports an error when thinking-only recovery still produces no result", async () => {
+    await enableAi(prisma);
+    const drawing = await createDrawing(prisma, userId);
+    scripted.queue = [
+      { text: "", toolCalls: [], finishReason: "length" },
+      { text: "", toolCalls: [], finishReason: "length" },
+    ];
+
+    const res = await request(buildApp(prisma, userId, []))
+      .post("/ai/chat")
+      .send({
+        drawingId: drawing.id,
+        message: "Draw a tree",
+        clientRequestId: `empty-${drawing.id}`,
+      });
+
+    expect(scripted.calls).toBe(2);
+    expect(res.text).toContain("EMPTY_MODEL_RESPONSE");
+    expect(res.text).not.toContain("event: done");
+    const assistant = await prisma.drawingChatMessage.findFirst({
+      where: { drawingId: drawing.id, role: "assistant" },
+    });
+    expect(assistant).toMatchObject({
+      status: "error",
+      error: expect.stringContaining("stopped after thinking"),
+    });
+  });
   it("streams thinking summaries independently from answer tokens", async () => {
     await enableAi(prisma);
     const drawing = await createDrawing(prisma, userId);
@@ -361,10 +457,10 @@ describe("ai/chatRoute", () => {
     expect(res.text).toContain('"ok":true');
     expect(res.text).toContain("Canvas is blank (0 elements)");
   });
-  it("reports tool-loop exhaustion instead of silently completing", async () => {
+  it("stops repeated identical tool calls before they become a doom loop", async () => {
     await enableAi(prisma);
     const drawing = await createDrawing(prisma, userId);
-    scripted.queue = Array.from({ length: 8 }, (_, index) => ({
+    scripted.queue = Array.from({ length: 3 }, (_, index) => ({
       text: "",
       toolCalls: [{ id: `unknown-${index}`, name: "unknown_tool", input: {} }],
     }));
@@ -372,7 +468,7 @@ describe("ai/chatRoute", () => {
     const res = await request(app)
       .post("/ai/chat")
       .send({ drawingId: drawing.id, messages: [{ role: "user", content: "loop" }] });
-    expect(res.text).toContain("TOOL_LIMIT_REACHED");
+    expect(res.text).toContain("REPEATED_TOOL_CALL");
     expect(res.text).not.toContain("event: done");
   });
   it("returns invalid ops as recoverable tool results", async () => {

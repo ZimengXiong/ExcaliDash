@@ -130,7 +130,7 @@ This file and `backend/.env.example` are generated from that registry; do not ed
 | `AI_API_KEY` | _(none — secret)_ | No | API key for the bootstrap `legacy` AI profile. Server-side only. Additional provider keys are encrypted and stored per profile from the admin settings page. |
 | `AI_BASE_URL` | — | No | Override the provider base URL (e.g. an OpenAI-compatible gateway or self-hosted endpoint). Required for AI_PROVIDER=custom; optional otherwise. |
 | `AI_MODEL` | — | No | Model id the chat proxy requests (e.g. claude-opus-4-8 for anthropic, gpt-5.4 for openai). Falls back to a provider default when unset. |
-| `AI_MAX_TOKENS_PER_REQUEST` | `4096` | No | Maximum output tokens the chat proxy requests per model call. |
+| `AI_MAX_TOKENS_PER_REQUEST` | `32000` | No | Maximum output tokens the chat proxy requests per model call. |
 | `AI_RATE_LIMIT_MAX` | `60` | No | Maximum AI chat requests allowed per user within AI_RATE_LIMIT_WINDOW_MS. |
 | `AI_RATE_LIMIT_WINDOW_MS` | `60000` | No | Rolling window (ms) for the AI chat per-user rate limiter. |
 | `AI_CHATGPT_ENABLED` | `true` | No | Allow users to connect ChatGPT subscriptions. Disable this deployment-wide by setting false. |

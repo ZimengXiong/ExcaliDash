@@ -46,6 +46,37 @@ describe("Anthropic provider", () => {
     ]);
   });
 
+  it("requires a tool on canvas mutation turns", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      content: [{ type: "text", text: "ok" }],
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await anthropicAdapter.complete({
+      settings: {
+        id: "claude",
+        label: "Claude",
+        provider: "anthropic",
+        apiKey: "secret",
+        baseUrl: "https://api.anthropic.com/v1",
+        model: "claude-opus-4-8",
+        models: [],
+        maxTokensPerRequest: 32_000,
+        keySource: "db",
+        available: true,
+        enabled: true,
+        chatgptEnabled: true,
+      },
+      system: "system",
+      turns: [{ role: "user", text: "draw" }],
+      tools: [],
+      toolChoice: "required",
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.tool_choice).toEqual({ type: "any" });
+  });
+
   it("does not send Anthropic-only effort controls through OpenCode Go", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       content: [{ type: "text", text: "ok" }],

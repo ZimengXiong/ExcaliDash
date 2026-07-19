@@ -18,7 +18,15 @@ import {
 } from "./providers/types";
 import { flagReconnect, type ChatGptAuth } from "./chatgpt/store";
 
-const MAX_TOOL_ITERATIONS = 8;
+const MAX_TOOL_ITERATIONS = 24;
+const MAX_ACTION_RECOVERIES = 1;
+const REPEATED_TOOL_BATCH_LIMIT = 3;
+
+const CANVAS_MUTATION_REQUEST =
+  /\b(draw|add|create|make|place|insert|connect|move|resize|delete|remove|change|update|edit|arrange|layout|align|distribute|color|style|label|write|replace)\b/i;
+
+const requestsCanvasMutation = (text: string): boolean =>
+  CANVAS_MUTATION_REQUEST.test(text);
 
 const buildSystemPrompt = (name: string | null, summary: string): string =>
   [
@@ -35,10 +43,13 @@ const buildSystemPrompt = (name: string | null, summary: string): string =>
     "For multi-element diagrams, create shapes with short refs, connect them via",
     "$ref in the same atomic batch, then finish that batch with layout/align/",
     "distribute. Prefer 120×60 or larger labeled nodes, 60-100px whitespace,",
-    "short labels, consistent styles, and edge-bound connectors. Fix any overlap",
-    "warnings reported by the updated structural summary before finishing.",
+    "short labels, consistent styles, and edge-bound connectors. Labeled shapes",
+    "auto-grow vertically when their wrapped text needs more room. Fix any",
+    "warnings (especially overlaps or label-overflow) before finishing.",
     "Frame lines expose title=; set_text with the frame id edits that native title.",
     "Treat tool failures as recoverable feedback. Adjust and continue when safe.",
+    "For canvas-edit requests, act early: keep reasoning brief and call apply_ops",
+    "before spending time narrating or refining every coordinate in prose.",
     "Never claim a canvas edit succeeded until apply_ops confirms it. Finish every",
     "turn with a concise natural-language response to the user.",
     "",
@@ -192,14 +203,25 @@ export const executePersistentChatTurn = async (params: {
 
   try {
     let completed = false;
+    let stoppedWithError = false;
+    let actionRecoveries = 0;
+    const recentToolBatchSignatures: string[] = [];
+    const canvasMutationRequested = requestsCanvasMutation(params.userText);
     for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration += 1) {
+      const requireCanvasAction =
+        canvasMutationRequested &&
+        batches.length === 0 &&
+        !tools.some((activity) => activity.name === "apply_ops");
       const completion = await adapter.complete({
         settings,
         system: buildSystemPrompt(drawing.name, summary),
         turns,
-        tools: AGENT_TOOLS,
+        tools: requireCanvasAction
+          ? AGENT_TOOLS.filter((tool) => tool.name === "apply_ops")
+          : AGENT_TOOLS,
         codexAuth: params.codexAuth,
         reasoningEffort: params.reasoningEffort,
+        toolChoice: requireCanvasAction ? "required" : "auto",
         onTextDelta: (text) => {
           assistantText += text;
           send("token", { text });
@@ -215,14 +237,104 @@ export const executePersistentChatTurn = async (params: {
         assistantText += completion.text;
         send("token", { text: completion.text });
       }
-      providerMetadata = completion.assistantMetadata ?? providerMetadata;
+      if (completion.assistantMetadata || completion.finishReason) {
+        providerMetadata = {
+          ...(providerMetadata ?? {}),
+          ...(completion.assistantMetadata ?? {}),
+          ...(completion.finishReason
+            ? { finishReason: completion.finishReason }
+            : {}),
+        };
+      }
       turns.push({
         role: "assistant",
         text: completion.text,
         toolCalls: completion.toolCalls,
         providerMetadata: completion.assistantMetadata,
       });
+      if (completion.toolCalls.length > 0) {
+        const signature = JSON.stringify(
+          completion.toolCalls.map((call) => ({
+            name: call.name,
+            input: call.input,
+          })),
+        );
+        recentToolBatchSignatures.push(signature);
+        if (recentToolBatchSignatures.length > REPEATED_TOOL_BATCH_LIMIT) {
+          recentToolBatchSignatures.shift();
+        }
+        if (
+          recentToolBatchSignatures.length === REPEATED_TOOL_BATCH_LIMIT &&
+          recentToolBatchSignatures.every((value) => value === signature)
+        ) {
+          errorMessage =
+            "The model repeated the same canvas tool call three times, so the run was stopped.";
+          send("error", {
+            code: "REPEATED_TOOL_CALL",
+            message: errorMessage,
+          });
+          stoppedWithError = true;
+          break;
+        }
+      } else {
+        recentToolBatchSignatures.length = 0;
+      }
       if (completion.toolCalls.length === 0) {
+        const hasVisibleResponse = assistantText.trim().length > 0;
+        const attemptedCanvasAction = tools.some(
+          (activity) => activity.name === "apply_ops",
+        );
+        const needsCanvasAction =
+          canvasMutationRequested &&
+          batches.length === 0 &&
+          !attemptedCanvasAction;
+        const stoppedBeforeAnswer =
+          !hasVisibleResponse ||
+          /^(length|max_tokens|max_output_tokens)$/i.test(
+            completion.finishReason ?? "",
+          );
+        if (
+          actionRecoveries < MAX_ACTION_RECOVERIES &&
+          (stoppedBeforeAnswer || needsCanvasAction)
+        ) {
+          actionRecoveries += 1;
+          turns.push({
+            role: "user",
+            text: [
+              "Your previous response stopped before completing the task.",
+              needsCanvasAction
+                ? "Do not restart the analysis. Call apply_ops immediately and create the requested canvas result now."
+                : "Continue immediately with the final answer. Keep any further reasoning minimal.",
+            ].join(" "),
+          });
+          continue;
+        }
+        if (!hasVisibleResponse && batches.length === 0) {
+          errorMessage =
+            "The model stopped after thinking without producing an answer or canvas change. Try again or increase AI_MAX_TOKENS_PER_REQUEST.";
+          send("error", {
+            code: "EMPTY_MODEL_RESPONSE",
+            message: errorMessage,
+            ...(completion.finishReason
+              ? { finishReason: completion.finishReason }
+              : {}),
+          });
+          stoppedWithError = true;
+          break;
+        }
+        if (needsCanvasAction) {
+          errorMessage =
+            "The model replied without applying the requested canvas change. Try again with a different model.";
+          send("error", {
+            code: "CANVAS_ACTION_MISSING",
+            message: errorMessage,
+            ...(completion.finishReason
+              ? { finishReason: completion.finishReason }
+              : {}),
+          });
+          stoppedWithError = true;
+          break;
+        }
         completed = true;
         break;
       }
@@ -314,7 +426,7 @@ export const executePersistentChatTurn = async (params: {
     }
     if (completed) {
       status = "complete";
-    } else {
+    } else if (!stoppedWithError) {
       errorMessage = "The assistant reached the tool-step limit. Continue in a new message.";
       send("error", { code: "TOOL_LIMIT_REACHED", message: errorMessage });
     }

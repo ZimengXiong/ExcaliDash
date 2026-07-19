@@ -80,6 +80,7 @@ export const codexAdapter: AiProviderAdapter = {
       signal,
       codexAuth,
       reasoningEffort,
+      toolChoice,
       onTextDelta,
       onThinkingDelta,
     } = req;
@@ -91,7 +92,14 @@ export const codexAdapter: AiProviderAdapter = {
     }
     const c = config.ai.chatgpt;
     const model = normalizeCodexModel(settings.model, c.models[0] ?? "gpt-5.5");
-    const body = buildResponsesBody({ model, system, turns, tools, reasoningEffort });
+    const body = buildResponsesBody({
+      model,
+      system,
+      turns,
+      tools,
+      reasoningEffort,
+      toolChoice,
+    });
 
     const url = new URL(`${c.codexBaseUrl}/responses`);
     url.searchParams.set("client_version", c.clientVersion);
