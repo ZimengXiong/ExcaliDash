@@ -11,7 +11,7 @@ type UseDashboardDrawingActionsParams = {
   selectedIds: Set<string>;
   setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   setTotalCount: React.Dispatch<React.SetStateAction<number>>;
-  uploadFiles: (files: File[], collectionId: string | null) => Promise<void>;
+  uploadFiles: (files: File[]) => Promise<void>;
   refreshData: () => void;
   navigate: NavigateFunction;
 };
@@ -38,10 +38,6 @@ export const useDashboardDrawingActions = ({
 }: UseDashboardDrawingActionsParams) => {
   const [drawingToDelete, setDrawingToDelete] = useState<string | null>(null);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
-  const [showImportError, setShowImportError] = useState<{
-    isOpen: boolean;
-    message: string;
-  }>({ isOpen: false, message: "" });
   const [viewerActionError, setViewerActionError] = useState<string | null>(
     null,
   );
@@ -85,9 +81,7 @@ export const useDashboardDrawingActions = ({
       handleViewerActionError("Viewers can't import drawings");
       return;
     }
-    const targetCollectionId =
-      selectedCollectionId === undefined ? null : selectedCollectionId;
-    uploadFiles(Array.from(files), targetCollectionId).finally(refreshData);
+    uploadFiles(Array.from(files)).finally(refreshData);
   };
 
   const handleRenameDrawing = async (id: string, name: string) => {
@@ -282,22 +276,7 @@ export const useDashboardDrawingActions = ({
     if (isSharedView) return;
     if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
       const files = Array.from(event.dataTransfer.files);
-      const libFiles = files.filter((file) =>
-        file.name.endsWith(".excalidrawlib"),
-      );
-      if (libFiles.length > 0) {
-        setShowImportError({
-          isOpen: true,
-          message:
-            "Library (.excalidrawlib) imports are not supported in this build. Please import drawings (.excalidraw/.json) instead.",
-        });
-      }
-      const drawingFiles = files.filter(
-        (file) => !file.name.endsWith(".excalidrawlib"),
-      );
-      if (drawingFiles.length > 0) {
-        uploadFiles(drawingFiles, targetCollectionId).finally(refreshData);
-      }
+      uploadFiles(files).finally(refreshData);
       return;
     }
     const draggedDrawingId = event.dataTransfer.getData("drawingId");
@@ -358,7 +337,6 @@ export const useDashboardDrawingActions = ({
   return {
     drawingToDelete,
     showBulkDeleteConfirm,
-    showImportError,
     viewerActionError,
     isTrashView,
     isSharedView,
@@ -367,7 +345,6 @@ export const useDashboardDrawingActions = ({
     dragPreviewDrawings,
     setDrawingToDelete,
     setShowBulkDeleteConfirm,
-    setShowImportError,
     handleViewerActionError,
     handleCreateDrawing,
     handleImportDrawings,

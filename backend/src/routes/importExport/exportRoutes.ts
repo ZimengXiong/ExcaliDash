@@ -62,12 +62,8 @@ export const registerExcalidashExportRoute = (deps: RegisterImportExportDeps) =>
     if (!req.user) return res.status(401).json({ error: "Unauthorized" });
     const trashCollectionId = getUserTrashCollectionId(req.user.id);
 
-    const extParam = typeof req.query.ext === "string" ? req.query.ext.toLowerCase() : "";
-    const zipSuffix = extParam === "zip";
     const date = new Date().toISOString().split("T")[0];
-    const filename = zipSuffix
-      ? `excalidash-backup-${date}.excalidash.zip`
-      : `excalidash-backup-${date}.excalidash`;
+    const filename = `excalidash-backup-${date}.excalidash`;
 
     const exportedAt = new Date().toISOString();
     const drawings = await prisma.drawing.findMany({

@@ -1,26 +1,17 @@
-import type React from "react";
 import { ChevronRight, Info, ShieldCheck, Upload } from "lucide-react";
-import { importLegacyFiles } from "../../utils/importUtils";
 import { SettingsRow, settingsButtonClass } from "./SettingsRow";
-
-type DialogState = { isOpen: boolean; message: string };
-type SuccessDialogState = { isOpen: boolean; message: React.ReactNode };
 
 type AdvancedSettingsProps = {
   authEnabled: boolean | null;
   authMode: string | null | undefined;
   authToggleLoading: boolean;
   backupImportLoading: boolean;
-  legacyDbImportLoading: boolean;
   isManagedAuthMode: boolean;
   user: { role?: string } | null | undefined;
   appVersion: string;
   buildLabel: string | undefined;
   verifyBackupFile: (file: File) => Promise<void>;
-  verifyLegacyDbFile: (file: File) => Promise<void>;
   confirmToggleAuthEnabled: () => void;
-  setImportError: React.Dispatch<React.SetStateAction<DialogState>>;
-  setImportSuccess: React.Dispatch<React.SetStateAction<SuccessDialogState>>;
 };
 
 export const AdvancedSettings = ({
@@ -28,16 +19,12 @@ export const AdvancedSettings = ({
   authMode,
   authToggleLoading,
   backupImportLoading,
-  legacyDbImportLoading,
   isManagedAuthMode,
   user,
   appVersion,
   buildLabel,
   verifyBackupFile,
-  verifyLegacyDbFile,
   confirmToggleAuthEnabled,
-  setImportError,
-  setImportSuccess,
 }: AdvancedSettingsProps) => (
   <details className="group mt-6 overflow-hidden rounded-2xl border-2 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)]">
     <summary className="flex cursor-pointer select-none items-center gap-2 px-4 py-3.5 text-sm font-bold text-slate-800 dark:text-neutral-200 sm:px-5 sm:text-base">
@@ -45,7 +32,7 @@ export const AdvancedSettings = ({
         size={16}
         className="transition-transform group-open:rotate-90"
       />
-      Advanced / Legacy
+      Advanced
     </summary>
     <div className="divide-y divide-slate-100 border-t-2 border-slate-100 dark:divide-neutral-800 dark:border-neutral-800">
       <SettingsRow
@@ -56,7 +43,7 @@ export const AdvancedSettings = ({
       >
         <input
           type="file"
-          accept=".excalidash,.zip"
+          accept=".excalidash"
           className="hidden"
           id="settings-import-backup"
           onChange={async (e) => {
@@ -108,64 +95,6 @@ export const AdvancedSettings = ({
             : authEnabled
               ? "Disable"
               : "Enable"}
-        </button>
-      </SettingsRow>
-
-      <SettingsRow
-        icon={<Upload size={20} />}
-        tileClassName="border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300"
-        title="Legacy import"
-        description=".excalidraw, legacy JSON, or a legacy .db"
-      >
-        <input
-          type="file"
-          multiple
-          accept=".sqlite,.db,.json,.excalidraw,.zip"
-          className="hidden"
-          id="settings-import-legacy"
-          onChange={async (e) => {
-            const files = Array.from(e.target.files || []);
-            if (files.length === 0) return;
-            const databaseFile = files.find(
-              (f) => f.name.endsWith(".sqlite") || f.name.endsWith(".db"),
-            );
-            if (databaseFile) {
-              if (files.length > 1) {
-                setImportError({
-                  isOpen: true,
-                  message:
-                    "Please import legacy database files separately from other files.",
-                });
-                e.target.value = "";
-                return;
-              }
-              await verifyLegacyDbFile(databaseFile);
-              e.target.value = "";
-              return;
-            }
-            const result = await importLegacyFiles(files, null, () => {});
-            if (result.failed > 0) {
-              setImportError({
-                isOpen: true,
-                message: `Import complete with errors.\nSuccess: ${result.success}\nFailed: ${result.failed}\nErrors:\n${result.errors.join("\n")}`,
-              });
-            } else {
-              setImportSuccess({
-                isOpen: true,
-                message: `Imported ${result.success} file(s).`,
-              });
-            }
-            e.target.value = "";
-          }}
-        />
-        <button
-          onClick={() =>
-            document.getElementById("settings-import-legacy")?.click()
-          }
-          disabled={legacyDbImportLoading}
-          className={settingsButtonClass}
-        >
-          {legacyDbImportLoading ? "Verifying…" : "Choose files"}
         </button>
       </SettingsRow>
 

@@ -57,7 +57,6 @@ export type RegisterImportExportDeps = {
   ) => express.RequestHandler;
   upload: any;
   uploadDir: string;
-  backendRoot: string;
   getBackendVersion: () => string;
   parseJsonField: <T>(rawValue: string | null | undefined, fallback: T) => T;
   sanitizeText: (input: unknown, maxLength?: number) => string;
@@ -68,7 +67,6 @@ export type RegisterImportExportDeps = {
   ) => Promise<void>;
   invalidateDrawingsCache: () => void;
   removeFileIfExists: (filePath?: string) => Promise<void>;
-  verifyDatabaseIntegrityAsync: (filePath: string) => Promise<boolean>;
   MAX_IMPORT_ARCHIVE_ENTRIES: number;
   MAX_IMPORT_COLLECTIONS: number;
   MAX_IMPORT_DRAWINGS: number;
@@ -144,12 +142,6 @@ export const findFirstDuplicate = (values: string[]): string | null => {
   return null;
 };
 
-export const normalizeNonEmptyId = (value: unknown): string | null => {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-};
-
 export const getUserTrashCollectionId = (userId: string): string => `trash:${userId}`;
 
 export const isTrashCollectionId = (
@@ -164,81 +156,6 @@ export const toPublicTrashCollectionId = (
   userId: string
 ): string | null =>
   isTrashCollectionId(collectionId, userId) ? "trash" : collectionId ?? null;
-
-export const findSqliteTable = (tables: string[], candidates: string[]): string | null => {
-  const byLower = new Map(tables.map((t) => [t.toLowerCase(), t]));
-  for (const candidate of candidates) {
-    const found = byLower.get(candidate.toLowerCase());
-    if (found) return found;
-  }
-  return null;
-};
-
-export const parseOptionalJson = <T>(raw: unknown, fallback: T): T => {
-  if (typeof raw === "string") {
-    try {
-      return JSON.parse(raw) as T;
-    } catch {
-      return fallback;
-    }
-  }
-  if (typeof raw === "object" && raw !== null) {
-    return raw as T;
-  }
-  return fallback;
-};
-
-const isPathInsideDirectory = (candidatePath: string, rootDir: string): boolean => {
-  const relativePath = path.relative(rootDir, candidatePath);
-  return (
-    relativePath === "" ||
-    (!relativePath.startsWith("..") && !path.isAbsolute(relativePath))
-  );
-};
-
-const isSafeMulterTempFilename = (value: string): boolean =>
-  /^[a-f0-9]{32}$/.test(value);
-
-export const resolveSafeUploadedFilePath = async (
-  fileMeta: { filename?: unknown },
-  uploadRoot: string
-): Promise<string> => {
-  const absoluteUploadRoot = path.resolve(uploadRoot);
-  let canonicalUploadRoot = absoluteUploadRoot;
-
-  try {
-    canonicalUploadRoot = await fsPromises.realpath(absoluteUploadRoot);
-  } catch {
-    throw new ImportValidationError("Invalid upload path");
-  }
-
-  const filename = typeof fileMeta.filename === "string" ? fileMeta.filename : "";
-  if (!isSafeMulterTempFilename(filename)) {
-    throw new ImportValidationError("Invalid upload path");
-  }
-
-  const joinedPath = path.resolve(canonicalUploadRoot, filename);
-  if (!isPathInsideDirectory(joinedPath, canonicalUploadRoot)) {
-    throw new ImportValidationError("Invalid upload path");
-  }
-
-  return joinedPath;
-};
-
-export const openReadonlySqliteDb = (filePath: string): any => {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { DatabaseSync } = require("node:sqlite") as any;
-    return new DatabaseSync(filePath, {
-      readOnly: true,
-      enableForeignKeyConstraints: false,
-    });
-  } catch {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const Database = require("better-sqlite3") as any;
-    return new Database(filePath, { readonly: true, fileMustExist: true });
-  }
-};
 
 export const getCurrentLatestPrismaMigrationName = async (
   backendRoot: string

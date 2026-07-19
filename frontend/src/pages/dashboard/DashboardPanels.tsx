@@ -90,7 +90,7 @@ export const FileDropOverlay: React.FC<FileDropOverlayProps> = ({
       Drop files to import
     </h3>
     <p className="text-slate-500 text-base sm:text-lg max-w-sm sm:max-w-md text-center px-4">
-      Drop .excalidraw or .json files here to add them to
+      Drop .excalidash files here to import them into
       <span className="font-bold text-indigo-600 mx-1">{viewTitle}</span>
     </p>
   </div>

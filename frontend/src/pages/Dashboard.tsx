@@ -299,20 +299,6 @@ export const Dashboard: React.FC = () => {
         onConfirm={actions.executeBulkPermanentDelete}
         onCancel={() => actions.setShowBulkDeleteConfirm(false)}
       />{" "}
-      <ConfirmModal
-        isOpen={actions.showImportError.isOpen}
-        title="Import Failed"
-        message={actions.showImportError.message}
-        confirmText="OK"
-        showCancel={false}
-        isDangerous={false}
-        onConfirm={() =>
-          actions.setShowImportError({ isOpen: false, message: "" })
-        }
-        onCancel={() =>
-          actions.setShowImportError({ isOpen: false, message: "" })
-        }
-      />{" "}
     </Layout>
   );
 };

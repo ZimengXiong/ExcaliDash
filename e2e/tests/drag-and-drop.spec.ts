@@ -151,26 +151,6 @@ test.describe("Drag and Drop - Collections", () => {
 });
 
 test.describe("Drag and Drop - File Import", () => {
-  let createdDrawingIds: string[] = [];
-
-  test.afterEach(async ({ request }) => {
-    const drawings = await listDrawings(request, { search: "ImportedDnD" });
-    for (const drawing of drawings) {
-      try {
-        await deleteDrawing(request, drawing.id);
-      } catch {
-      }
-    }
-
-    for (const id of createdDrawingIds) {
-      try {
-        await deleteDrawing(request, id);
-      } catch {
-      }
-    }
-    createdDrawingIds = [];
-  });
-
   test("should show drop zone overlay when dragging files", async ({ page }) => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
@@ -179,7 +159,7 @@ test.describe("Drag and Drop - File Import", () => {
     await expect(page.locator("#dashboard-import")).toBeAttached();
   });
 
-  test("should import excalidraw file via file input", async ({ page, request }) => {
+  test("should reject an excalidraw file via file input", async ({ page }) => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
@@ -200,16 +180,7 @@ test.describe("Drag and Drop - File Import", () => {
       buffer: Buffer.from(excalidrawContent),
     });
 
-    await expect.poll(async () => {
-      const drawings = await listDrawings(request, { search: fileBase });
-      return drawings.length;
-    }, { timeout: 15000 }).toBeGreaterThan(0);
-
-    await page.getByPlaceholder("Search drawings...").fill(fileBase);
-    await page.waitForTimeout(700);
-
-    const importedCards = page.locator("[id^='drawing-card-']");
-    await expect(importedCards.first()).toBeVisible();
+    await expect(page.getByText("A .excalidash file is required.")).toBeVisible();
   });
 });
 

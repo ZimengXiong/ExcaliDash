@@ -56,7 +56,7 @@ Tests for the bug where images wouldn't load fully when reopening files.
 
 - **should preserve large image data through save/reload cycle** - Core regression test
 - **should display drawing in editor view** - Browser UI test
-- **should import .excalidraw file with embedded image** - File import test
+- **should preserve imported drawing data with embedded images** - Persistence test
 - **should handle multiple images of varying sizes** - Multi-image test
 
 ### Security Tests

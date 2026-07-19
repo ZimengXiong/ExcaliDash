@@ -364,7 +364,7 @@ describe("Collection Sharing - Backend Integration", () => {
     expect(createDrawingResponse.body?.error).toContain("No edit access");
   });
 
-  it("prevents a view-only invited user from importing a new drawing into a shared collection", async () => {
+  it("does not let the obsolete import header bypass shared collection permissions", async () => {
     const collection = await createCollection();
 
     await ownerAgent

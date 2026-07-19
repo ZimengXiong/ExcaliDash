@@ -1,6 +1,5 @@
-import { Archive, File, FileArchive, Moon, Sun, Zap, ZapOff } from "lucide-react";
+import { Archive, Moon, Sun, Zap, ZapOff } from "lucide-react";
 import type * as api from "../../api";
-import { PlayfulSelect } from "../../components/PlayfulSelect";
 import { PlayfulSwitch } from "../../components/PlayfulSwitch";
 import { UpdateSettingsCard } from "./UpdateSettingsCard";
 import { DefaultEngineCard } from "./DefaultEngineCard";
@@ -11,8 +10,6 @@ import {
 } from "./SettingsRow";
 
 type SettingsMainGridProps = {
-  backupExportExt: "excalidash" | "excalidash.zip";
-  setBackupExportExt: (ext: "excalidash" | "excalidash.zip") => void;
   exportBackup: () => void;
   theme: string;
   toggleTheme: () => void;
@@ -27,8 +24,6 @@ type SettingsMainGridProps = {
 };
 
 export const SettingsMainGrid = ({
-  backupExportExt,
-  setBackupExportExt,
   exportBackup,
   theme,
   toggleTheme,
@@ -80,21 +75,6 @@ export const SettingsMainGrid = ({
       title="Export backup"
       description="Download an archive organized by collections"
     >
-      <PlayfulSelect
-        ariaLabel="Backup format"
-        value={backupExportExt}
-        onChange={(value) =>
-          setBackupExportExt(value as "excalidash" | "excalidash.zip")
-        }
-        options={[
-          { value: "excalidash", label: ".excalidash", icon: <File size={14} /> },
-          {
-            value: "excalidash.zip",
-            label: ".excalidash.zip",
-            icon: <FileArchive size={14} />,
-          },
-        ]}
-      />
       <button onClick={exportBackup} className={settingsPrimaryButtonClass}>
         Export
       </button>

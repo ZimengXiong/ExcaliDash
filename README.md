@@ -96,7 +96,12 @@ Create each drawing with either the default Excalidraw canvas or a [tldraw](http
 <details>
 <summary>Export/import your drawings for backup</summary>
 
-### Excalidash uses a non-proprietary archival format that stores your drawings in plain .excalidraw format
+### ExcaliDash imports and exports one `.excalidash` archival format
+
+The dashboard accepts only `.excalidash` files for imports. Legacy
+`.excalidraw`, JSON, ZIP, and SQLite/database imports are not supported.
+The non-proprietary archive keeps each drawing as plain `.excalidraw` data
+inside the backup.
 
 ![](readme-assets/backupsImport.gif)
 

@@ -33,7 +33,6 @@ export const registerDrawingCreateUpdateRoutes = (
     requireAuth,
     optionalAuth,
     asyncHandler,
-    validateImportedDrawing,
     drawingCreateSchema,
     drawingUpdateSchema,
     respondWithValidationErrors,
@@ -56,16 +55,6 @@ export const registerDrawingCreateUpdateRoutes = (
       }
       const engine = engineResult.data;
       const isTldraw = engine === "tldraw";
-      const isImportedDrawing = req.headers["x-imported-file"] === "true";
-      // The imported-file validator is excalidraw-shaped; tldraw import is
-      // deferred, so the header is ignored for tldraw create.
-      if (!isTldraw && isImportedDrawing && !validateImportedDrawing(req.body)) {
-        return res.status(400).json({
-          error: "Invalid imported drawing file",
-          message:
-            "The imported file contains potentially malicious content or invalid structure",
-        });
-      }
       const parsed = (
         isTldraw ? tldrawCreateSchema : drawingCreateSchema
       ).safeParse(req.body);
@@ -149,23 +138,28 @@ export const registerDrawingCreateUpdateRoutes = (
       let newDrawing;
       try {
         newDrawing = await prisma.drawing.create({
-        data: {
-          id: newDrawingId,
-          name: drawingName,
-          engine,
-          elements: JSON.stringify(payload.elements),
-          appState: JSON.stringify(payload.appState),
-          userId: req.user.id,
-          collectionId: targetCollectionId,
-          preview: processedPreview,
-          files: JSON.stringify(processedFiles),
-        },
+          data: {
+            id: newDrawingId,
+            name: drawingName,
+            engine,
+            elements: JSON.stringify(payload.elements),
+            appState: JSON.stringify(payload.appState),
+            userId: req.user.id,
+            collectionId: targetCollectionId,
+            preview: processedPreview,
+            files: JSON.stringify(processedFiles),
+          },
         });
       } catch (error) {
         // Files are staged before the Drawing row exists. Reclaim both DB
         // rows and S3 objects if the subsequent create fails.
-        try { await stagedFiles.cleanup(prisma); } catch (cleanupError) {
-          throw new AggregateError([error, cleanupError], "Drawing create failed and staged file cleanup failed");
+        try {
+          await stagedFiles.cleanup(prisma);
+        } catch (cleanupError) {
+          throw new AggregateError(
+            [error, cleanupError],
+            "Drawing create failed and staged file cleanup failed",
+          );
         }
         throw error;
       }
@@ -245,7 +239,11 @@ export const registerDrawingCreateUpdateRoutes = (
         payload.elements !== undefined ||
         payload.appState !== undefined ||
         payload.files !== undefined;
-      if (isSceneUpdate && payload.version !== undefined && payload.version !== existingDrawing.version) {
+      if (
+        isSceneUpdate &&
+        payload.version !== undefined &&
+        payload.version !== existingDrawing.version
+      ) {
         return res.status(409).json({
           error: "Conflict",
           code: "VERSION_CONFLICT",
@@ -287,10 +285,15 @@ export const registerDrawingCreateUpdateRoutes = (
               : payload.preview;
         } else {
           processedPreview = processedFilesForUpdate
-            ? rewritePreviewForInternedFiles(payload.preview, payload.files ?? {}, processedFilesForUpdate)
+            ? rewritePreviewForInternedFiles(
+                payload.preview,
+                payload.files ?? {},
+                processedFilesForUpdate,
+              )
             : payload.preview;
         }
-        data.preview = typeof processedPreview === "string" ? processedPreview : null;
+        data.preview =
+          typeof processedPreview === "string" ? processedPreview : null;
       }
       if (payload.collectionId !== undefined) {
         if (!isOwnerAccess(access)) {
@@ -322,7 +325,8 @@ export const registerDrawingCreateUpdateRoutes = (
             prisma,
             drawingId: id,
             parseJsonField,
-            versionGuard: payload.version !== undefined ? payload.version : "none",
+            versionGuard:
+              payload.version !== undefined ? payload.version : "none",
             snapshotMinIntervalMs: 60_000,
             mutate: () => ({ data, incomingFiles: processedFilesForUpdate }),
           });
