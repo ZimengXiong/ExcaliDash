@@ -9,9 +9,7 @@ import type {
   AiProviderProfile,
   AiStatus,
 } from "../../api/ai";
-
 export type ConfigurableAiProvider = Exclude<AiProvider, "disabled">;
-
 export type AiProviderDraft = {
   id: string;
   label: string;
@@ -31,14 +29,12 @@ export type AiProviderDraft = {
   discovering?: boolean;
   testResult?: AiConnectionTestResult;
 };
-
 type AiSettingsResponse = {
   status: AiStatus;
   providers: AiProviderProfile[];
   defaultProviderId: string | null;
   providerDefinitions: AiProviderDefinition[];
 };
-
 const toDraft = (profile: AiProviderProfile): AiProviderDraft | null => {
   if (profile.provider === "disabled") return null;
   const efforts = [
@@ -58,7 +54,6 @@ const toDraft = (profile: AiProviderProfile): AiProviderDraft | null => {
     discoveredModels: profile.models,
   };
 };
-
 const splitCsv = (value: string): string[] => [
   ...new Set(
     value
@@ -67,7 +62,6 @@ const splitCsv = (value: string): string[] => [
       .filter(Boolean),
   ),
 ];
-
 const defaultsForProvider = (
   provider: ConfigurableAiProvider,
   definitions: AiProviderDefinition[],
@@ -106,7 +100,6 @@ const defaultsForProvider = (
     testResult: undefined,
   };
 };
-
 export const useAiSettings = ({
   authEnabled,
   isAdmin,
@@ -127,7 +120,6 @@ export const useAiSettings = ({
   const [providerDefinitions, setProviderDefinitions] = useState<
     AiProviderDefinition[]
   >([]);
-
   const applyResponse = useCallback((data: AiSettingsResponse) => {
     const drafts = data.providers
       .map(toDraft)
@@ -137,7 +129,6 @@ export const useAiSettings = ({
     setStatus(data.status);
     setProviderDefinitions(data.providerDefinitions);
   }, []);
-
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -164,7 +155,6 @@ export const useAiSettings = ({
       setLoading(false);
     }
   }, [applyResponse, setError]);
-
   const setEnabled = useCallback(
     async (nextEnabled: boolean) => {
       if (saving) return;
@@ -201,7 +191,6 @@ export const useAiSettings = ({
     },
     [load, onFeatureFlagChanged, saving, setError],
   );
-
   const addProvider = useCallback(() => {
     const id = `provider_${Date.now().toString(36)}`;
     const defaults = defaultsForProvider("openai", providerDefinitions);
@@ -223,7 +212,6 @@ export const useAiSettings = ({
     ]);
     setDefaultProviderId((current) => current || id);
   }, [providerDefinitions]);
-
   const updateProvider = useCallback(
     (id: string, patch: Partial<AiProviderDraft>) => {
       setProviders((current) =>
@@ -239,7 +227,6 @@ export const useAiSettings = ({
     },
     [providerDefinitions],
   );
-
   const probePayload = useCallback(
     (profile: AiProviderDraft, refresh = false) => ({
       profileId: profile.id,
@@ -251,7 +238,6 @@ export const useAiSettings = ({
     }),
     [],
   );
-
   const discoverModels = useCallback(
     async (id: string, refresh = false) => {
       const profile = providers.find((item) => item.id === id);
@@ -281,7 +267,6 @@ export const useAiSettings = ({
     },
     [probePayload, providers, updateProvider],
   );
-
   const testProvider = useCallback(
     async (id: string) => {
       const profile = providers.find((item) => item.id === id);
@@ -313,12 +298,10 @@ export const useAiSettings = ({
     },
     [probePayload, providers, updateProvider],
   );
-
   const removeProvider = useCallback((id: string) => {
     setProviders((current) => current.filter((profile) => profile.id !== id));
     setDefaultProviderId((current) => (current === id ? "" : current));
   }, []);
-
   const save = useCallback(async () => {
     if (saving) return;
     setSaving(true);
@@ -378,11 +361,9 @@ export const useAiSettings = ({
       setSaving(false);
     }
   }, [applyResponse, defaultProviderId, providers, saving, setError]);
-
   useEffect(() => {
     if (authEnabled !== null && isAdmin) void load();
   }, [authEnabled, isAdmin, load]);
-
   return {
     enabled,
     loading,

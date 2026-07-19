@@ -3,12 +3,10 @@ import { PlugZap, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import type { AiProviderDefinition, AiStatus } from "../../api/ai";
 import type { AiProviderDraft, ConfigurableAiProvider } from "./useAiSettings";
 import { PlayfulSwitch } from "../../components/PlayfulSwitch";
-
 const inputClass =
   "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white";
 const labelClass =
   "mb-1 block text-xs font-bold text-slate-600 dark:text-neutral-400";
-
 const ProviderEditor: React.FC<{
   profile: AiProviderDraft;
   providerDefinitions: AiProviderDefinition[];
@@ -17,15 +15,7 @@ const ProviderEditor: React.FC<{
   onRemove: () => void;
   onDiscover: (refresh?: boolean) => void;
   onTest: () => void;
-}> = ({
-  profile,
-  providerDefinitions,
-  saving,
-  onChange,
-  onRemove,
-  onDiscover,
-  onTest,
-}) => {
+}> = ({ profile, providerDefinitions, saving, onChange, onRemove, onDiscover, onTest }) => {
   const definition = providerDefinitions.find(
     (item) => item.id === profile.provider,
   );
@@ -279,7 +269,6 @@ const ProviderEditor: React.FC<{
     </div>
   );
 };
-
 export const AiSettingsCard: React.FC<{
   enabled: boolean;
   loading: boolean;
@@ -297,21 +286,10 @@ export const AiSettingsCard: React.FC<{
   onSave: () => void | Promise<void>;
   onEnabledChange: (value: boolean) => void | Promise<void>;
 }> = ({
-  enabled,
-  loading,
-  saving,
-  providers,
-  defaultProviderId,
-  status,
-  providerDefinitions,
-  onDefaultProviderChange,
-  onAddProvider,
-  onUpdateProvider,
-  onRemoveProvider,
-  onDiscoverModels,
-  onTestProvider,
-  onSave,
-  onEnabledChange,
+  enabled, loading, saving, providers, defaultProviderId, status,
+  providerDefinitions, onDefaultProviderChange, onAddProvider,
+  onUpdateProvider, onRemoveProvider, onDiscoverModels, onTestProvider,
+  onSave, onEnabledChange,
 }) => (
   <section className="mx-auto mb-6 w-full max-w-5xl rounded-2xl border-2 border-black bg-white p-4 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:border-neutral-700 dark:bg-neutral-900 sm:p-6">
     <div className="mb-5 flex items-start gap-3">
@@ -330,7 +308,6 @@ export const AiSettingsCard: React.FC<{
         <span className="ml-auto text-sm text-slate-500">Loading…</span>
       ) : null}
     </div>
-
     <div className="mb-5 flex items-center justify-between gap-4 rounded-xl border-2 border-slate-200 bg-slate-50/60 p-4 dark:border-neutral-700 dark:bg-neutral-800/30">
       <div>
         <p className="text-sm font-bold text-slate-800 dark:text-neutral-100">
@@ -347,7 +324,6 @@ export const AiSettingsCard: React.FC<{
         ariaLabel="Enable AI features"
       />
     </div>
-
     {!enabled ? (
       <p className="text-sm font-medium text-slate-500 dark:text-neutral-400">
         AI features are disabled. Turn them back on to manage the saved provider
@@ -369,7 +345,6 @@ export const AiSettingsCard: React.FC<{
             ))}
           </select>
         </div>
-
         <div className="space-y-3">
           {providers.map((profile) => (
             <ProviderEditor
@@ -384,7 +359,6 @@ export const AiSettingsCard: React.FC<{
             />
           ))}
         </div>
-
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <button
             type="button"
