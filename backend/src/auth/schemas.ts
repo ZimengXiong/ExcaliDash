@@ -38,6 +38,10 @@ export const registrationToggleSchema = z.object({
   enabled: z.boolean(),
 });
 
+export const aiEnabledToggleSchema = z.object({
+  enabled: z.boolean(),
+});
+
 // Admin AI settings update. All fields optional; null/empty clears the DB
 // override (falls back to env). `apiKey` is write-only — the special sentinel
 // "__unchanged__" leaves the stored (encrypted) key untouched, and an empty

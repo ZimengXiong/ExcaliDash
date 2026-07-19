@@ -6,6 +6,12 @@ scene, applied in one transaction, snapshotted for undo, sanitized, and
 version-bumped — exactly like a normal save. Open editors receive the changes
 live over the existing socket relay.
 
+Administrators can turn off **Enable AI features** under Admin → AI Assistant.
+While disabled, the UI hides assistant, provider, ChatGPT connection, and agent
+token controls. Every AI and Agent API route returns HTTP `403` with
+`code: "AI_FEATURES_DISABLED"`. Existing provider settings, ChatGPT
+connections, and tokens are preserved and work again after re-enabling.
+
 - **Read path** — `GET /api/drawings/:id/summary` (compact structural text) and
   `GET /api/drawings/:id/elements/:elementId` (full element JSON).
 - **Write path** — `POST /api/drawings/:id/ops` (a batch of 1–50 ops).

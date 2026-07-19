@@ -90,6 +90,11 @@ describe("Agent ops engine", () => {
     await cleanupTestDb(prisma);
     const user = await initTestDb(prisma);
     userId = user.id;
+    await prisma.systemConfig.upsert({
+      where: { id: "default" },
+      update: { aiEnabled: true },
+      create: { id: "default", aiEnabled: true },
+    });
     emitted = [];
     app = buildApp(prisma, userId, emitted);
   });
@@ -252,6 +257,30 @@ describe("Agent ops engine", () => {
     expect(res.body.element.id).toBe("c1");
     expect(res.body.children).toHaveLength(1);
     expect(res.body.children[0].id).toBe("lbl");
+  });
+
+  it("blocks every semantic agent route with the global disabled response", async () => {
+    const drawing = await createDrawing(prisma, userId, [
+      { id: "one", type: "rectangle", x: 0, y: 0, width: 10, height: 10 },
+    ]);
+    await prisma.systemConfig.upsert({
+      where: { id: "default" },
+      update: { aiEnabled: false },
+      create: { id: "default", aiEnabled: false },
+    });
+    const responses = await Promise.all([
+      request(app)
+        .post(`/drawings/${drawing.id}/ops`)
+        .send({ ops: [{ op: "delete", id: "one" }] }),
+      request(app).get(`/drawings/${drawing.id}/summary`),
+      request(app).get(`/drawings/${drawing.id}/elements/one`),
+    ]);
+    for (const res of responses) {
+      expect(res.status).toBe(403);
+      expect(res.body.code).toBe("AI_FEATURES_DISABLED");
+    }
+    const stored = await prisma.drawing.findUnique({ where: { id: drawing.id } });
+    expect(JSON.parse(stored!.elements)[0].isDeleted).not.toBe(true);
   });
 
   it("reverts to a snapshot version, undoing an applied batch", async () => {

@@ -6,6 +6,7 @@ import { registerCoreRoutes } from "./coreRoutes";
 const buildApp = (options?: {
   authMode?: "local" | "hybrid" | "oidc_enforced";
   registrationEnabled?: boolean;
+  aiEnabled?: boolean;
   oidcJitProvisioningEnabled?: boolean | null;
 }) => {
   const router = express.Router();
@@ -35,6 +36,7 @@ const buildApp = (options?: {
       authEnabled: true,
       authOnboardingCompleted: true,
       registrationEnabled: options?.registrationEnabled ?? true,
+      aiEnabled: options?.aiEnabled ?? true,
       oidcJitProvisioningEnabled: options?.oidcJitProvisioningEnabled ?? null,
     }),
     findUserByIdentifier: vi.fn(),
@@ -91,6 +93,16 @@ describe("/auth/status registration policy", () => {
     expect(response.body?.authMode).toBe("oidc_enforced");
     expect(response.body?.registrationEnabled).toBe(false);
     expect(response.body?.oidcJitProvisioningEnabled).toBe(false);
+  });
+
+  it("reports the global AI flag independently of OIDC mode", async () => {
+    const { app } = buildApp({
+      authMode: "oidc_enforced",
+      aiEnabled: false,
+    });
+    const response = await request(app).get("/status");
+    expect(response.status).toBe(200);
+    expect(response.body?.aiEnabled).toBe(false);
   });
 
   it("hides any optional-auth user context when auth is effectively disabled", async () => {

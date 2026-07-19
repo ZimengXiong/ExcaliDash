@@ -29,6 +29,7 @@ export type AiProviderProfile = {
 
 /** Availability probe mirroring the backend `GET /ai/status` payload. */
 export type AiStatus = {
+  enabled: boolean;
   available: boolean;
   provider: AiProvider;
   model: string | null;
@@ -248,13 +249,15 @@ export const streamAgentChat = async (
 
   if (!response.ok || !response.body) {
     let message = "The AI request failed";
+    let code = `HTTP_${response.status}`;
     try {
       const data = await response.json();
       message = data?.message || data?.error || message;
+      if (typeof data?.code === "string") code = data.code;
     } catch {
       /* non-JSON error body */
     }
-    handlers.onError?.({ code: `HTTP_${response.status}`, message });
+    handlers.onError?.({ code, message });
     return;
   }
 

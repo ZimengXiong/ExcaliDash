@@ -1,12 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import type { Socket } from "socket.io-client";
-import {
-  Loader2,
-  Send,
-  Sparkles,
-  X,
-} from "lucide-react";
+import { Loader2, Send, Sparkles, X } from "lucide-react";
 import {
   getAiStatus,
   type AiModelOption,
@@ -21,6 +16,7 @@ import { useAgentChat } from "./useAgentChat";
 import { AgentModelSelector } from "./AgentModelSelector";
 import { AgentChatMessage } from "./AgentChatMessage";
 import type { AgentCanvasCapture } from "./captureAgentCanvas";
+import { useAuth } from "../../context/AuthContext";
 
 const STR = {
   title: "Canvas assistant",
@@ -50,6 +46,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   selfAgentBatchIdsRef,
   captureCanvasContext,
 }) => {
+  const { aiEnabled } = useAuth();
   const [available, setAvailable] = useState(false);
   const [providers, setProviders] = useState<AiProviderProfile[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState("");
@@ -59,12 +56,16 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const [selectedModel, setSelectedModel] = useState("");
   const [reasoningEffort, setReasoningEffort] = useState("medium");
   const listRef = useRef<HTMLDivElement>(null);
-  const selectedProvider = providers.find((profile) => profile.id === selectedProviderId);
+  const selectedProvider = providers.find(
+    (profile) => profile.id === selectedProviderId,
+  );
   const isChatGpt = selectedProvider?.provider === "chatgpt";
   const models: AiModelOption[] = isChatGpt
     ? (chatgpt?.models ?? selectedProvider?.models ?? [])
     : (selectedProvider?.models ?? []);
-  const selectedModelOption = models.find((model) => model.id === selectedModel);
+  const selectedModelOption = models.find(
+    (model) => model.id === selectedModel,
+  );
   const reasoningEfforts = selectedModelOption?.reasoningEfforts ?? [];
 
   const registerSelfBatch = useCallback(
@@ -74,15 +75,17 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     [selfAgentBatchIdsRef],
   );
 
-  const { messages, isStreaming, isLoading, sendMessage, stop, undoBatch } = useAgentChat({
-    drawingId,
-    providerId: selectedProviderId || undefined,
-    model: selectedModel || undefined,
-    reasoningEffort: reasoningEfforts.length > 0 ? reasoningEffort : undefined,
-    socket,
-    captureCanvasContext,
-    onSelfOpsBatch: registerSelfBatch,
-  });
+  const { messages, isStreaming, isLoading, sendMessage, stop, undoBatch } =
+    useAgentChat({
+      drawingId,
+      providerId: selectedProviderId || undefined,
+      model: selectedModel || undefined,
+      reasoningEffort:
+        reasoningEfforts.length > 0 ? reasoningEffort : undefined,
+      socket,
+      captureCanvasContext,
+      onSelfOpsBatch: registerSelfBatch,
+    });
 
   const refreshChatGpt = useCallback(() => {
     getChatGptStatus()
@@ -91,8 +94,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   }, []);
 
   useEffect(() => {
-    if (!canView || !drawingId) {
+    if (!aiEnabled || !canView || !drawingId) {
       setAvailable(false);
+      setIsOpen(false);
+      stop();
       return;
     }
     let active = true;
@@ -100,27 +105,39 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
       .then((status) => {
         if (!active) return;
         setAvailable(status.available);
-        const listedProviders = status.providers?.length ? status.providers : [{
-          id: "legacy",
-          label: status.provider,
-          provider: status.provider,
-          available: status.available,
-          enabled: status.provider !== "disabled",
-          baseUrl: null,
-          models: status.model
-            ? [{ id: status.model, label: status.model, reasoningEfforts: [] }]
-            : [],
-          keyConfigured: status.keyConfigured,
-          keySource: status.keySource,
-        }];
+        const listedProviders = status.providers?.length
+          ? status.providers
+          : [
+              {
+                id: "legacy",
+                label: status.provider,
+                provider: status.provider,
+                available: status.available,
+                enabled: status.provider !== "disabled",
+                baseUrl: null,
+                models: status.model
+                  ? [
+                      {
+                        id: status.model,
+                        label: status.model,
+                        reasoningEfforts: [],
+                      },
+                    ]
+                  : [],
+                keyConfigured: status.keyConfigured,
+                keySource: status.keySource,
+              },
+            ];
         const selectable = listedProviders.filter(
-          (profile) => profile.enabled && (profile.available || profile.provider === "chatgpt"),
+          (profile) =>
+            profile.enabled &&
+            (profile.available || profile.provider === "chatgpt"),
         );
         setProviders(selectable);
         setSelectedProviderId((current) =>
           selectable.some((profile) => profile.id === current)
             ? current
-            : status.defaultProviderId ?? selectable[0]?.id ?? "",
+            : (status.defaultProviderId ?? selectable[0]?.id ?? ""),
         );
       })
       .catch(() => {
@@ -129,7 +146,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     return () => {
       active = false;
     };
-  }, [canView, drawingId, refreshChatGpt]);
+  }, [aiEnabled, canView, drawingId, refreshChatGpt, stop]);
 
   useEffect(() => {
     if (isChatGpt) refreshChatGpt();
@@ -142,8 +159,13 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   }, [models, selectedModel]);
 
   useEffect(() => {
-    if (reasoningEfforts.length > 0 && !reasoningEfforts.includes(reasoningEffort)) {
-      setReasoningEffort(reasoningEfforts.includes("medium") ? "medium" : reasoningEfforts[0]);
+    if (
+      reasoningEfforts.length > 0 &&
+      !reasoningEfforts.includes(reasoningEffort)
+    ) {
+      setReasoningEffort(
+        reasoningEfforts.includes("medium") ? "medium" : reasoningEfforts[0],
+      );
     }
   }, [reasoningEffort, reasoningEfforts]);
 
@@ -174,7 +196,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     [handleSubmit],
   );
 
-  if (!canView || (!available && messages.length === 0 && !isLoading)) return null;
+  if (
+    !aiEnabled ||
+    !canView ||
+    (!available && messages.length === 0 && !isLoading)
+  )
+    return null;
 
   // With the ChatGPT (subscription) provider the panel stays visible even when
   // the user hasn't linked their account — it shows a Connect flow instead of
@@ -260,42 +287,44 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           </div>
 
           <form
-        onSubmit={handleSubmit}
-        className="shrink-0 border-t border-gray-200 dark:border-neutral-800 p-3"
-      >
-        <div className="flex items-end gap-2">
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={handleKeyDown}
-            rows={1}
-            placeholder={canEdit ? STR.placeholder : "Read-only shared conversation"}
-            aria-label={STR.placeholder}
-            disabled={!canEdit}
-            className="max-h-32 min-h-[2.5rem] flex-1 resize-none rounded-xl border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-indigo-500"
-          />
-          {isStreaming ? (
-            <button
-              type="button"
-              onClick={stop}
-              title={STR.stop}
-              aria-label={STR.stop}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-200 dark:bg-neutral-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-neutral-600 transition-colors"
-            >
-              <Loader2 size={18} className="animate-spin" />
-            </button>
-          ) : (
-            <button
-              type="submit"
-              disabled={!canEdit || draft.trim().length === 0}
-              title={STR.send}
-              aria-label={STR.send}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-default transition-colors"
-            >
-              <Send size={18} />
-            </button>
-          )}
-        </div>
+            onSubmit={handleSubmit}
+            className="shrink-0 border-t border-gray-200 dark:border-neutral-800 p-3"
+          >
+            <div className="flex items-end gap-2">
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={handleKeyDown}
+                rows={1}
+                placeholder={
+                  canEdit ? STR.placeholder : "Read-only shared conversation"
+                }
+                aria-label={STR.placeholder}
+                disabled={!canEdit}
+                className="max-h-32 min-h-[2.5rem] flex-1 resize-none rounded-xl border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-indigo-500"
+              />
+              {isStreaming ? (
+                <button
+                  type="button"
+                  onClick={stop}
+                  title={STR.stop}
+                  aria-label={STR.stop}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-200 dark:bg-neutral-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-neutral-600 transition-colors"
+                >
+                  <Loader2 size={18} className="animate-spin" />
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={!canEdit || draft.trim().length === 0}
+                  title={STR.send}
+                  aria-label={STR.send}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-default transition-colors"
+                >
+                  <Send size={18} />
+                </button>
+              )}
+            </div>
           </form>
         </>
       )}
