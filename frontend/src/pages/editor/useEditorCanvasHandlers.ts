@@ -221,7 +221,7 @@ export const useEditorCanvasHandlers = ({
   );
 
   useEffect(() => {
-    if (!drawingId || !isReady) return;
+    if (!canEdit || !drawingId || !isReady) return;
     const interval = window.setInterval(() => {
       if (isUnmountingRef.current) return;
       if (isSyncingRef.current) return;
@@ -246,6 +246,7 @@ export const useEditorCanvasHandlers = ({
     }, FILES_POLL_INTERVAL_MS);
     return () => window.clearInterval(interval);
   }, [
+    canEdit,
     debouncedSavePreview,
     debouncedSaveRef,
     drawingId,

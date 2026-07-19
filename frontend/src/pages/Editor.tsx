@@ -284,7 +284,7 @@ const ExcalidrawEditor: React.FC = () => {
   );
   const { handleCanvasChange, handleCanvasDropCapture } =
     useEditorCanvasHandlers({
-      canEdit,
+      canEdit: canEdit && !isHistoryOpen,
       debouncedSavePreview,
       drawingId: id,
       emitFilesDeltaIfNeeded,
@@ -347,6 +347,7 @@ const ExcalidrawEditor: React.FC = () => {
         editorContainerRef={editorContainerRef}
         initialData={initialData}
         isHeaderVisible={isHeaderVisible}
+        isHistoryOpen={isHistoryOpen}
         isRenaming={isRenaming}
         isSavingOnLeave={isSavingOnLeave}
         isSceneLoading={isSceneLoading}
