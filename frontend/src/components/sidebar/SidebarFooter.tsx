@@ -71,7 +71,7 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({
         <span className="min-w-0 flex-1 text-left">Trash</span>
       </button>
 
-      {authEnabled && (
+      {authEnabled !== null && (
         <button
           onClick={() => navigate("/profile")}
           className={footerButtonClass(selectedCollectionId === "PROFILE")}
@@ -81,7 +81,7 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({
         </button>
       )}
 
-      {authEnabled && isAdmin && (
+      {authEnabled !== null && (isAdmin || authEnabled === false) && (
         <button
           onClick={() => navigate("/admin")}
           className={footerButtonClass(selectedCollectionId === "ADMIN")}

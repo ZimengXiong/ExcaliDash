@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowRight,
@@ -35,6 +35,8 @@ interface DrawingCardContextMenuProps {
   onExport: (e: React.MouseEvent) => Promise<void>;
 }
 
+const SUBMENU_CLOSE_DELAY_MS = 300;
+
 export const DrawingCardContextMenu: React.FC<DrawingCardContextMenuProps> = ({
   drawing,
   collections,
@@ -54,8 +56,32 @@ export const DrawingCardContextMenu: React.FC<DrawingCardContextMenuProps> = ({
   onHide,
   onManageStorage,
   onExport,
-}) =>
-  createPortal(
+}) => {
+  const closeTimer = useRef<number | null>(null);
+
+  const openSubmenu = () => {
+    if (closeTimer.current !== null) {
+      window.clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+    onShowMoveSubmenu(true);
+  };
+
+  const scheduleSubmenuClose = () => {
+    if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => {
+      onShowMoveSubmenu(false);
+    }, SUBMENU_CLOSE_DELAY_MS);
+  };
+
+  useEffect(
+    () => () => {
+      if (closeTimer.current !== null) window.clearTimeout(closeTimer.current);
+    },
+    [],
+  );
+
+  return createPortal(
     <div
       className="fixed inset-0 z-50"
       onClick={onClose}
@@ -65,7 +91,7 @@ export const DrawingCardContextMenu: React.FC<DrawingCardContextMenuProps> = ({
       }}
     >
       <div
-        className="ui-popover absolute py-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-100"
+        className="ui-menu absolute w-48 animate-in fade-in zoom-in-95 duration-100"
         style={{ top: position.y, left: position.x }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -73,51 +99,60 @@ export const DrawingCardContextMenu: React.FC<DrawingCardContextMenuProps> = ({
         (!isShared ||
           drawing.accessLevel === "edit" ||
           drawing.accessLevel === "owner") ? (
-          <button
-            onClick={onRename}
-            className="w-full px-3 py-2 text-sm text-left text-slate-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white flex items-center gap-2"
-          >
+          <button onClick={onRename} className="ui-menu-item">
             <PenTool size={14} /> Rename
           </button>
         ) : null}
         {!isShared ? (
           <div
-            className="relative group/move"
-            onMouseEnter={() => onShowMoveSubmenu(true)}
-            onMouseLeave={() => onShowMoveSubmenu(false)}
+            className="relative"
+            onMouseEnter={openSubmenu}
+            onMouseLeave={scheduleSubmenuClose}
           >
-            <button className="w-full px-3 py-2 text-sm text-left text-slate-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white flex items-center justify-between">
+            <button className="ui-menu-item justify-between">
               <span className="flex items-center gap-2">
                 <FolderInput size={14} /> Move to...
               </span>
               <ArrowRight size={12} />
             </button>
             {showMoveSubmenu && (
-              <div className="ui-popover absolute left-full top-0 ml-1 w-40 py-1 max-h-64 overflow-y-auto">
-                <CollectionMoveOptions
-                  collections={collections}
-                  currentCollectionId={drawing.collectionId}
-                  drawingId={drawing.id}
-                  onMoveToCollection={onMoveToCollection}
-                  onDone={onClose}
-                  optionClassName="w-full px-3 py-1.5 text-xs text-left flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800 truncate"
-                  selectedClassName="text-neutral-900 dark:text-white font-medium"
-                  unselectedClassName="text-slate-600 dark:text-neutral-400"
-                  checkSize={10}
+              <>
+                {/* Safe-triangle bridge: invisible hover area connecting the
+                    row to its submenu so diagonal mouse moves don't close it. */}
+                <div
+                  className="absolute left-full top-0 z-40 h-full w-3"
+                  onMouseEnter={openSubmenu}
                 />
-              </div>
+                <div
+                  className="ui-menu absolute left-full -top-1 z-50 ml-1.5 max-h-64 w-48 overflow-y-auto"
+                  onMouseEnter={openSubmenu}
+                  onMouseLeave={scheduleSubmenuClose}
+                >
+                  <CollectionMoveOptions
+                    collections={collections}
+                    currentCollectionId={drawing.collectionId}
+                    drawingId={drawing.id}
+                    onMoveToCollection={onMoveToCollection}
+                    onDone={onClose}
+                    optionClassName="ui-menu-item justify-between"
+                    selectedClassName="ui-menu-item-selected"
+                    unselectedClassName=""
+                    checkSize={12}
+                  />
+                </div>
+              </>
             )}
           </div>
         ) : null}
         {!isShared ? (
           <>
-            <div className="border-t border-slate-50 dark:border-slate-800 my-1"></div>
+            <div className="ui-menu-separator" />
             <button
               onClick={() => {
                 onDuplicate(drawing.id);
                 onClose();
               }}
-              className="w-full px-3 py-2 text-sm text-left text-slate-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white flex items-center gap-2"
+              className="ui-menu-item"
             >
               <Copy size={14} /> Duplicate
             </button>
@@ -125,19 +160,16 @@ export const DrawingCardContextMenu: React.FC<DrawingCardContextMenuProps> = ({
         ) : null}
         {!isShared && storageAvailable ? (
           <>
-            <button
-              onClick={onManageStorage}
-              className="w-full px-3 py-2 text-sm text-left text-slate-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white flex items-center gap-2"
-            >
+            <button onClick={onManageStorage} className="ui-menu-item">
               <HardDrive size={14} /> Manage storage
             </button>
-            <div className="border-t border-slate-50 dark:border-slate-800 my-1"></div>
+            <div className="ui-menu-separator" />
           </>
         ) : null}
         <button
           onClick={onExport}
           disabled={isExporting}
-          className="w-full px-3 py-2 text-sm text-left text-slate-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="ui-menu-item disabled:opacity-50"
         >
           {isExporting ? (
             <Loader2 size={14} className="animate-spin" />
@@ -147,19 +179,19 @@ export const DrawingCardContextMenu: React.FC<DrawingCardContextMenuProps> = ({
           {isExporting ? "Exporting..." : "Export"}
         </button>
         {exportError && (
-          <div className="px-3 py-2 text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20">
+          <div className="mx-1 my-1 rounded-lg border-2 border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-600 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-400">
             {exportError}
           </div>
         )}
         {!isShared ? (
           <>
-            <div className="border-t border-slate-50 dark:border-slate-800 my-1"></div>
+            <div className="ui-menu-separator" />
             <button
               onClick={() => {
                 onDelete(drawing.id);
                 onClose();
               }}
-              className="w-full px-3 py-2 text-sm text-left text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30 flex items-center gap-2"
+              className="ui-menu-item ui-menu-item-danger"
             >
               <Trash2 size={14} /> Delete
             </button>
@@ -167,13 +199,13 @@ export const DrawingCardContextMenu: React.FC<DrawingCardContextMenuProps> = ({
         ) : null}
         {isShared && onHide ? (
           <>
-            <div className="border-t border-slate-50 dark:border-slate-800 my-1"></div>
+            <div className="ui-menu-separator" />
             <button
               onClick={() => {
                 onHide(drawing.id);
                 onClose();
               }}
-              className="w-full px-3 py-2 text-sm text-left text-slate-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-white flex items-center gap-2"
+              className="ui-menu-item"
             >
               <EyeOff size={14} /> Hide from my list
             </button>
@@ -183,3 +215,4 @@ export const DrawingCardContextMenu: React.FC<DrawingCardContextMenuProps> = ({
     </div>,
     document.body,
   );
+};

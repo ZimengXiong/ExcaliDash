@@ -5,25 +5,34 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Profile } from "./Profile";
 import * as api from "../api";
 
-const { mockLogout, mockAuthUser } = vi.hoisted(() => ({
+const { mockLogout, mockAuthUser, mockAuthEnabled } = vi.hoisted(() => ({
   mockLogout: vi.fn(),
   mockAuthUser: vi.fn(),
+  mockAuthEnabled: vi.fn(),
 }));
 
 vi.mock("../context/AuthContext", () => ({
   useAuth: () => ({
     user: mockAuthUser(),
     logout: mockLogout,
-    authEnabled: true,
+    authEnabled: mockAuthEnabled(),
+    updateUser: vi.fn(),
   }),
 }));
 
 vi.mock("../components/Layout", () => ({
-  Layout: ({ children }: { children: React.ReactNode }) => <main>{children}</main>,
+  Layout: ({ children }: { children: React.ReactNode }) => (
+    <main>{children}</main>
+  ),
 }));
 
 vi.mock("../api", () => ({
-  API_KEY_SCOPES: ["drawings:read", "drawings:write", "collections:read", "collections:write"],
+  API_KEY_SCOPES: [
+    "drawings:read",
+    "drawings:write",
+    "collections:read",
+    "collections:write",
+  ],
   api: {
     put: vi.fn(),
     post: vi.fn(),
@@ -52,7 +61,12 @@ const existingApiKey = {
 describe("Profile API keys", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockAuthUser.mockReturnValue({ id: "user-1", email: "user@example.com", name: "User One" });
+    mockAuthUser.mockReturnValue({
+      id: "user-1",
+      email: "user@example.com",
+      name: "User One",
+    });
+    mockAuthEnabled.mockReturnValue(true);
     vi.mocked(api.getCollections).mockResolvedValue([]);
     vi.mocked(api.listApiKeys).mockResolvedValue([existingApiKey]);
     vi.mocked(api.createApiKey).mockImplementation(async (name, scopes) => ({
@@ -61,7 +75,12 @@ describe("Profile API keys", () => {
         id: "key-2",
         name,
         prefix: "exd_key_new456",
-        scopes: scopes ?? ["drawings:read", "drawings:write", "collections:read", "collections:write"],
+        scopes: scopes ?? [
+          "drawings:read",
+          "drawings:write",
+          "collections:read",
+          "collections:write",
+        ],
       },
       token: "exd_key_new456.secret-token-value",
     }));
@@ -76,12 +95,14 @@ describe("Profile API keys", () => {
     render(
       <MemoryRouter>
         <Profile />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(await screen.findByText("Existing Key")).toBeInTheDocument();
     expect(screen.getByText("exd_key_abc123")).toBeInTheDocument();
-    expect(screen.getByText("drawings:read, drawings:write")).toBeInTheDocument();
+    expect(
+      screen.getByText("drawings:read, drawings:write"),
+    ).toBeInTheDocument();
     expect(screen.getAllByText("Never").length).toBeGreaterThan(0);
 
     fireEvent.change(screen.getByLabelText(/api key name/i), {
@@ -89,7 +110,9 @@ describe("Profile API keys", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /create api key/i }));
 
-    expect(await screen.findByDisplayValue("exd_key_new456.secret-token-value")).toBeInTheDocument();
+    expect(
+      await screen.findByDisplayValue("exd_key_new456.secret-token-value"),
+    ).toBeInTheDocument();
     expect(screen.getByText(/copy this token now/i)).toBeInTheDocument();
     expect(api.createApiKey).toHaveBeenCalledWith("CI Token", [
       "drawings:read",
@@ -98,21 +121,45 @@ describe("Profile API keys", () => {
       "collections:write",
     ]);
 
-    fireEvent.click(screen.getByRole("button", { name: /copy generated api token/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /copy generated api token/i }),
+    );
     await waitFor(() => {
-      expect(navigator.clipboard?.writeText).toHaveBeenCalledWith("exd_key_new456.secret-token-value");
+      expect(navigator.clipboard?.writeText).toHaveBeenCalledWith(
+        "exd_key_new456.secret-token-value",
+      );
     });
 
     fireEvent.click(screen.getByRole("button", { name: /done/i }));
-    expect(screen.queryByDisplayValue("exd_key_new456.secret-token-value")).not.toBeInTheDocument();
+    expect(
+      screen.queryByDisplayValue("exd_key_new456.secret-token-value"),
+    ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /revoke api key ci token/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /revoke api key ci token/i }),
+    );
     fireEvent.click(screen.getByRole("button", { name: /^revoke$/i }));
 
     await waitFor(() => {
       expect(api.revokeApiKey).toHaveBeenCalledWith("key-2");
     });
     expect(await screen.findByText("API key revoked")).toBeInTheDocument();
+  });
+
+  it("shows API key management without account-only controls in single-user mode", async () => {
+    mockAuthEnabled.mockReturnValue(false);
+    mockAuthUser.mockReturnValue(null);
+
+    render(
+      <MemoryRouter>
+        <Profile />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Existing Key")).toBeInTheDocument();
+    expect(screen.getByText("API Keys")).toBeInTheDocument();
+    expect(screen.queryByText("Personal Information")).not.toBeInTheDocument();
+    expect(screen.queryByText("Change Password")).not.toBeInTheDocument();
   });
 
   it("does not load or show API key management while password reset is required", async () => {
@@ -126,17 +173,24 @@ describe("Profile API keys", () => {
     render(
       <MemoryRouter>
         <Profile />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
-    expect(await screen.findByText(/api key management is unavailable until you reset your password/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        /api key management is unavailable until you reset your password/i,
+      ),
+    ).toBeInTheDocument();
     expect(api.listApiKeys).not.toHaveBeenCalled();
     expect(screen.queryByLabelText(/api key name/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /create api key/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /create api key/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("disables API key creation while keys are loading", async () => {
-    let resolveApiKeys: (keys: Array<typeof existingApiKey>) => void = () => undefined;
+    let resolveApiKeys: (keys: Array<typeof existingApiKey>) => void = () =>
+      undefined;
     vi.mocked(api.listApiKeys).mockReturnValue(
       new Promise((resolve) => {
         resolveApiKeys = resolve;
@@ -146,14 +200,16 @@ describe("Profile API keys", () => {
     render(
       <MemoryRouter>
         <Profile />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     fireEvent.change(screen.getByLabelText(/api key name/i), {
       target: { value: "CI Token" },
     });
 
-    const createButton = screen.getByRole("button", { name: /create api key/i });
+    const createButton = screen.getByRole("button", {
+      name: /create api key/i,
+    });
     expect(createButton).toBeDisabled();
     fireEvent.click(createButton);
     expect(api.createApiKey).not.toHaveBeenCalled();
@@ -166,7 +222,7 @@ describe("Profile API keys", () => {
     render(
       <MemoryRouter>
         <Profile />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     await screen.findByText("Existing Key");
@@ -179,8 +235,12 @@ describe("Profile API keys", () => {
     fireEvent.click(screen.getByLabelText(/write collections/i));
     fireEvent.click(screen.getByRole("button", { name: /create api key/i }));
 
-    expect(await screen.findByDisplayValue("exd_key_new456.secret-token-value")).toBeInTheDocument();
-    expect(api.createApiKey).toHaveBeenCalledWith("Read Token", ["drawings:read"]);
+    expect(
+      await screen.findByDisplayValue("exd_key_new456.secret-token-value"),
+    ).toBeInTheDocument();
+    expect(api.createApiKey).toHaveBeenCalledWith("Read Token", [
+      "drawings:read",
+    ]);
     expect(screen.getAllByText("drawings:read").length).toBeGreaterThan(0);
   });
 
@@ -188,7 +248,7 @@ describe("Profile API keys", () => {
     render(
       <MemoryRouter>
         <Profile />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     await screen.findByText("Existing Key");
@@ -201,8 +261,12 @@ describe("Profile API keys", () => {
     fireEvent.click(screen.getByLabelText(/read collections/i));
     fireEvent.click(screen.getByLabelText(/write collections/i));
 
-    expect(screen.getByText(/select at least one api key scope/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /create api key/i })).toBeDisabled();
+    expect(
+      screen.getByText(/select at least one api key scope/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /create api key/i }),
+    ).toBeDisabled();
     expect(api.createApiKey).not.toHaveBeenCalled();
   });
 
@@ -222,7 +286,7 @@ describe("Profile API keys", () => {
     render(
       <MemoryRouter>
         <Profile />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     await screen.findByText("Existing Key");
@@ -232,14 +296,20 @@ describe("Profile API keys", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /create api key/i }));
 
-    expect(await screen.findByDisplayValue("exd_key_first.secret-token-value")).toBeInTheDocument();
+    expect(
+      await screen.findByDisplayValue("exd_key_first.secret-token-value"),
+    ).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/api key name/i), {
       target: { value: "Second Token" },
     });
     fireEvent.click(screen.getByRole("button", { name: /create api key/i }));
 
-    expect(await screen.findByText(/failed to create api key/i)).toBeInTheDocument();
-    expect(screen.getByDisplayValue("exd_key_first.secret-token-value")).toBeInTheDocument();
+    expect(
+      await screen.findByText(/failed to create api key/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByDisplayValue("exd_key_first.secret-token-value"),
+    ).toBeInTheDocument();
   });
 });

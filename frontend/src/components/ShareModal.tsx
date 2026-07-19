@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Check,
   RefreshCw,
+  Share2,
 } from "lucide-react";
 import * as api from "../api";
 import { useAuth } from "../context/AuthContext";
@@ -284,18 +285,21 @@ export const ShareModal: React.FC<Props> = ({
         onClick={onClose}
       />
 
-      <div className="ui-dialog relative w-full max-w-[520px] max-h-[calc(100vh-2rem)] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200 font-sans">
+      <div className="relative flex max-h-[calc(100vh-2rem)] w-full max-w-[520px] flex-col overflow-hidden rounded-2xl border-2 border-black bg-white font-sans shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] animate-in fade-in zoom-in-95 duration-200 dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-[8px_8px_0px_0px_rgba(255,255,255,0.15)]">
         {/* Header */}
-        <div className="px-6 py-5 flex items-center justify-between border-b border-slate-200 dark:border-neutral-800">
+        <div className="flex items-center gap-3 border-b-2 border-slate-100 px-5 py-4 dark:border-neutral-800">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-300">
+            <Share2 size={20} />
+          </div>
           <h2
-            className="text-xl font-semibold tracking-tight text-slate-900 dark:text-neutral-100 truncate pr-4"
+            className="min-w-0 flex-1 truncate text-lg font-bold text-slate-900 dark:text-white"
             title={drawingName}
           >
             Share "{drawingName}"
           </h2>
           <button
             onClick={onClose}
-            className="p-2 -mr-2 rounded-lg text-neutral-400 hover:text-neutral-950 hover:bg-slate-100 dark:hover:text-white dark:hover:bg-neutral-800 transition-colors"
+            className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-neutral-800 dark:hover:text-white"
             aria-label="Close share dialog"
           >
             <X size={18} />
@@ -303,9 +307,9 @@ export const ShareModal: React.FC<Props> = ({
         </div>
 
         {/* Content */}
-        <div className="flex-1 px-6 py-5 space-y-6 overflow-y-auto">
+        <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5">
           {error && (
-            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-xs font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-3">
+            <div className="flex items-center gap-2.5 rounded-xl border-2 border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-600 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-400">
               <AlertTriangle size={16} strokeWidth={2} />
               {error}
             </div>
@@ -340,17 +344,16 @@ export const ShareModal: React.FC<Props> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 flex items-center justify-between border-t border-slate-200 dark:border-neutral-800 bg-slate-50/80 dark:bg-neutral-800/40">
+        <div className="flex items-center justify-between border-t-2 border-slate-100 px-5 py-4 dark:border-neutral-800">
           <button
             onClick={() => handleCopy(currentLinkUrl)}
             disabled={!activeLink}
             className={clsx(
-              "flex items-center gap-2 px-4 py-2.5 rounded-lg border font-semibold text-sm transition-colors",
+              "flex items-center gap-2 rounded-xl border-2 px-4 py-2 text-sm font-bold transition-all",
               isCopied
-                ? "bg-emerald-600 text-white border-emerald-600"
-                : "bg-white dark:bg-neutral-900 border-slate-300 dark:border-neutral-600 text-slate-700 dark:text-neutral-200 hover:bg-slate-100 dark:hover:bg-neutral-800",
-              !activeLink &&
-                "opacity-40 grayscale cursor-not-allowed shadow-none",
+                ? "border-black bg-emerald-500 text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:border-neutral-600"
+                : "border-black bg-white text-slate-900 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)]",
+              !activeLink && "cursor-not-allowed opacity-40 shadow-none",
             )}
           >
             {isCopied ? (
@@ -363,7 +366,7 @@ export const ShareModal: React.FC<Props> = ({
 
           <button
             onClick={onClose}
-            className="px-6 py-2.5 rounded-lg bg-indigo-600 dark:bg-indigo-500 text-white font-semibold text-sm hover:bg-indigo-700 dark:hover:bg-indigo-400 transition-colors shadow-sm"
+            className="rounded-xl border-2 border-black bg-indigo-600 px-5 py-2 text-sm font-bold text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all hover:-translate-y-0.5 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:border-neutral-600 dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)]"
           >
             Done
           </button>

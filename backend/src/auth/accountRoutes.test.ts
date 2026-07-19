@@ -3,7 +3,10 @@ import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { registerAccountRoutes } from "./accountRoutes";
 
-const buildApp = (options?: { impersonatorId?: string }) => {
+const buildApp = (options?: {
+  impersonatorId?: string;
+  authEnabled?: boolean;
+}) => {
   const router = express.Router();
   router.use(express.json());
 
@@ -42,9 +45,11 @@ const buildApp = (options?: { impersonatorId?: string }) => {
       };
       next();
     }) as any,
-    loginAttemptRateLimiter: ((_req: any, _res: any, next: any) => next()) as any,
-    accountActionRateLimiter: ((_req: any, _res: any, next: any) => next()) as any,
-    ensureAuthEnabled: vi.fn().mockResolvedValue(true),
+    loginAttemptRateLimiter: ((_req: any, _res: any, next: any) =>
+      next()) as any,
+    accountActionRateLimiter: ((_req: any, _res: any, next: any) =>
+      next()) as any,
+    ensureAuthEnabled: vi.fn().mockResolvedValue(options?.authEnabled ?? true),
     sanitizeText: (input: unknown) => String(input ?? "").trim(),
     config: {
       enablePasswordReset: true,
@@ -53,7 +58,9 @@ const buildApp = (options?: { impersonatorId?: string }) => {
       nodeEnv: "test",
       frontendUrl: "http://localhost:6767",
     },
-    generateTokens: vi.fn().mockReturnValue({ accessToken: "access", refreshToken: "refresh" }),
+    generateTokens: vi
+      .fn()
+      .mockReturnValue({ accessToken: "access", refreshToken: "refresh" }),
     getRefreshTokenExpiresAt: vi.fn().mockReturnValue(new Date()),
     setAuthCookies: vi.fn(),
     requireCsrf: vi.fn().mockReturnValue(true),
@@ -67,6 +74,19 @@ const buildApp = (options?: { impersonatorId?: string }) => {
 describe("accountRoutes local-password safeguards", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("lists API keys for the acting owner when authentication is disabled", async () => {
+    const { app, prisma } = buildApp({ authEnabled: false });
+    prisma.apiKey.findMany.mockResolvedValue([]);
+
+    const response = await request(app).get("/api-keys");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ apiKeys: [] });
+    expect(prisma.apiKey.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: "user-1" } }),
+    );
   });
 
   it("does not issue password reset tokens for OIDC-only accounts", async () => {
@@ -157,19 +177,26 @@ describe("accountRoutes local-password safeguards", () => {
       updatedAt: new Date("2026-05-01T12:00:00.000Z"),
     }));
 
-    const response = await request(app).post("/api-keys").send({
-      name: "Scoped Key",
-      scopes: [" drawings:read ", "drawings:read", "collections:write"],
-    });
+    const response = await request(app)
+      .post("/api-keys")
+      .send({
+        name: "Scoped Key",
+        scopes: [" drawings:read ", "drawings:read", "collections:write"],
+      });
 
     expect(response.status).toBe(201);
-    expect(prisma.apiKey.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        name: "Scoped Key",
-        scopes: "drawings:read,collections:write",
+    expect(prisma.apiKey.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          name: "Scoped Key",
+          scopes: "drawings:read,collections:write",
+        }),
       }),
-    }));
-    expect(response.body.apiKey.scopes).toEqual(["drawings:read", "collections:write"]);
+    );
+    expect(response.body.apiKey.scopes).toEqual([
+      "drawings:read",
+      "collections:write",
+    ]);
     expect(response.body.token).toMatch(/^exd_/);
   });
 
@@ -186,14 +213,19 @@ describe("accountRoutes local-password safeguards", () => {
       updatedAt: new Date("2026-05-01T12:00:00.000Z"),
     }));
 
-    const response = await request(app).post("/api-keys").send({ name: "Default Key" });
+    const response = await request(app)
+      .post("/api-keys")
+      .send({ name: "Default Key" });
 
     expect(response.status).toBe(201);
-    expect(prisma.apiKey.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        scopes: "drawings:read,drawings:write,collections:read,collections:write",
+    expect(prisma.apiKey.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          scopes:
+            "drawings:read,drawings:write,collections:read,collections:write",
+        }),
       }),
-    }));
+    );
   });
 
   it("rejects API key creation with no scopes", async () => {
@@ -212,10 +244,12 @@ describe("accountRoutes local-password safeguards", () => {
   it("rejects API key creation with invalid scopes", async () => {
     const { app, prisma } = buildApp();
 
-    const response = await request(app).post("/api-keys").send({
-      name: "Bad Scope",
-      scopes: ["drawings:read", "admin:write"],
-    });
+    const response = await request(app)
+      .post("/api-keys")
+      .send({
+        name: "Bad Scope",
+        scopes: ["drawings:read", "admin:write"],
+      });
 
     expect(response.status).toBe(400);
     expect(response.body?.message).toContain("valid API key scope");
