@@ -237,8 +237,7 @@ export const DashboardToolbar: React.FC<DashboardToolbarProps> = ({
         </div>
         <input
           type="file"
-          multiple
-          accept=".json,.excalidraw"
+          accept=".excalidash"
           className="hidden"
           id="dashboard-import"
           onChange={(event) => {
@@ -265,7 +264,7 @@ export const DashboardToolbar: React.FC<DashboardToolbarProps> = ({
               : "bg-emerald-600 dark:bg-neutral-800 text-white hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-1 active:translate-y-0 active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:active:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)]",
           )}
         >
-          <Upload size={18} strokeWidth={2.5} /> Import
+          <Upload size={18} strokeWidth={2.5} /> Import .excalidash
         </button>
         <NewDrawingControl
           disabled={isTrashView || isSharedView}

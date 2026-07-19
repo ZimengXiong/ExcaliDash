@@ -39,7 +39,6 @@ export type DashboardRouteDeps = {
   ) => express.RequestHandler;
   parseJsonField: <T>(rawValue: string | null | undefined, fallback: T) => T;
   sanitizeText: (input: unknown, maxLength?: number) => string;
-  validateImportedDrawing: (data: unknown) => boolean;
   drawingCreateSchema: z.ZodTypeAny;
   drawingUpdateSchema: z.ZodTypeAny;
   respondWithValidationErrors: (res: express.Response, issues: z.ZodIssue[]) => void;
