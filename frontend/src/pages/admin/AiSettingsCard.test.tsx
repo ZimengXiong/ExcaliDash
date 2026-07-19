@@ -78,6 +78,34 @@ describe("AiSettingsCard", () => {
     });
   });
 
+  it("sets the provider type per provider from the editor", () => {
+    const onUpdateProvider = vi.fn();
+    render(
+      <AiSettingsCard
+        enabled
+        loading={false}
+        saving={false}
+        providers={[profile]}
+        providerDefinitions={definitions}
+        defaultProviderId="draft"
+        status={null}
+        onDefaultProviderChange={vi.fn()}
+        onAddProvider={vi.fn()}
+        onUpdateProvider={onUpdateProvider}
+        onRemoveProvider={vi.fn()}
+        onSave={vi.fn()}
+        onEnabledChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit details" }));
+    fireEvent.click(screen.getByRole("button", { name: "Provider type" }));
+    fireEvent.click(screen.getByRole("option", { name: "OpenCode Go" }));
+    expect(onUpdateProvider).toHaveBeenCalledWith("draft", {
+      provider: "opencode_go",
+    });
+  });
+
   it("keeps the global switch available while provider controls are disabled", () => {
     const onEnabledChange = vi.fn();
     render(

@@ -27,7 +27,8 @@ const opSchema = {
     {
       type: "object",
       title: "add_shape",
-      description: "Create a rectangle, ellipse, diamond, text, or frame.",
+      description:
+        "Create a rectangle, ellipse, diamond, text, or frame. A labeled shape automatically grows vertically if wrapped text does not fit its requested height.",
       properties: {
         op: { const: "add_shape" },
         ref: {
@@ -44,7 +45,11 @@ const opSchema = {
           description:
             "Width. Use at least 120 for labeled shapes; for standalone text this is the wrap width.",
         },
-        h: { type: "number", description: "Height; use at least 60 for labeled shapes." },
+        h: {
+          type: "number",
+          description:
+            "Preferred minimum height; use at least 60 for labeled shapes. The harness may grow it to fit the label.",
+        },
         label: {
           type: "string",
           description:
@@ -116,7 +121,7 @@ const opSchema = {
       type: "object",
       title: "resize",
       description:
-        "Resize around the element center. Bound text is rewrapped and connected arrows are rerouted.",
+        "Resize around the element center. Bound text is rewrapped, height is clamped large enough to contain it, and connected arrows are rerouted.",
       properties: {
         op: { const: "resize" },
         id: { type: "string", description: 'Element id or earlier "$ref".' },
@@ -219,8 +224,9 @@ export const APPLY_OPS_TOOL: AgentTool = {
     "Apply a batch of semantic drawing operations to the current Excalidraw canvas. " +
     "Use add_shape.ref plus $ref targets to create and connect a whole diagram in one call. " +
     "Prefer layout/align/distribute over manual coordinate arithmetic. Keep labeled shapes " +
-    "at least 120×60 with 60-100px gaps, use restrained consistent colors, and inspect " +
-    "the returned scene warnings. The batch is atomic: any invalid op rejects all changes.",
+    "at least 120×60 with 60-100px gaps; labeled shapes auto-grow vertically to fit " +
+    "wrapped text. Use restrained consistent colors and inspect returned overlap or " +
+    "label-overflow warnings. The batch is atomic: any invalid op rejects all changes.",
   inputSchema: {
     type: "object",
     properties: {

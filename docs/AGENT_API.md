@@ -150,12 +150,12 @@ already pruned (see `SNAPSHOT_RETENTION_DAYS` in the
 Batch envelope: `{ "ops": Op[]  (1..50), "clientBatchId"?: string }`.
 | Op | Params | Behavior |
 | --- | --- | --- |
-| `add_shape` | `ref?`, `shape` (`rectangle`\|`ellipse`\|`diamond`\|`text`\|`frame`), `x`, `y`, `w?`, `h?`, `label?`, `style?` | Creates a shape. `ref` names it for later `$ref` use in the same batch. Labels are bound and wrapped to the container. Returns `createdIds`. |
+| `add_shape` | `ref?`, `shape` (`rectangle`\|`ellipse`\|`diamond`\|`text`\|`frame`), `x`, `y`, `w?`, `h?`, `label?`, `style?` | Creates a shape. `ref` names it for later `$ref` use in the same batch. Labels are bound and wrapped, and the container grows vertically when needed. Returns `createdIds`. |
 | `connect` | `fromId`, `toId`, `label?`, `style?`, `arrowType?` (`arrow`\|`line`) | Creates an arrow/line with `startBinding`/`endBinding` and updates both endpoints' `boundElements`. `ELEMENT_NOT_FOUND` per missing endpoint. |
 | `set_text` | `id`, `text` | Sets text or a bound label; for frames, sets the native frame title (`name`). Text is sanitized. |
 | `set_style` | `id`, `style` | Whitelist patch. Allowed keys: `strokeColor`, `backgroundColor`, `fillStyle`, `strokeWidth`, `strokeStyle`, `opacity`, `roughness`, `fontSize`, `fontFamily`, `textAlign`, `roundness`. Unknown key → `INVALID_STYLE_KEY`. |
 | `move` | `id`, and **either** `dx,dy` **or** `x,y` (never both) | Moves the element with its bound label and reroutes attached arrows edge-to-edge. |
-| `resize` | `id`, `w`, `h` | Resizes around the center, rewraps bound text, and reroutes connectors. |
+| `resize` | `id`, `w`, `h` | Resizes around the center, rewraps bound text, clamps height large enough for the label, and reroutes connectors. |
 | `align` | `ids[]`, `alignment` (`left`\|`center`\|`right`\|`top`\|`middle`\|`bottom`) | Aligns two or more logical elements with their bound labels. |
 | `distribute` | `ids[]`, `direction` (`horizontal`\|`vertical`), `gap?` | Distributes in current spatial order; explicit `gap` gives deterministic whitespace. |
 | `layout` | `ids[]`, `direction` (`horizontal`\|`vertical`\|`grid`), `gap?`, `columns?`, `x?`, `y?` | Lays out ids in their supplied semantic order, then reroutes connectors. |
@@ -170,7 +170,7 @@ Notes:
   `add_shape.ref` created earlier in the same batch.
 - Text is always run through the server sanitizer; you cannot inject markup.
 - Structural summaries include scene/type bounds, viewport state when available,
-  groups, connections/bindings, and bounded overlap warnings.
+  groups, connections/bindings, and bounded overlap/label-overflow warnings.
 ---
 ## Error-code catalog
 ### Op-validation errors — `422 Unprocessable Entity`

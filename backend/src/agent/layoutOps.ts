@@ -1,9 +1,9 @@
 import type { Op, OpError } from "./opSchemas";
 import {
   centerOf,
+  fitBoundTextToContainer,
   genId,
   type ExcalidrawElement,
-  updateTextMetrics,
 } from "./elementFactory";
 
 export type LayoutScene = {
@@ -42,15 +42,12 @@ const resize = (scene: LayoutScene, op: Extract<Op, { op: "resize" }>) => {
   el.height = op.h;
   el.x = center.cx - op.w / 2;
   el.y = center.cy - op.h / 2;
-  scene.markChanged(el);
   const label = scene.boundLabelOf(el);
   if (label) {
-    updateTextMetrics(label, {
-      maxWidth: Math.max(20, op.w - 20),
-      center: { x: center.cx, y: center.cy },
-    });
+    fitBoundTextToContainer(el, label);
     scene.markChanged(label);
   }
+  scene.markChanged(el);
   return {};
 };
 

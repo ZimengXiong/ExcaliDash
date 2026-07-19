@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Socket } from "socket.io-client";
 import type { AgentCanvasCapture } from "./captureAgentCanvas";
 import {
+  clearAgentChatMessages,
   getAgentChatMessages,
   revertOpsBatch,
   streamAgentChat,
@@ -359,10 +360,22 @@ export const useAgentChat = ({
     [drawingId, onSelfOpsBatch, setBatchStatus],
   );
 
-  const clear = useCallback(() => {
-    if (streamingRef.current) return;
+  const clear = useCallback(async () => {
+    if (!drawingId || streamingRef.current) return;
+    await clearAgentChatMessages(drawingId);
     commit(() => []);
-  }, [commit]);
+  }, [commit, drawingId]);
+
+  useEffect(() => {
+    if (!socket || !drawingId) return;
+    const onCleared = (payload: any) => {
+      if (payload?.drawingId === drawingId) commit(() => []);
+    };
+    socket.on("ai-chat-cleared", onCleared);
+    return () => {
+      socket.off("ai-chat-cleared", onCleared);
+    };
+  }, [commit, drawingId, socket]);
 
   return useMemo(
     () => ({ messages, isStreaming, isLoading, sendMessage, stop, undoBatch, clear }),

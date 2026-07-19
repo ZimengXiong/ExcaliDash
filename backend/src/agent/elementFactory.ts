@@ -47,12 +47,32 @@ export const wrapText = (
     }
     let line = "";
     for (const word of words) {
-      const candidate = line ? `${line} ${word}` : word;
-      if (line && estimateTextWidth(candidate, fontSize) > maxWidth) {
-        output.push(line);
-        line = word;
-      } else {
-        line = candidate;
+      const chunks: string[] = [];
+      let chunk = "";
+      for (const char of [...word]) {
+        const candidate = `${chunk}${char}`;
+        if (chunk && estimateTextWidth(candidate, fontSize) > maxWidth) {
+          chunks.push(chunk);
+          chunk = char;
+        } else {
+          chunk = candidate;
+        }
+      }
+      if (chunk || chunks.length === 0) chunks.push(chunk);
+
+      for (const [index, wordChunk] of chunks.entries()) {
+        const candidate = line ? `${line} ${wordChunk}` : wordChunk;
+        const chunkContinuesWord = index < chunks.length - 1;
+        if (line && estimateTextWidth(candidate, fontSize) > maxWidth) {
+          output.push(line);
+          line = wordChunk;
+        } else {
+          line = candidate;
+        }
+        if (chunkContinuesWord) {
+          output.push(line);
+          line = "";
+        }
       }
     }
     output.push(line);
@@ -82,6 +102,65 @@ export const updateTextMetrics = (
     el.x = options.center.x - el.width / 2;
     el.y = options.center.y - el.height / 2;
   }
+};
+
+export const BOUND_TEXT_PADDING = 10;
+
+/**
+ * Rewrap and center a bound label, growing the container vertically when the
+ * requested height cannot hold the resulting lines. Width remains the caller's
+ * layout constraint; long unbroken tokens are split by wrapText().
+ */
+export const fitBoundTextToContainer = (
+  container: ExcalidrawElement,
+  label: ExcalidrawElement,
+  options: { preserveCenter?: boolean } = {},
+): boolean => {
+  const before = [
+    container.x,
+    container.y,
+    container.width,
+    container.height,
+    label.x,
+    label.y,
+    label.width,
+    label.height,
+    label.text,
+  ];
+  const center = centerOf(container);
+  const maxWidth = Math.max(
+    20,
+    (Number(container.width) || 120) - BOUND_TEXT_PADDING * 2,
+  );
+
+  updateTextMetrics(label, { maxWidth });
+  const minimumHeight = Math.ceil(label.height + BOUND_TEXT_PADDING * 2);
+  if ((Number(container.height) || 0) < minimumHeight) {
+    container.height = minimumHeight;
+    if (options.preserveCenter !== false) {
+      container.y = center.cy - minimumHeight / 2;
+    }
+  }
+
+  const fittedCenter = centerOf(container);
+  label.x = fittedCenter.cx - label.width / 2;
+  label.y = fittedCenter.cy - label.height / 2;
+
+  return before.some(
+    (value, index) =>
+      value !==
+      [
+        container.x,
+        container.y,
+        container.width,
+        container.height,
+        label.x,
+        label.y,
+        label.width,
+        label.height,
+        label.text,
+      ][index],
+  );
 };
 
 const baseElement = (

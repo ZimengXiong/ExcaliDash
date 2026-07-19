@@ -4,6 +4,7 @@ import * as aiApi from "../../api/ai";
 import { useAgentChat } from "./useAgentChat";
 
 vi.mock("../../api/ai", () => ({
+  clearAgentChatMessages: vi.fn(),
   getAgentChatMessages: vi.fn(),
   streamAgentChat: vi.fn(),
   revertOpsBatch: vi.fn(),
@@ -12,6 +13,7 @@ vi.mock("../../api/ai", () => ({
 const streamMock = vi.mocked(aiApi.streamAgentChat);
 const revertMock = vi.mocked(aiApi.revertOpsBatch);
 const historyMock = vi.mocked(aiApi.getAgentChatMessages);
+const clearMock = vi.mocked(aiApi.clearAgentChatMessages);
 
 describe("useAgentChat", () => {
   beforeEach(() => {
@@ -61,6 +63,32 @@ describe("useAgentChat", () => {
       id: "persisted-assistant",
       text: "Earlier answer",
     });
+  });
+
+  it("clears the persisted transcript", async () => {
+    historyMock.mockResolvedValue([
+      {
+        id: "persisted-user",
+        drawingId: "d1",
+        turnId: "turn-1",
+        role: "user",
+        text: "Earlier question",
+        status: "complete",
+        tools: [],
+        batches: [],
+        opErrors: [],
+        createdAt: "2026-07-12T10:00:00.000Z",
+        updatedAt: "2026-07-12T10:00:00.000Z",
+      },
+    ]);
+    clearMock.mockResolvedValue();
+    const { result } = renderHook(() => useAgentChat({ drawingId: "d1" }));
+    await waitFor(() => expect(result.current.messages).toHaveLength(1));
+
+    await act(async () => result.current.clear());
+
+    expect(clearMock).toHaveBeenCalledWith("d1");
+    expect(result.current.messages).toEqual([]);
   });
 
   it("applies shared message and delta events from the drawing socket", async () => {
@@ -288,6 +316,32 @@ describe("useAgentChat", () => {
       text: "recovered",
       streaming: false,
     });
+  });
+
+  it("aborts an in-progress generation when stopped", async () => {
+    let receivedSignal: AbortSignal | undefined;
+    streamMock.mockImplementation(
+      async (params) =>
+        new Promise<void>((resolve) => {
+          receivedSignal = params.signal;
+          params.signal?.addEventListener("abort", () => resolve(), {
+            once: true,
+          });
+        }),
+    );
+    const { result } = renderHook(() => useAgentChat({ drawingId: "d1" }));
+
+    let pending!: Promise<void>;
+    act(() => {
+      pending = result.current.sendMessage("draw for a long time");
+    });
+    await waitFor(() => expect(result.current.isStreaming).toBe(true));
+    act(() => result.current.stop());
+    await act(async () => pending);
+
+    expect(receivedSignal?.aborted).toBe(true);
+    expect(result.current.isStreaming).toBe(false);
+    expect(result.current.messages.at(-1)?.streaming).toBe(false);
   });
 
   it("undoes a batch via revertOpsBatch and marks it reverted", async () => {

@@ -102,6 +102,18 @@ export const executePersistentChatTurn = async (params: {
   const { req, res, deps, drawing, settings, adapter } = params;
   const drawingId = drawing.id;
   const room = `drawing_${drawingId}`;
+  const generationController = new AbortController();
+  const handleDisconnect = () => {
+    if (!res.writableEnded) generationController.abort();
+  };
+  res.once("close", handleDisconnect);
+  const throwIfStopped = () => {
+    if (generationController.signal.aborted) {
+      const error = new Error("Generation stopped");
+      error.name = "AbortError";
+      throw error;
+    }
+  };
   const history = await loadConversationHistory({
     prisma: deps.prisma,
     drawingId,
@@ -208,6 +220,7 @@ export const executePersistentChatTurn = async (params: {
     const recentToolBatchSignatures: string[] = [];
     const canvasMutationRequested = requestsCanvasMutation(params.userText);
     for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration += 1) {
+      throwIfStopped();
       const requireCanvasAction =
         canvasMutationRequested &&
         batches.length === 0 &&
@@ -220,6 +233,7 @@ export const executePersistentChatTurn = async (params: {
           ? AGENT_TOOLS.filter((tool) => tool.name === "apply_ops")
           : AGENT_TOOLS,
         codexAuth: params.codexAuth,
+        signal: generationController.signal,
         reasoningEffort: params.reasoningEffort,
         toolChoice: requireCanvasAction ? "required" : "auto",
         onTextDelta: (text) => {
@@ -233,6 +247,7 @@ export const executePersistentChatTurn = async (params: {
           checkpoint();
         },
       });
+      throwIfStopped();
       if (completion.text && !completion.streamedText) {
         assistantText += completion.text;
         send("token", { text: completion.text });
@@ -341,6 +356,7 @@ export const executePersistentChatTurn = async (params: {
 
       const toolResults: ToolResult[] = [];
       for (const call of completion.toolCalls) {
+        throwIfStopped();
         const activity: ToolActivity = { id: call.id, name: call.name, status: "running" };
         tools.push(activity);
         send("tool_call", { name: call.name, id: call.id });
@@ -431,7 +447,10 @@ export const executePersistentChatTurn = async (params: {
       send("error", { code: "TOOL_LIMIT_REACHED", message: errorMessage });
     }
   } catch (error) {
-    if (settings.provider === "chatgpt" && error instanceof AiProviderError && error.status === 401) {
+    if (generationController.signal.aborted) {
+      status = "interrupted";
+      errorMessage = "Generation stopped.";
+    } else if (settings.provider === "chatgpt" && error instanceof AiProviderError && error.status === 401) {
       await flagReconnect(deps.prisma, req.user!.id);
       errorMessage = "Your ChatGPT connection expired — reconnect to continue";
       send("error", { code: "CHATGPT_RECONNECT", message: errorMessage });
@@ -457,5 +476,6 @@ export const executePersistentChatTurn = async (params: {
   });
   emitMessage(finalMessage);
   if (status === "complete") send("done", {});
+  res.off("close", handleDisconnect);
   res.end();
 };
