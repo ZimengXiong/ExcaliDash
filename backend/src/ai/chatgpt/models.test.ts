@@ -1,9 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  clearChatGptModelCacheForTests,
+  fetchChatGptModels,
   mergeChatGptModels,
   reasoningEffortsForChatGptModel,
   type ChatGptModel,
 } from "./models";
+
+afterEach(() => {
+  clearChatGptModelCacheForTests();
+  vi.restoreAllMocks();
+});
 
 describe("ChatGPT model catalog", () => {
   it("exposes every supported GPT-5.6 reasoning effort", () => {
@@ -62,5 +69,23 @@ describe("ChatGPT model catalog", () => {
       ...live[0],
       reasoningEfforts: configured[0].reasoningEfforts,
     });
+  });
+
+  it("caches the per-account live catalog", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({
+        models: [{
+          slug: "gpt-5.6-sol",
+          display_name: "GPT-5.6 Sol",
+          supported_in_api: true,
+          visibility: "list",
+          supported_reasoning_levels: [{ effort: "high" }],
+        }],
+      }), { status: 200 }),
+    );
+    const auth = { accessToken: "token", accountId: "account" };
+    await fetchChatGptModels(auth);
+    await fetchChatGptModels(auth);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

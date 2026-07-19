@@ -326,17 +326,17 @@ subscription models use the reasoning levels reported by the user's live model
 catalog.
 
 The original `AI_PROVIDER`, `AI_API_KEY`, `AI_BASE_URL`, and `AI_MODEL` settings
-remain a backward-compatible bootstrap profile named `legacy`. Saving the new
-registry migrates that profile while preserving its encrypted database key.
+remain a backward-compatible `legacy` profile; saving the registry preserves
+its encrypted database key. Provider tests, discovery caching/fallback, source
+research, and OpenCode Go are covered in [AI Provider Setup and
+Discovery](AI_PROVIDERS.md).
 
 ## ChatGPT (subscription) provider
 
-Alongside the API-key providers (`anthropic`, `openai`, `custom`), the canvas
-assistant supports a per-user **ChatGPT (subscription)** provider
-(`AI_PROVIDER=chatgpt`). Instead of a shared server API key, **each user connects
-their own ChatGPT Plus/Pro account** and requests are billed to that user's
-subscription. Tokens are stored per user, encrypted at rest (same AES-256-GCM
-helper that protects API keys), refreshed transparently, and **never sent to the
+Alongside the API-key providers, the canvas assistant supports a per-user
+**ChatGPT subscription** provider (`AI_PROVIDER=chatgpt`). Each user connects
+their own ChatGPT Plus/Pro account. Tokens are stored per user and encrypted at
+rest (same AES-256-GCM helper that protects API keys), refreshed transparently, and **never sent to the
 browser**.
 
 ### Unofficial channel

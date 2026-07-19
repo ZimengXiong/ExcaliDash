@@ -56,6 +56,47 @@ describe("ai/settings resolveAiSettings", () => {
     expect(settings.available).toBe(false);
   });
 
+  it("applies first-class OpenCode Go defaults without leaking its key", () => {
+    const aiProviderProfiles = encodeStoredAiProfiles([{
+      id: "go",
+      label: "OpenCode Go",
+      provider: "opencode_go",
+      enabled: true,
+      baseUrl: null,
+      models: [],
+      apiKey: "oc-secret",
+    }]);
+    const settings = resolveAiSettings({ aiProviderProfiles }, "go");
+    expect(settings).toMatchObject({
+      provider: "opencode_go",
+      baseUrl: "https://opencode.ai/zen/go/v1",
+      model: "kimi-k3",
+      available: true,
+    });
+    expect(JSON.stringify(toAiStatus(settings))).not.toContain("oc-secret");
+  });
+
+  it("keeps disabled provider profiles unavailable", () => {
+    const profiles = encodeStoredAiProfiles([{
+      id: "off",
+      label: "Off",
+      provider: "openai",
+      enabled: false,
+      baseUrl: null,
+      models: [{ id: "gpt-5.4", label: "GPT-5.4", reasoningEfforts: [] }],
+      apiKey: "sk-disabled",
+    }]);
+    const registry = resolveAiRegistry({
+      aiProviderProfiles: profiles,
+      aiDefaultProviderId: "off",
+    });
+    expect(registry.providers[0]).toMatchObject({
+      enabled: false,
+      available: false,
+    });
+    expect(toAiStatus(registry).available).toBe(false);
+  });
+
   it("ignores a legacy API key when only the built-in ChatGPT provider is enabled", () => {
     const settings = resolveAiSettings({
       aiProvider: "disabled",

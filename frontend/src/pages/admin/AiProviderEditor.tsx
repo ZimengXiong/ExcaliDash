@@ -13,6 +13,7 @@ const PROVIDERS: Array<{ value: ConfigurableAiProvider; label: string }> = [
   { value: "anthropic", label: "Anthropic" },
   { value: "openai", label: "OpenAI" },
   { value: "gemini", label: "Google Gemini" },
+  { value: "opencode_go", label: "OpenCode Go" },
   { value: "custom", label: "OpenAI-compatible" },
   { value: "chatgpt", label: "ChatGPT subscription" },
 ];
@@ -32,6 +33,10 @@ const PROVIDER_META: Record<
   gemini: {
     label: "Gemini",
     tile: "border-sky-300 bg-sky-100 text-sky-700 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-300",
+  },
+  opencode_go: {
+    label: "OpenCode Go",
+    tile: "border-cyan-300 bg-cyan-100 text-cyan-700 dark:border-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-300",
   },
   custom: {
     label: "Compatible",

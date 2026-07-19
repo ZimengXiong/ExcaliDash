@@ -356,6 +356,11 @@ and the error-code catalog. Administrators can disable all AI features from
 Admin → AI Assistant; doing so hides agent controls and blocks the Agent API
 without deleting existing tokens or provider configuration.
 
+The canvas assistant supports tested server-side setup and live model discovery
+for OpenAI, Anthropic, Gemini, OpenCode Go, custom OpenAI-compatible APIs, and
+per-user ChatGPT subscriptions. See the [AI provider setup
+matrix](docs/AI_PROVIDERS.md) for protocols, fallback behavior, and caveats.
+
 # Community & Integrations
 
 Third-party projects that build on ExcaliDash. These are community-maintained and not part of this repository:

@@ -5,9 +5,9 @@ export const aiEnv: readonly EnvVarSpec[] = [
     name: "AI_PROVIDER",
     group: "AI",
     kind: "enum",
-    values: ["disabled", "anthropic", "openai", "gemini", "custom", "chatgpt"],
+    values: ["disabled", "anthropic", "openai", "gemini", "opencode_go", "custom", "chatgpt"],
     default: "disabled",
-    doc: "Bootstrap/legacy AI provider: disabled, anthropic, openai, gemini, custom (OpenAI-compatible), or chatgpt. Admin → AI provider registry can replace this single environment profile with multiple named profiles selectable in canvas chat.",
+    doc: "Bootstrap/legacy AI provider: disabled, anthropic, openai, gemini, opencode_go, custom (OpenAI-compatible), or chatgpt. Admin → AI provider registry can replace this single environment profile with multiple named profiles selectable in canvas chat.",
   },
   {
     name: "AI_API_KEY",
@@ -28,7 +28,7 @@ export const aiEnv: readonly EnvVarSpec[] = [
     name: "AI_MODEL",
     group: "AI",
     kind: "string",
-    doc: "Model id the chat proxy requests (e.g. claude-opus-4-8 for anthropic, gpt-4o for openai). Falls back to a provider default when unset.",
+    doc: "Model id the chat proxy requests (e.g. claude-opus-4-8 for anthropic, gpt-5.4 for openai). Falls back to a provider default when unset.",
     example: "claude-opus-4-8",
   },
   {

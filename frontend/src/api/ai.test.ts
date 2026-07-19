@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  discoverAiProviderModels,
   streamAgentChat,
+  testAiProviderConnection,
   revertOpsBatch,
   type AgentChatHandlers,
 } from "./ai";
@@ -182,5 +184,47 @@ describe("revertOpsBatch", () => {
       ops: [{ op: "revert_to_snapshot", version: 4 }],
     });
     expect(result).toEqual({ opsBatchId: "b2", version: 6, revertVersion: 5 });
+  });
+});
+
+describe("AI provider setup API", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("tests unsaved values server-side", async () => {
+    vi.mocked(api.post).mockResolvedValue({
+      data: { ok: true, code: "success", message: "Connected" },
+    });
+    await testAiProviderConnection({
+      profileId: "draft",
+      provider: "opencode_go",
+      apiKey: "oc-secret",
+      model: "kimi-k3",
+    });
+    expect(api.post).toHaveBeenCalledWith("/auth/ai/providers/test", {
+      profileId: "draft",
+      provider: "opencode_go",
+      apiKey: "oc-secret",
+      model: "kimi-k3",
+    });
+  });
+
+  it("supports explicit model refresh without requiring a browser-side key", async () => {
+    vi.mocked(api.post).mockResolvedValue({
+      data: {
+        models: [],
+        source: "fallback",
+        fetchedAt: "2026-07-18T00:00:00.000Z",
+      },
+    });
+    await discoverAiProviderModels({
+      profileId: "stored",
+      provider: "anthropic",
+      refresh: true,
+    });
+    expect(api.post).toHaveBeenCalledWith("/auth/ai/providers/models", {
+      profileId: "stored",
+      provider: "anthropic",
+      refresh: true,
+    });
   });
 });

@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import * as api from "../../api";
-import type { AiProvider, AiProviderProfile, AiStatus } from "../../api/ai";
+import type {
+  AiConnectionTestResult,
+  AiModelOption,
+  AiProvider,
+  AiProviderDefinition,
+  AiProviderProfile,
+  AiStatus,
+} from "../../api/ai";
 
 export type ConfigurableAiProvider = Exclude<AiProvider, "disabled">;
 
@@ -17,12 +24,19 @@ export type AiProviderDraft = {
   keyConfigured: boolean;
   keySource: "env" | "db" | null;
   clearApiKey?: boolean;
+  discoveredModels: AiModelOption[];
+  discoverySource?: "live" | "cache" | "fallback" | "configured";
+  discoveryWarning?: string;
+  testing?: boolean;
+  discovering?: boolean;
+  testResult?: AiConnectionTestResult;
 };
 
 type AiSettingsResponse = {
   status: AiStatus;
   providers: AiProviderProfile[];
   defaultProviderId: string | null;
+  providerDefinitions: AiProviderDefinition[];
 };
 
 const toDraft = (profile: AiProviderProfile): AiProviderDraft | null => {
@@ -41,6 +55,7 @@ const toDraft = (profile: AiProviderProfile): AiProviderDraft | null => {
     apiKey: "",
     keyConfigured: profile.keyConfigured,
     keySource: profile.keySource,
+    discoveredModels: profile.models,
   };
 };
 
@@ -55,7 +70,9 @@ const splitCsv = (value: string): string[] => [
 
 const defaultsForProvider = (
   provider: ConfigurableAiProvider,
+  definitions: AiProviderDefinition[],
 ): Partial<AiProviderDraft> => {
+  const definition = definitions.find((item) => item.id === provider);
   if (provider === "chatgpt") {
     return {
       label: "ChatGPT subscription",
@@ -66,41 +83,27 @@ const defaultsForProvider = (
       keyConfigured: false,
       keySource: null,
       clearApiKey: true,
-    };
-  }
-  if (provider === "anthropic") {
-    return {
-      label: "Anthropic",
-      baseUrl: "",
-      modelsText: "claude-opus-4-8",
-      reasoningEffortsText: "",
-      clearApiKey: false,
-    };
-  }
-  if (provider === "openai") {
-    return {
-      label: "OpenAI",
-      baseUrl: "",
-      modelsText: "gpt-4o",
-      reasoningEffortsText: "",
-      clearApiKey: false,
-    };
-  }
-  if (provider === "gemini") {
-    return {
-      label: "Google Gemini",
-      baseUrl: "",
-      modelsText: "gemini-2.5-pro",
-      reasoningEffortsText: "low, medium, high",
-      clearApiKey: false,
+      discoveredModels: [],
     };
   }
   return {
-    label: "OpenAI-compatible",
+    label: definition?.label ?? "OpenAI-compatible",
     baseUrl: "",
-    modelsText: "",
+    modelsText: definition?.defaultModel ?? "",
     reasoningEffortsText: "",
     clearApiKey: false,
+    discoveredModels: definition?.defaultModel
+      ? [
+          {
+            id: definition.defaultModel,
+            label: definition.defaultModel,
+            reasoningEfforts: [],
+          },
+        ]
+      : [],
+    discoveryWarning: undefined,
+    discoverySource: undefined,
+    testResult: undefined,
   };
 };
 
@@ -121,6 +124,9 @@ export const useAiSettings = ({
   const [providers, setProviders] = useState<AiProviderDraft[]>([]);
   const [defaultProviderId, setDefaultProviderId] = useState("");
   const [status, setStatus] = useState<AiStatus | null>(null);
+  const [providerDefinitions, setProviderDefinitions] = useState<
+    AiProviderDefinition[]
+  >([]);
 
   const applyResponse = useCallback((data: AiSettingsResponse) => {
     const drafts = data.providers
@@ -129,6 +135,7 @@ export const useAiSettings = ({
     setProviders(drafts);
     setDefaultProviderId(data.defaultProviderId ?? drafts[0]?.id ?? "");
     setStatus(data.status);
+    setProviderDefinitions(data.providerDefinitions);
   }, []);
 
   const load = useCallback(async () => {
@@ -197,23 +204,25 @@ export const useAiSettings = ({
 
   const addProvider = useCallback(() => {
     const id = `provider_${Date.now().toString(36)}`;
+    const defaults = defaultsForProvider("openai", providerDefinitions);
     setProviders((current) => [
       ...current,
       {
         id,
-        label: "OpenAI",
+        label: defaults.label ?? "OpenAI",
         provider: "openai",
         enabled: true,
-        baseUrl: "",
-        modelsText: "gpt-4o",
+        baseUrl: defaults.baseUrl ?? "",
+        modelsText: defaults.modelsText ?? "",
         reasoningEffortsText: "",
         apiKey: "",
         keyConfigured: false,
         keySource: null,
+        discoveredModels: defaults.discoveredModels ?? [],
       },
     ]);
     setDefaultProviderId((current) => current || id);
-  }, []);
+  }, [providerDefinitions]);
 
   const updateProvider = useCallback(
     (id: string, patch: Partial<AiProviderDraft>) => {
@@ -222,13 +231,87 @@ export const useAiSettings = ({
           if (profile.id !== id) return profile;
           const providerDefaults =
             patch.provider && patch.provider !== profile.provider
-              ? defaultsForProvider(patch.provider)
+              ? defaultsForProvider(patch.provider, providerDefinitions)
               : {};
           return { ...profile, ...providerDefaults, ...patch };
         }),
       );
     },
+    [providerDefinitions],
+  );
+
+  const probePayload = useCallback(
+    (profile: AiProviderDraft, refresh = false) => ({
+      profileId: profile.id,
+      provider: profile.provider,
+      ...(profile.apiKey ? { apiKey: profile.apiKey } : {}),
+      baseUrl: profile.baseUrl.trim() || null,
+      model: splitCsv(profile.modelsText)[0] ?? null,
+      refresh,
+    }),
     [],
+  );
+
+  const discoverModels = useCallback(
+    async (id: string, refresh = false) => {
+      const profile = providers.find((item) => item.id === id);
+      if (!profile) return;
+      updateProvider(id, { discovering: true, discoveryWarning: undefined });
+      try {
+        const result = await api.discoverAiProviderModels(
+          probePayload(profile, refresh),
+        );
+        updateProvider(id, {
+          discovering: false,
+          discoveredModels: result.models,
+          discoverySource: result.source,
+          discoveryWarning: result.warning,
+          ...(!profile.modelsText.trim() && result.models[0]
+            ? { modelsText: result.models[0].id }
+            : {}),
+        });
+      } catch (error) {
+        updateProvider(id, {
+          discovering: false,
+          discoveryWarning: api.isAxiosError(error)
+            ? (error.response?.data?.message ?? "Model discovery failed")
+            : "Model discovery failed",
+        });
+      }
+    },
+    [probePayload, providers, updateProvider],
+  );
+
+  const testProvider = useCallback(
+    async (id: string) => {
+      const profile = providers.find((item) => item.id === id);
+      if (!profile) return;
+      updateProvider(id, { testing: true, testResult: undefined });
+      try {
+        const result = await api.testAiProviderConnection(
+          probePayload(profile),
+        );
+        updateProvider(id, {
+          testing: false,
+          testResult: result,
+          ...(result.models
+            ? { discoveredModels: result.models, discoverySource: "live" }
+            : {}),
+        });
+      } catch (error) {
+        updateProvider(id, {
+          testing: false,
+          testResult: {
+            ok: false,
+            code: "unreachable",
+            message: api.isAxiosError(error)
+              ? (error.response?.data?.message ?? "Connection test failed")
+              : "Connection test failed",
+          },
+        });
+      }
+    },
+    [probePayload, providers, updateProvider],
   );
 
   const removeProvider = useCallback((id: string) => {
@@ -244,12 +327,16 @@ export const useAiSettings = ({
       const payloadProviders = providers.map((profile) => {
         const isChatGpt = profile.provider === "chatgpt";
         const efforts = isChatGpt ? [] : splitCsv(profile.reasoningEffortsText);
+        const discoveredById = new Map(
+          profile.discoveredModels.map((model) => [model.id, model]),
+        );
         const models = isChatGpt
           ? []
           : splitCsv(profile.modelsText).map((id) => ({
               id,
-              label: id,
-              reasoningEfforts: efforts,
+              label: discoveredById.get(id)?.label ?? id,
+              reasoningEfforts:
+                discoveredById.get(id)?.reasoningEfforts ?? efforts,
             }));
         return {
           id: profile.id,
@@ -303,10 +390,13 @@ export const useAiSettings = ({
     providers,
     defaultProviderId,
     status,
+    providerDefinitions,
     setDefaultProviderId,
     addProvider,
     updateProvider,
     removeProvider,
+    discoverModels,
+    testProvider,
     save,
     setEnabled,
   };

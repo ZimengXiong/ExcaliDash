@@ -1,6 +1,13 @@
 import { readBoolean, readCsv, readNumber, readOptionalString, readRaw } from "./env";
 
-export type AiProvider = "disabled" | "anthropic" | "openai" | "gemini" | "custom" | "chatgpt";
+export type AiProvider =
+  | "disabled"
+  | "anthropic"
+  | "openai"
+  | "gemini"
+  | "opencode_go"
+  | "custom"
+  | "chatgpt";
 
 export interface AiChatGptConfig {
   /** Whether users may connect ChatGPT subscriptions. */
@@ -46,13 +53,14 @@ const parseAiProvider = (rawValue: string | undefined): AiProvider => {
     normalized === "anthropic" ||
     normalized === "openai" ||
     normalized === "gemini" ||
+    normalized === "opencode_go" ||
     normalized === "custom" ||
     normalized === "chatgpt"
   ) {
     return normalized;
   }
   throw new Error(
-    "Invalid AI_PROVIDER. Expected one of: disabled, anthropic, openai, gemini, custom, chatgpt",
+    "Invalid AI_PROVIDER. Expected one of: disabled, anthropic, openai, gemini, opencode_go, custom, chatgpt",
   );
 };
 
