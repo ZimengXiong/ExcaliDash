@@ -9,6 +9,7 @@ import type {
   AiProviderProfile,
   AiStatus,
 } from "../../api/ai";
+import { prepareAiProviderSave } from "./prepareAiProviderSave";
 export type ConfigurableAiProvider = Exclude<AiProvider, "disabled">;
 export type AiProviderDraft = {
   id: string;
@@ -17,6 +18,7 @@ export type AiProviderDraft = {
   enabled: boolean;
   baseUrl: string;
   modelsText: string;
+  customModelsText: string;
   reasoningEffortsText: string;
   apiKey: string;
   keyConfigured: boolean;
@@ -47,6 +49,9 @@ const toDraft = (profile: AiProviderProfile): AiProviderDraft | null => {
     enabled: profile.enabled,
     baseUrl: profile.baseUrl ?? "",
     modelsText: profile.models.map((model) => model.id).join(", "),
+    customModelsText: (profile.customModels ?? [])
+      .map((model) => model.id)
+      .join(", "),
     reasoningEffortsText: efforts.join(", "),
     apiKey: "",
     keyConfigured: profile.keyConfigured,
@@ -72,6 +77,7 @@ const defaultsForProvider = (
       label: "ChatGPT subscription",
       baseUrl: "",
       modelsText: "",
+      customModelsText: "",
       reasoningEffortsText: "",
       apiKey: "",
       keyConfigured: false,
@@ -84,6 +90,7 @@ const defaultsForProvider = (
     label: definition?.label ?? "OpenAI-compatible",
     baseUrl: "",
     modelsText: definition?.defaultModel ?? "",
+    customModelsText: "",
     reasoningEffortsText: "",
     clearApiKey: false,
     discoveredModels: definition?.defaultModel
@@ -189,18 +196,20 @@ export const useAiSettings = ({
     },
     [load, onFeatureFlagChanged, saving, setError],
   );
-  const addProvider = useCallback(() => {
+  const addProvider = useCallback(
+    (provider: ConfigurableAiProvider = "openai") => {
     const id = `provider_${Date.now().toString(36)}`;
-    const defaults = defaultsForProvider("openai", providerDefinitions);
+    const defaults = defaultsForProvider(provider, providerDefinitions);
     setProviders((current) => [
       ...current,
       {
         id,
         label: defaults.label ?? "OpenAI",
-        provider: "openai",
+        provider,
         enabled: true,
         baseUrl: defaults.baseUrl ?? "",
         modelsText: defaults.modelsText ?? "",
+        customModelsText: "",
         reasoningEffortsText: "",
         apiKey: "",
         keyConfigured: false,
@@ -209,7 +218,9 @@ export const useAiSettings = ({
       },
     ]);
     setDefaultProviderId((current) => current || id);
-  }, [providerDefinitions]);
+    },
+    [providerDefinitions],
+  );
   const updateProvider = useCallback(
     (id: string, patch: Partial<AiProviderDraft>) => {
       setProviders((current) =>
@@ -305,31 +316,8 @@ export const useAiSettings = ({
     setSaving(true);
     setError("");
     try {
-      const payloadProviders = providers.map((profile) => {
-        const isChatGpt = profile.provider === "chatgpt";
-        const efforts = isChatGpt ? [] : splitCsv(profile.reasoningEffortsText);
-        const discoveredById = new Map(
-          profile.discoveredModels.map((model) => [model.id, model]),
-        );
-        const models = isChatGpt
-          ? []
-          : splitCsv(profile.modelsText).map((id) => ({
-              id,
-              label: discoveredById.get(id)?.label ?? id,
-              reasoningEfforts:
-                discoveredById.get(id)?.reasoningEfforts ?? efforts,
-            }));
-        return {
-          id: profile.id,
-          label: profile.label.trim() || profile.id,
-          provider: profile.provider,
-          enabled: profile.enabled,
-          baseUrl: isChatGpt ? null : profile.baseUrl.trim() || null,
-          models,
-          ...(!isChatGpt && profile.apiKey ? { apiKey: profile.apiKey } : {}),
-          ...(profile.clearApiKey ? { clearApiKey: true } : {}),
-        };
-      });
+      const { payloadProviders, validationFailures } =
+        await prepareAiProviderSave(providers, probePayload);
       if (
         payloadProviders.some(
           (profile) =>
@@ -348,7 +336,13 @@ export const useAiSettings = ({
         },
       );
       applyResponse(response.data);
-      toast.success("AI provider registry saved");
+      if (validationFailures.length > 0) {
+        toast.warning(
+          `Saved, but connection validation failed for: ${validationFailures.join(", ")}`,
+        );
+      } else {
+        toast.success("AI providers verified and saved");
+      }
     } catch (error) {
       setError(
         api.isAxiosError(error)
@@ -358,7 +352,14 @@ export const useAiSettings = ({
     } finally {
       setSaving(false);
     }
-  }, [applyResponse, defaultProviderId, providers, saving, setError]);
+  }, [
+    applyResponse,
+    defaultProviderId,
+    probePayload,
+    providers,
+    saving,
+    setError,
+  ]);
   useEffect(() => {
     if (authEnabled !== null) void load();
   }, [authEnabled, load]);

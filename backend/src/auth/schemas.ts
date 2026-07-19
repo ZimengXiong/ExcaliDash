@@ -58,7 +58,8 @@ const aiProviderProfileSchema = z.object({
   provider: z.enum(["anthropic", "openai", "gemini", "opencode_go", "custom", "chatgpt"]),
   enabled: z.boolean(),
   baseUrl: z.string().trim().max(2000).nullable(),
-  models: z.array(aiModelOptionSchema).max(50),
+  models: z.array(aiModelOptionSchema).max(500),
+  customModels: z.array(aiModelOptionSchema).max(50).optional(),
   apiKey: z.string().max(4000).optional(),
   clearApiKey: z.boolean().optional(),
 }).superRefine((profile, ctx) => {

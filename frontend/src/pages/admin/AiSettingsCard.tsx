@@ -1,8 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Plus, Sparkles } from "lucide-react";
 import type { AiProviderDefinition, AiStatus } from "../../api/ai";
+import { PlayfulSelect } from "../../components/PlayfulSelect";
 import { PlayfulSwitch } from "../../components/PlayfulSwitch";
-import type { AiProviderDraft } from "./useAiSettings";
+import type {
+  AiProviderDraft,
+  ConfigurableAiProvider,
+} from "./useAiSettings";
 import { ProviderEditor } from "./AiProviderEditor";
 import { SettingsCard, SettingsSectionHeader } from "../settings/SettingsRow";
 
@@ -16,11 +20,9 @@ export const AiSettingsCard: React.FC<{
   status: AiStatus | null;
   providerDefinitions: AiProviderDefinition[];
   onDefaultProviderChange: (id: string) => void;
-  onAddProvider: () => void;
+  onAddProvider: (provider: ConfigurableAiProvider) => void;
   onUpdateProvider: (id: string, patch: Partial<AiProviderDraft>) => void;
   onRemoveProvider: (id: string) => void;
-  onDiscoverModels: (id: string, refresh?: boolean) => void;
-  onTestProvider: (id: string) => void;
   onSave: () => void | Promise<void>;
   onEnabledChange: (value: boolean) => void | Promise<void>;
 }> = ({
@@ -36,12 +38,12 @@ export const AiSettingsCard: React.FC<{
   onAddProvider,
   onUpdateProvider,
   onRemoveProvider,
-  onDiscoverModels,
-  onTestProvider,
   onSave,
   onEnabledChange,
 }) => {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [providerToAdd, setProviderToAdd] =
+    useState<ConfigurableAiProvider>("openai");
   const pendingExpand = useRef(false);
   const prevCount = useRef(providers.length);
 
@@ -61,7 +63,7 @@ export const AiSettingsCard: React.FC<{
 
   const handleAdd = () => {
     pendingExpand.current = true;
-    onAddProvider();
+    onAddProvider(providerToAdd);
   };
 
   return (
@@ -112,7 +114,6 @@ export const AiSettingsCard: React.FC<{
               <ProviderEditor
                 key={profile.id}
                 profile={profile}
-                providerDefinitions={providerDefinitions}
                 readOnly={readOnly}
                 saving={saving}
                 isDefault={profile.id === defaultProviderId}
@@ -121,10 +122,6 @@ export const AiSettingsCard: React.FC<{
                 onSetDefault={() => onDefaultProviderChange(profile.id)}
                 onChange={(patch) => onUpdateProvider(profile.id, patch)}
                 onRemove={() => onRemoveProvider(profile.id)}
-                onDiscover={(refresh) =>
-                  onDiscoverModels(profile.id, refresh)
-                }
-                onTest={() => onTestProvider(profile.id)}
               />
             ))}
             {providers.length === 0 && !loading ? (
@@ -143,13 +140,27 @@ export const AiSettingsCard: React.FC<{
 
       {enabled && !readOnly ? (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 px-1">
-          <button
-            type="button"
-            onClick={handleAdd}
-            className="inline-flex items-center gap-2 rounded-xl border-2 border-black bg-white px-4 py-2 text-sm font-bold shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all hover:-translate-y-0.5 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)]"
-          >
-            <Plus size={16} /> Add provider
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <PlayfulSelect
+              ariaLabel="Provider to add"
+              value={providerToAdd}
+              onChange={(value) =>
+                setProviderToAdd(value as ConfigurableAiProvider)
+              }
+              options={providerDefinitions.map((definition) => ({
+                value: definition.id,
+                label: definition.label,
+              }))}
+              align="left"
+            />
+            <button
+              type="button"
+              onClick={handleAdd}
+              className="inline-flex items-center gap-2 rounded-xl border-2 border-black bg-white px-4 py-2 text-sm font-bold shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all hover:-translate-y-0.5 dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-100 dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)]"
+            >
+              <Plus size={16} /> Add provider
+            </button>
+          </div>
           <div className="flex items-center gap-3">
             {status ? (
               <span className="text-sm font-medium text-slate-500 dark:text-neutral-400">
@@ -163,7 +174,7 @@ export const AiSettingsCard: React.FC<{
               disabled={saving}
               className="rounded-xl border-2 border-black bg-indigo-600 px-5 py-2 text-sm font-bold text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all hover:-translate-y-0.5 disabled:opacity-60 dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)]"
             >
-              {saving ? "Saving…" : "Save provider registry"}
+              {saving ? "Testing & saving…" : "Save provider registry"}
             </button>
           </div>
         </div>

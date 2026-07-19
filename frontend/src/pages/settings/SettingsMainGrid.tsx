@@ -41,7 +41,6 @@ export const SettingsMainGrid = ({
       icon={theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
       tileClassName="border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300"
       title="Appearance"
-      description={theme === "light" ? "Light theme" : "Dark theme"}
     >
       <PlayfulSwitch
         checked={theme === "dark"}
@@ -54,11 +53,7 @@ export const SettingsMainGrid = ({
       icon={imageCompression ? <Zap size={20} /> : <ZapOff size={20} />}
       tileClassName="border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300"
       title="Optimized images"
-      description={
-        imageCompression
-          ? "Lossy compression saves bandwidth"
-          : "Lossless originals (high bandwidth)"
-      }
+      description={imageCompression ? "Smaller uploads" : "Original quality"}
     >
       <PlayfulSwitch
         checked={imageCompression}
@@ -73,7 +68,6 @@ export const SettingsMainGrid = ({
       icon={<Archive size={20} />}
       tileClassName="border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-300"
       title="Export backup"
-      description="Download an archive organized by collections"
     >
       <button onClick={exportBackup} className={settingsPrimaryButtonClass}>
         Export

@@ -6,11 +6,8 @@ import {
   Star,
   Trash2,
 } from "lucide-react";
-import { PlayfulSelect } from "../../components/PlayfulSelect";
 import { PlayfulSwitch } from "../../components/PlayfulSwitch";
-import type { AiProviderDefinition } from "../../api/ai";
 import type { AiProviderDraft, ConfigurableAiProvider } from "./useAiSettings";
-import { AiProviderTools } from "./AiProviderTools";
 
 const inputClass =
   "w-full rounded-lg border-2 border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition-colors focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white";
@@ -90,7 +87,6 @@ const KeyStatusChip: React.FC<{ profile: AiProviderDraft }> = ({ profile }) => {
 
 export const ProviderEditor: React.FC<{
   profile: AiProviderDraft;
-  providerDefinitions: AiProviderDefinition[];
   readOnly?: boolean;
   saving: boolean;
   isDefault: boolean;
@@ -99,11 +95,8 @@ export const ProviderEditor: React.FC<{
   onSetDefault: () => void;
   onChange: (patch: Partial<AiProviderDraft>) => void;
   onRemove: () => void;
-  onDiscover: (refresh?: boolean) => void;
-  onTest: () => void;
 }> = ({
   profile,
-  providerDefinitions,
   readOnly = false,
   saving,
   isDefault,
@@ -112,12 +105,12 @@ export const ProviderEditor: React.FC<{
   onSetDefault,
   onChange,
   onRemove,
-  onDiscover,
-  onTest,
 }) => {
   const meta = PROVIDER_META[profile.provider];
   const models = splitCsv(profile.modelsText);
   const isChatGpt = profile.provider === "chatgpt";
+  const isCustom = profile.provider === "custom";
+  const isManagedProvider = !isChatGpt && !isCustom;
 
   return (
     <div>
@@ -149,14 +142,16 @@ export const ProviderEditor: React.FC<{
               {PROVIDERS.find((p) => p.value === profile.provider)?.label}
               {isChatGpt
                 ? " · models managed automatically"
-                : models.length > 0
+                : isManagedProvider
+                  ? " · model catalog managed automatically"
+                  : models.length > 0
                   ? ` · ${models.length} model${models.length === 1 ? "" : "s"}`
                   : " · no models yet"}
             </span>
           </span>
         </button>
 
-        {!isChatGpt && models.length > 0 ? (
+        {isCustom && models.length > 0 ? (
           <div className="hidden min-w-0 flex-wrap items-center gap-1 lg:flex">
             {models.slice(0, 2).map((model) => (
               <span
@@ -236,34 +231,8 @@ export const ProviderEditor: React.FC<{
 
       {expanded ? (
         <div className="border-t-2 border-dashed border-slate-200 px-4 pb-4 pt-4 dark:border-neutral-700 sm:px-5">
-          <div className="grid max-w-3xl grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-2">
-            <div>
-              <label className={labelClass}>Display name</label>
-              <input
-                value={profile.label}
-                onChange={(event) => onChange({ label: event.target.value })}
-                aria-label="Provider label"
-                className={`${inputClass} font-semibold`}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Provider type</label>
-              <PlayfulSelect
-                ariaLabel="Provider type"
-                value={profile.provider}
-                onChange={(value) =>
-                  onChange({ provider: value as ConfigurableAiProvider })
-                }
-                options={PROVIDERS.map((provider) => ({
-                  value: provider.value,
-                  label: provider.label,
-                }))}
-                className="w-full"
-                buttonClassName="w-full px-3 py-2 font-normal"
-              />
-            </div>
-            {isChatGpt ? (
-              <div className="flex items-start gap-2 rounded-xl border-2 border-indigo-200 bg-indigo-50 px-3 py-2.5 text-sm font-medium text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-200 md:col-span-2">
+          {isChatGpt ? (
+            <div className="flex max-w-3xl items-start gap-2 rounded-xl border-2 border-indigo-200 bg-indigo-50 px-3 py-2.5 text-sm font-medium text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-200">
                 <Sparkles size={16} className="mt-0.5 shrink-0" />
                 <span>
                   Models, reasoning levels, OAuth endpoints, and the Codex base
@@ -271,49 +240,48 @@ export const ProviderEditor: React.FC<{
                   ChatGPT subscription from the canvas chat panel.
                 </span>
               </div>
-            ) : (
-              <>
-                <div>
-                  <label className={labelClass}>Models (comma-separated)</label>
-                  <input
-                    value={profile.modelsText}
-                    onChange={(event) =>
-                      onChange({ modelsText: event.target.value })
-                    }
-                    placeholder="gpt-5, gpt-4.1"
-                    className={inputClass}
-                  />
+          ) : (
+            <div className="max-w-3xl">
+              {isCustom ? (
+                <div className="mb-4 grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-2">
+                  <div>
+                    <label className={labelClass}>Display name</label>
+                    <input
+                      value={profile.label}
+                      onChange={(event) =>
+                        onChange({ label: event.target.value })
+                      }
+                      aria-label="Provider label"
+                      className={`${inputClass} font-semibold`}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Base URL</label>
+                    <input
+                      value={profile.baseUrl}
+                      onChange={(event) =>
+                        onChange({ baseUrl: event.target.value })
+                      }
+                      placeholder="https://your-provider.example/v1"
+                      className={inputClass}
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className={labelClass}>
+                      Model names (comma-separated)
+                    </label>
+                    <input
+                      value={profile.modelsText}
+                      onChange={(event) =>
+                        onChange({ modelsText: event.target.value })
+                      }
+                      placeholder="model-name"
+                      className={inputClass}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className={labelClass}>
-                    Reasoning levels (optional)
-                  </label>
-                  <input
-                    value={profile.reasoningEffortsText}
-                    onChange={(event) =>
-                      onChange({ reasoningEffortsText: event.target.value })
-                    }
-                    placeholder="minimal, low, medium, high"
-                    className={inputClass}
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className={labelClass}>Base URL (optional)</label>
-                  <input
-                    value={profile.baseUrl}
-                    onChange={(event) =>
-                      onChange({ baseUrl: event.target.value })
-                    }
-                    placeholder="https://api.openai.com/v1"
-                    className={inputClass}
-                  />
-                </div>
-              </>
-            )}
-          </div>
+              ) : null}
 
-          {!isChatGpt ? (
-            <div className="mt-4 max-w-3xl">
               <label className={labelClass}>
                 <span className="inline-flex items-center gap-1.5">
                   <KeyRound size={12} /> API key
@@ -337,8 +305,9 @@ export const ProviderEditor: React.FC<{
                     placeholder={
                       profile.keyConfigured
                         ? "Stored — leave blank to keep"
-                        : "Enter API key"
+                        : "Paste API key"
                     }
+                    aria-label={`${profile.label} API key`}
                     autoComplete="off"
                     className={inputClass}
                   />
@@ -360,16 +329,40 @@ export const ProviderEditor: React.FC<{
                 </div>
               )}
 
-              <AiProviderTools
-                profile={profile}
-                providerDefinitions={providerDefinitions}
-                saving={saving}
-                onChange={onChange}
-                onDiscover={onDiscover}
-                onTest={onTest}
-              />
+              {isManagedProvider ? (
+                <details className="mt-4 rounded-xl border-2 border-slate-200 bg-slate-50/70 dark:border-neutral-700 dark:bg-neutral-800/40">
+                  <summary className="cursor-pointer px-3 py-2 text-sm font-bold text-slate-700 dark:text-neutral-200">
+                    Advanced
+                  </summary>
+                  <div className="border-t border-slate-200 px-3 py-3 dark:border-neutral-700">
+                    <label className={labelClass}>
+                      Custom model names (optional)
+                    </label>
+                    <input
+                      value={profile.customModelsText}
+                      aria-label="Custom model names"
+                      onChange={(event) =>
+                        onChange({ customModelsText: event.target.value })
+                      }
+                      placeholder="custom-model-id, another-model-id"
+                      className={inputClass}
+                    />
+                    <p className="mt-2 text-xs font-medium text-slate-500 dark:text-neutral-400">
+                      ExcaliDash loads the provider&apos;s available models and
+                      endpoint automatically. Add IDs here only when a new model
+                      is missing from the provider catalog.
+                    </p>
+                  </div>
+                </details>
+              ) : null}
+
+              {profile.testResult && !profile.testResult.ok ? (
+                <p className="mt-3 text-sm font-medium text-amber-700 dark:text-amber-300">
+                  Last validation warning: {profile.testResult.message}
+                </p>
+              ) : null}
             </div>
-          ) : null}
+          )}
         </div>
       ) : null}
     </div>
