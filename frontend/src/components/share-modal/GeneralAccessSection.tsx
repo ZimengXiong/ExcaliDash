@@ -82,53 +82,22 @@ export const LinkExpirySelect: React.FC<{
   const options =
     linkPermission === "edit" ? EXPIRY_OPTIONS_FOR_EDIT : EXPIRY_OPTIONS;
 
-  let buttonLabel = "Never";
-  if (expiryOption === "custom" && customExpiry) {
-    const ts = Date.parse(customExpiry);
-    if (Number.isFinite(ts)) {
-      buttonLabel = new Date(ts).toLocaleString(undefined, {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-    } else {
-      buttonLabel = "Custom";
-    }
-  } else {
-    const currentOpt = options.find((o) => o.value === expiryOption);
-    buttonLabel = currentOpt
-      ? currentOpt.label
-          .replace("Disable in ", "")
-          .replace("Never auto-disable", "Never")
-          .replace("Disable at...", "Custom")
-      : "Never";
-  }
-
   return (
     <div className="relative inline-flex" ref={containerRef}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
         className={clsx(
-          "flex items-center gap-1.5 rounded-xl border-2 font-semibold transition-all px-2.5 py-1 text-xs outline-none",
+          "flex h-8 w-8 items-center justify-center rounded-xl border-2 font-semibold transition-all outline-none shrink-0",
           "border-slate-800 bg-white text-slate-700 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] hover:-translate-y-0.5 hover:bg-indigo-50 hover:shadow-[2.5px_2.5px_0px_0px_rgba(30,41,59,0.9)] dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)] dark:hover:bg-indigo-900/30 dark:hover:shadow-[2.5px_2.5px_0px_0px_rgba(255,255,255,0.18)]",
           open && "bg-indigo-50 dark:bg-indigo-900/30",
         )}
+        title="Set link expiration"
+        aria-label="Set link expiration"
       >
         <Clock
-          size={13}
-          className="shrink-0 text-indigo-600 dark:text-indigo-400"
-        />
-        <span className="min-w-0 truncate text-left">
-          Expires: {buttonLabel}
-        </span>
-        <ChevronDown
-          size={13}
-          className={clsx(
-            "shrink-0 text-slate-400 transition-transform dark:text-neutral-500",
-            open && "rotate-180",
-          )}
+          size={14}
+          className="text-indigo-600 dark:text-indigo-400"
         />
       </button>
 
