@@ -27,7 +27,8 @@ import {
 export const Admin: React.FC = () => {
   const navigate = useNavigate();
   const { user: authUser, authEnabled } = useAuth();
-  const isAdmin = authUser?.role === "ADMIN";
+  const isSingleUserOwner = authEnabled === false;
+  const isAdmin = isSingleUserOwner || authUser?.role === "ADMIN";
   const passwordPolicy = getPasswordPolicy();
   const {
     collections,
@@ -57,14 +58,11 @@ export const Admin: React.FC = () => {
   const loginRateLimit = useLoginRateLimitSettings({
     authEnabled,
     isAdmin,
+    oidcEnabled: accessControl.oidcEnabled,
     setError,
     setSuccess,
   });
   useEffect(() => {
-    if (authEnabled === false) {
-      navigate("/settings", { replace: true });
-      return;
-    }
     if (authEnabled && !isAdmin) {
       navigate("/", { replace: true });
       return;
@@ -109,7 +107,9 @@ export const Admin: React.FC = () => {
     void loadUsers();
     void accessControl.load();
   }, [authEnabled, isAdmin]);
-  const handleCreateUser = async (payload: CreateUserInput): Promise<boolean> => {
+  const handleCreateUser = async (
+    payload: CreateUserInput,
+  ): Promise<boolean> => {
     setError("");
     setSuccess("");
     try {
@@ -208,87 +208,100 @@ export const Admin: React.FC = () => {
       onEditCollection={handleEditCollection}
       onDeleteCollection={handleDeleteCollection}
     >
-      <div className="mx-auto w-full max-w-6xl">
-      <AdminHeader
-        loadingUsers={loadingUsers}
-        onRefreshUsers={loadUsers}
-        onToggleCreateUser={() => setCreateOpen((value) => !value)}
-      />{" "}
-      <AdminStatusMessages success={success} error={error} />{" "}
-      {createOpen && (
-        <CreateUserForm
-          oidcEnabled={accessControl.oidcEnabled}
-          passwordPolicy={passwordPolicy}
-          onSubmit={handleCreateUser}
-          onCancel={() => setCreateOpen(false)}
-        />
-      )}{" "}
-      <AccessControlCard
-        registrationEnabled={accessControl.registrationEnabled}
-        localRegistrationAllowed={accessControl.localRegistrationAllowed}
-        oidcEnabled={accessControl.oidcEnabled}
-        oidcProviderName={accessControl.oidcProviderName}
-        oidcJitProvisioningEnabled={accessControl.oidcJitProvisioningEnabled}
-        loading={accessControl.loading}
-        onToggleRegistration={accessControl.toggleRegistration}
-        onToggleOidcJitProvisioning={accessControl.toggleOidcJitProvisioning}
-      />{" "}
-      <LoginRateLimitCard
-        loading={loginRateLimit.loading}
-        saving={loginRateLimit.saving}
-        autoSaveQueued={loginRateLimit.autoSaveQueued}
-        dirty={loginRateLimit.dirty}
-        enabled={loginRateLimit.enabled}
-        windowMinutes={loginRateLimit.windowMinutes}
-        maxAttempts={loginRateLimit.maxAttempts}
-        resetIdentifier={loginRateLimit.resetIdentifier}
-        resetLoading={loginRateLimit.resetLoading}
-        userEmails={users.map((user) => user.email)}
-        onToggleEnabled={() =>
-          loginRateLimit.setEnabled(!loginRateLimit.enabled)
-        }
-        onWindowMinutesChange={loginRateLimit.setWindowMinutes}
-        onMaxAttemptsChange={loginRateLimit.setMaxAttempts}
-        onResetIdentifierChange={loginRateLimit.setResetIdentifier}
-        onReset={loginRateLimit.reset}
-      />{" "}
-      <AiSettingsCard
-        loading={aiSettings.loading}
-        saving={aiSettings.saving}
-        providers={aiSettings.providers}
-        defaultProviderId={aiSettings.defaultProviderId}
-        status={aiSettings.status}
-        onDefaultProviderChange={aiSettings.setDefaultProviderId}
-        onAddProvider={aiSettings.addProvider}
-        onUpdateProvider={aiSettings.updateProvider}
-        onRemoveProvider={aiSettings.removeProvider}
-        onSave={aiSettings.save}
-      />{" "}
-      <UsersTable
-        users={users}
-        loading={loadingUsers}
-        currentUserId={authUser?.id}
-        resetPasswordLoadingId={resetPasswordLoadingId}
-        onRoleChange={(user, role) => patchUser(user.id, { role })}
-        onToggleActive={(user) =>
-          patchUser(user.id, { isActive: !user.isActive })
-        }
-        onToggleMustReset={(user) =>
-          patchUser(user.id, { mustResetPassword: !user.mustResetPassword })
-        }
-        onImpersonate={setImpersonateTarget}
-        onResetPassword={generateTempPassword}
-      />{" "}
-      <UserActionModals
-        impersonateTarget={impersonateTarget}
-        resetPasswordResult={resetPasswordResult}
-        onConfirmImpersonation={startImpersonation}
-        onCancelImpersonation={() => setImpersonateTarget(null)}
-        onCopyPassword={(result) =>
-          navigator.clipboard?.writeText(result.tempPassword)
-        }
-        onClosePassword={() => setResetPasswordResult(null)}
-      />
+      <div className="mx-auto w-full max-w-5xl">
+        <AdminHeader
+          loadingUsers={loadingUsers}
+          showUserActions={Boolean(authEnabled)}
+          onRefreshUsers={loadUsers}
+          onToggleCreateUser={() => setCreateOpen((value) => !value)}
+        />{" "}
+        <AdminStatusMessages success={success} error={error} />{" "}
+        {authEnabled && createOpen && (
+          <CreateUserForm
+            oidcEnabled={accessControl.oidcEnabled}
+            passwordPolicy={passwordPolicy}
+            onSubmit={handleCreateUser}
+            onCancel={() => setCreateOpen(false)}
+          />
+        )}{" "}
+        {authEnabled ? (
+          <AccessControlCard
+            registrationEnabled={accessControl.registrationEnabled}
+            localRegistrationAllowed={accessControl.localRegistrationAllowed}
+            oidcEnabled={accessControl.oidcEnabled}
+            oidcProviderName={accessControl.oidcProviderName}
+            oidcJitProvisioningEnabled={
+              accessControl.oidcJitProvisioningEnabled
+            }
+            loading={accessControl.loading}
+            onToggleRegistration={accessControl.toggleRegistration}
+            onToggleOidcJitProvisioning={
+              accessControl.toggleOidcJitProvisioning
+            }
+          />
+        ) : null}{" "}
+        {authEnabled && accessControl.oidcEnabled ? (
+          <LoginRateLimitCard
+            loading={loginRateLimit.loading}
+            saving={loginRateLimit.saving}
+            autoSaveQueued={loginRateLimit.autoSaveQueued}
+            dirty={loginRateLimit.dirty}
+            enabled={loginRateLimit.enabled}
+            windowMinutes={loginRateLimit.windowMinutes}
+            maxAttempts={loginRateLimit.maxAttempts}
+            resetIdentifier={loginRateLimit.resetIdentifier}
+            resetLoading={loginRateLimit.resetLoading}
+            userEmails={users.map((user) => user.email)}
+            onToggleEnabled={() =>
+              loginRateLimit.setEnabled(!loginRateLimit.enabled)
+            }
+            onWindowMinutesChange={loginRateLimit.setWindowMinutes}
+            onMaxAttemptsChange={loginRateLimit.setMaxAttempts}
+            onResetIdentifierChange={loginRateLimit.setResetIdentifier}
+            onReset={loginRateLimit.reset}
+          />
+        ) : null}{" "}
+        <AiSettingsCard
+          loading={aiSettings.loading}
+          saving={aiSettings.saving}
+          providers={aiSettings.providers}
+          defaultProviderId={aiSettings.defaultProviderId}
+          status={aiSettings.status}
+          onDefaultProviderChange={aiSettings.setDefaultProviderId}
+          onAddProvider={aiSettings.addProvider}
+          onUpdateProvider={aiSettings.updateProvider}
+          onRemoveProvider={aiSettings.removeProvider}
+          onSave={aiSettings.save}
+        />{" "}
+        {authEnabled ? (
+          <UsersTable
+            users={users}
+            loading={loadingUsers}
+            currentUserId={authUser?.id}
+            resetPasswordLoadingId={resetPasswordLoadingId}
+            onRoleChange={(user, role) => patchUser(user.id, { role })}
+            onToggleActive={(user) =>
+              patchUser(user.id, { isActive: !user.isActive })
+            }
+            onToggleMustReset={(user) =>
+              patchUser(user.id, { mustResetPassword: !user.mustResetPassword })
+            }
+            onImpersonate={setImpersonateTarget}
+            onResetPassword={generateTempPassword}
+          />
+        ) : null}{" "}
+        {authEnabled ? (
+          <UserActionModals
+            impersonateTarget={impersonateTarget}
+            resetPasswordResult={resetPasswordResult}
+            onConfirmImpersonation={startImpersonation}
+            onCancelImpersonation={() => setImpersonateTarget(null)}
+            onCopyPassword={(result) =>
+              navigator.clipboard?.writeText(result.tempPassword)
+            }
+            onClosePassword={() => setResetPasswordResult(null)}
+          />
+        ) : null}
       </div>{" "}
       <Toaster position="bottom-center" />{" "}
     </Layout>

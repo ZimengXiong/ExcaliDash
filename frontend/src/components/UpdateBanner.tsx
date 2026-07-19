@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { BellOff, ExternalLink, RefreshCw, XCircle } from "lucide-react";
 import * as api from "../api";
+import { PlayfulSelect } from "./PlayfulSelect";
 
 const CHANNEL_KEY = "excalidash-update-channel";
 const DISMISSED_VERSION_KEY = "excalidash-update-ignored-version";
@@ -159,20 +160,20 @@ export const UpdateBanner: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 ml-auto">
-          <select
+          <PlayfulSelect
+            ariaLabel="Update channel"
             value={channel}
-            onChange={(e) => {
-              const next = (e.target.value === "prerelease" ? "prerelease" : "stable") as api.UpdateChannel;
+            onChange={(value) => {
+              const next = (value === "prerelease" ? "prerelease" : "stable") as api.UpdateChannel;
               writeChannel(next);
               setChannel(next);
             }}
-            className="h-8 px-2 rounded-lg border border-emerald-200 dark:border-emerald-800/50 bg-white/50 dark:bg-neutral-900/50 text-xs font-bold text-emerald-950 dark:text-emerald-50 outline-none hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors"
-            title="Update channel"
-            aria-label="Update channel"
-          >
-            <option value="stable">stable</option>
-            <option value="prerelease">prerelease</option>
-          </select>
+            size="sm"
+            options={[
+              { value: "stable", label: "stable" },
+              { value: "prerelease", label: "prerelease" },
+            ]}
+          />
 
           {info?.latestUrl ? (
             <a

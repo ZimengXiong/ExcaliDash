@@ -1,8 +1,14 @@
 import React from "react";
 import clsx from "clsx";
-import { AlertTriangle, Calendar, Globe, Lock, Shield } from "lucide-react";
+import {
+  AlertTriangle,
+  Eye,
+  Globe,
+  Lock,
+  Pencil,
+} from "lucide-react";
 import * as api from "../../api";
-import { CustomSelect } from "./CustomSelect";
+import { PlayfulSelect } from "../PlayfulSelect";
 import {
   EXPIRY_OPTIONS_FOR_EDIT,
   calculateExpiresAt,
@@ -35,127 +41,103 @@ export const GeneralAccessSection: React.FC<Props> = ({
   handleUpdateLink,
   handleRevokeLink,
 }) => (
-  <section className="pt-5 border-t border-slate-200 dark:border-neutral-800">
-    <h3 className="text-sm font-semibold text-slate-900 dark:text-neutral-100 mb-3">
-      General access
+  <section className="border-t-2 border-slate-100 pt-4 dark:border-neutral-800">
+    <h3 className="mb-2 text-xs font-black uppercase tracking-wider text-slate-400 dark:text-neutral-500">
+      Link access
     </h3>
-    <div className="flex items-start gap-3">
+    <div className="flex items-center gap-3">
       <div
         className={clsx(
-          "w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all",
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border-2 transition-colors",
           activeLink
-            ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
-            : "bg-slate-100 dark:bg-neutral-800 text-slate-500 dark:text-neutral-400",
+            ? "border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300"
+            : "border-slate-200 bg-slate-100 text-slate-500 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-400",
         )}
       >
-        {activeLink ? (
-          <Globe size={18} strokeWidth={3} />
-        ) : (
-          <Lock size={18} strokeWidth={3} />
-        )}
+        {activeLink ? <Globe size={17} /> : <Lock size={17} />}
       </div>
+      <PlayfulSelect
+        ariaLabel="Link access"
+        value={activeLink ? "anyone" : "restricted"}
+        onChange={(value) => {
+          if (value === "anyone") void handleUpdateLink();
+          else void handleRevokeLink();
+        }}
+        options={[
+          { label: "Restricted", value: "restricted", icon: <Lock size={14} /> },
+          {
+            label: "Anyone with the link",
+            value: "anyone",
+            icon: <Globe size={14} />,
+          },
+        ]}
+        variant="plain"
+        showCheck={false}
+      />
+    </div>
+    <p className="mt-1.5 text-xs font-medium text-slate-500 dark:text-neutral-400">
+      {activeLink
+        ? "Anyone on the internet with the link can open it."
+        : "Only people with access can open it."}
+    </p>
 
-      <div className="flex-1 min-w-0 flex flex-col gap-0">
-        <div className="flex items-center gap-1">
-          <CustomSelect
-            value={activeLink ? "anyone" : "restricted"}
-            onChange={(value) => {
-              if (value === "anyone") void handleUpdateLink();
-              else void handleRevokeLink();
-            }}
+    {activeLink && (
+      <div className="mt-3 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+        <div className="flex flex-wrap items-center gap-2">
+          <PlayfulSelect
+            ariaLabel="Link permission"
+            value={linkPermission}
+            onChange={(value) => handleUpdateLink(value as "view" | "edit")}
             options={[
-              { label: "Restricted", value: "restricted" },
-              { label: "Anyone with the link", value: "anyone" },
+              { label: "Viewer", value: "view", icon: <Eye size={14} /> },
+              { label: "Editor", value: "edit", icon: <Pencil size={14} /> },
             ]}
-            className="-ml-2.5"
-            showCheck={false}
+            size="sm"
+            variant="plain"
+          />
+          <PlayfulSelect
+            ariaLabel="Link expiry"
+            value={expiryOption}
+            onChange={(value) => {
+              setExpiryOption(value);
+              if (value !== "custom")
+                void handleUpdateLink(undefined, calculateExpiresAt(value));
+            }}
+            options={
+              linkPermission === "edit"
+                ? EXPIRY_OPTIONS_FOR_EDIT
+                : EXPIRY_OPTIONS
+            }
+            size="sm"
+            variant="plain"
+            buttonClassName="pr-2"
           />
         </div>
 
-        <p className="text-xs text-slate-500 dark:text-neutral-400 leading-relaxed">
-          {activeLink
-            ? "Anyone on the internet with the link can access."
-            : "Only people with access can open with the link."}
+        <p className="text-[11px] font-medium text-slate-400 dark:text-neutral-500">
+          {formatAutoDisableText(activeLink.expiresAt)}
         </p>
 
-        {activeLink && (
-          <div className="pt-3.5 space-y-3.5 animate-in fade-in slide-in-from-top-1 duration-200">
-            <p className="text-[9px] font-black text-slate-500 dark:text-neutral-400 px-0.5">
-              {formatAutoDisableText(activeLink.expiresAt)} When it disables,
-              General access switches back to Restricted.
+        {expiryOption === "custom" && (
+          <input
+            type="datetime-local"
+            value={customExpiry}
+            onChange={(event) => setCustomExpiry(event.target.value)}
+            onBlur={() => void handleUpdateLink()}
+            className="w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-xs font-medium transition-colors focus:border-indigo-400 focus:outline-none dark:border-neutral-700 dark:bg-neutral-800"
+          />
+        )}
+
+        {linkPermission === "edit" && (
+          <div className="flex items-start gap-2 rounded-xl border-2 border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-900/20">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-600" />
+            <p className="text-xs font-medium text-amber-900 dark:text-amber-200">
+              Edit access via link is sensitive — anyone with the link can
+              change the drawing.
             </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <CustomSelect
-                value={linkPermission}
-                onChange={(value) => handleUpdateLink(value as any)}
-                options={[
-                  { label: "Viewer", value: "view" },
-                  { label: "Editor", value: "edit" },
-                ]}
-                icon={
-                  <Shield
-                    size={12}
-                    strokeWidth={2.5}
-                    className="text-slate-400"
-                  />
-                }
-                variant="bordered"
-              />
-
-              <CustomSelect
-                value={expiryOption}
-                onChange={(value) => {
-                  setExpiryOption(value);
-                  if (value !== "custom")
-                    void handleUpdateLink(undefined, calculateExpiresAt(value));
-                }}
-                options={
-                  linkPermission === "edit"
-                    ? EXPIRY_OPTIONS_FOR_EDIT
-                    : EXPIRY_OPTIONS
-                }
-                icon={
-                  <Calendar
-                    size={12}
-                    strokeWidth={2.5}
-                    className="text-slate-400"
-                  />
-                }
-                variant="bordered"
-              />
-            </div>
-
-            {expiryOption === "custom" && (
-              <input
-                type="datetime-local"
-                value={customExpiry}
-                onChange={(event) => setCustomExpiry(event.target.value)}
-                onBlur={() => void handleUpdateLink()}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
-              />
-            )}
-
-            {linkPermission === "edit" && (
-              <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/10 border border-amber-300 dark:border-amber-700/70 space-y-1.5">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle
-                    size={14}
-                    strokeWidth={3}
-                    className="text-amber-600 shrink-0 mt-0.5"
-                  />
-                  <div className="text-xs text-amber-900 dark:text-amber-200 font-medium leading-relaxed">
-                    <span className="uppercase tracking-[0.1em] text-[9px] font-semibold">
-                      Security Warning
-                    </span>
-                    <br />
-                    Edit access via link is sensitive.
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
-    </div>
+    )}
   </section>
 );

@@ -5,6 +5,43 @@ import { createAuthMiddleware } from "./auth";
 import { createDeps, createRequest, createResponse } from "./authTestHelpers";
 
 describe("auth middleware API key authentication", () => {
+  it("authenticates and scope-checks API key bearers in single-user mode", async () => {
+    const { prisma, authModeService } = createDeps();
+    authModeService.getAuthEnabled.mockResolvedValue(false);
+    const generated = generateApiKey();
+    prisma.apiKey.findUnique.mockResolvedValue({
+      id: "api-key-1",
+      tokenHash: generated.tokenHash,
+      scopes: serializeApiKeyScopes(["drawings:read"]),
+      revokedAt: null,
+      drawingId: null,
+      user: {
+        id: "owner-1",
+        username: "owner",
+        email: "owner@test.local",
+        name: "Owner",
+        role: "ADMIN",
+        mustResetPassword: false,
+        isActive: true,
+      },
+    });
+    prisma.apiKey.update.mockResolvedValue({});
+    const { requireAuth } = createAuthMiddleware({ prisma, authModeService });
+    const req = createRequest({
+      method: "POST",
+      originalUrl: "/drawings",
+      headers: { authorization: `Bearer ${generated.token}` },
+    });
+    const res = createResponse();
+    const next = vi.fn() as NextFunction;
+
+    await requireAuth(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
+    expect(authModeService.getBootstrapActingUser).not.toHaveBeenCalled();
+  });
+
   it("attaches active user for valid API key", async () => {
     const { prisma, authModeService } = createDeps();
     authModeService.getAuthEnabled.mockResolvedValue(true);

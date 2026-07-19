@@ -295,6 +295,7 @@ export const Settings: React.FC = () => {
       onDeleteCollection={handleDeleteCollection}
     >
       {" "}
+      <div className="mx-auto w-full max-w-3xl">
       <h1
         className="text-3xl sm:text-4xl lg:text-5xl mb-6 lg:mb-8 text-slate-900 dark:text-white pl-1"
         style={{ fontFamily: displayFontFamily }}
@@ -369,6 +370,7 @@ export const Settings: React.FC = () => {
         setBackupImportError={setBackupImportError}
         setBackupImportLoading={setBackupImportLoading}
       />{" "}
+      </div>
     </Layout>
   );
 };

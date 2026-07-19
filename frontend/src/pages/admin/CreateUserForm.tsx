@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { UserCog } from "lucide-react";
+import { ShieldCheck, User, UserCog } from "lucide-react";
 import { PasswordRequirements } from "../../components/PasswordRequirements";
+import { PlayfulSelect } from "../../components/PlayfulSelect";
 import { validatePassword, type PasswordPolicy } from "../../utils/passwordPolicy";
 
 export type CreateUserInput = {
@@ -166,14 +167,17 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
         <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">
           Role
         </label>
-        <select
+        <PlayfulSelect
+          ariaLabel="Role"
           value={role}
-          onChange={(event) => setRole(event.target.value as "ADMIN" | "USER")}
-          className="w-full px-4 py-3 bg-white dark:bg-neutral-800 border-2 border-slate-200 dark:border-neutral-700 rounded-xl text-slate-900 dark:text-white outline-none"
-        >
-          <option value="USER">USER</option>
-          <option value="ADMIN">ADMIN</option>
-        </select>
+          onChange={(value) => setRole(value as "ADMIN" | "USER")}
+          options={[
+            { value: "USER", label: "USER", icon: <User size={14} /> },
+            { value: "ADMIN", label: "ADMIN", icon: <ShieldCheck size={14} /> },
+          ]}
+          className="w-full"
+          buttonClassName="w-full px-4 py-3 font-normal"
+        />
       </div>
       <div className="flex flex-col sm:flex-row items-center gap-4 pt-4">
         <div className="flex-1 w-full">

@@ -16,6 +16,27 @@
   .ui-side-panel {
     @apply border-slate-200 bg-white shadow-xl shadow-slate-900/10 dark:border-neutral-800 dark:bg-neutral-900 dark:shadow-black/30;
   }
+
+  /* Playful menus: bold border + hard shadow on floating layers only. */
+  .ui-menu {
+    @apply rounded-xl border border-black bg-white p-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.15)];
+  }
+
+  .ui-menu-item {
+    @apply flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-medium text-slate-600 transition-colors hover:bg-indigo-50 hover:text-indigo-600 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-indigo-400;
+  }
+
+  .ui-menu-item-selected {
+    @apply bg-indigo-100 font-bold text-indigo-700 hover:bg-indigo-100 hover:text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 dark:hover:bg-indigo-900/40 dark:hover:text-indigo-300;
+  }
+
+  .ui-menu-item-danger {
+    @apply text-rose-600 hover:bg-rose-50 hover:text-rose-600 dark:text-rose-400 dark:hover:bg-rose-950/30 dark:hover:text-rose-400;
+  }
+
+  .ui-menu-separator {
+    @apply my-1 border-t-2 border-slate-100 dark:border-neutral-800;
+  }
 }
 
 :root {
