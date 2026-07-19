@@ -45,7 +45,7 @@ export const ShareModal: React.FC<Props> = ({
   const [userResults, setUserResults] = useState<api.ShareResolvedUser[]>([]);
   const [userPermission, setUserPermission] = useState<"view" | "edit">("view");
   const [linkPermission, setLinkPermission] = useState<"view" | "edit">("view");
-  const [expiryOption, setExpiryOption] = useState("1d");
+  const [expiryOption, setExpiryOption] = useState("1h");
   const [customExpiry, setCustomExpiry] = useState("");
   const [isCopied, setIsCopied] = useState(false);
 
@@ -105,7 +105,7 @@ export const ShareModal: React.FC<Props> = ({
     setUserResults([]);
     setUserPermission("view");
     setLinkPermission("view");
-    setExpiryOption("1d");
+    setExpiryOption("1h");
     setCustomExpiry("");
     setIsCopied(false);
     void refresh();

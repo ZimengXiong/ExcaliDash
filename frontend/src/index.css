@@ -6,7 +6,7 @@
   /* Core ExcaliDash surfaces. Keep these primitives shared so feature areas
      (including editor overlays) feel like the same product. */
   .ui-card {
-    @apply rounded-2xl border-2 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.18)];
+    @apply rounded-2xl border-2 border-slate-800 bg-white shadow-[3px_3px_0px_0px_rgba(30,41,59,0.9)] dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.18)];
   }
 
   .ui-card-soft {
@@ -14,11 +14,11 @@
   }
 
   .ui-button-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl border-2 border-black bg-indigo-600 px-3 py-2 text-sm font-bold text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all hover:-translate-y-0.5 hover:bg-indigo-500 active:translate-y-0 active:shadow-none disabled:pointer-events-none disabled:opacity-45 dark:border-neutral-600;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border-2 border-slate-800 bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] transition-all hover:-translate-y-0.5 hover:bg-indigo-500 active:translate-y-0 active:shadow-none disabled:pointer-events-none disabled:opacity-45 dark:border-neutral-600;
   }
 
   .ui-button-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl border-2 border-black bg-white px-3 py-2 text-sm font-bold text-slate-900 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all hover:-translate-y-0.5 hover:bg-slate-50 active:translate-y-0 active:shadow-none disabled:pointer-events-none disabled:opacity-45 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.16)] dark:hover:bg-neutral-700;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border-2 border-slate-800 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] transition-all hover:-translate-y-0.5 hover:bg-slate-50 active:translate-y-0 active:shadow-none disabled:pointer-events-none disabled:opacity-45 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)] dark:hover:bg-neutral-700;
   }
 
   .ui-icon-button {
@@ -34,7 +34,7 @@
   }
 
   .ui-link {
-    @apply font-bold text-indigo-600 transition-colors hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300;
+    @apply font-semibold text-indigo-600 transition-colors hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300;
   }
 
   .ui-alert-error {
@@ -78,7 +78,7 @@
 
   /* Playful menus: bold border + hard shadow on floating layers only. */
   .ui-menu {
-    @apply rounded-xl border border-black bg-white p-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.15)];
+    @apply rounded-xl border border-slate-800 bg-white p-1 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)];
   }
 
   .ui-menu-item {

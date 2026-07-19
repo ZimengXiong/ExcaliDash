@@ -57,7 +57,7 @@ export const SharePeopleSection: React.FC<Props> = ({
           onChange={(value) => setUserPermission(value as "view" | "edit")}
           options={permissionOptions}
           align="right"
-          variant="plain"
+          variant="playful"
           buttonClassName="px-2.5 py-2"
         />
       </div>
@@ -92,7 +92,7 @@ export const SharePeopleSection: React.FC<Props> = ({
     </section>
 
     <section>
-      <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">
+      <h3 className="mb-3 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-neutral-500">
         People
       </h3>
       <div className="divide-y divide-slate-100 dark:divide-neutral-800">
@@ -152,7 +152,7 @@ export const SharePeopleSection: React.FC<Props> = ({
               ]}
               align="right"
               size="sm"
-              variant="plain"
+              variant="playful"
               showCheck={false}
             />
           </div>

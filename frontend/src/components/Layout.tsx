@@ -114,7 +114,7 @@ export const Layout: React.FC<LayoutProps> = ({
               <button
                 type="button"
                 onClick={() => setIsSidebarOpen(v => !v)}
-                className="inline-flex items-center justify-center h-11 w-11 rounded-xl border-2 border-black dark:border-neutral-700 bg-white/90 dark:bg-neutral-900/90 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] text-slate-900 dark:text-neutral-200 hover:-translate-y-0.5 transition-all active:translate-y-0 active:shadow-none"
+                className="inline-flex items-center justify-center h-11 w-11 rounded-xl border-2 border-slate-800 dark:border-neutral-700 bg-white/90 dark:bg-neutral-900/90 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)] text-slate-900 dark:text-neutral-200 hover:-translate-y-0.5 transition-all active:translate-y-0 active:shadow-none"
                 title={isSidebarOpen ? 'Close menu' : 'Open menu'}
                 aria-label={isSidebarOpen ? 'Close menu' : 'Open menu'}
               >
@@ -148,7 +148,7 @@ export const Layout: React.FC<LayoutProps> = ({
           <aside
             ref={sidebarRef}
             className={clsx(
-              'fixed inset-y-4 left-2 sm:left-4 z-40 bg-white dark:bg-neutral-900 rounded-2xl border-2 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] overflow-hidden transition-transform duration-200',
+              'fixed inset-y-4 left-2 sm:left-4 z-40 bg-white dark:bg-neutral-900 rounded-2xl border-2 border-slate-800 dark:border-neutral-700 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)] overflow-hidden transition-transform duration-200',
               isSidebarOpen ? 'translate-x-0' : '-translate-x-[110%]'
             )}
             style={{ width: `${sidebarWidth}px` }}
@@ -176,7 +176,7 @@ export const Layout: React.FC<LayoutProps> = ({
         <div className="flex gap-3 sm:gap-4 items-start h-full min-w-0">
           <aside 
             ref={sidebarRef}
-            className="flex-shrink-0 h-full bg-white dark:bg-neutral-900 rounded-2xl border-2 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] overflow-hidden z-20 transition-colors duration-200 relative"
+            className="flex-shrink-0 h-full bg-white dark:bg-neutral-900 rounded-2xl border-2 border-slate-800 dark:border-neutral-700 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)] overflow-hidden z-20 transition-colors duration-200 relative"
             style={{ width: `${sidebarWidth}px` }}
           >
             <Sidebar

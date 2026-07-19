@@ -89,8 +89,7 @@ export const AiSettingsCard: React.FC<{
               Enable AI features
             </h3>
             <p className="mt-0.5 text-xs font-medium text-slate-500 dark:text-neutral-400">
-              Hide AI controls and block AI APIs without deleting saved
-              providers.
+              Allow drawing integrations with AI agents and tools.
             </p>
           </div>
           <PlayfulSwitch
