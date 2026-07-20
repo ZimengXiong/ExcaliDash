@@ -65,7 +65,16 @@ services:
     image: zimengxiong/excalidash-frontend:0.4.18-dev
 ```
 
-The `dev` branch publishes prerelease images through `.github/workflows/docker-dev.yml`.
+The `dev` branch publishes prereleases through `.github/workflows/docker-dev.yml`
+only when the head commit message is `!release` or starts with `!release `.
+Other pushes to `dev` skip all CI jobs. A release commit publishes Docker images
+and creates a GitHub prerelease:
+
+```bash
+git commit -m "!release describe this prerelease"
+git push origin dev
+```
+
 Use the rolling `:dev` tag or pin the versioned `:<VERSION>-dev` tag:
 
 ```yaml

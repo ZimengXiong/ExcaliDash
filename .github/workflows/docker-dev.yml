@@ -1,23 +1,16 @@
-name: Dev images
+name: Dev prerelease
 
 on:
   push:
     branches:
       - dev
-  workflow_dispatch:
-    inputs:
-      publish:
-        description: Push dev images (only allowed from the dev branch)
-        required: true
-        default: false
-        type: boolean
 
 permissions:
   contents: read
 
 concurrency:
-  group: dev-images
-  cancel-in-progress: true
+  group: dev-prereleases
+  cancel-in-progress: false
 
 env:
   DOCKERHUB_USERNAME: zimengxiong
@@ -25,6 +18,9 @@ env:
 jobs:
   verify:
     name: Verify source
+    if: >-
+      github.event.head_commit.message == '!release' ||
+      startsWith(github.event.head_commit.message, '!release ')
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -82,7 +78,6 @@ jobs:
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
 
       - name: Log in to Docker Hub
-        if: github.ref == 'refs/heads/dev' && (github.event_name == 'push' || inputs.publish)
         uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4
         with:
           username: ${{ env.DOCKERHUB_USERNAME }}
@@ -94,7 +89,7 @@ jobs:
           context: backend
           file: backend/Dockerfile
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.ref == 'refs/heads/dev' && (github.event_name == 'push' || inputs.publish) }}
+          push: true
           tags: |
             ${{ steps.tags.outputs.backend }}
             ${{ steps.tags.outputs.backend_version }}
@@ -108,7 +103,7 @@ jobs:
           context: .
           file: frontend/Dockerfile
           platforms: linux/amd64,linux/arm64
-          push: ${{ github.ref == 'refs/heads/dev' && (github.event_name == 'push' || inputs.publish) }}
+          push: true
           build-args: |
             VITE_APP_VERSION=${{ steps.tags.outputs.version }}
             VITE_APP_BUILD_LABEL=development
@@ -118,3 +113,47 @@ jobs:
             ${{ steps.tags.outputs.frontend_sha }}
           cache-from: type=gha,scope=dev-frontend
           cache-to: type=gha,mode=max,scope=dev-frontend
+
+  release:
+    name: Create GitHub prerelease
+    needs: images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Derive prerelease tag
+        id: release
+        shell: bash
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          short_sha="${GITHUB_SHA::7}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "VERSION must contain a stable x.y.z base version." >&2
+            exit 1
+          fi
+          echo "tag=v${version}-dev.${short_sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_NOTES: ${{ github.event.head_commit.message }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          notes="${RELEASE_NOTES#\!release}"
+          notes="${notes# }"
+          if [ -z "$notes" ]; then
+            notes="Automated prerelease from commit ${GITHUB_SHA::7}."
+          fi
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Prerelease $RELEASE_TAG already exists."
+            exit 0
+          fi
+          gh release create "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "ExcaliDash $RELEASE_TAG" \
+            --notes "$notes" \
+            --prerelease
