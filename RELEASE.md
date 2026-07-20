@@ -66,3 +66,5 @@
 - added matching sqlite and postgresql migrations for drawing files, canvas engines, provider profiles, chat history, agent tokens, sharing policy, and system settings
 - added typed environment configuration, generated configuration references, startup validation, and checks that keep direct environment access out of application code
 - improved docker shutdown behavior with proper signal forwarding and graceful socket and database cleanup
+
+<!-- native architecture build retry -->

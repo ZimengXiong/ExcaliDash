@@ -22,6 +22,8 @@ jobs:
       github.event.head_commit.message == '!release' ||
       startsWith(github.event.head_commit.message, '!release ')
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.version }}
     steps:
       - name: Check out source
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -29,6 +31,7 @@ jobs:
           fetch-depth: 2
 
       - name: Validate prerelease notes
+        id: release
         shell: bash
         run: |
           if [ ! -s RELEASE.md ]; then
@@ -40,6 +43,12 @@ jobs:
             echo "The !release commit must update RELEASE.md." >&2
             exit 1
           fi
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "VERSION must contain a stable x.y.z base version." >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -58,36 +67,23 @@ jobs:
       - name: Run merge gates
         run: make verify
 
-  images:
-    name: Build dev images
+  build:
+    name: Build dev images (${{ matrix.arch }})
     needs: verify
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Check out source
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-
-      - name: Derive dev-only tags
-        id: tags
-        shell: bash
-        run: |
-          version="$(tr -d '[:space:]' < VERSION)"
-          short_sha="${GITHUB_SHA::7}"
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "VERSION must contain a stable x.y.z base version." >&2
-            exit 1
-          fi
-          {
-            echo "version=${version}-dev"
-            echo "backend=${DOCKERHUB_USERNAME}/excalidash-backend:dev"
-            echo "backend_version=${DOCKERHUB_USERNAME}/excalidash-backend:${version}-dev"
-            echo "backend_sha=${DOCKERHUB_USERNAME}/excalidash-backend:${version}-dev-${short_sha}"
-            echo "frontend=${DOCKERHUB_USERNAME}/excalidash-frontend:dev"
-            echo "frontend_version=${DOCKERHUB_USERNAME}/excalidash-frontend:${version}-dev"
-            echo "frontend_sha=${DOCKERHUB_USERNAME}/excalidash-frontend:${version}-dev-${short_sha}"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
@@ -99,35 +95,105 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build backend
+        id: backend
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: backend
           file: backend/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.platform }}
           push: true
-          tags: |
-            ${{ steps.tags.outputs.backend }}
-            ${{ steps.tags.outputs.backend_version }}
-            ${{ steps.tags.outputs.backend_sha }}
-          cache-from: type=gha,scope=dev-backend
-          cache-to: type=gha,mode=max,scope=dev-backend
+          outputs: type=image,name=${{ env.DOCKERHUB_USERNAME }}/excalidash-backend,push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=dev-backend-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=dev-backend-${{ matrix.arch }}
 
       - name: Build frontend
+        id: frontend
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           file: frontend/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.platform }}
           push: true
           build-args: |
-            VITE_APP_VERSION=${{ steps.tags.outputs.version }}
+            VITE_APP_VERSION=${{ needs.verify.outputs.version }}-dev
             VITE_APP_BUILD_LABEL=development
-          tags: |
-            ${{ steps.tags.outputs.frontend }}
-            ${{ steps.tags.outputs.frontend_version }}
-            ${{ steps.tags.outputs.frontend_sha }}
-          cache-from: type=gha,scope=dev-frontend
-          cache-to: type=gha,mode=max,scope=dev-frontend
+          outputs: type=image,name=${{ env.DOCKERHUB_USERNAME }}/excalidash-frontend,push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=dev-frontend-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=dev-frontend-${{ matrix.arch }}
+
+      - name: Export image digests
+        env:
+          BACKEND_DIGEST: ${{ steps.backend.outputs.digest }}
+          FRONTEND_DIGEST: ${{ steps.frontend.outputs.digest }}
+        run: |
+          mkdir -p /tmp/digests/backend /tmp/digests/frontend
+          touch "/tmp/digests/backend/${BACKEND_DIGEST#sha256:}"
+          touch "/tmp/digests/frontend/${FRONTEND_DIGEST#sha256:}"
+
+      - name: Upload image digests
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: image-digests-${{ matrix.arch }}
+          path: /tmp/digests
+          if-no-files-found: error
+          retention-days: 1
+
+  images:
+    name: Publish dev image manifests
+    needs:
+      - verify
+      - build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download image digests
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: image-digests-*
+          path: /tmp/digests
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Publish backend manifest
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          short_sha="${GITHUB_SHA::7}"
+          repository="${DOCKERHUB_USERNAME}/excalidash-backend"
+          sources=()
+          for digest in /tmp/digests/backend/*; do
+            sources+=("${repository}@sha256:$(basename "$digest")")
+          done
+          docker buildx imagetools create \
+            --tag "${repository}:dev" \
+            --tag "${repository}:${VERSION}-dev" \
+            --tag "${repository}:${VERSION}-dev-${short_sha}" \
+            "${sources[@]}"
+          docker buildx imagetools inspect "${repository}:${VERSION}-dev-${short_sha}"
+
+      - name: Publish frontend manifest
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          short_sha="${GITHUB_SHA::7}"
+          repository="${DOCKERHUB_USERNAME}/excalidash-frontend"
+          sources=()
+          for digest in /tmp/digests/frontend/*; do
+            sources+=("${repository}@sha256:$(basename "$digest")")
+          done
+          docker buildx imagetools create \
+            --tag "${repository}:dev" \
+            --tag "${repository}:${VERSION}-dev" \
+            --tag "${repository}:${VERSION}-dev-${short_sha}" \
+            "${sources[@]}"
+          docker buildx imagetools inspect "${repository}:${VERSION}-dev-${short_sha}"
 
   release:
     name: Create GitHub prerelease
