@@ -35,6 +35,11 @@ jobs:
           cd backend
           npm test
 
+      - name: Build backend
+        run: |
+          cd backend
+          npm run build
+
   repo-checks:
     name: Repo Checks
     runs-on: ubuntu-latest
@@ -87,6 +92,16 @@ jobs:
         run: |
           cd frontend
           npm test
+
+      - name: Lint frontend
+        run: |
+          cd frontend
+          npm run lint
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm run build
 
   e2e-tests:
     name: E2E Browser Tests

@@ -1,5 +1,6 @@
-.PHONY: help install dev build test test-frontend test-backend test-e2e test-e2e-docker \
-        lint lint-frontend lint-backend check clean docker-build docker-run docker-down docker-logs \
+.PHONY: help doctor install install-e2e verify dev build test test-frontend test-backend \
+        test-e2e test-e2e-docker lint lint-frontend lint-backend check clean \
+        docker-build docker-run docker-down docker-logs \
         lab-build lab-up lab-down lab-reset lab-status lab-logs lab-smoke lab-open \
         release pre-release version-bump changelog changelog-open changelog-keep db-migrate db-reset
 
@@ -20,6 +21,8 @@ help: ## Show this help message
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -E '(install|dev|build|lint|clean)' | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 	@echo "Testing:"
 	@grep -hE '^test[-a-zA-Z0-9_]*:.*## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
+	@echo "Quality:"
+	@grep -hE '^(doctor|verify|check):.*## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
 	@echo "Docker:"
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -E '(docker)' | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 	@echo "Environment lab:"
@@ -30,14 +33,23 @@ help: ## Show this help message
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -E '(db-)' | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 	@echo "Current version: $(VERSION)"
 
-install: ## Install all dependencies (frontend, backend, e2e)
+doctor: ## Check the local Node.js toolchain
+	@command -v node >/dev/null 2>&1 || { echo "Node.js is required (use Node 20 or 22 LTS)."; exit 1; }
+	@node -e 'const major=Number(process.versions.node.split(".")[0]); if (major < 20 || major > 22) { console.error(`Unsupported Node.js $${process.version}. Use Node 20 or 22 LTS (run \"nvm use\" when using nvm).`); process.exit(1); }'
+	@command -v npm >/dev/null 2>&1 || { echo "npm is required."; exit 1; }
+	@echo "Toolchain ready: Node $$(node --version), npm $$(npm --version)"
+
+install: doctor ## Reproducibly install all dependencies from lockfiles
 	@echo "Installing frontend dependencies..."
-	cd frontend && npm install
+	cd frontend && npm ci --no-audit --no-fund
 	@echo "Installing backend dependencies..."
-	cd backend && npm install
+	cd backend && npm ci --no-audit --no-fund
 	@echo "Installing e2e dependencies..."
-	cd e2e && npm install
+	cd e2e && npm ci --no-audit --no-fund
 	@echo "All dependencies installed."
+
+install-e2e: install ## Install dependencies and the Playwright Chromium browser
+	cd e2e && npx playwright install chromium
 
 dev: ## Start backend+frontend in a tmux split screen (single-user local mode)
 	@command -v tmux >/dev/null 2>&1 || { \
@@ -108,6 +120,9 @@ build: ## Build frontend and backend for production
 	@echo "Building frontend..."
 	cd frontend && npm run build
 	@echo "Build complete."
+
+verify: check lint build test ## Run every required local merge gate
+	@echo "All merge gates passed."
 
 lint: lint-frontend lint-backend ## Run linters for frontend and backend
 

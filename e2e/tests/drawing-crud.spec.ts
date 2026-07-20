@@ -42,6 +42,7 @@ test.describe("Drawing Creation", () => {
 
     const newDrawingButton = page.getByRole("button", { name: /New Drawing/i });
     await newDrawingButton.click();
+    await page.getByTestId("engine-card-excalidraw").click();
 
     await page.waitForURL(/\/editor\//);
 

@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { MutableRefObject } from "react";
 import type { Socket } from "socket.io-client";
 import { Send, Sparkles, Square, Trash2, X } from "lucide-react";
@@ -17,6 +23,7 @@ import { AgentModelSelector } from "./AgentModelSelector";
 import { AgentChatMessage } from "./AgentChatMessage";
 import type { AgentCanvasCapture } from "./captureAgentCanvas";
 import { useAuth } from "../../context/AuthContext";
+import { loadChatSelection, saveChatSelection } from "./chatSelection";
 
 const STR = {
   title: "Assistant",
@@ -29,22 +36,6 @@ const STR = {
   clear: "Clear chat",
   empty: "What should I draw?",
 } as const;
-
-const CHAT_SELECTION_STORAGE_KEY = "excalidash:ai-chat-selection";
-
-const loadChatSelection = (): { providerId: string; modelId: string } => {
-  try {
-    const parsed = JSON.parse(
-      window.localStorage.getItem(CHAT_SELECTION_STORAGE_KEY) ?? "{}",
-    );
-    return {
-      providerId: typeof parsed.providerId === "string" ? parsed.providerId : "",
-      modelId: typeof parsed.modelId === "string" ? parsed.modelId : "",
-    };
-  } catch {
-    return { providerId: "", modelId: "" };
-  }
-};
 
 type ChatPanelProps = {
   drawingId?: string;
@@ -63,18 +54,18 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   selfAgentBatchIdsRef,
   captureCanvasContext,
 }) => {
-  const initialSelection = useRef(loadChatSelection());
+  const [initialSelection] = useState(loadChatSelection);
   const { aiEnabled } = useAuth();
   const [available, setAvailable] = useState(false);
   const [providers, setProviders] = useState<AiProviderProfile[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState(
-    initialSelection.current.providerId,
+    initialSelection.providerId,
   );
   const [chatgpt, setChatgpt] = useState<ChatGptConnectionStatus | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [selectedModel, setSelectedModel] = useState(
-    initialSelection.current.modelId,
+    initialSelection.modelId,
   );
   const [reasoningEffort, setReasoningEffort] = useState("medium");
   const listRef = useRef<HTMLDivElement>(null);
@@ -82,13 +73,20 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     (profile) => profile.id === selectedProviderId,
   );
   const isChatGpt = selectedProvider?.provider === "chatgpt";
-  const models: AiModelOption[] = isChatGpt
-    ? (chatgpt?.models ?? selectedProvider?.models ?? [])
-    : (selectedProvider?.models ?? []);
+  const models: AiModelOption[] = useMemo(
+    () =>
+      isChatGpt
+        ? (chatgpt?.models ?? selectedProvider?.models ?? [])
+        : (selectedProvider?.models ?? []),
+    [chatgpt?.models, isChatGpt, selectedProvider?.models],
+  );
   const selectedModelOption = models.find(
     (model) => model.id === selectedModel,
   );
-  const reasoningEfforts = selectedModelOption?.reasoningEfforts ?? [];
+  const reasoningEfforts = useMemo(
+    () => selectedModelOption?.reasoningEfforts ?? [],
+    [selectedModelOption?.reasoningEfforts],
+  );
 
   const registerSelfBatch = useCallback(
     (opsBatchId: string) => {
@@ -189,17 +187,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     ) {
       return;
     }
-    try {
-      window.localStorage.setItem(
-        CHAT_SELECTION_STORAGE_KEY,
-        JSON.stringify({
-          providerId: selectedProviderId,
-          modelId: selectedModel,
-        }),
-      );
-    } catch {
-      // Preferences remain usable for this session when storage is unavailable.
-    }
+    saveChatSelection({
+      providerId: selectedProviderId,
+      modelId: selectedModel,
+    });
   }, [models, selectedModel, selectedProviderId]);
 
   useEffect(() => {

@@ -79,10 +79,18 @@ test.describe("Real-time Collaboration", () => {
       const canvas = interactiveCanvas(page1);
       const box = await canvas.boundingBox();
       if (!box) throw new Error("Interactive canvas not found");
-      await page1.keyboard.press("r");
-      await page1.mouse.move(box.x + 100, box.y + 100);
+      const rectangleTool = page1.locator(
+        'label:has([data-testid="toolbar-rectangle"])',
+      );
+      await rectangleTool.click();
+      await expect(
+        page1.locator('[data-testid="toolbar-rectangle"]'),
+      ).toBeChecked();
+      const centerX = box.x + box.width / 2;
+      const centerY = box.y + box.height / 2;
+      await page1.mouse.move(centerX - 100, centerY - 50);
       await page1.mouse.down();
-      await page1.mouse.move(box.x + 300, box.y + 200, { steps: 5 });
+      await page1.mouse.move(centerX + 100, centerY + 50, { steps: 10 });
       await page1.mouse.up();
 
       let localElement: any;
@@ -92,9 +100,11 @@ test.describe("Real-time Collaboration", () => {
         return localElement?.id;
       }).toEqual(expect.any(String));
 
-      await expect.poll(() => remoteEvents.find(
+      await expect.poll(() => [...remoteEvents].reverse().find(
         (event) => event.name === "element-update" && event.payload?.elements?.some(
-          (element: any) => element.id === localElement.id,
+          (element: any) =>
+            element.id === localElement.id &&
+            element.version === localElement.version,
         ),
       )).toMatchObject({
         name: "element-update",

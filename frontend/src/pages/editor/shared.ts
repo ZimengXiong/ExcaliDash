@@ -45,11 +45,8 @@ export const getElementContentSig = (element: any): string => {
  * literal strings "NEVER" / "IMMEDIATELY" (see store.d.ts).
  */
 const CAPTURE_UPDATE_NEVER = "NEVER" as const;
-const CAPTURE_UPDATE_IMMEDIATELY = "IMMEDIATELY" as const;
 
-export type CaptureMode =
-  | typeof CAPTURE_UPDATE_NEVER
-  | typeof CAPTURE_UPDATE_IMMEDIATELY;
+export type CaptureMode = "NEVER" | "IMMEDIATELY";
 
 type RemoteSceneUpdate =
   | {

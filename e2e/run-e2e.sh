@@ -43,7 +43,7 @@ done
 
 if [ "$DOCKER" = "true" ]; then
   echo "🐳 Running E2E tests in Docker..."
-  docker-compose -f docker-compose.e2e.yml up --build --abort-on-container-exit --exit-code-from playwright
+  docker compose -f docker-compose.e2e.yml up --build --abort-on-container-exit --exit-code-from playwright
   exit $?
 fi
 

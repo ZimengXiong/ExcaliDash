@@ -2,7 +2,7 @@ import express from "express";
 import { buildStructuralSummary } from "../agent/summary";
 import type { ResolvedAiSettings } from "./settings";
 import { AGENT_TOOLS } from "./toolDefs";
-import { applyOpsBatch, type RegisterAiRoutesDeps } from "./applyOpsBatch";
+import type { RegisterAiRoutesDeps } from "./applyOpsBatch";
 import {
   checkpointStoredAssistant,
   createStoredChatTurn,
@@ -17,67 +17,17 @@ import {
   type ToolResult,
 } from "./providers/types";
 import { flagReconnect, type ChatGptAuth } from "./chatgpt/store";
-
-const MAX_TOOL_ITERATIONS = 24;
-const MAX_ACTION_RECOVERIES = 1;
-const REPEATED_TOOL_BATCH_LIMIT = 3;
-
-const CANVAS_MUTATION_REQUEST =
-  /\b(draw|add|create|make|place|insert|connect|move|resize|delete|remove|change|update|edit|arrange|layout|align|distribute|color|style|label|write|replace)\b/i;
-
-const requestsCanvasMutation = (text: string): boolean =>
-  CANVAS_MUTATION_REQUEST.test(text);
-
-const buildSystemPrompt = (name: string | null, summary: string): string =>
-  [
-    "You are a capable conversational agent embedded in an Excalidraw editor.",
-    "Talk naturally with the user: answer questions, brainstorm, explain, and",
-    "collaborate even when no canvas change is needed. Canvas tools are optional.",
-    "Use the structural summary to understand the scene and apply_ops to edit it.",
-    "Each new user message includes current structural state and, for nonblank",
-    "canvases, an automatically captured image. Inspect that image directly.",
-    "Do not call view_canvas when the message says a snapshot is attached; that",
-    "tool would return the same capture. A blank canvas is valid, not an error.",
-    "Element ids in the summary are the ids to reference in ops. After each",
-    "apply_ops call you receive an updated summary; keep it in mind.",
-    "For multi-element diagrams, create shapes with short refs, connect them via",
-    "$ref in the same atomic batch, then finish that batch with layout/align/",
-    "distribute. Prefer 120×60 or larger labeled nodes, 60-100px whitespace,",
-    "short labels, consistent styles, and edge-bound connectors. Labeled shapes",
-    "auto-grow vertically when their wrapped text needs more room. Fix any",
-    "warnings (especially overlaps or label-overflow) before finishing.",
-    "Frame lines expose title=; set_text with the frame id edits that native title.",
-    "Treat tool failures as recoverable feedback. Adjust and continue when safe.",
-    "For canvas-edit requests, act early: keep reasoning brief and call apply_ops",
-    "before spending time narrating or refining every coordinate in prose.",
-    "Never claim a canvas edit succeeded until apply_ops confirms it. Finish every",
-    "turn with a concise natural-language response to the user.",
-    "",
-    `Current drawing: "${name ?? "Untitled"}"`,
-    "",
-    summary,
-  ].join("\n");
-
-type ToolActivity = {
-  id: string;
-  name: string;
-  status: "running" | "success" | "error";
-  message?: string;
-};
-
-type BatchActivity = {
-  opsBatchId: string;
-  version: number;
-  revertVersion: number;
-  summaryDelta: string[];
-  status: "applied";
-};
-
-const writeSse = (res: express.Response, event: string, data: unknown) => {
-  if (!res.destroyed && !res.writableEnded) {
-    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-  }
-};
+import {
+  buildSystemPrompt,
+  MAX_ACTION_RECOVERIES,
+  MAX_TOOL_ITERATIONS,
+  REPEATED_TOOL_BATCH_LIMIT,
+  requestsCanvasMutation,
+  type BatchActivity,
+  type ToolActivity,
+  writeSse,
+} from "./chatTurnSupport";
+import { runChatTool } from "./runChatTool";
 
 export const executePersistentChatTurn = async (params: {
   req: express.Request;
@@ -361,81 +311,20 @@ export const executePersistentChatTurn = async (params: {
         tools.push(activity);
         send("tool_call", { name: call.name, id: call.id });
         checkpoint();
-        if (call.name === "view_canvas") {
-          const hasImage = Boolean(params.canvasImage);
-          const isBlank = params.canvasState === "blank";
-          const message = hasImage
-            ? "Canvas snapshot was already attached to the user message"
-            : isBlank
-              ? "Canvas is blank (0 elements)"
-              : "Canvas snapshot unavailable";
-          Object.assign(activity, {
-            status: hasImage || isBlank ? "success" : "error",
-            message,
-          });
-          toolResults.push({
-            id: call.id,
-            content: hasImage
-              ? "The current snapshot was already attached to the user message."
-              : isBlank
-                ? "The canvas is blank (0 elements). This is valid empty state."
-                : "No canvas image is available. Use the structural summary instead.",
-          });
-          send("tool_result", {
-            id: call.id,
-            name: call.name,
-            ok: hasImage || isBlank,
-            message,
-          });
-          checkpoint(true);
-          continue;
-        }
-        if (call.name !== "apply_ops") {
-          const message = `Unknown tool: ${call.name}`;
-          Object.assign(activity, { status: "error", message });
-          toolResults.push({ id: call.id, content: message });
-          send("tool_result", { id: call.id, name: call.name, ok: false, message });
-          checkpoint(true);
-          continue;
-        }
-        const batch = await applyOpsBatch(
+        const execution = await runChatTool({
+          call,
+          activity,
           deps,
           drawingId,
-          req.user!.id,
-          (call.input as { ops?: unknown })?.ops ? call.input : { ops: call.input },
-        );
-        if (batch.ok === false) {
-          const message = `Ops rejected: ${JSON.stringify(batch.errors)}`;
-          Object.assign(activity, { status: "error", message: "Canvas operations were rejected" });
-          opErrors = batch.errors;
-          toolResults.push({ id: call.id, content: message });
-          send("tool_result", {
-            id: call.id,
-            name: call.name,
-            ok: false,
-            message: "Canvas operations were rejected; the agent can revise them",
-          });
-          checkpoint(true);
-          continue;
-        }
-        summary = batch.summary;
-        const applied: BatchActivity = {
-          opsBatchId: batch.opsBatchId,
-          version: batch.version,
-          revertVersion: batch.revertVersion,
-          summaryDelta: batch.summaryDelta,
-          status: "applied",
-        };
-        batches.push(applied);
-        Object.assign(activity, { status: "success", message: "Canvas operations applied" });
-        send("ops_applied", applied);
-        toolResults.push({ id: call.id, content: `Applied. New drawing state:\n${batch.summary}` });
-        send("tool_result", {
-          id: call.id,
-          name: call.name,
-          ok: true,
-          message: "Canvas operations applied",
+          userId: req.user!.id,
+          canvasImage: params.canvasImage,
+          canvasState: params.canvasState,
+          send,
         });
+        toolResults.push(execution.result);
+        if (execution.summary) summary = execution.summary;
+        if (execution.batch) batches.push(execution.batch);
+        if (execution.opErrors) opErrors = execution.opErrors;
         checkpoint(true);
       }
       turns.push({ role: "tool_results", results: toolResults });

@@ -77,12 +77,14 @@ export const useEditorCollaboration = ({
   });
   useEffect(() => {
     setSocketMe(me);
-  }, [me.id, me.name, me.initials, me.color]);
+  }, [me]);
   useEffect(() => {
     socketMeRef.current = socketMe;
   }, [socketMe]);
   useEffect(() => {
     if (!drawingId || !isReady) return;
+    const pendingRemoteElements = pendingRemoteElementsRef.current;
+    const pendingCursorEvents = cursorBuffer.current;
     const socket = io(getSocketUrl(), {
       path: "/socket.io",
       transports: ["websocket", "polling"],
@@ -90,7 +92,10 @@ export const useEditorCollaboration = ({
     });
     socketRef.current = socket;
     setSocket(socket);
-    if (import.meta.env.DEV) {
+    if (
+      import.meta.env.DEV ||
+      import.meta.env.VITE_EXPOSE_E2E_TEST_API === "true"
+    ) {
       (window as any).__EXCALIDASH_SOCKET_STATUS__ = {
         connected: socket.connected,
       };
@@ -344,11 +349,11 @@ export const useEditorCollaboration = ({
         remoteFlushRafIdRef.current = null;
       }
       remoteFlushScheduledRef.current = false;
-      pendingRemoteElementsRef.current.clear();
+      pendingRemoteElements.clear();
       pendingRemoteFilesRef.current = {};
       pendingRemoteElementOrderRef.current = null;
       cursorScheduler.cancel();
-      cursorBuffer.current.clear();
+      pendingCursorEvents.clear();
     };
   }, [
     drawingId,

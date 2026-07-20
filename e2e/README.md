@@ -4,7 +4,7 @@ Browser-based end-to-end tests for ExcaliDash using Playwright.
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 20 or 22 LTS
 - npm
 - Docker (optional, for containerized testing)
 
@@ -14,7 +14,7 @@ Browser-based end-to-end tests for ExcaliDash using Playwright.
 
 ```bash
 # Install dependencies
-npm install
+npm ci
 npx playwright install chromium
 
 # Run tests (will start servers automatically)

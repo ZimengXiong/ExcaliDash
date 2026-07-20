@@ -129,7 +129,7 @@ test.describe("Drawing Version History", () => {
     createdDrawingIds.push(drawing.id);
 
     // Update to create a snapshot of v1
-    await updateDrawing(request, drawing.id, {
+    const updated = await updateDrawing(request, drawing.id, {
       elements: [
         { id: "v2-el", type: "ellipse", x: 100, y: 100, width: 80, height: 80 },
       ] as any,
@@ -150,7 +150,7 @@ test.describe("Drawing Version History", () => {
     const headers = await getCsrfHeaders(request);
     const restoreResp = await request.post(
       `${API_URL}/drawings/${drawing.id}/history/${snapshotId}/restore`,
-      { headers }
+      { headers, data: { version: updated.version } }
     );
     expect(restoreResp.ok()).toBe(true);
 

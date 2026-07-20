@@ -1,14 +1,12 @@
-version: "3.8"
-
 # Docker Compose for E2E Browser Testing
 # This provides a repeatable environment for running Playwright tests
 # with full browser automation against the real frontend and backend.
 #
 # Usage:
-#   docker-compose -f docker-compose.e2e.yml up --build --abort-on-container-exit
+#   docker compose -f docker-compose.e2e.yml up --build --abort-on-container-exit
 #
 # For headed mode (requires X11):
-#   HEADED=true docker-compose -f docker-compose.e2e.yml up --build
+#   HEADED=true docker compose -f docker-compose.e2e.yml up --build
 
 services:
   # Backend API server
@@ -22,6 +20,9 @@ services:
       - DATABASE_URL=file:/app/prisma/e2e-test.db
       - PORT=8000
       - NODE_ENV=test
+      - CSRF_SECRET=e2e-csrf-secret
+      - CSRF_MAX_REQUESTS=100000
+      - RATE_LIMIT_MAX_REQUESTS=100000
       # Include both with and without :80 because browsers omit default ports in Origin.
       - FRONTEND_URL=http://frontend,http://frontend:80,http://localhost:5173
     ports:
@@ -43,14 +44,17 @@ services:
       # `frontend/...` paths (same as production `docker-compose.yml`).
       context: ..
       dockerfile: frontend/Dockerfile
+      args:
+        # Expose the editor imperative API only in the disposable E2E image.
+        VITE_EXPOSE_E2E_TEST_API: "true"
     ports:
       - "5173:80"
     depends_on:
       backend:
         condition: service_healthy
     healthcheck:
-      # Use IPv4 loopback explicitly to avoid IPv6 localhost resolution issues.
-      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:80"]
+      # Verify nginx and its backend proxy before launching browser tests.
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:80/api/health"]
       interval: 5s
       timeout: 5s
       retries: 10

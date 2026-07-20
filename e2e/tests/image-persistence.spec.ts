@@ -31,6 +31,24 @@ function generateLargeImageDataUrl(sizeInBytes: number = 50000): string {
   return `data:image/png;base64,${base64Data}`;
 }
 
+const expectStoredImage = async (
+  request: import("@playwright/test").APIRequestContext,
+  drawingId: string,
+  fileId: string,
+  storedFile: any,
+  originalDataUrl: string,
+) => {
+  expect(storedFile).toBeDefined();
+  expect(storedFile.dataURL).toBe(`/api/files/${drawingId}/${fileId}`);
+  const response = await request.get(
+    `${API_URL}${storedFile.dataURL.replace(/^\/api/, "")}`,
+  );
+  expect(response.ok()).toBe(true);
+  expect(await response.body()).toEqual(
+    Buffer.from(originalDataUrl.split(",", 2)[1], "base64"),
+  );
+};
+
 test.describe("Image Persistence - Browser E2E Tests", () => {
   let testDrawingIds: string[] = [];
 
@@ -59,9 +77,8 @@ test.describe("Image Persistence - Browser E2E Tests", () => {
 
     if (await newDrawingBtn.isVisible()) {
       await newDrawingBtn.click();
-
-      await page.waitForURL(/\/(editor|drawing)/i, { timeout: 5000 }).catch(() => {
-      });
+      await page.getByTestId("engine-card-excalidraw").click();
+      await expect(page).toHaveURL(/\/editor\//);
     }
   });
 
@@ -87,9 +104,13 @@ test.describe("Image Persistence - Browser E2E Tests", () => {
     const drawing = await getDrawing(request, createdDrawing.id);
     const savedFiles = drawing.files || {};  // Already parsed by API
 
-    expect(savedFiles["test-image-1"]).toBeDefined();
-    expect(savedFiles["test-image-1"].dataURL).toBe(largeDataUrl);
-    expect(savedFiles["test-image-1"].dataURL.length).toBe(largeDataUrl.length);
+    await expectStoredImage(
+      request,
+      createdDrawing.id,
+      "test-image-1",
+      savedFiles["test-image-1"],
+      largeDataUrl,
+    );
 
     console.log("✓ Large image data preserved correctly through save/reload cycle");
   });
@@ -122,8 +143,13 @@ test.describe("Image Persistence - Browser E2E Tests", () => {
     const drawing = await getDrawing(request, createdDrawing.id);
     const savedFiles = drawing.files || {};  // Already parsed by API
 
-    expect(savedFiles["embedded-test-image"]).toBeDefined();
-    expect(savedFiles["embedded-test-image"].dataURL).toBe(fixtureData.files["embedded-test-image"].dataURL);
+    await expectStoredImage(
+      request,
+      createdDrawing.id,
+      "embedded-test-image",
+      savedFiles["embedded-test-image"],
+      fixtureData.files["embedded-test-image"].dataURL,
+    );
   });
 
   test("should handle multiple images of varying sizes", async ({ request }) => {
@@ -158,9 +184,13 @@ test.describe("Image Persistence - Browser E2E Tests", () => {
     const savedFiles = drawing.files || {};  // Already parsed by API
 
     for (const [id, originalFile] of Object.entries(files)) {
-      expect(savedFiles[id]).toBeDefined();
-      expect(savedFiles[id].dataURL).toBe((originalFile as any).dataURL);
-      expect(savedFiles[id].dataURL.length).toBe((originalFile as any).dataURL.length);
+      await expectStoredImage(
+        request,
+        createdDrawing.id,
+        id,
+        savedFiles[id],
+        (originalFile as any).dataURL,
+      );
     }
 
     console.log("✓ Multiple images of varying sizes preserved correctly");
@@ -192,18 +222,9 @@ test.describe("Security - Malicious Content Blocking", () => {
       },
     });
 
-    if (!response.ok()) {
-      const text = await response.text();
-      console.error(`API Error: ${response.status()} - ${text}`);
-    }
-    expect(response.ok()).toBe(true);
-    const drawing = await response.json();
-    const savedFiles = drawing.files;  // Already parsed by API
-
-    expect(savedFiles["malicious-image"].dataURL).not.toContain("javascript:");
-
-    await request.delete(`${API_URL}/drawings/${drawing.id}`, {
-      headers: await getCsrfHeaders(request),
+    expect(response.status()).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      message: expect.stringMatching(/invalid image reference/i),
     });
   });
 
@@ -231,18 +252,9 @@ test.describe("Security - Malicious Content Blocking", () => {
       },
     });
 
-    if (!response.ok()) {
-      const text = await response.text();
-      console.error(`API Error: ${response.status()} - ${text}`);
-    }
-    expect(response.ok()).toBe(true);
-    const drawing = await response.json();
-    const savedFiles = drawing.files;  // Already parsed by API
-
-    expect(savedFiles["malicious-image"].dataURL).not.toContain("<script>");
-
-    await request.delete(`${API_URL}/drawings/${drawing.id}`, {
-      headers: await getCsrfHeaders(request),
+    expect(response.status()).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      message: expect.stringMatching(/invalid or unsupported image data URL/i),
     });
   });
 });

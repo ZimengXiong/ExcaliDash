@@ -10,6 +10,12 @@ export const UploadStatus: React.FC = () => {
   const autoClearTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
+    if (tasks.length > 0) {
+      setIsOpen(true);
+    }
+  }, [tasks.length]);
+
+  useEffect(() => {
     if (isUploading) {
       setIsOpen(true);
     }

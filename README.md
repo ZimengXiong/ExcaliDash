@@ -234,7 +234,17 @@ For release-candidate validation across multiple local configurations, see the
 
 # Development
 
-For contributor workflow, `make dev` starts the app in local single-user mode so you can reproduce editor bugs without going through login/onboarding. Use `make dev-auth` if you need to test local auth or OIDC flows from your `backend/.env`.
+Use Node 20 or 22 LTS (`nvm use` reads the checked-in `.nvmrc`), then:
+
+```bash
+make install  # reproducible npm ci from every lockfile
+make dev      # local single-user app
+make verify   # checks, lint, production builds, and unit tests
+```
+
+`make dev` starts the app without login/onboarding so editor bugs are quick to
+reproduce. Use `make dev-auth` when testing local auth or OIDC from
+`backend/.env`. Run `make install-e2e` once before the local browser suite.
 
 <details>
 <summary>Clone the Repository</summary>
@@ -258,7 +268,7 @@ git clone git@github.com:ZimengXiong/ExcaliDash.git
 
 ```bash
 cd ExcaliDash/frontend
-npm install
+npm ci
 
 # Copy environment file and customize if needed
 cp .env.example .env
@@ -275,7 +285,7 @@ npm run dev
 
 ```bash
 cd ExcaliDash/backend
-npm install
+npm ci
 
 # Copy environment file and customize if needed
 cp .env.example .env

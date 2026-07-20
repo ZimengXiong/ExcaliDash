@@ -204,7 +204,7 @@ export const useEditorCommands = ({
       if (refs.libraryHydrated?.current === false) return;
       debouncedSaveLibrary([...items]);
     },
-    [canEdit, debouncedSaveLibrary, user],
+    [canEdit, debouncedSaveLibrary, refs.libraryHydrated, user],
   );
 
   const handleBackClick = useCallback(async () => {

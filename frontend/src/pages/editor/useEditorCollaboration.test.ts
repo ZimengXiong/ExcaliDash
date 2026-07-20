@@ -3,8 +3,9 @@ import { createDemandDrivenRafScheduler } from "./useEditorCollaboration";
 
 describe("cursor RAF scheduling", () => {
   it("coalesces demand and cancels pending work", () => {
-    let callback: FrameRequestCallback | undefined;
-    const raf = vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation((cb) => { callback = cb; return 1; });
+    const raf = vi
+      .spyOn(globalThis, "requestAnimationFrame")
+      .mockImplementation(() => 1);
     const cancel = vi.spyOn(globalThis, "cancelAnimationFrame");
     const render = vi.fn();
     const scheduler = createDemandDrivenRafScheduler(render);

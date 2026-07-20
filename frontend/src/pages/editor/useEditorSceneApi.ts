@@ -84,7 +84,10 @@ export const useEditorSceneApi = ({
   const setExcalidrawAPI = useCallback(
     (api: any) => {
       excalidrawAPIRef.current = api;
-      if (import.meta.env.DEV) {
+      if (
+        import.meta.env.DEV ||
+        import.meta.env.VITE_EXPOSE_E2E_TEST_API === "true"
+      ) {
         (window as any).__EXCALIDASH_EXCALIDRAW_API__ = api;
       }
       if (
