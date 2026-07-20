@@ -65,14 +65,15 @@ services:
     image: zimengxiong/excalidash-frontend:0.4.18-dev
 ```
 
-Switch to a one-off custom dev tag (published by `make dev-release NAME=...`):
+The `dev` branch publishes prerelease images through `.github/workflows/docker-dev.yml`.
+Use the rolling `:dev` tag or pin the versioned `:<VERSION>-dev` tag:
 
 ```yaml
 services:
   backend:
-    image: zimengxiong/excalidash-backend:0.4.18-dev-issue38
+    image: zimengxiong/excalidash-backend:0.4.18-dev
   frontend:
-    image: zimengxiong/excalidash-frontend:0.4.18-dev-issue38
+    image: zimengxiong/excalidash-frontend:0.4.18-dev
 ```
 
 ## Contributors (Code Changes)

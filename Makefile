@@ -1,8 +1,8 @@
 .PHONY: help doctor install install-e2e verify dev build test test-frontend test-backend \
-        test-e2e test-e2e-docker lint lint-frontend lint-backend check clean \
+        test-e2e test-e2e-docker lint lint-frontend lint-backend check clean clean-all \
         docker-build docker-run docker-down docker-logs \
         lab-build lab-up lab-down lab-reset lab-status lab-logs lab-smoke lab-open \
-        release pre-release version-bump changelog changelog-open changelog-keep db-migrate db-reset
+        version version-bump changelog changelog-open changelog-keep db-migrate db-reset
 
 DOCKER_USERNAME := zimengxiong
 IMAGE_NAME := excalidash
@@ -27,8 +27,8 @@ help: ## Show this help message
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -E '(docker)' | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 	@echo "Environment lab:"
 	@grep -hE '^lab[-a-zA-Z0-9_]*:.*## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-20s %s\n", $$1, $$2}'
-	@echo "Release:"
-	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -E '(release|version|changelog)' | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
+	@echo "Versioning:"
+	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -E '(version|changelog)' | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 	@echo "Database:"
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | grep -E '(db-)' | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-20s %s\n", $$1, $$2}'
 	@echo "Current version: $(VERSION)"
@@ -139,10 +139,18 @@ check: ## Run repo checks (max source line count + env boundary)
 	cd backend && npm run check:env-boundary
 	@echo "Repo checks passed."
 
-clean: ## Clean build artifacts and node_modules
+clean: ## Clean generated build and test artifacts
 	@echo "Cleaning build artifacts..."
 	rm -rf frontend/dist
 	rm -rf frontend/node_modules/.vite
+	rm -rf frontend/coverage
+	rm -rf backend/dist
+	rm -rf backend/src/generated
+	rm -rf backend/coverage
+	rm -rf e2e/test-results
+	rm -rf e2e/playwright-report
+	rm -rf e2e/coverage
+	rm -f backend/prisma/test.*.db backend/prisma/test.*.db-shm backend/prisma/test.*.db-wal
 	@echo "Clean complete."
 
 clean-all: clean ## Clean everything including node_modules
@@ -332,8 +340,6 @@ changelog-open: ## Open current RELEASE.md without resetting
 
 changelog-keep: ## Alias: open current RELEASE.md without resetting
 	@$(MAKE) changelog-open
-
-include make/release.mk
 
 db-migrate: ## Run database migrations
 	@echo "Running database migrations..."
