@@ -68,9 +68,13 @@ services:
 The `dev` branch publishes prereleases through `.github/workflows/docker-dev.yml`
 only when the head commit message is `!release` or starts with `!release `.
 Other pushes to `dev` skip all CI jobs. A release commit publishes Docker images
-and creates a GitHub prerelease:
+and creates a GitHub prerelease using the root `RELEASE.md` verbatim. The same
+release commit must update `RELEASE.md`, which prevents stale notes from being
+published:
 
 ```bash
+$EDITOR RELEASE.md
+git add RELEASE.md
 git commit -m "!release describe this prerelease"
 git push origin dev
 ```

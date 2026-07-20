@@ -25,6 +25,21 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 2
+
+      - name: Validate prerelease notes
+        shell: bash
+        run: |
+          if [ ! -s RELEASE.md ]; then
+            echo "RELEASE.md must exist and contain prerelease notes." >&2
+            exit 1
+          fi
+          if ! git diff --name-only "${GITHUB_SHA}^" "$GITHUB_SHA" -- |
+            grep -Fxq RELEASE.md; then
+            echo "The !release commit must update RELEASE.md." >&2
+            exit 1
+          fi
 
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -139,14 +154,8 @@ jobs:
       - name: Create GitHub prerelease
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_NOTES: ${{ github.event.head_commit.message }}
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
-          notes="${RELEASE_NOTES#\!release}"
-          notes="${notes# }"
-          if [ -z "$notes" ]; then
-            notes="Automated prerelease from commit ${GITHUB_SHA::7}."
-          fi
           if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Prerelease $RELEASE_TAG already exists."
             exit 0
@@ -155,5 +164,5 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "ExcaliDash $RELEASE_TAG" \
-            --notes "$notes" \
+            --notes-file RELEASE.md \
             --prerelease
