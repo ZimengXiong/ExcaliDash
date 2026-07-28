@@ -392,4 +392,74 @@ describe("Collection Sharing - Backend Integration", () => {
     expect(importDrawingResponse.status).toBe(403);
     expect(importDrawingResponse.body?.error).toContain("No edit access");
   });
+
+  it("allows drawing owner to move their own drawing into a shared collection where they have edit role", async () => {
+    const collection = await prisma.collection.create({
+      data: { name: "Editor Move Target", userId: owner.id },
+      select: { id: true },
+    });
+
+    await ownerAgent
+      .post(`/collections/${collection.id}/shares`)
+      .set("User-Agent", userAgent)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .set(ownerCsrfHeaderName, ownerCsrfToken)
+      .send({ identifier: editor.email, role: "edit" });
+
+    const editorDrawing = await prisma.drawing.create({
+      data: {
+        name: "Editor's Own Drawing",
+        elements: "[]",
+        appState: "{}",
+        files: "{}",
+        userId: editor.id,
+      },
+      select: { id: true },
+    });
+
+    const moveResponse = await editorAgent
+      .put(`/drawings/${editorDrawing.id}`)
+      .set("User-Agent", userAgent)
+      .set("Authorization", `Bearer ${editorToken}`)
+      .set(editorCsrfHeaderName, editorCsrfToken)
+      .send({ collectionId: collection.id });
+
+    expect(moveResponse.status).toBe(200);
+    expect(moveResponse.body?.collectionId).toBe(collection.id);
+  });
+
+  it("prevents drawing owner from moving their own drawing into a shared collection where they have view-only role", async () => {
+    const collection = await prisma.collection.create({
+      data: { name: "Viewer Move Target", userId: owner.id },
+      select: { id: true },
+    });
+
+    await ownerAgent
+      .post(`/collections/${collection.id}/shares`)
+      .set("User-Agent", userAgent)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .set(ownerCsrfHeaderName, ownerCsrfToken)
+      .send({ identifier: viewer.email, role: "view" });
+
+    const viewerDrawing = await prisma.drawing.create({
+      data: {
+        name: "Viewer's Own Drawing",
+        elements: "[]",
+        appState: "{}",
+        files: "{}",
+        userId: viewer.id,
+      },
+      select: { id: true },
+    });
+
+    const moveResponse = await viewerAgent
+      .put(`/drawings/${viewerDrawing.id}`)
+      .set("User-Agent", userAgent)
+      .set("Authorization", `Bearer ${viewerToken}`)
+      .set(viewerCsrfHeaderName, viewerCsrfToken)
+      .send({ collectionId: collection.id });
+
+    expect(moveResponse.status).toBe(404);
+    expect(moveResponse.body?.error).toBe("Collection not found");
+  });
 });

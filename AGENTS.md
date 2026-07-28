@@ -84,6 +84,26 @@ services:
 - Realtime/editor behavior: `frontend/src/pages/Editor.tsx`
 - Deployment flow: `docker-compose*.yml`, `backend/Dockerfile`, `frontend/Dockerfile`, entrypoint scripts
 - Build/dev commands: `make build`, `npm test`, `make test-all`, `make test-e2e`
+- Running backend unit tests without a local Node.js install (Docker only):
+  ```bash
+  # Build the test image once (uses the builder stage — includes all dev deps + openssl)
+  docker build -f backend/Dockerfile --target builder -t excalidash-backend-test backend/
+
+  # Run all backend unit/integration tests
+  docker run --rm \
+    -v "$(pwd)/backend/src:/app/src" \
+    -v "$(pwd)/backend/vitest.config.ts:/app/vitest.config.ts" \
+    excalidash-backend-test \
+    sh -c "apk add --no-cache openssl && npx vitest run"
+
+  # Run a single test file
+  docker run --rm \
+    -v "$(pwd)/backend/src:/app/src" \
+    -v "$(pwd)/backend/vitest.config.ts:/app/vitest.config.ts" \
+    excalidash-backend-test \
+    sh -c "apk add --no-cache openssl && npx vitest run --reporter=verbose src/__tests__/collection-sharing.integration.ts"
+  ```
+  The image only needs to be rebuilt when `package.json`, `prisma/schema.prisma`, or the Dockerfile itself changes.
 - Development contributor flow:
   - `make install` → `make dev`
   - stop with `make dev-stop`
