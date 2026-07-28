@@ -1,6 +1,6 @@
 import React from "react";
 import { Excalidraw, MainMenu, TTDDialog, TTDDialogTrigger } from "@excalidraw/excalidraw";
-import api from "../../api";
+import api, { isAxiosError } from "../../api";
 import {
   ArrowLeft,
   ChevronDown,
@@ -269,10 +269,10 @@ export const EditorView: React.FC<EditorViewProps> = ({
                     );
                     return { generatedResponse: res.data.generatedResponse };
                   } catch (err) {
-                    const maybeAxiosError = err as any;
                     const message =
-                      typeof maybeAxiosError?.response?.data?.error === "string"
-                        ? maybeAxiosError.response.data.error
+                      isAxiosError(err) &&
+                      typeof err.response?.data?.error === "string"
+                        ? err.response.data.error
                         : err instanceof Error
                           ? err.message
                           : "AI generation failed";
