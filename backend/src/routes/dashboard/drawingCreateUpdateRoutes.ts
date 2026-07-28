@@ -236,11 +236,20 @@ export const registerDrawingCreateUpdateRoutes = (
           (data as Prisma.DrawingUncheckedUpdateInput).collectionId =
             trashCollectionId;
         } else if (payload.collectionId) {
-          const collection = await prisma.collection.findFirst({
+          const ownedCollection = await prisma.collection.findFirst({
             where: { id: payload.collectionId, userId: ownerUserId },
           });
-          if (!collection)
-            return res.status(404).json({ error: "Collection not found" });
+          if (!ownedCollection) {
+            const sharedCollection = await prisma.collectionShare.findFirst({
+              where: {
+                collectionId: payload.collectionId,
+                granteeUserId: ownerUserId,
+                role: "edit",
+              },
+            });
+            if (!sharedCollection)
+              return res.status(404).json({ error: "Collection not found" });
+          }
           (data as Prisma.DrawingUncheckedUpdateInput).collectionId =
             payload.collectionId;
         } else {
