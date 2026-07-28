@@ -1,6 +1,6 @@
 import React from "react";
 import { Excalidraw, MainMenu, TTDDialog, TTDDialogTrigger } from "@excalidraw/excalidraw";
-import api from "../../api/client";
+import api from "../../api";
 import {
   ArrowLeft,
   ChevronDown,
@@ -269,9 +269,14 @@ export const EditorView: React.FC<EditorViewProps> = ({
                     );
                     return { generatedResponse: res.data.generatedResponse };
                   } catch (err) {
-                    return {
-                      error: err instanceof Error ? err : new Error("AI generation failed"),
-                    };
+                    const maybeAxiosError = err as any;
+                    const message =
+                      typeof maybeAxiosError?.response?.data?.error === "string"
+                        ? maybeAxiosError.response.data.error
+                        : err instanceof Error
+                          ? err.message
+                          : "AI generation failed";
+                    return { error: new Error(message) };
                   }
                 }}
               />

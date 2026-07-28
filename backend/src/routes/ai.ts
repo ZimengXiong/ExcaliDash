@@ -26,20 +26,35 @@ export const registerAiRoutes = (app: express.Express): void => {
         return;
       }
 
-      const aiRes = await fetch(`${baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: AI_SYSTEM_PROMPT },
-            { role: "user", content: prompt.trim() },
-          ],
-        }),
-      });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30_000);
+
+      let aiRes: Response;
+      try {
+        aiRes = await fetch(`${baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              { role: "system", content: AI_SYSTEM_PROMPT },
+              { role: "user", content: prompt.trim() },
+            ],
+          }),
+          signal: controller.signal,
+        });
+      } catch (err) {
+        const isTimeout = err instanceof Error && err.name === "AbortError";
+        res.status(isTimeout ? 504 : 502).json({
+          error: isTimeout ? "AI service timed out" : "AI service is unreachable",
+        });
+        return;
+      } finally {
+        clearTimeout(timeout);
+      }
 
       if (!aiRes.ok) {
         const body = await aiRes.text().catch(() => "");
@@ -51,7 +66,12 @@ export const registerAiRoutes = (app: express.Express): void => {
       const data = (await aiRes.json()) as {
         choices?: Array<{ message?: { content?: string } }>;
       };
-      const generatedResponse = data.choices?.[0]?.message?.content ?? "";
+      const generatedResponse = (data.choices?.[0]?.message?.content || "").trim();
+
+      if (!generatedResponse) {
+        res.status(502).json({ error: "AI service returned an empty response" });
+        return;
+      }
 
       res.json({ generatedResponse });
     }),

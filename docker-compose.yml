@@ -18,7 +18,7 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - CSRF_SECRET=${CSRF_SECRET}
       - FRONTEND_URL=${FRONTEND_URL}
-      # AI / Text-to-Diagram (OpenRouter ou qualquer API compatível com OpenAI)
+      # AI / Text-to-Diagram (OpenRouter or any OpenAI-compatible API)
       - AI_API_KEY=${AI_API_KEY}
       - AI_BASE_URL=${AI_BASE_URL:-https://openrouter.ai/api/v1}
       - AI_MODEL=${AI_MODEL:-anthropic/claude-sonnet-4-6}
