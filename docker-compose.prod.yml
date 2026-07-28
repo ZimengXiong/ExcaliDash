@@ -18,7 +18,7 @@ services:
       # AI / Text-to-Diagram (OpenRouter ou qualquer API compatível com OpenAI)
       - AI_API_KEY=${AI_API_KEY}
       - AI_BASE_URL=${AI_BASE_URL:-https://openrouter.ai/api/v1}
-      - AI_MODEL=${AI_MODEL:-openai/gpt-4o-mini}
+      - AI_MODEL=${AI_MODEL:-anthropic/claude-sonnet-4-6}
       # Optional OIDC settings (required for AUTH_MODE=hybrid or oidc_enforced)
       # - OIDC_PROVIDER_NAME=Authentik
       # - OIDC_ISSUER_URL=https://auth.example.com/application/o/excalidash/
