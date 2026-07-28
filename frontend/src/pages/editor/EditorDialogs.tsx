@@ -64,12 +64,11 @@ export const EditorDialogs: React.FC<EditorDialogsProps> = ({
             }
             excalidrawAPI.updateScene({
               elements,
-              appState: {
-                ...snapshot.appState,
-                collaborators: undefined,
-              },
+              appState: { collaborators: new Map() },
               captureUpdate: CaptureUpdateAction.NEVER,
             });
+            excalidrawAPI.scrollToContent(elements, { animate: false, fitToViewport: true });
+            excalidrawAPI.setActiveTool({ type: "hand" });
             return;
           }
           if (previewBackupRef.current) {
