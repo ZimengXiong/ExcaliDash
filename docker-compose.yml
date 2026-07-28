@@ -17,6 +17,11 @@ services:
       # Recommended to set explicitly for portability and multi-instance setups.
       - JWT_SECRET=${JWT_SECRET}
       - CSRF_SECRET=${CSRF_SECRET}
+      - FRONTEND_URL=${FRONTEND_URL}
+      # AI / Text-to-Diagram (OpenRouter ou qualquer API compatível com OpenAI)
+      - AI_API_KEY=${AI_API_KEY}
+      - AI_BASE_URL=${AI_BASE_URL:-https://openrouter.ai/api/v1}
+      - AI_MODEL=${AI_MODEL:-openai/gpt-4o-mini}
       # # Local OIDC settings for dev compose.
       # - OIDC_PROVIDER_NAME=Keycloak
       # # Browser-facing issuer URL.

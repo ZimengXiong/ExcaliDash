@@ -1,5 +1,6 @@
 import React from "react";
-import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
+import { Excalidraw, MainMenu, TTDDialog, TTDDialogTrigger } from "@excalidraw/excalidraw";
+import api from "../../api/client";
 import {
   ArrowLeft,
   ChevronDown,
@@ -254,7 +255,28 @@ export const EditorView: React.FC<EditorViewProps> = ({
           excalidrawAPI={onSetExcalidrawAPI}
           UIOptions={UIOptions}
           viewModeEnabled={!canEdit}
+          aiEnabled={canEdit}
         >
+          {canEdit && (
+            <>
+              <TTDDialogTrigger />
+              <TTDDialog
+                onTextSubmit={async (prompt) => {
+                  try {
+                    const res = await api.post<{ generatedResponse: string }>(
+                      "/ai/text-to-diagram/generate",
+                      { prompt },
+                    );
+                    return { generatedResponse: res.data.generatedResponse };
+                  } catch (err) {
+                    return {
+                      error: err instanceof Error ? err : new Error("AI generation failed"),
+                    };
+                  }
+                }}
+              />
+            </>
+          )}
           <MainMenu>
             <MainMenu.DefaultItems.ToggleTheme />
             <MainMenu.DefaultItems.SaveAsImage />
