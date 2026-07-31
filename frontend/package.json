@@ -50,7 +50,7 @@
     "globals": "^16.5.0",
     "happy-dom": "^20.8.9",
     "jsdom": "^27.2.0",
-    "postcss": "^8.5.10",
+    "postcss": "^8.5.25",
     "tailwindcss": "^3.4.1",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.3",
