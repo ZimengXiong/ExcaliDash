@@ -1,0 +1,50 @@
+name: Build and Push all images to GHCR
+
+on:
+  # Manuall trigger to build and push images to GHCR
+  workflow_dispatch:
+    inputs:
+      force_rebuild:
+        type: boolean
+        description: "Force rebuild and push even if image already exists in GHCR"
+        default: false
+      build_environment:
+        type: choice
+        description: "Environment for Backoffice build (only applicable for BOOPC image)"
+        default: dev
+        options:
+          - dev
+          - prod
+
+  # Allow this workflow to be called by other workflows
+  workflow_call:
+    outputs:
+      frontend_image_tag:
+        description: "The tag of the built frontend image in GHCR"
+        value: ${{ jobs.build-frontend.outputs.full_url }} 
+      backend_image_tag:
+        description: "The tag of the built backend image in GHCR"
+        value: ${{ jobs.build-backend.outputs.full_url }}
+
+  push:
+    branches:
+      - '*'
+
+concurrency:
+  group: build-all-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-frontend:
+    uses: ./.github/workflows/image_single_build.yml
+    with:
+      build_target: frontend
+
+  build-backend:
+    uses: ./.github/workflows/image_single_build.yml
+    with:
+      build_target: backend
