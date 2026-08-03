@@ -65,7 +65,7 @@ jobs:
             echo "component=frontend"                     >> "$GITHUB_OUTPUT"
             echo "description=Frontend"                   >> "$GITHUB_OUTPUT"
             echo "dockerfile_path=./frontend/Dockerfile"  >> "$GITHUB_OUTPUT"
-            echo "context=./frontend"                     >> "$GITHUB_OUTPUT"
+            echo "context=."                              >> "$GITHUB_OUTPUT"
           else
             echo "Invalid build_target input: $TARGET. Must be 'backend' or 'frontend'." >&2
             exit 1
@@ -79,7 +79,7 @@ jobs:
       # Release formats:
       #   Final : X.Y.Z-X                             e.g. tag M.m.p, with optional v prefix and -COMMENT suffix (e.g. 1.0.0-featureX)
       #   Alpha : <normalised_branch>-<commit_hash>   e.g. feature_stbrpameo_42-ba3e794
-      - name: Compute release label
+      - name: Compute container image tag and full URL
         id: meta
         env:
           GITHUB_REF: ${{ github.ref_name }}
@@ -90,7 +90,7 @@ jobs:
           CREATED=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           REGISTRY="ghcr.io"
           REPO_NAME=$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')
-          echo "Ref: $REF"
+
           # ---- Determine TAG from the ref ----
           # Final: git tag X.Y.Z(-azAZ09), e.g. 1.0.0, v1.0.0, 1.0.0-featureX, v1.0.0-featureX
           if echo "$REF" | grep -qE '^v?[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$'; then
@@ -100,11 +100,9 @@ jobs:
           # Alpha: dev, main branches
           else
             BRANCH=$(git rev-parse --abbrev-ref HEAD)
-            echo "Branch: $BRANCH"
-            BRANCHL=$(echo "$REF" \
+            BRANCHL=$(echo "$BRANCH" \
               | tr '[:upper:]' '[:lower:]' \
               | sed 's#[^a-z0-9._-]#-#g')
-            echo "Normalised branch: $BRANCHL"
             COMMIT_HASH=$(git rev-parse --short HEAD)
             RELEASE="${BRANCHL}-${COMMIT_HASH}"
           fi
