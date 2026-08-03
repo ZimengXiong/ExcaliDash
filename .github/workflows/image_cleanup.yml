@@ -7,6 +7,10 @@ on:
   # Scheduled workflow
   schedule:
     - cron: '0 0 * * *' # Runs daily at midnight
+  
+  push:
+    branches:
+      - '*'
 
 permissions:
   packages: write
