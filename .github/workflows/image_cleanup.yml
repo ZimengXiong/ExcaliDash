@@ -1,0 +1,34 @@
+name: Clean up GHCR
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+              
+  # Scheduled workflow
+  schedule:
+    - cron: '0 0 * * *' # Runs daily at midnight
+
+permissions:
+  packages: write
+
+jobs:
+  cleanup-ghcr:
+    name: Clean up old GHCR alpha images
+    runs-on: ubuntu-latest
+
+    steps:
+      # Keep images at least 2 weeks old, and keep the 10 most recent images for each image name and tag pattern.
+      - name: Delete alpha images
+        uses: snok/container-retention-policy@d3bdcf5ce9b05f685154e4a16c39233b245e3d53   # v3.1.0
+        with:
+          account: ${{ github.repository_owner }}
+          token: ${{ github.token }}
+          image-names: "excalidash/frontend excalidash/backend"
+          # This is not good enough it will match tags like v1.0.0(-featureX)? and M.m.p(-featureX)? and not delete them
+          # however, it will also match image tags from branches that their names start with v or a number
+          # and so these images will not be deleted, to improve this,
+          # we might need to add a more specific branch naming convention for alpha images, e.g. task/*, feature/*, bugfix/*, etc.
+          # but this will do for now
+          image-tags: "!v* ![0-9]*"
+          cut-off: 2w
+          keep-n-most-recent: 10
