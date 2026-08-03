@@ -25,8 +25,8 @@ jobs:
       - name: Delete alpha images
         uses: snok/container-retention-policy@d3bdcf5ce9b05f685154e4a16c39233b245e3d53   # v3.1.0
         with:
-          account: tiagura #${{ github.repository_owner }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          account: ${{ github.repository_owner }}
+          token: ${{ github.token }} #${{ secrets.GITHUB_TOKEN }}
           image-names: "excalidash/frontend excalidash/backend"
           # This is not good enough it will match tags like v1.0.0(-featureX)? and M.m.p(-featureX)? and not delete them
           # however, it will also match image tags from branches that their names start with v or a number
