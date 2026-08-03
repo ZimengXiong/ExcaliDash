@@ -27,6 +27,9 @@ on:
         value: ${{ jobs.build-backend.outputs.full_url }}
 
   push:
+    tags:
+      # Triggers on tags that match the pattern vX.Y.Z or vX.Y.Z-<suffix>
+      - 'v[0-9]+.[0-9]+.[0-9]+(-[a-zA-Z0-9]+)?$'
     branches:
       - '*'
 
