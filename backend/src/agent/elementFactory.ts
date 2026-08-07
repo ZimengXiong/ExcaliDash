@@ -75,8 +75,10 @@ export const createTextElement = (
   y: number,
   text: string,
   containerId: string | null = null,
+  // Callers that size a container around its label need the same font size the
+  // measurement used, so it has to be settable rather than fixed at 20.
+  fontSize = 20,
 ): ExcalidrawElement => {
-  const fontSize = 20;
   const lineHeight = 1.25;
   const lines = text.length === 0 ? 1 : text.split("\n").length;
   const width = Math.max(
