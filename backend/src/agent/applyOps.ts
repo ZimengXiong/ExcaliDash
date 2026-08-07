@@ -1,6 +1,7 @@
 import { sanitizeElementText } from "../security";
 import { applyImport } from "./applyImport";
 import { applyLayout } from "./applyLayout";
+import type { LayoutResult } from "./layout";
 import type { Op, OpError } from "./opSchemas";
 import {
   ExcalidrawElement,
@@ -19,6 +20,9 @@ export type ApplyOpsContext = {
   // Pre-loaded snapshot element arrays keyed by version, for revert_to_snapshot
   // (the route fetches DrawingSnapshot rows before the tx).
   snapshotElementsByVersion?: Map<number, ExcalidrawElement[]>;
+  // Geometry solved before the tx, keyed by op index, for layout ops. Same
+  // reason as above: the solver is async, the applier stays synchronous.
+  layoutByOpIndex?: Map<number, LayoutResult>;
 };
 
 export type ApplyOpsSuccess = {
@@ -304,12 +308,17 @@ const notFound = (elementId: string): Omit<OpError, "opIndex"> => ({
 
 type OpResult = { createdIds?: string[]; error?: Omit<OpError, "opIndex"> };
 
-const dispatch = (scene: Scene, op: Op, ctx: ApplyOpsContext): OpResult => {
+const dispatch = (
+  scene: Scene,
+  op: Op,
+  ctx: ApplyOpsContext,
+  opIndex: number,
+): OpResult => {
   switch (op.op) {
     case "add_shape":
       return applyAddShape(scene, op);
     case "layout":
-      return applyLayout(scene, op);
+      return applyLayout(scene, op, ctx.layoutByOpIndex?.get(opIndex));
     case "connect":
       return applyConnect(scene, op);
     case "set_text":
@@ -345,7 +354,7 @@ export const applyOps = (input: {
   const errors: OpError[] = [];
 
   input.ops.forEach((op, opIndex) => {
-    const out = dispatch(scene, op, ctx);
+    const out = dispatch(scene, op, ctx, opIndex);
     if (out.error) {
       errors.push({ ...out.error, opIndex });
       return;

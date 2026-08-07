@@ -12,6 +12,9 @@ import {
   type ApplyOpsSuccess,
   type ApplyOpsContext,
 } from "../../agent/applyOps";
+import { layoutInputFor } from "../../agent/applyLayout";
+import type { LayoutResult } from "../../agent/layout";
+import { layoutGraphAsync } from "../../agent/layoutRunner";
 import { opsBatchSchema, type OpError } from "../../agent/opSchemas";
 import { buildStructuralSummary, summarizeElements } from "../../agent/summary";
 import { applySceneUpdateTx, isVersionConflict } from "./sceneUpdate";
@@ -116,6 +119,25 @@ export const registerDrawingAgentRoutes = (
           map.set(snap.version, parseJsonField(snap.elements, []));
         }
         ctx.snapshotElementsByVersion = map;
+      }
+
+      // Layout ops solve their geometry on a worker thread, so it has to happen
+      // before the tx for the same reason snapshots are fetched above: the
+      // applier stays synchronous, and a slow solve never holds the write lock.
+      const layoutOps = ops
+        .map((op, index) => ({ op, index }))
+        .filter((entry) => entry.op.op === "layout");
+      if (layoutOps.length > 0) {
+        const solved = new Map<number, LayoutResult>();
+        for (const { op, index } of layoutOps) {
+          solved.set(
+            index,
+            await layoutGraphAsync(
+              layoutInputFor(op as Extract<typeof op, { op: "layout" }>),
+            ),
+          );
+        }
+        ctx.layoutByOpIndex = solved;
       }
 
       let opsError: OpError[] | null = null;

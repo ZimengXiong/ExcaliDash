@@ -8,6 +8,7 @@ import {
   createTextElement,
 } from "./elementFactory";
 import { layoutGraphSync } from "./layout";
+import type { LayoutResult } from "./layout";
 import type { Op, OpError } from "./opSchemas";
 
 /**
@@ -55,6 +56,9 @@ const centreOn = (el: ExcalidrawElement, cx: number, cy: number): void => {
 export const applyLayout = (
   scene: LayoutScene,
   op: Extract<Op, { op: "layout" }>,
+  // Geometry solved ahead of the transaction, if the route precomputed it.
+  // Without it the solver runs inline here, which is what direct callers get.
+  precomputed?: LayoutResult,
 ): ApplyLayoutResult => {
   const nodesByKey = new Map<string, (typeof op.nodes)[number]>();
   for (const node of op.nodes) {
@@ -86,7 +90,7 @@ export const applyLayout = (
     }
   }
 
-  const result = layoutGraphSync(layoutInputFor(op));
+  const result = precomputed ?? layoutGraphSync(layoutInputFor(op));
 
   const createdIds: string[] = [];
   const elementByKey = new Map<string, ExcalidrawElement>();

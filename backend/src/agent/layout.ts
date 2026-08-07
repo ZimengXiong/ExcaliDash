@@ -1,4 +1,5 @@
 import dagre from "@dagrejs/dagre";
+import type { SolverJob, SolverResult } from "./layoutRunner";
 import type { ShapeKind } from "./opSchemas";
 import {
   CHAR_WIDTH_RATIO,
@@ -158,18 +159,6 @@ const selfLoopEdge = (
   return layouted;
 };
 
-type SolverJob = {
-  nodes: { key: string; width: number; height: number }[];
-  edges: { from: string; to: string; name: string; label?: Record<string, unknown> }[];
-  graphOptions: Record<string, unknown>;
-};
-
-type SolverResult = {
-  positions: Record<string, { x: number; y: number }>;
-  width: number;
-  height: number;
-};
-
 const GRAPH_OPTIONS = {
   nodesep: 70, // within a rank
   ranksep: 110, // between ranks: room for edge labels and arrowheads
@@ -260,9 +249,20 @@ const measureNodes = (input: LayoutGraphInput): Map<string, LayoutedNode> => {
 /**
  * Run the layout and return coordinates for every node and edge.
  *
- * Unknown edge endpoints are not silently dropped — the caller validates them
- * first and reports them per op.
+ * The solver is injected so it can run on a worker thread; `layoutGraphSync`
+ * below is the same thing with the inline solver. Unknown edge endpoints are not
+ * silently dropped — the caller validates them first and reports them per op.
  */
+export const layoutGraph = async (
+  input: LayoutGraphInput,
+  solve: (job: SolverJob) => Promise<SolverResult>,
+): Promise<LayoutResult> => {
+  const measured = measureNodes(input);
+  const solved = await solve(buildSolverJob(input, measured));
+  return assemble(input, measured, solved);
+};
+
+/** Layout with the solver running inline on the current thread. */
 export const layoutGraphSync = (input: LayoutGraphInput): LayoutResult => {
   const measured = measureNodes(input);
   return assemble(input, measured, solveSync(buildSolverJob(input, measured)));
