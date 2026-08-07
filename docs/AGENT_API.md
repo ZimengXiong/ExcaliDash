@@ -191,6 +191,7 @@ Batch envelope: `{ "ops": Op[]  (1..50), "clientBatchId"?: string }`.
 | Op | Params | Behavior |
 | --- | --- | --- |
 | `add_shape` | `shape` (`rectangle`\|`ellipse`\|`diamond`\|`text`\|`frame`), `x`, `y`, `w?`, `h?`, `label?`, `style?` | Creates a shape. `label` becomes a bound text child with correct `containerId`/`boundElements`. Returns `createdIds`. |
+| `layout` | `nodes[]` (`key`, `label?`, `shape?`, `style?`), `edges[]?` (`from`, `to`, `label?`, `style?`, `arrowType?`), `direction?` (`TB`\|`BT`\|`LR`\|`RL`), `x?`, `y?` | Draws a whole graph and derives the geometry, so no coordinates are supplied. `key` is batch-local, so edges reference nodes created in the same op. Boxes are sized from their label. Returns `createdIds` for every element. |
 | `connect` | `fromId`, `toId`, `label?`, `style?`, `arrowType?` (`arrow`\|`line`) | Creates an arrow/line with `startBinding`/`endBinding` and updates both endpoints' `boundElements`. `ELEMENT_NOT_FOUND` per missing endpoint. |
 | `set_text` | `id`, `text` | Sets the element's own text or its bound label (creating the label if none). Text is sanitized. |
 | `set_style` | `id`, `style` | Whitelist patch. Allowed keys: `strokeColor`, `backgroundColor`, `fillStyle`, `strokeWidth`, `strokeStyle`, `opacity`, `roughness`, `fontSize`, `fontFamily`, `textAlign`, `roundness`. Unknown key → `INVALID_STYLE_KEY`. |
@@ -206,6 +207,11 @@ Notes:
 - Ids you reference (`id`, `fromId`, `toId`) must be **existing** element ids —
   either already in the scene or created earlier **in the same batch**.
 - Text is always run through the server sanitizer; you cannot inject markup.
+- `layout` is the exception to the id rule above: its `key`s exist only within
+  the op, which is what lets a single call create nodes and the edges between
+  them. Limits are 200 nodes, 400 edges, 500 characters per label. The solve
+  runs on a worker thread, so a large graph costs the caller latency without
+  blocking other requests.
 
 ---
 
@@ -345,8 +351,28 @@ protected. A `409 CHATGPT_RECONNECT` from `POST /ai/chat` (or a same-coded SSE
 
 ---
 
+## Using an MCP client instead
+
+The API above is what an agent talks to directly. If you already run an agent
+that speaks the [Model Context Protocol](https://modelcontextprotocol.io) —
+Claude Code, Cursor, Codex and others do — you do not need to write that
+integration yourself, and you do not need the ChatGPT provider setup either.
+
+[**excalidash-mcp**](https://github.com/davifernan/excalidash-mcp) is a
+community MCP server for ExcaliDash. It exposes drawing, editing, board
+management and PNG export as MCP tools, and pushes over Socket.IO so elements
+appear in open browsers without a refresh. It is MIT licensed and maintained
+outside this repository.
+
+Either door leads to the same place: the built-in AI panel for people who want
+it in ExcaliDash, an MCP client for people who already have an agent running.
+
+---
+
 ## See also
 
+- [excalidash-mcp](https://github.com/davifernan/excalidash-mcp) — community MCP
+  server for agents that already speak MCP.
 - [Configuration Reference](CONFIGURATION.md) — all rate-limit, retention, and
   AI-provider variables.
 - [Deployment Guide](DEPLOYMENT.md) — running behind a proxy, HTTPS, snapshots.
