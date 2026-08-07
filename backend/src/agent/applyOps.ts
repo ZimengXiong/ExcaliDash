@@ -1,5 +1,6 @@
 import { sanitizeElementText } from "../security";
 import { applyImport } from "./applyImport";
+import { applyLayout } from "./applyLayout";
 import type { Op, OpError } from "./opSchemas";
 import {
   ExcalidrawElement,
@@ -307,6 +308,8 @@ const dispatch = (scene: Scene, op: Op, ctx: ApplyOpsContext): OpResult => {
   switch (op.op) {
     case "add_shape":
       return applyAddShape(scene, op);
+    case "layout":
+      return applyLayout(scene, op);
     case "connect":
       return applyConnect(scene, op);
     case "set_text":
