@@ -40,7 +40,9 @@ parentPort.on("message", (job) => {
     for (const edge of job.edges) {
       graph.setEdge(edge.from, edge.to, edge.label || {}, edge.name);
     }
-    dagre.layout(graph);
+    // useDynamic:false — see the note on LAYOUT_OPTIONS in layoutSolver.ts. This
+    // thread is long-lived, so the module-scoped cache would accumulate here.
+    dagre.layout(graph, { useDynamic: false });
     const positions = {};
     for (const node of job.nodes) {
       const pos = graph.node(node.key);

@@ -1,6 +1,6 @@
 import type { LayoutGraphInput, LayoutResult, LayoutedNode } from "./layoutTypes";
-import type { SolverJob, SolverResult } from "./layoutSolver";
-import { buildSolverJob, solveSync } from "./layoutSolver";
+import type { SolverJob, SolverPlan, SolverResult } from "./layoutSolver";
+import { buildSolverPlan, readSolved, solveSync } from "./layoutSolver";
 import { assembleEdges } from "./layoutEdges";
 import { DEFAULT_NODE_FONT_SIZE, measureNode } from "./layoutText";
 
@@ -30,7 +30,8 @@ export type {
   LayoutedEdgeLabel,
   LayoutedNode,
 } from "./layoutTypes";
-export type { SolverJob, SolverResult } from "./layoutSolver";
+export type { SolverJob, SolverPlan, SolverResult } from "./layoutSolver";
+export { LayoutSolveError } from "./layoutSolver";
 export { solveSync } from "./layoutSolver";
 
 const measureNodes = (input: LayoutGraphInput): Map<string, LayoutedNode> => {
@@ -56,14 +57,16 @@ const measureNodes = (input: LayoutGraphInput): Map<string, LayoutedNode> => {
 const assemble = (
   input: LayoutGraphInput,
   measured: Map<string, LayoutedNode>,
+  plan: SolverPlan,
   solved: SolverResult,
 ): LayoutResult => {
   const originX = input.originX ?? 0;
   const originY = input.originY ?? 0;
+  const positions = readSolved(plan, solved);
 
   // dagre positions nodes by centre; Excalidraw wants the top-left corner.
   for (const node of measured.values()) {
-    const position = solved.positions[node.key];
+    const position = positions.get(node.key);
     if (!position) continue;
     node.x = Math.round(originX + position.x - node.width / 2);
     node.y = Math.round(originY + position.y - node.height / 2);
@@ -89,12 +92,13 @@ export const layoutGraph = async (
   solve: (job: SolverJob) => Promise<SolverResult>,
 ): Promise<LayoutResult> => {
   const measured = measureNodes(input);
-  const solved = await solve(buildSolverJob(input, measured));
-  return assemble(input, measured, solved);
+  const plan = buildSolverPlan(input, measured);
+  return assemble(input, measured, plan, await solve(plan.job));
 };
 
 /** Layout with the solver running inline on the current thread. */
 export const layoutGraphSync = (input: LayoutGraphInput): LayoutResult => {
   const measured = measureNodes(input);
-  return assemble(input, measured, solveSync(buildSolverJob(input, measured)));
+  const plan = buildSolverPlan(input, measured);
+  return assemble(input, measured, plan, solveSync(plan.job));
 };
