@@ -338,7 +338,9 @@ describe("self-loop op", () => {
     // Binding both ends to one shape collapses the arc onto a single point.
     expect(arrow.startBinding).toBeNull();
     expect(arrow.endBinding).toBeNull();
-    // It still has real extent, and the node still references it for cleanup.
+    // It still has real extent, and the node lists it so the editor treats the
+    // two as one unit. What happens to the loop's label on move and delete is
+    // covered in layoutLifecycle.test.ts, not here.
     expect(Math.abs(arrow.height)).toBeGreaterThan(0);
     const box = out.elements.find((el) => el.type === "rectangle")!;
     expect(box.boundElements).toEqual(
