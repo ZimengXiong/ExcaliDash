@@ -11,7 +11,6 @@ import {
   createArrowElement,
   createShapeElement,
   createTextElement,
-  genId,
   removeBoundElement,
   touchElement,
 } from "./elementFactory";
