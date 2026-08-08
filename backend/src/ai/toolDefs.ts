@@ -1,4 +1,10 @@
-import { SHAPE_KINDS, STYLE_KEYS } from "../agent/opSchemas";
+import {
+  LAYOUT_SHAPE_KINDS,
+  MAX_LAYOUT_EDGES,
+  MAX_LAYOUT_NODES,
+  SHAPE_KINDS,
+  STYLE_KEYS,
+} from "../agent/opSchemas";
 
 /**
  * Provider-agnostic tool definition. The chat proxy exposes exactly one tool —
@@ -42,6 +48,59 @@ const opSchema = {
         style: styleObject,
       },
       required: ["op", "shape", "x", "y"],
+      additionalProperties: false,
+    },
+    {
+      type: "object",
+      title: "layout",
+      description:
+        "Draw a whole graph from structure alone: send nodes and edges and the " +
+        "server derives every position. Prefer this over add_shape + connect " +
+        "whenever the drawing is a graph, a flow or a tree, since it needs no " +
+        "coordinates and no second call to connect what was just created.",
+      properties: {
+        op: { const: "layout" },
+        nodes: {
+          type: "array",
+          minItems: 1,
+          maxItems: MAX_LAYOUT_NODES,
+          items: {
+            type: "object",
+            properties: {
+              key: {
+                type: "string",
+                description:
+                  "Name for this node inside this op, so edges can reference it. Not an element id.",
+              },
+              label: { type: "string" },
+              shape: { type: "string", enum: [...LAYOUT_SHAPE_KINDS] },
+              style: styleObject,
+            },
+            required: ["key"],
+            additionalProperties: false,
+          },
+        },
+        edges: {
+          type: "array",
+          maxItems: MAX_LAYOUT_EDGES,
+          items: {
+            type: "object",
+            properties: {
+              from: { type: "string", description: "A node key from this op." },
+              to: { type: "string", description: "A node key from this op." },
+              label: { type: "string" },
+              style: styleObject,
+              arrowType: { type: "string", enum: ["arrow", "line"] },
+            },
+            required: ["from", "to"],
+            additionalProperties: false,
+          },
+        },
+        direction: { type: "string", enum: ["TB", "BT", "LR", "RL"] },
+        x: { type: "number", description: "Where to place the graph. Defaults to the origin." },
+        y: { type: "number" },
+      },
+      required: ["op", "nodes"],
       additionalProperties: false,
     },
     {

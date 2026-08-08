@@ -7,19 +7,8 @@ import {
   getDrawingAccess,
 } from "../../authz/sharing";
 import { sanitizeDrawingData } from "../../security";
-import {
-  applyOps,
-  type ApplyOpsSuccess,
-  type ApplyOpsContext,
-} from "../../agent/applyOps";
-import { layoutInputFor } from "../../agent/applyLayout";
-import type { LayoutResult } from "../../agent/layout";
-import {
-  LayoutBusyError,
-  LayoutTimeoutError,
-  layoutGraphAsync,
-} from "../../agent/layoutRunner";
-import { LayoutSolveError } from "../../agent/layoutSolver";
+import { applyOps, type ApplyOpsSuccess } from "../../agent/applyOps";
+import { prepareFailed, prepareOpsContext } from "../../agent/prepareOps";
 import { opsBatchSchema, type OpError } from "../../agent/opSchemas";
 import { buildStructuralSummary, summarizeElements } from "../../agent/summary";
 import { applySceneUpdateTx, isVersionConflict } from "./sceneUpdate";
@@ -109,63 +98,20 @@ export const registerDrawingAgentRoutes = (
       }
       const { ops, clientBatchId } = parsed.data;
 
-      // revert_to_snapshot needs the pre-image; fetch every referenced snapshot
-      // up front so the applier stays synchronous inside the tx.
-      const ctx: ApplyOpsContext = {};
-      const revertVersions = ops
-        .filter((op) => op.op === "revert_to_snapshot")
-        .map((op) => (op as { version: number }).version);
-      if (revertVersions.length > 0) {
+      // Snapshots and layouts are prepared before the transaction: the applier
+      // stays synchronous inside it, and a slow solve never holds the write lock.
+      const prepared = await prepareOpsContext(ops, async (versions) => {
         const snaps = await prisma.drawingSnapshot.findMany({
-          where: { drawingId: id, version: { in: revertVersions } },
+          where: { drawingId: id, version: { in: versions } },
         });
         const map = new Map<number, any[]>();
-        for (const snap of snaps) {
-          map.set(snap.version, parseJsonField(snap.elements, []));
-        }
-        ctx.snapshotElementsByVersion = map;
+        for (const snap of snaps) map.set(snap.version, parseJsonField(snap.elements, []));
+        return map;
+      });
+      if (prepareFailed(prepared)) {
+        return res.status(prepared.status).json(prepared.body);
       }
-
-      // Layout ops solve their geometry on a worker thread, so it has to happen
-      // before the tx for the same reason snapshots are fetched above: the
-      // applier stays synchronous, and a slow solve never holds the write lock.
-      const layoutOps = ops
-        .map((op, index) => ({ op, index }))
-        .filter((entry) => entry.op.op === "layout");
-      if (layoutOps.length > 0) {
-        const solved = new Map<number, LayoutResult>();
-        for (const { op, index } of layoutOps) {
-          try {
-            solved.set(
-              index,
-              await layoutGraphAsync(
-                layoutInputFor(op as Extract<typeof op, { op: "layout" }>),
-              ),
-            );
-          } catch (error) {
-            // A layout that cannot be solved is the caller's graph, not a server
-            // fault, so it comes back as a stable op error rather than a 500. A
-            // full queue is a capacity signal and gets its own status.
-            if (error instanceof LayoutBusyError) {
-              return res.status(503).json({
-                error: "Busy",
-                code: "LAYOUT_BUSY",
-                message: "Too many layouts in progress; retry shortly.",
-              });
-            }
-            if (error instanceof LayoutTimeoutError || error instanceof LayoutSolveError) {
-              return res.status(422).json({
-                error: "Ops validation failed",
-                errors: [
-                  { opIndex: index, code: "LAYOUT_FAILED", message: error.message },
-                ],
-              });
-            }
-            throw error;
-          }
-        }
-        ctx.layoutByOpIndex = solved;
-      }
+      const ctx = (prepared as Extract<typeof prepared, { ok: true }>).ctx;
 
       let opsError: OpError[] | null = null;
       let applied: ApplyOpsSuccess | null = null;
