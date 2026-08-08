@@ -188,7 +188,8 @@ export type OpError = {
     | "INVALID_STYLE_KEY"
     | "INVALID_OP"
     | "SNAPSHOT_NOT_FOUND"
-    | "UNSUPPORTED";
+    | "UNSUPPORTED"
+    | "LAYOUT_FAILED";
   message: string;
   elementId?: string;
 };

@@ -14,7 +14,12 @@ import {
 } from "../../agent/applyOps";
 import { layoutInputFor } from "../../agent/applyLayout";
 import type { LayoutResult } from "../../agent/layout";
-import { layoutGraphAsync } from "../../agent/layoutRunner";
+import {
+  LayoutBusyError,
+  LayoutTimeoutError,
+  layoutGraphAsync,
+} from "../../agent/layoutRunner";
+import { LayoutSolveError } from "../../agent/layoutSolver";
 import { opsBatchSchema, type OpError } from "../../agent/opSchemas";
 import { buildStructuralSummary, summarizeElements } from "../../agent/summary";
 import { applySceneUpdateTx, isVersionConflict } from "./sceneUpdate";
@@ -130,12 +135,34 @@ export const registerDrawingAgentRoutes = (
       if (layoutOps.length > 0) {
         const solved = new Map<number, LayoutResult>();
         for (const { op, index } of layoutOps) {
-          solved.set(
-            index,
-            await layoutGraphAsync(
-              layoutInputFor(op as Extract<typeof op, { op: "layout" }>),
-            ),
-          );
+          try {
+            solved.set(
+              index,
+              await layoutGraphAsync(
+                layoutInputFor(op as Extract<typeof op, { op: "layout" }>),
+              ),
+            );
+          } catch (error) {
+            // A layout that cannot be solved is the caller's graph, not a server
+            // fault, so it comes back as a stable op error rather than a 500. A
+            // full queue is a capacity signal and gets its own status.
+            if (error instanceof LayoutBusyError) {
+              return res.status(503).json({
+                error: "Busy",
+                code: "LAYOUT_BUSY",
+                message: "Too many layouts in progress; retry shortly.",
+              });
+            }
+            if (error instanceof LayoutTimeoutError || error instanceof LayoutSolveError) {
+              return res.status(422).json({
+                error: "Ops validation failed",
+                errors: [
+                  { opIndex: index, code: "LAYOUT_FAILED", message: error.message },
+                ],
+              });
+            }
+            throw error;
+          }
         }
         ctx.layoutByOpIndex = solved;
       }

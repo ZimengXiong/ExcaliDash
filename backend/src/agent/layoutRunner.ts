@@ -9,25 +9,28 @@ import { layoutGraph, layoutGraphSync } from "./layout";
  * dagre is CPU-bound, so awaiting it on the main thread does not help: the event
  * loop is blocked for the duration regardless. Its cost also grows with the
  * number of back edges rather than with size, so a densely cyclic graph can take
- * seconds — and that would stall every other tenant's request, not just the
- * caller's.
+ * seconds, and that would stall every other tenant's request rather than only
+ * the caller's.
  *
  * Only the solver runs off-thread. Measuring labels and building the arrow
  * geometry are cheap and stay here, which keeps the message payload small and
  * serialisable.
  *
- * The worker is created once and reused; a crashed or timed-out worker is
- * discarded and the next call starts a fresh one. If a worker cannot be started
- * at all, layout falls back to running inline, so a restricted runtime degrades
- * in speed rather than breaking.
+ * One job runs at a time and the rest queue behind it, which bounds how much CPU
+ * a single caller can claim. A job that overruns kills its worker and fails that
+ * one request; the queue moves on to the next job on a fresh worker. Nothing is
+ * retried on the main thread: an inline retry after a timeout would take the
+ * work the timeout was meant to shed and hand it straight to the event loop.
  */
 
-// Worker source is inlined rather than loaded from a file: the backend runs from
-// src/ under nodemon in development and from dist/ in production, and an inline
-// worker avoids resolving a different path in each.
+// The worker resolves dagre from an absolute path handed to it at construction.
+// An eval worker resolves bare specifiers against the process working directory,
+// so `require("@dagrejs/dagre")` silently fails whenever the server is started
+// from anywhere but the backend directory, and every layout then falls back to
+// running inline without anything saying so.
 const WORKER_SOURCE = `
-const { parentPort } = require("worker_threads");
-const dagre = require("@dagrejs/dagre");
+const { parentPort, workerData } = require("worker_threads");
+const dagre = require(workerData.dagrePath);
 
 parentPort.on("message", (job) => {
   try {
@@ -76,104 +79,179 @@ parentPort.on("message", (job) => {
 });
 `;
 
-/** A layout taking longer than this is abandoned and the worker replaced. */
-const LAYOUT_TIMEOUT_MS = 10_000;
+/** A layout still running after this is abandoned and its worker replaced. */
+export const LAYOUT_TIMEOUT_MS = 10_000;
 
-type Pending = {
+/** Jobs waiting behind the running one. Past this, callers are turned away. */
+export const LAYOUT_QUEUE_LIMIT = 8;
+
+/** The solve ran too long and was abandoned. Callers turn this into a 4xx. */
+export class LayoutTimeoutError extends Error {
+  constructor() {
+    super(`Layout did not finish within ${LAYOUT_TIMEOUT_MS / 1000}s`);
+  }
+}
+
+/** Too many layouts already queued. Callers turn this into a 503. */
+export class LayoutBusyError extends Error {
+  constructor() {
+    super("Too many layouts in progress");
+  }
+}
+
+type Job = {
+  job: SolverJob;
+  id: number;
   resolve: (value: SolverResult) => void;
   reject: (reason: Error) => void;
-  timer: NodeJS.Timeout;
 };
+
+type WorkerMessage = { id: number; ok: boolean; message?: string } & SolverResult;
 
 let worker: Worker | null = null;
 let workerUnavailable = false;
 let nextJobId = 1;
-const pending = new Map<number, Pending>();
+let running: Job | null = null;
+let timer: NodeJS.Timeout | null = null;
+const queue: Job[] = [];
 
-const disposeWorker = (reason: Error): void => {
+/** Counters for whoever is watching: silent degradation is the thing to avoid. */
+export const layoutStats = { timeouts: 0, workerFailures: 0, inlineSolves: 0, rejected: 0 };
+
+const clearTimer = (): void => {
+  if (timer) clearTimeout(timer);
+  timer = null;
+};
+
+/** Drop the worker. The running job is failed; the queue survives and restarts. */
+const discardWorker = (reason: Error): void => {
   const dying = worker;
   worker = null;
-  for (const [, entry] of pending) {
-    clearTimeout(entry.timer);
-    entry.reject(reason);
-  }
-  pending.clear();
+  clearTimer();
+  const failed = running;
+  running = null;
   if (dying) void dying.terminate();
+  failed?.reject(reason);
+  dispatch();
+};
+
+const onMessage = (message: WorkerMessage): void => {
+  if (!running || running.id !== message.id) return; // a late reply from a dead worker
+  const entry = running;
+  running = null;
+  clearTimer();
+  if (message.ok) {
+    entry.resolve({
+      positions: message.positions,
+      edgePoints: message.edgePoints,
+      edgeLabels: message.edgeLabels,
+      width: message.width,
+      height: message.height,
+    });
+  } else {
+    entry.reject(new Error(message.message ?? "layout worker failed"));
+  }
+  dispatch();
 };
 
 const getWorker = (): Worker | null => {
   if (worker) return worker;
   if (workerUnavailable) return null;
   try {
-    const created = new Worker(WORKER_SOURCE, { eval: true });
-    created.unref(); // never keep the process alive on its own
-    created.on("message", (msg: { id: number; ok: boolean; message?: string } & SolverResult) => {
-      const entry = pending.get(msg.id);
-      if (!entry) return;
-      pending.delete(msg.id);
-      clearTimeout(entry.timer);
-      if (msg.ok) {
-        entry.resolve({
-          positions: msg.positions,
-          edgePoints: msg.edgePoints,
-          edgeLabels: msg.edgeLabels,
-          width: msg.width,
-          height: msg.height,
-        });
-      } else {
-        entry.reject(new Error(msg.message ?? "layout worker failed"));
-      }
+    const created = new Worker(WORKER_SOURCE, {
+      eval: true,
+      workerData: { dagrePath: require.resolve("@dagrejs/dagre") },
     });
-    created.on("error", (err) => disposeWorker(err));
-    created.on("exit", () => disposeWorker(new Error("layout worker exited")));
+    created.unref(); // never keep the process alive on its own
+    // Handlers are bound to this instance: a late `exit` from a worker that has
+    // already been replaced must not take the new one down with it.
+    created.on("message", (message: WorkerMessage) => {
+      if (worker === created) onMessage(message);
+    });
+    created.on("error", (err) => {
+      if (worker !== created) return;
+      layoutStats.workerFailures += 1;
+      console.error("[layout] worker error:", err.message);
+      discardWorker(err);
+    });
+    created.on("exit", () => {
+      if (worker !== created) return;
+      layoutStats.workerFailures += 1;
+      discardWorker(new Error("layout worker exited"));
+    });
     worker = created;
     return created;
-  } catch {
-    // Runtimes without worker_threads fall back to inline layout permanently.
+  } catch (error) {
+    // A runtime without worker_threads falls back to inline layout permanently.
+    // Say so once: the difference is seconds of blocked event loop per request.
     workerUnavailable = true;
+    console.error(
+      "[layout] no worker thread available, solving inline:",
+      error instanceof Error ? error.message : String(error),
+    );
     return null;
   }
 };
 
-const solveOnWorker = (job: SolverJob): Promise<SolverResult> => {
+/** Start the next queued job, if the worker is free. */
+function dispatch(): void {
+  if (running || queue.length === 0) return;
   const active = getWorker();
-  if (!active) return Promise.reject(new Error("no layout worker"));
-  const id = nextJobId++;
+  if (!active) {
+    // No worker at all: fail everything queued rather than silently moving
+    // seconds of CPU onto the request path. layoutGraphAsync solves inline
+    // instead, which is a decision for the caller, not for the queue.
+    while (queue.length) queue.shift()?.reject(new LayoutBusyError());
+    return;
+  }
+  const next = queue.shift() as Job;
+  running = next;
+  // The clock starts here rather than on enqueue, so a job is not charged for
+  // the time it spent waiting behind other people's graphs.
+  timer = setTimeout(() => {
+    layoutStats.timeouts += 1;
+    discardWorker(new LayoutTimeoutError());
+  }, LAYOUT_TIMEOUT_MS);
+  timer.unref();
+  active.postMessage({ ...next.job, id: next.id });
+}
+
+const solveOnWorker = (job: SolverJob): Promise<SolverResult> => {
+  if (queue.length >= LAYOUT_QUEUE_LIMIT) {
+    layoutStats.rejected += 1;
+    return Promise.reject(new LayoutBusyError());
+  }
   return new Promise<SolverResult>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      pending.delete(id);
-      disposeWorker(new Error("layout timed out"));
-      reject(new Error("layout timed out"));
-    }, LAYOUT_TIMEOUT_MS);
-    pending.set(id, { resolve, reject, timer });
-    active.postMessage({ ...job, id });
+    queue.push({ job, id: nextJobId++, resolve, reject });
+    dispatch();
   });
 };
 
 /**
- * Lay out a graph, using the worker when one is available and falling back to an
- * inline pass otherwise. Callers get the same result either way.
+ * Lay out a graph on the worker.
+ *
+ * A timeout, a busy queue or a solver failure is reported to the caller. The one
+ * case that falls back to an inline solve is a runtime that cannot start a
+ * worker at all, where the choice is between a slow layout and none.
  */
 export const layoutGraphAsync = async (
   input: LayoutGraphInput,
 ): Promise<LayoutResult> => {
-  try {
-    return await layoutGraph(input, solveOnWorker);
-  } catch {
-    // A worker that failed or timed out should not fail the request: the inline
-    // path produces the same geometry, it just occupies the event loop.
+  if (workerUnavailable) {
+    layoutStats.inlineSolves += 1;
     return layoutGraphSync(input);
   }
+  return layoutGraph(input, solveOnWorker);
 };
 
-/** Release the worker. Tests and shutdown paths use this. */
+/** Release the worker. Tests and the shutdown path use this. */
 export const stopLayoutWorker = async (): Promise<void> => {
   const dying = worker;
   worker = null;
-  for (const [, entry] of pending) {
-    clearTimeout(entry.timer);
-    entry.reject(new Error("layout worker stopped"));
-  }
-  pending.clear();
+  clearTimer();
+  const stopped = new Error("layout worker stopped");
+  running?.reject(stopped);
+  running = null;
+  while (queue.length) queue.shift()?.reject(stopped);
   if (dying) await dying.terminate();
 };
