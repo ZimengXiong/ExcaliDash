@@ -1,5 +1,6 @@
 import { Worker } from "worker_threads";
-import type { LayoutGraphInput, LayoutResult } from "./layout";
+import type { LayoutGraphInput, LayoutResult } from "./layoutTypes";
+import type { SolverJob, SolverResult } from "./layoutSolver";
 import { layoutGraph, layoutGraphSync } from "./layout";
 
 /**
@@ -61,18 +62,6 @@ parentPort.on("message", (job) => {
 
 /** A layout taking longer than this is abandoned and the worker replaced. */
 const LAYOUT_TIMEOUT_MS = 10_000;
-
-export type SolverJob = {
-  nodes: { key: string; width: number; height: number }[];
-  edges: { from: string; to: string; name: string; label?: Record<string, unknown> }[];
-  graphOptions: Record<string, unknown>;
-};
-
-export type SolverResult = {
-  positions: Record<string, { x: number; y: number }>;
-  width: number;
-  height: number;
-};
 
 type Pending = {
   resolve: (value: SolverResult) => void;
