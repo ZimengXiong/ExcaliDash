@@ -60,21 +60,20 @@ const assemble = (
   plan: SolverPlan,
   solved: SolverResult,
 ): LayoutResult => {
-  const originX = input.originX ?? 0;
-  const originY = input.originY ?? 0;
-  const positions = readSolved(plan, solved);
+  const origin = { x: input.originX ?? 0, y: input.originY ?? 0 };
+  const graph = readSolved(plan, solved);
 
   // dagre positions nodes by centre; Excalidraw wants the top-left corner.
   for (const node of measured.values()) {
-    const position = positions.get(node.key);
+    const position = graph.positions.get(node.key);
     if (!position) continue;
-    node.x = Math.round(originX + position.x - node.width / 2);
-    node.y = Math.round(originY + position.y - node.height / 2);
+    node.x = Math.round(origin.x + position.x - node.width / 2);
+    node.y = Math.round(origin.y + position.y - node.height / 2);
   }
 
   return {
     nodes: [...measured.values()],
-    edges: assembleEdges(input.edges, measured),
+    edges: assembleEdges(input.edges, measured, graph, origin),
     width: Math.round(solved.width),
     height: Math.round(solved.height),
   };

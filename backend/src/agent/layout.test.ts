@@ -107,10 +107,9 @@ describe("layoutGraph", () => {
         { from: "b", to: "a", label: "response" },
       ],
     });
-    // Bound labels sit at the arrow midpoint, which is the same point for both,
-    // so these have to be placed explicitly instead.
-    expect(edges[0].label?.bound).toBe(false);
-    expect(edges[1].label?.bound).toBe(false);
+    // What matters is that the two captions are readable side by side, not how
+    // they got there: the solver routes opposing edges apart, so each label can
+    // sit on its own arrow.
     const distance = Math.hypot(
       (edges[0].label?.x ?? 0) - (edges[1].label?.x ?? 0),
       (edges[0].label?.y ?? 0) - (edges[1].label?.y ?? 0),
@@ -118,7 +117,7 @@ describe("layoutGraph", () => {
     expect(distance).toBeGreaterThan(40);
   });
 
-  it("bows parallel edges apart so they stay distinguishable", () => {
+  it("routes parallel edges as separate lanes", () => {
     const { edges } = layoutGraph({
       nodes: [{ key: "a", label: "A" }, { key: "b", label: "B" }],
       edges: [
@@ -126,9 +125,16 @@ describe("layoutGraph", () => {
         { from: "a", to: "b" },
       ],
     });
-    // Three points means a mid waypoint was inserted to bow the line.
-    expect(edges[0].points).toHaveLength(3);
-    expect(edges[0].points[1]).not.toEqual(edges[1].points[1]);
+    // Two arrows between the same pair have to be individually visible, so no
+    // point of one may land on the other. Their shape is the solver's business.
+    const absolute = edges.map((edge) =>
+      edge.points.map(([px, py]) => [edge.x + px, edge.y + py] as const),
+    );
+    for (const point of absolute[0]) {
+      for (const other of absolute[1]) {
+        expect(Math.hypot(point[0] - other[0], point[1] - other[1])).toBeGreaterThan(8);
+      }
+    }
   });
 
   it("gives a self-loop real geometry instead of a zero-length arrow", () => {

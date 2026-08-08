@@ -48,11 +48,25 @@ parentPort.on("message", (job) => {
       const pos = graph.node(node.key);
       if (pos) positions[node.key] = { x: pos.x, y: pos.y };
     }
+    const edgePoints = {};
+    const edgeLabels = {};
+    for (const edge of job.edges) {
+      const solved = graph.edge({ v: edge.from, w: edge.to, name: edge.name });
+      if (!solved) continue;
+      if (Array.isArray(solved.points)) {
+        edgePoints[edge.name] = solved.points.map((p) => ({ x: p.x, y: p.y }));
+      }
+      if (typeof solved.x === "number" && typeof solved.y === "number") {
+        edgeLabels[edge.name] = { x: solved.x, y: solved.y };
+      }
+    }
     const size = graph.graph();
     parentPort.postMessage({
       id: job.id,
       ok: true,
       positions,
+      edgePoints,
+      edgeLabels,
       width: size.width || 0,
       height: size.height || 0,
     });
@@ -99,7 +113,13 @@ const getWorker = (): Worker | null => {
       pending.delete(msg.id);
       clearTimeout(entry.timer);
       if (msg.ok) {
-        entry.resolve({ positions: msg.positions, width: msg.width, height: msg.height });
+        entry.resolve({
+          positions: msg.positions,
+          edgePoints: msg.edgePoints,
+          edgeLabels: msg.edgeLabels,
+          width: msg.width,
+          height: msg.height,
+        });
       } else {
         entry.reject(new Error(msg.message ?? "layout worker failed"));
       }
