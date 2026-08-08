@@ -6,6 +6,7 @@ import {
   createArrowElement,
   createShapeElement,
   createTextElement,
+  validateStylePatch,
 } from "./elementFactory";
 import { layoutGraphSync } from "./layout";
 import type { LayoutResult } from "./layout";
@@ -49,6 +50,44 @@ const centreOn = (el: ExcalidrawElement, cx: number, cy: number): void => {
 };
 
 /**
+ * Everything that can be rejected without laying anything out.
+ *
+ * Kept separate so the route can run it before the solve. A duplicate key or a
+ * misspelled style used to be found only after the graph had been solved, so a
+ * request that was never going to be applied still cost seconds of worker time.
+ */
+export const validateLayoutOp = (
+  op: Extract<Op, { op: "layout" }>,
+): Omit<OpError, "opIndex"> | null => {
+  const keys = new Set<string>();
+  for (const node of op.nodes) {
+    if (keys.has(node.key)) {
+      return { code: "INVALID_OP", message: `Duplicate node key "${node.key}"` };
+    }
+    keys.add(node.key);
+    if (node.style) {
+      const invalid = validateStylePatch(node.style);
+      if (invalid) return invalid;
+    }
+  }
+
+  for (const edge of op.edges ?? []) {
+    const missing = !keys.has(edge.from) ? edge.from : !keys.has(edge.to) ? edge.to : null;
+    if (missing) {
+      return {
+        code: "INVALID_OP",
+        message: `Edge references unknown node key "${missing}"`,
+      };
+    }
+    if (edge.style) {
+      const invalid = validateStylePatch(edge.style);
+      if (invalid) return invalid;
+    }
+  }
+  return null;
+};
+
+/**
  * Draw a whole graph from structure alone: dagre derives the geometry, then the
  * shapes, labels and arrows are created through the normal factory so ids,
  * bindings and z-order behave exactly as they do for hand-placed ops.
@@ -60,35 +99,12 @@ export const applyLayout = (
   // Without it the solver runs inline here, which is what direct callers get.
   precomputed?: LayoutResult,
 ): ApplyLayoutResult => {
-  const nodesByKey = new Map<string, (typeof op.nodes)[number]>();
-  for (const node of op.nodes) {
-    if (nodesByKey.has(node.key)) {
-      return {
-        error: {
-          code: "INVALID_OP" as const,
-          message: `Duplicate node key "${node.key}"`,
-        },
-      };
-    }
-    nodesByKey.set(node.key, node);
-  }
+  const invalid = validateLayoutOp(op);
+  if (invalid) return { error: invalid };
 
+  const nodesByKey = new Map<string, (typeof op.nodes)[number]>();
+  for (const node of op.nodes) nodesByKey.set(node.key, node);
   const edges = op.edges ?? [];
-  for (const edge of edges) {
-    const missing = !nodesByKey.has(edge.from)
-      ? edge.from
-      : !nodesByKey.has(edge.to)
-        ? edge.to
-        : null;
-    if (missing) {
-      return {
-        error: {
-          code: "INVALID_OP" as const,
-          message: `Edge references unknown node key "${missing}"`,
-        },
-      };
-    }
-  }
 
   const result = precomputed ?? layoutGraphSync(layoutInputFor(op));
 
@@ -183,6 +199,13 @@ export const applyLayout = (
       centreOn(label, edge.label.x, edge.label.y);
       if (edge.label.bound) {
         addBoundElement(arrow, { id: label.id, type: "text" });
+      } else {
+        // A label that is not bound has no relation Excalidraw understands, so
+        // move and delete would leave it stranded next to an arrow that is no
+        // longer there. Record it on the arrow instead: those two ops follow
+        // this, and it costs nothing in the editor.
+        arrow.customData = { ...(arrow.customData ?? {}), layoutLabelId: label.id };
+        scene.markChanged(arrow);
       }
       scene.add(label);
       createdIds.push(label.id);

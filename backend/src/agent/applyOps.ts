@@ -203,6 +203,20 @@ const applySetStyle = (scene: Scene, op: Extract<Op, { op: "set_style" }>) => {
   return {};
 };
 
+/**
+ * A layout label placed beside its arrow rather than bound to it.
+ *
+ * Parallel edges and self-loops cannot use a bound label: Excalidraw puts one at
+ * the arrow midpoint, which is the same point for every edge of a group. Those
+ * labels carry their relation on the arrow so move and delete still find them.
+ */
+const detachedLabelOf = (scene: Scene, el: ExcalidrawElement) => {
+  const custom = el.customData as { layoutLabelId?: unknown } | undefined;
+  return typeof custom?.layoutLabelId === "string"
+    ? scene.getLive(custom.layoutLabelId)
+    : undefined;
+};
+
 const applyMove = (scene: Scene, op: Extract<Op, { op: "move" }>) => {
   const el = scene.getLive(op.id);
   if (!el) return { error: notFound(op.id) };
@@ -214,8 +228,8 @@ const applyMove = (scene: Scene, op: Extract<Op, { op: "move" }>) => {
   scene.markChanged(el);
 
   // The bound label rides along so the caption stays centered on the shape.
-  const label = scene.boundLabelOf(el);
-  if (label) {
+  for (const label of [scene.boundLabelOf(el), detachedLabelOf(scene, el)]) {
+    if (!label) continue;
     label.x = (label.x ?? 0) + dx;
     label.y = (label.y ?? 0) + dy;
     scene.markChanged(label);
@@ -230,8 +244,8 @@ const applyDelete = (scene: Scene, op: Extract<Op, { op: "delete" }>) => {
   el.isDeleted = true;
   scene.markChanged(el);
 
-  const label = scene.boundLabelOf(el);
-  if (label) {
+  for (const label of [scene.boundLabelOf(el), detachedLabelOf(scene, el)]) {
+    if (!label) continue;
     label.isDeleted = true;
     scene.markChanged(label);
   }

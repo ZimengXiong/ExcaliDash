@@ -164,10 +164,40 @@ export const opSchema = z.discriminatedUnion("op", [
   revertToSnapshotSchema,
 ]);
 
-export const opsBatchSchema = z.object({
-  ops: z.array(opSchema).min(1).max(50),
-  clientBatchId: z.string().max(200).optional(),
-});
+// Per-op ceilings bound one graph; these bound a whole request. Without them a
+// batch of 50 layout ops could ask for 10,000 nodes, and the solver would work
+// through them one after another while everyone else waited their turn.
+export const MAX_BATCH_LAYOUT_NODES = 300;
+export const MAX_BATCH_LAYOUT_EDGES = 600;
+
+export const opsBatchSchema = z
+  .object({
+    ops: z.array(opSchema).min(1).max(50),
+    clientBatchId: z.string().max(200).optional(),
+  })
+  .superRefine((batch, ctx) => {
+    let nodes = 0;
+    let edges = 0;
+    for (const op of batch.ops) {
+      if (op.op !== "layout") continue;
+      nodes += op.nodes.length;
+      edges += (op.edges ?? []).length;
+    }
+    if (nodes > MAX_BATCH_LAYOUT_NODES) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ops"],
+        message: `Batch lays out ${nodes} nodes; the limit across one batch is ${MAX_BATCH_LAYOUT_NODES}`,
+      });
+    }
+    if (edges > MAX_BATCH_LAYOUT_EDGES) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ops"],
+        message: `Batch lays out ${edges} edges; the limit across one batch is ${MAX_BATCH_LAYOUT_EDGES}`,
+      });
+    }
+  });
 
 export type Op = z.infer<typeof opSchema>;
 export type AddShapeOp = z.infer<typeof addShapeSchema>;
