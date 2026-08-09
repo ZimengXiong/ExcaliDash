@@ -88,6 +88,67 @@ const graph = (
 });
 
 describe("edge routing", () => {
+  // A straight arrow between two boxes is what the editor draws everywhere else,
+  // and bending one that had no reason to bend looks like a defect. Routing is
+  // the exception, not the rule.
+  it("leaves an edge straight when the direct line is clear", () => {
+    const result = layoutGraphSync(
+      graph(
+        ["a", "b", "c"],
+        [
+          ["a", "b", "step one"],
+          ["b", "c", "step two"],
+        ],
+      ),
+    );
+    for (const edge of result.edges) {
+      expect(edge.points, `${edge.from}->${edge.to} should be straight`).toHaveLength(2);
+    }
+  });
+
+  it("keeps every edge of an ordinary pipeline straight", () => {
+    const result = layoutGraphSync(
+      graph(
+        ["ingest", "queue", "stream", "batch", "store", "dlq", "monitor"],
+        [
+          ["ingest", "queue", "publish"],
+          ["queue", "stream", "consume"],
+          ["queue", "batch"],
+          ["queue", "dlq", "on failure"],
+          ["batch", "store"],
+          ["stream", "store", "write"],
+          ["stream", "monitor"],
+          ["dlq", "monitor"],
+        ],
+        "LR",
+      ),
+    );
+    const bent = result.edges.filter((e) => e.points.length > 2);
+    expect(bent.map((e) => `${e.from}->${e.to}`)).toEqual([]);
+  });
+
+  // Excalidraw breaks the line around a bound label. A caption that is sometimes
+  // inside the arrow and sometimes floating beside it reads as a bug, so a lone
+  // edge always binds.
+  it("binds the label of every edge that is alone between its two boxes", () => {
+    const result = layoutGraphSync(
+      graph(
+        ["a", "b", "c", "d"],
+        [
+          ["a", "b", "one"],
+          ["b", "c", "two"],
+          ["a", "c", "three"],
+          ["c", "d", "four"],
+        ],
+      ),
+    );
+    const labelled = result.edges.filter((e) => e.label);
+    expect(labelled).toHaveLength(4);
+    for (const edge of labelled) {
+      expect(edge.label?.bound, `${edge.from}->${edge.to}`).toBe(true);
+    }
+  });
+
   // The one case that has to work: a chain with a shortcut past its middle. A
   // straight line from a to c runs through b, which is why the solver moves b
   // aside and routes around it.
@@ -207,7 +268,7 @@ describe("edge routing", () => {
       tightest = Math.min(tightest, closest(lanes[0], lanes[1]), closest(lanes[1], lanes[2]));
     }
 
-    expect(bent).toBeGreaterThan(20);
+    expect(bent).toBeGreaterThan(10);
     // The lanes are laid out PARALLEL_EDGE_SPREAD apart. A naive offset lets that
     // collapse to roughly two thirds at the corners; a mitre keeps nearly all.
     expect(tightest).toBeGreaterThan(PARALLEL_EDGE_SPREAD * 0.88);

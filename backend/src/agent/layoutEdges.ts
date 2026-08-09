@@ -5,7 +5,19 @@ import type {
   LayoutedNode,
 } from "./layoutTypes";
 import type { Point, SolvedGraph } from "./layoutSolver";
-import { EDGE_LABEL_FONT_SIZE } from "./layoutText";
+import { CHAR_WIDTH_RATIO, EDGE_LABEL_FONT_SIZE } from "./layoutText";
+import {
+  ARROW_CLEARANCE,
+  alongRoute,
+  clipRoute,
+  distance,
+  segmentHitsBox,
+  midpointOf,
+  offsetPolyline,
+  simplify,
+} from "./layoutGeometry";
+
+export { ARROW_CLEARANCE } from "./layoutGeometry";
 
 /**
  * Arrow geometry for a solved graph.
@@ -18,17 +30,8 @@ import { EDGE_LABEL_FONT_SIZE } from "./layoutText";
  * supposed to avoid.
  */
 
-// Distance kept between an arrow tip and the shape it points at. Baked into the
-// points rather than left to the binding gap: Excalidraw re-projects a gapped
-// endpoint after the arrowhead is placed, which renders as a kinked tip.
-export const ARROW_CLEARANCE = 8;
-
 // Sideways spacing between parallel edges sharing one solved route.
 export const PARALLEL_EDGE_SPREAD = 34;
-
-// Beyond this multiple of the offset, a mitred corner spikes out far enough to
-// look like a defect, so the corner is cut off instead.
-const MITER_LIMIT = 3.5;
 
 const SELF_LOOP_HEIGHT = 46;
 const SELF_LOOP_WIDTH = 54;
@@ -48,156 +51,6 @@ export const edgePoint = (box: Box, tx: number, ty: number): Point => {
   }
   const sign = dy > 0 ? 1 : -1;
   return { x: cx + dx * (hh / Math.abs(dy)), y: cy + sign * hh };
-};
-
-const distance = (a: Point, b: Point): number => Math.hypot(b.x - a.x, b.y - a.y);
-
-/** Drop repeated points and points sitting on the line through their neighbours. */
-const simplify = (points: Point[]): Point[] => {
-  const out: Point[] = [];
-  for (const point of points) {
-    const last = out[out.length - 1];
-    if (!last || distance(last, point) > 0.01) out.push(point);
-  }
-  if (out.length < 3) return out;
-  const kept: Point[] = [out[0]];
-  for (let i = 1; i < out.length - 1; i += 1) {
-    const a = kept[kept.length - 1];
-    const b = out[i];
-    const c = out[i + 1];
-    // Twice the triangle area; zero means the three are collinear.
-    const area = Math.abs((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y));
-    if (area / (distance(a, c) || 1) > 0.05) kept.push(b);
-  }
-  kept.push(out[out.length - 1]);
-  return kept;
-};
-
-/**
- * A parallel copy of the polyline, `delta` to its left.
- *
- * Offsetting each point along its own segment normal would pinch the spacing at
- * every bend, so corners use the intersection of the two offset segments (a
- * mitre) and fall back to cutting the corner when that intersection runs away.
- */
-const offsetPolyline = (points: Point[], delta: number): Point[] => {
-  if (delta === 0 || points.length < 2) return points;
-  const normals: Point[] = [];
-  for (let i = 0; i + 1 < points.length; i += 1) {
-    const dx = points[i + 1].x - points[i].x;
-    const dy = points[i + 1].y - points[i].y;
-    const len = Math.hypot(dx, dy) || 1;
-    normals.push({ x: -dy / len, y: dx / len });
-  }
-
-  const out: Point[] = [
-    { x: points[0].x + normals[0].x * delta, y: points[0].y + normals[0].y * delta },
-  ];
-  for (let i = 1; i < points.length - 1; i += 1) {
-    const a = normals[i - 1];
-    const b = normals[i];
-    const bisector = { x: a.x + b.x, y: a.y + b.y };
-    const len = Math.hypot(bisector.x, bisector.y);
-    // 1/cos(theta/2) keeps the offset line parallel through the corner; when the
-    // segments nearly double back that runs away, so the corner is cut instead.
-    const scale = len < 1e-6 ? Infinity : 2 / len;
-    if (scale > MITER_LIMIT) {
-      out.push({ x: points[i].x + a.x * delta, y: points[i].y + a.y * delta });
-      out.push({ x: points[i].x + b.x * delta, y: points[i].y + b.y * delta });
-      continue;
-    }
-    out.push({
-      x: points[i].x + (bisector.x / len) * delta * scale,
-      y: points[i].y + (bisector.y / len) * delta * scale,
-    });
-  }
-  const last = normals[normals.length - 1];
-  const tail = points[points.length - 1];
-  out.push({ x: tail.x + last.x * delta, y: tail.y + last.y * delta });
-  return out;
-};
-
-const inflatedContains = (box: Box, point: Point, pad: number): boolean =>
-  point.x >= box.x - pad &&
-  point.x <= box.x + box.width + pad &&
-  point.y >= box.y - pad &&
-  point.y <= box.y + box.height + pad;
-
-/** Where segment a→b leaves the padded box, to within a hundredth of a pixel. */
-const exitPoint = (a: Point, b: Point, box: Box, pad: number): Point => {
-  let lo = 0;
-  let hi = 1;
-  for (let i = 0; i < 24; i += 1) {
-    const mid = (lo + hi) / 2;
-    const point = { x: a.x + (b.x - a.x) * mid, y: a.y + (b.y - a.y) * mid };
-    if (inflatedContains(box, point, pad)) lo = mid;
-    else hi = mid;
-  }
-  return { x: a.x + (b.x - a.x) * hi, y: a.y + (b.y - a.y) * hi };
-};
-
-/**
- * Trim the head of the route back to where it leaves the box, plus clearance.
- *
- * Offsetting a fanned edge moves its endpoints off the border the solver had
- * clipped them to, so clipping happens after the fan rather than before it.
- */
-const clipHead = (points: Point[], box: Box): Point[] => {
-  if (!inflatedContains(box, points[0], ARROW_CLEARANCE)) return points;
-  let i = 0;
-  while (i + 1 < points.length && inflatedContains(box, points[i + 1], ARROW_CLEARANCE)) {
-    i += 1;
-  }
-  if (i + 1 >= points.length) return points; // wholly inside: nothing usable to trim
-  return [exitPoint(points[i], points[i + 1], box, ARROW_CLEARANCE), ...points.slice(i + 1)];
-};
-
-const clipRoute = (points: Point[], from: Box, to: Box): Point[] => {
-  const head = clipHead(points, from);
-  const tail = clipHead([...head].reverse(), to).reverse();
-  return tail.length >= 2 ? tail : points;
-};
-
-/** The point half way along the route, measured by arc length. */
-const midpointOf = (points: Point[]): Point => {
-  let total = 0;
-  for (let i = 0; i + 1 < points.length; i += 1) total += distance(points[i], points[i + 1]);
-  let walked = 0;
-  for (let i = 0; i + 1 < points.length; i += 1) {
-    const step = distance(points[i], points[i + 1]);
-    if (walked + step >= total / 2) {
-      const t = step === 0 ? 0 : (total / 2 - walked) / step;
-      return {
-        x: points[i].x + (points[i + 1].x - points[i].x) * t,
-        y: points[i].y + (points[i + 1].y - points[i].y) * t,
-      };
-    }
-    walked += step;
-  }
-  return points[points.length - 1];
-};
-
-/** The point at `fraction` along the route, and the normal there. */
-const alongRoute = (points: Point[], fraction: number): { at: Point; normal: Point } => {
-  let total = 0;
-  for (let i = 0; i + 1 < points.length; i += 1) total += distance(points[i], points[i + 1]);
-  const target = total * fraction;
-  let walked = 0;
-  for (let i = 0; i + 1 < points.length; i += 1) {
-    const step = distance(points[i], points[i + 1]);
-    if (walked + step >= target || i + 2 === points.length) {
-      const t = step === 0 ? 0 : Math.min(1, (target - walked) / step);
-      const dx = points[i + 1].x - points[i].x;
-      const dy = points[i + 1].y - points[i].y;
-      const len = Math.hypot(dx, dy) || 1;
-      return {
-        at: { x: points[i].x + dx * t, y: points[i].y + dy * t },
-        normal: { x: -dy / len, y: dx / len },
-      };
-    }
-    walked += step;
-  }
-  return { at: points[0], normal: { x: 0, y: 0 } };
 };
 
 const boxOf = (node: LayoutedNode): Box => ({
@@ -246,7 +99,7 @@ const selfLoopEdge = (
   return layouted;
 };
 
-/** A straight line between two boxes, for an edge the solver returned no route for. */
+/** A straight line between two boxes, border to border. */
 const straightRoute = (from: LayoutedNode, to: LayoutedNode): Point[] => {
   const fromCentre = { x: from.x + from.width / 2, y: from.y + from.height / 2 };
   const toCentre = { x: to.x + to.width / 2, y: to.y + to.height / 2 };
@@ -256,6 +109,45 @@ const straightRoute = (from: LayoutedNode, to: LayoutedNode): Point[] => {
   ];
 };
 
+const overlapsBox = (box: Box, rect: Box): boolean =>
+  rect.x < box.x + box.width &&
+  box.x < rect.x + rect.width &&
+  rect.y < box.y + box.height &&
+  box.y < rect.y + rect.height;
+
+/**
+ * Would this straight edge, or the caption sitting on it, run into a box?
+ *
+ * Both are reasons to take the solver's route instead. The solver reserves room
+ * along the route for a label; a straight line has no such reservation, so a wide
+ * caption at its midpoint can land on a box the line itself misses.
+ */
+const directRouteIsClear = (
+  route: Point[],
+  edge: LayoutEdgeInput,
+  measured: Map<string, LayoutedNode>,
+): boolean => {
+  const label = edge.label
+    ? (() => {
+        const at = midpointOf(route);
+        const width = edge.label.length * EDGE_LABEL_FONT_SIZE * CHAR_WIDTH_RATIO + 12;
+        const height = EDGE_LABEL_FONT_SIZE * 1.6;
+        return { x: at.x - width / 2, y: at.y - height / 2, width, height };
+      })()
+    : null;
+
+  for (const [key, node] of measured) {
+    if (key === edge.from || key === edge.to) continue;
+    const box = boxOf(node);
+    if (label && overlapsBox(box, label)) return false;
+    for (let i = 0; i + 1 < route.length; i += 1) {
+      // A small inset, so an arrow grazing a corner is not called a hit.
+      if (segmentHitsBox(route[i], route[i + 1], box, 2)) return false;
+    }
+  }
+  return true;
+};
+
 /** Arrow points and label positions for every edge whose endpoints were solved. */
 export const assembleEdges = (
   inputEdges: LayoutEdgeInput[],
@@ -263,13 +155,15 @@ export const assembleEdges = (
   solved: SolvedGraph,
   origin: Point,
 ): LayoutedEdge[] => {
-  // Parallel edges share one solved route and are fanned around it. Grouping is
-  // by ordered pair: dagre already routes A→B and B→A apart from each other.
+  // Edges sharing a pair of boxes are fanned apart. Grouping is by unordered
+  // pair, so A→B and B→A count as one group: they run along the same straight
+  // line and would otherwise be drawn exactly on top of each other.
+  const pairKey = (a: string, b: string) => JSON.stringify([a, b].sort());
   const groupSize = new Map<string, number>();
   for (const edge of inputEdges) {
     if (!measured.has(edge.from) || !measured.has(edge.to)) continue;
     if (edge.from === edge.to) continue;
-    const key = `${edge.from}→${edge.to}`;
+    const key = pairKey(edge.from, edge.to);
     groupSize.set(key, (groupSize.get(key) ?? 0) + 1);
   }
   const groupSeen = new Map<string, number>();
@@ -295,13 +189,23 @@ export const assembleEdges = (
       return;
     }
 
-    const key = `${edge.from}→${edge.to}`;
+    const key = pairKey(edge.from, edge.to);
     const total = groupSize.get(key) ?? 1;
     const nth = groupSeen.get(key) ?? 0;
     groupSeen.set(key, nth + 1);
 
+    // A straight arrow reads better than a routed one, and it is what an arrow
+    // between two boxes looks like everywhere else in the editor. So the direct
+    // line is the default, and the solver's route is used only where the direct
+    // line would actually run through a box. On an ordinary diagram that means
+    // nothing changes; on a chain with a shortcut past its middle, one edge
+    // bends and the rest stay straight.
+    const direct = straightRoute(from, to);
     const solvedRoute = solved.routeByEdgeIndex.get(index);
-    const centreRoute = solvedRoute ? solvedRoute.map(shift) : straightRoute(from, to);
+    const centreRoute =
+      solvedRoute && !directRouteIsClear(direct, edge, measured)
+        ? solvedRoute.map(shift)
+        : direct;
 
     const lane = (nth - (total - 1) / 2) * PARALLEL_EDGE_SPREAD;
     const route = simplify(
@@ -325,15 +229,13 @@ export const assembleEdges = (
     };
 
     if (edge.label) {
-      const reserved = solved.labelByEdgeIndex.get(index);
-      // Excalidraw puts a bound label at the arrow's midpoint. Where that is the
-      // spot the solver reserved anyway, binding is free: the label rides along
-      // when the arrow is dragged, and Excalidraw breaks the line around it. Any
-      // further apart and binding would drag the label out of its reserved slot
-      // and back onto a box, so it is positioned explicitly instead.
+      // One edge between two boxes always gets a bound label. Excalidraw then
+      // breaks the line around the text, which is both the nicest result and the
+      // consistent one: a caption that is sometimes inside the line and
+      // sometimes floating beside it reads as a bug. The solver has already
+      // reserved room along the route for it.
       const midpoint = midpointOf(route);
-      const target = reserved ? shift(reserved) : midpoint;
-      if (total === 1 && distance(target, midpoint) <= 1.5) {
+      if (total === 1) {
         layouted.label = {
           text: edge.label,
           x: Math.round(midpoint.x),
@@ -342,15 +244,23 @@ export const assembleEdges = (
           bound: true,
         };
       } else {
-        // Fanned edges would otherwise stack every label on the same reserved
-        // point, so they are staggered along their own lane instead.
-        const fraction = total === 1 ? 0.5 : 0.3 + (0.4 * nth) / Math.max(1, total - 1);
+        // Parallel edges cannot all be bound: Excalidraw puts every bound label
+        // at its arrow's midpoint, and for a fanned group those are nearly the
+        // same point. They are staggered along their own lane instead.
+        // Opposing edges run in opposite directions, so the same fraction along
+        // each lands in the same place. Measure from a fixed end of the pair.
+        let fraction = total === 2 ? (nth === 0 ? 0.3 : 0.7) : 0.3 + (0.4 * nth) / Math.max(1, total - 1);
+        let side = nth % 2 === 0 ? 1 : -1;
+        if (edge.from > edge.to) {
+          fraction = 1 - fraction;
+          side = -side;
+        }
         const { at, normal } = alongRoute(route, fraction);
-        const nudge = total === 1 ? 0 : 14 * (nth % 2 === 0 ? 1 : -1);
+        const nudge = 16 * side;
         layouted.label = {
           text: edge.label,
-          x: Math.round((total === 1 ? target.x : at.x) + normal.x * nudge),
-          y: Math.round((total === 1 ? target.y : at.y) + normal.y * nudge),
+          x: Math.round(at.x + normal.x * nudge),
+          y: Math.round(at.y + normal.y * nudge),
           fontSize: EDGE_LABEL_FONT_SIZE,
           bound: false,
         };
