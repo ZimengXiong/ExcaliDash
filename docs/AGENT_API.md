@@ -191,6 +191,7 @@ Batch envelope: `{ "ops": Op[]  (1..50), "clientBatchId"?: string }`.
 | Op | Params | Behavior |
 | --- | --- | --- |
 | `add_shape` | `shape` (`rectangle`\|`ellipse`\|`diamond`\|`text`\|`frame`), `x`, `y`, `w?`, `h?`, `label?`, `style?` | Creates a shape. `label` becomes a bound text child with correct `containerId`/`boundElements`. Returns `createdIds`. |
+| `layout` | `nodes[]` (`key`, `label?`, `shape?`, `style?`), `edges[]?` (`from`, `to`, `label?`, `style?`, `arrowType?`), `direction?` (`TB`\|`BT`\|`LR`\|`RL`), `x?`, `y?` | Draws a whole graph and derives the geometry, so no coordinates are supplied. `key` is batch-local, so edges reference nodes created in the same op. Boxes are sized from their label. Returns `createdIds` for every element. |
 | `connect` | `fromId`, `toId`, `label?`, `style?`, `arrowType?` (`arrow`\|`line`) | Creates an arrow/line with `startBinding`/`endBinding` and updates both endpoints' `boundElements`. `ELEMENT_NOT_FOUND` per missing endpoint. |
 | `set_text` | `id`, `text` | Sets the element's own text or its bound label (creating the label if none). Text is sanitized. |
 | `set_style` | `id`, `style` | Whitelist patch. Allowed keys: `strokeColor`, `backgroundColor`, `fillStyle`, `strokeWidth`, `strokeStyle`, `opacity`, `roughness`, `fontSize`, `fontFamily`, `textAlign`, `roundness`. Unknown key → `INVALID_STYLE_KEY`. |
@@ -206,6 +207,19 @@ Notes:
 - Ids you reference (`id`, `fromId`, `toId`) must be **existing** element ids —
   either already in the scene or created earlier **in the same batch**.
 - Text is always run through the server sanitizer; you cannot inject markup.
+- `layout` is the exception to the id rule above: its `key`s exist only within
+  the op, which is what lets a single call create nodes and the edges between
+  them. Limits are 200 nodes and 400 edges per op, 300 nodes and 600 edges
+  across a batch, and 500 characters per label.
+- The `layout` solve runs on a worker thread, one graph at a time, with the rest
+  queued behind it. A large graph therefore costs the caller latency rather than
+  everyone else's: it does not occupy the event loop. Two things can come back
+  instead of a drawing, and neither is retried on the request path:
+
+  | Situation | Response |
+  |---|---|
+  | The solve ran past 10s and was abandoned | `422` with `LAYOUT_FAILED` |
+  | Too many layouts already queued | `503` with `LAYOUT_BUSY`, safe to retry |
 
 ---
 
@@ -228,6 +242,7 @@ If any op fails, **nothing is persisted**. The response lists every failing op:
 | `INVALID_OP` | The op is structurally invalid beyond what the schema caught. |
 | `SNAPSHOT_NOT_FOUND` | `revert_to_snapshot` referenced a version with no retained snapshot. |
 | `UNSUPPORTED` | The op or a parameter combination is not supported. |
+| `LAYOUT_FAILED` | A `layout` op could not be solved, or ran past the 10s limit. Simplify the graph or split it across ops. |
 
 ### Other status codes
 
@@ -239,6 +254,7 @@ If any op fails, **nothing is persisted**. The response lists every failing op:
 | `404` | `Drawing not found` / `Element not found` | The drawing or element does not exist, or you have no view access. |
 | `409` | `Conflict` (`code: VERSION_CONFLICT`) | The scene changed concurrently and the server exhausted its retries; re-read the summary and retry the batch. |
 | `429` | `Rate limit exceeded` | Too many ops batches; see below. |
+| `503` | `Busy` (`code: LAYOUT_BUSY`) | Too many `layout` solves already queued. The batch was not applied; retry shortly. |
 
 ---
 
@@ -345,8 +361,28 @@ protected. A `409 CHATGPT_RECONNECT` from `POST /ai/chat` (or a same-coded SSE
 
 ---
 
+## Using an MCP client instead
+
+The API above is what an agent talks to directly. If you already run an agent
+that speaks the [Model Context Protocol](https://modelcontextprotocol.io) —
+Claude Code, Cursor, Codex and others do — you do not need to write that
+integration yourself, and you do not need the ChatGPT provider setup either.
+
+[**excalidash-mcp**](https://github.com/davifernan/excalidash-mcp) is a
+community MCP server for ExcaliDash. It exposes drawing, editing, board
+management and PNG export as MCP tools, and pushes over Socket.IO so elements
+appear in open browsers without a refresh. It is MIT licensed and maintained
+outside this repository.
+
+Either door leads to the same place: the built-in AI panel for people who want
+it in ExcaliDash, an MCP client for people who already have an agent running.
+
+---
+
 ## See also
 
+- [excalidash-mcp](https://github.com/davifernan/excalidash-mcp) — community MCP
+  server for agents that already speak MCP.
 - [Configuration Reference](CONFIGURATION.md) — all rate-limit, retention, and
   AI-provider variables.
 - [Deployment Guide](DEPLOYMENT.md) — running behind a proxy, HTTPS, snapshots.

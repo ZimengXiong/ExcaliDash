@@ -1,4 +1,7 @@
 import { sanitizeElementText } from "../security";
+import { applyImport } from "./applyImport";
+import { applyLayout } from "./applyLayout";
+import type { LayoutResult } from "./layout";
 import type { Op, OpError } from "./opSchemas";
 import {
   ExcalidrawElement,
@@ -8,7 +11,6 @@ import {
   createArrowElement,
   createShapeElement,
   createTextElement,
-  genId,
   removeBoundElement,
   touchElement,
 } from "./elementFactory";
@@ -17,6 +19,9 @@ export type ApplyOpsContext = {
   // Pre-loaded snapshot element arrays keyed by version, for revert_to_snapshot
   // (the route fetches DrawingSnapshot rows before the tx).
   snapshotElementsByVersion?: Map<number, ExcalidrawElement[]>;
+  // Geometry solved before the tx, keyed by op index, for layout ops. Same
+  // reason as above: the solver is async, the applier stays synchronous.
+  layoutByOpIndex?: Map<number, LayoutResult>;
 };
 
 export type ApplyOpsSuccess = {
@@ -197,6 +202,20 @@ const applySetStyle = (scene: Scene, op: Extract<Op, { op: "set_style" }>) => {
   return {};
 };
 
+/**
+ * A layout label placed beside its arrow rather than bound to it.
+ *
+ * Parallel edges and self-loops cannot use a bound label: Excalidraw puts one at
+ * the arrow midpoint, which is the same point for every edge of a group. Those
+ * labels carry their relation on the arrow so move and delete still find them.
+ */
+const detachedLabelOf = (scene: Scene, el: ExcalidrawElement) => {
+  const custom = el.customData as { layoutLabelId?: unknown } | undefined;
+  return typeof custom?.layoutLabelId === "string"
+    ? scene.getLive(custom.layoutLabelId)
+    : undefined;
+};
+
 const applyMove = (scene: Scene, op: Extract<Op, { op: "move" }>) => {
   const el = scene.getLive(op.id);
   if (!el) return { error: notFound(op.id) };
@@ -208,8 +227,8 @@ const applyMove = (scene: Scene, op: Extract<Op, { op: "move" }>) => {
   scene.markChanged(el);
 
   // The bound label rides along so the caption stays centered on the shape.
-  const label = scene.boundLabelOf(el);
-  if (label) {
+  for (const label of [scene.boundLabelOf(el), detachedLabelOf(scene, el)]) {
+    if (!label) continue;
     label.x = (label.x ?? 0) + dx;
     label.y = (label.y ?? 0) + dy;
     scene.markChanged(label);
@@ -224,8 +243,8 @@ const applyDelete = (scene: Scene, op: Extract<Op, { op: "delete" }>) => {
   el.isDeleted = true;
   scene.markChanged(el);
 
-  const label = scene.boundLabelOf(el);
-  if (label) {
+  for (const label of [scene.boundLabelOf(el), detachedLabelOf(scene, el)]) {
+    if (!label) continue;
     label.isDeleted = true;
     scene.markChanged(label);
   }
@@ -250,43 +269,6 @@ const applyDelete = (scene: Scene, op: Extract<Op, { op: "delete" }>) => {
     if (touched) scene.markChanged(other);
   }
   return {};
-};
-
-const applyImport = (scene: Scene, op: Extract<Op, { op: "import_elements" }>) => {
-  // Insert-only: every incoming id is remapped to a fresh id so an import can
-  // never overwrite existing elements, and intra-batch references are rewritten
-  // to the new ids.
-  const idMap = new Map<string, string>();
-  for (const raw of op.elements) {
-    if (typeof raw.id === "string") idMap.set(raw.id, genId());
-  }
-  const remapId = (id: unknown): unknown =>
-    typeof id === "string" && idMap.has(id) ? idMap.get(id) : id;
-
-  const createdIds: string[] = [];
-  for (const raw of op.elements) {
-    const el: ExcalidrawElement = { ...raw };
-    el.id = (typeof raw.id === "string" && idMap.get(raw.id)) || genId();
-    el.isDeleted = false;
-    touchElement(el);
-    el.version = 1;
-    if (typeof el.containerId === "string") el.containerId = remapId(el.containerId);
-    if (typeof el.frameId === "string") el.frameId = remapId(el.frameId);
-    if (Array.isArray(el.boundElements)) {
-      el.boundElements = el.boundElements.map((b: any) =>
-        b && typeof b.id === "string" ? { ...b, id: remapId(b.id) } : b,
-      );
-    }
-    if (el.startBinding?.elementId) {
-      el.startBinding = { ...el.startBinding, elementId: remapId(el.startBinding.elementId) };
-    }
-    if (el.endBinding?.elementId) {
-      el.endBinding = { ...el.endBinding, elementId: remapId(el.endBinding.elementId) };
-    }
-    scene.add(el);
-    createdIds.push(el.id);
-  }
-  return { createdIds };
 };
 
 const applyRevert = (
@@ -339,10 +321,17 @@ const notFound = (elementId: string): Omit<OpError, "opIndex"> => ({
 
 type OpResult = { createdIds?: string[]; error?: Omit<OpError, "opIndex"> };
 
-const dispatch = (scene: Scene, op: Op, ctx: ApplyOpsContext): OpResult => {
+const dispatch = (
+  scene: Scene,
+  op: Op,
+  ctx: ApplyOpsContext,
+  opIndex: number,
+): OpResult => {
   switch (op.op) {
     case "add_shape":
       return applyAddShape(scene, op);
+    case "layout":
+      return applyLayout(scene, op, ctx.layoutByOpIndex?.get(opIndex));
     case "connect":
       return applyConnect(scene, op);
     case "set_text":
@@ -378,7 +367,7 @@ export const applyOps = (input: {
   const errors: OpError[] = [];
 
   input.ops.forEach((op, opIndex) => {
-    const out = dispatch(scene, op, ctx);
+    const out = dispatch(scene, op, ctx, opIndex);
     if (out.error) {
       errors.push({ ...out.error, opIndex });
       return;

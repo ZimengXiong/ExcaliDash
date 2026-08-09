@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import type { PrismaClient } from "../generated/client";
 import { sanitizeDrawingData } from "../security";
 import { applyOps, type ApplyOpsSuccess } from "../agent/applyOps";
+import { prepareFailed, prepareOpsContext } from "../agent/prepareOps";
 import { opsBatchSchema, type OpError } from "../agent/opSchemas";
 import { buildStructuralSummary, summarizeElements } from "../agent/summary";
 import { applySceneUpdateTx, isVersionConflict } from "../routes/dashboard/sceneUpdate";
@@ -61,6 +62,28 @@ export const applyOpsBatch = async (
   }
   const { ops } = parsed.data;
 
+  // Same preparation as the REST route, and for the same reason: the applier
+  // below runs synchronously inside a transaction, so a layout has to be solved
+  // on the worker before the transaction opens rather than on the main thread
+  // while it holds the write lock.
+  const prepared = await prepareOpsContext(ops, async (versions) => {
+    const snaps = await deps.prisma.drawingSnapshot.findMany({
+      where: { drawingId, version: { in: versions } },
+    });
+    const map = new Map<number, any[]>();
+    for (const snap of snaps) map.set(snap.version, deps.parseJsonField(snap.elements, []));
+    return map;
+  });
+  if (prepareFailed(prepared)) {
+    return {
+      ok: false,
+      errors: prepared.errors ?? [
+        { opIndex: 0, code: "UNSUPPORTED", message: String(prepared.body.message ?? "Layout unavailable") },
+      ],
+    };
+  }
+  const ctx = (prepared as Extract<typeof prepared, { ok: true }>).ctx;
+
   const validationError = new Error("OPS_VALIDATION_FAILED");
   let opsError: OpError[] | null = null;
   let applied: ApplyOpsSuccess | null = null;
@@ -78,7 +101,7 @@ export const applyOpsBatch = async (
           current.appState,
           {},
         );
-        const out = applyOps({ ops, elements: currentElements });
+        const out = applyOps({ ops, elements: currentElements, ctx });
         if (out.ok === false) {
           opsError = out.errors;
           throw validationError;

@@ -15,6 +15,12 @@ export const SHAPE_KINDS = [
   "frame",
 ] as const;
 
+export type ShapeKind = (typeof SHAPE_KINDS)[number];
+
+// Shapes a laid-out graph node can take. `text` and `frame` are excluded: a node
+// is a container the layout measures and an arrow can bind to.
+export const LAYOUT_SHAPE_KINDS = ["rectangle", "ellipse", "diamond"] as const;
+
 // Whitelisted style keys. Anything outside this set is rejected by the applier
 // with INVALID_STYLE_KEY (the schema keeps unknown keys so the applier can name
 // them in the error rather than silently dropping them).
@@ -102,8 +108,53 @@ const revertToSnapshotSchema = z.object({
   version: z.number().int().nonnegative(),
 });
 
+// Draw a whole graph from structure alone. `add_shape` needs x/y, which puts the
+// caller in charge of placement — the thing models are worst at. Here the caller
+// supplies nodes and edges and the server derives the geometry with dagre.
+//
+// `key` is batch-local: it lets edges reference nodes created in the same op,
+// without the caller knowing the element ids up front.
+// Label length is capped because the box is sized from it: an unbounded label
+// would produce an unbounded box.
+export const MAX_LAYOUT_LABEL_LENGTH = 500;
+
+// dagre's cost grows sharply with the number of back edges rather than with size
+// alone: a densely cyclic graph at this ceiling takes seconds. It runs on a
+// worker thread (see layoutRunner.ts) with a timeout, so a slow solve costs the
+// caller latency instead of blocking every other request, which is what allows
+// these to be generous. They still exist because the result has to fit in a
+// message and a drawing.
+export const MAX_LAYOUT_NODES = 200;
+export const MAX_LAYOUT_EDGES = 400;
+
+const layoutNodeSchema = z.object({
+  key: z.string().min(1).max(200),
+  label: z.string().max(MAX_LAYOUT_LABEL_LENGTH).optional(),
+  shape: z.enum(LAYOUT_SHAPE_KINDS).optional(),
+  style: styleSchema.optional(),
+});
+
+const layoutEdgeSchema = z.object({
+  from: z.string().min(1).max(200),
+  to: z.string().min(1).max(200),
+  label: z.string().max(MAX_LAYOUT_LABEL_LENGTH).optional(),
+  style: styleSchema.optional(),
+  arrowType: z.enum(["arrow", "line"]).optional(),
+});
+
+const layoutSchema = z.object({
+  op: z.literal("layout"),
+  nodes: z.array(layoutNodeSchema).min(1).max(MAX_LAYOUT_NODES),
+  edges: z.array(layoutEdgeSchema).max(MAX_LAYOUT_EDGES).optional(),
+  direction: z.enum(["TB", "BT", "LR", "RL"]).optional(),
+  // Where the laid-out graph is placed. Defaults to the origin.
+  x: z.number().optional(),
+  y: z.number().optional(),
+});
+
 export const opSchema = z.discriminatedUnion("op", [
   addShapeSchema,
+  layoutSchema,
   connectSchema,
   setTextSchema,
   setStyleSchema,
@@ -113,13 +164,44 @@ export const opSchema = z.discriminatedUnion("op", [
   revertToSnapshotSchema,
 ]);
 
-export const opsBatchSchema = z.object({
-  ops: z.array(opSchema).min(1).max(50),
-  clientBatchId: z.string().max(200).optional(),
-});
+// Per-op ceilings bound one graph; these bound a whole request. Without them a
+// batch of 50 layout ops could ask for 10,000 nodes, and the solver would work
+// through them one after another while everyone else waited their turn.
+export const MAX_BATCH_LAYOUT_NODES = 300;
+export const MAX_BATCH_LAYOUT_EDGES = 600;
+
+export const opsBatchSchema = z
+  .object({
+    ops: z.array(opSchema).min(1).max(50),
+    clientBatchId: z.string().max(200).optional(),
+  })
+  .superRefine((batch, ctx) => {
+    let nodes = 0;
+    let edges = 0;
+    for (const op of batch.ops) {
+      if (op.op !== "layout") continue;
+      nodes += op.nodes.length;
+      edges += (op.edges ?? []).length;
+    }
+    if (nodes > MAX_BATCH_LAYOUT_NODES) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ops"],
+        message: `Batch lays out ${nodes} nodes; the limit across one batch is ${MAX_BATCH_LAYOUT_NODES}`,
+      });
+    }
+    if (edges > MAX_BATCH_LAYOUT_EDGES) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["ops"],
+        message: `Batch lays out ${edges} edges; the limit across one batch is ${MAX_BATCH_LAYOUT_EDGES}`,
+      });
+    }
+  });
 
 export type Op = z.infer<typeof opSchema>;
 export type AddShapeOp = z.infer<typeof addShapeSchema>;
+export type LayoutOp = z.infer<typeof layoutSchema>;
 export type ConnectOp = z.infer<typeof connectSchema>;
 export type SetTextOp = z.infer<typeof setTextSchema>;
 export type SetStyleOp = z.infer<typeof setStyleSchema>;
@@ -136,7 +218,8 @@ export type OpError = {
     | "INVALID_STYLE_KEY"
     | "INVALID_OP"
     | "SNAPSHOT_NOT_FOUND"
-    | "UNSUPPORTED";
+    | "UNSUPPORTED"
+    | "LAYOUT_FAILED";
   message: string;
   elementId?: string;
 };

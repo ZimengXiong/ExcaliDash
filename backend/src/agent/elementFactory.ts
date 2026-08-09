@@ -75,8 +75,10 @@ export const createTextElement = (
   y: number,
   text: string,
   containerId: string | null = null,
+  // Callers that size a container around its label need the same font size the
+  // measurement used, so it has to be settable rather than fixed at 20.
+  fontSize = 20,
 ): ExcalidrawElement => {
-  const fontSize = 20;
   const lineHeight = 1.25;
   const lines = text.length === 0 ? 1 : text.split("\n").length;
   const width = Math.max(
@@ -150,8 +152,8 @@ export const centerOf = (el: ExcalidrawElement): { cx: number; cy: number } => (
  * Apply a whitelisted style patch in place. Returns an OpError (without
  * opIndex) for the first unknown key so the caller can attach the index.
  */
-export const applyStylePatch = (
-  el: ExcalidrawElement,
+/** The whitelist check on its own, for callers that validate before they build. */
+export const validateStylePatch = (
   style: Record<string, unknown>,
 ): Omit<OpError, "opIndex"> | null => {
   const allowed = new Set<string>(STYLE_KEYS);
@@ -163,6 +165,15 @@ export const applyStylePatch = (
       };
     }
   }
+  return null;
+};
+
+export const applyStylePatch = (
+  el: ExcalidrawElement,
+  style: Record<string, unknown>,
+): Omit<OpError, "opIndex"> | null => {
+  const invalid = validateStylePatch(style);
+  if (invalid) return invalid;
   for (const key of Object.keys(style)) {
     el[key] = style[key];
   }
