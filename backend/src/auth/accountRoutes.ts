@@ -1,4 +1,5 @@
 import express, { Request, Response } from "express";
+import type { Mailer } from "../mail/mailer";
 import { PrismaClient } from "../generated/client";
 import { registerAccountApiKeyRoutes } from "./accountApiKeyRoutes";
 import { registerAccountPasswordChangeRoutes } from "./accountPasswordChangeRoutes";
@@ -14,6 +15,8 @@ export type RegisterAccountRoutesDeps = {
   accountActionRateLimiter: express.RequestHandler;
   ensureAuthEnabled: (res: Response) => Promise<boolean>;
   sanitizeText: (input: unknown, maxLength?: number) => string;
+  /** Optional: without a configured provider no reset mail is sent. */
+  mailer?: Mailer;
   config: {
     enablePasswordReset: boolean;
     enableAuditLogging: boolean;

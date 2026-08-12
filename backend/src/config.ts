@@ -26,6 +26,12 @@ interface S3Config {
   secretAccessKey: string | null;
 }
 
+interface MailConfig {
+  resendApiKey: string | null;
+  from: string | null;
+  replyTo: string | null;
+}
+
 interface BackupConfig {
   schedule: string | null;
   dir: string;
@@ -53,6 +59,7 @@ interface Config {
   bootstrapSetupCodeMaxAttempts: number;
   passwordPolicy: PasswordPolicyConfig;
   backups: BackupConfig;
+  mail: MailConfig;
   s3: S3Config;
 }
 
@@ -377,6 +384,11 @@ export const config: Config = {
   ),
   passwordPolicy: resolvePasswordPolicyConfig(getRequiredEnvNumber, getOptionalBoolean),
   backups: resolveBackupConfig(),
+  mail: {
+    resendApiKey: getOptionalTrimmedEnv("RESEND_API_KEY"),
+    from: getOptionalTrimmedEnv("MAIL_FROM"),
+    replyTo: getOptionalTrimmedEnv("MAIL_REPLY_TO"),
+  },
   s3: resolveS3Config(),
 };
 
