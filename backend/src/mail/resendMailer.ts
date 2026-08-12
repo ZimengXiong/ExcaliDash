@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import type { MailMessage, MailResult, Mailer } from "./mailer";
 import { createDisabledMailer } from "./mailer";
+import { createSmtpMailer } from "./smtpMailer";
 
 export type ResendMailerOptions = {
   apiKey: string;
@@ -51,20 +52,47 @@ export const createResendMailer = ({
 };
 
 /**
- * Build the mailer for the running configuration. A missing API key or sender
- * is a valid state — self-hosters who never enable password reset should not
- * have to configure mail at all.
+ * Build the mailer for the running configuration. Having no provider is a
+ * valid state — self-hosters who never enable password reset should not have
+ * to configure mail at all.
  */
 export const createMailerFromConfig = (mail: {
+  transport: "resend" | "smtp" | "none";
   resendApiKey: string | null;
   from: string | null;
   replyTo: string | null;
+  smtp: {
+    host: string | null;
+    port: number;
+    secure: boolean;
+    user: string | null;
+    password: string | null;
+  };
 }): Mailer => {
-  if (!mail.resendApiKey) {
-    return createDisabledMailer("RESEND_API_KEY is not set");
+  if (mail.transport === "none") {
+    return createDisabledMailer("No mail transport configured");
   }
   if (!mail.from) {
     return createDisabledMailer("MAIL_FROM is not set");
+  }
+
+  if (mail.transport === "smtp") {
+    if (!mail.smtp.host) {
+      return createDisabledMailer("SMTP_HOST is not set");
+    }
+    return createSmtpMailer({
+      host: mail.smtp.host,
+      port: mail.smtp.port,
+      secure: mail.smtp.secure,
+      user: mail.smtp.user,
+      password: mail.smtp.password,
+      from: mail.from,
+      replyTo: mail.replyTo,
+    });
+  }
+
+  if (!mail.resendApiKey) {
+    return createDisabledMailer("RESEND_API_KEY is not set");
   }
   return createResendMailer({
     apiKey: mail.resendApiKey,

@@ -3,12 +3,22 @@ import { createDisabledMailer } from "../mail/mailer";
 import { createMailerFromConfig } from "../mail/resendMailer";
 import { buildPasswordResetEmail } from "../mail/templates/passwordReset";
 
+const noSmtp = {
+  host: null,
+  port: 587,
+  secure: false,
+  user: null,
+  password: null,
+};
+
 describe("mailer configuration", () => {
   it("is disabled without an API key", async () => {
     const mailer = createMailerFromConfig({
+      transport: "none",
       resendApiKey: null,
       from: "ExcaliDash <noreply@example.com>",
       replyTo: null,
+      smtp: noSmtp,
     });
 
     expect(mailer.enabled).toBe(false);
@@ -19,9 +29,11 @@ describe("mailer configuration", () => {
 
   it("is disabled without a sender address", () => {
     const mailer = createMailerFromConfig({
+      transport: "resend",
       resendApiKey: "re_test",
       from: null,
       replyTo: null,
+      smtp: noSmtp,
     });
 
     expect(mailer.enabled).toBe(false);
@@ -29,9 +41,11 @@ describe("mailer configuration", () => {
 
   it("is enabled once key and sender are present", () => {
     const mailer = createMailerFromConfig({
+      transport: "resend",
       resendApiKey: "re_test",
       from: "ExcaliDash <noreply@example.com>",
       replyTo: null,
+      smtp: noSmtp,
     });
 
     expect(mailer.enabled).toBe(true);
@@ -47,6 +61,44 @@ describe("mailer configuration", () => {
     });
 
     expect(result).toEqual({ delivered: false, reason: "nope" });
+  });
+});
+
+describe("transport selection", () => {
+  it("uses SMTP when that transport is chosen", () => {
+    const mailer = createMailerFromConfig({
+      transport: "smtp",
+      resendApiKey: null,
+      from: "ExcaliDash <noreply@example.com>",
+      replyTo: null,
+      smtp: { ...noSmtp, host: "smtp.example.com" },
+    });
+
+    expect(mailer.enabled).toBe(true);
+  });
+
+  it("stays disabled when SMTP is chosen without a host", () => {
+    const mailer = createMailerFromConfig({
+      transport: "smtp",
+      resendApiKey: "re_test",
+      from: "ExcaliDash <noreply@example.com>",
+      replyTo: null,
+      smtp: noSmtp,
+    });
+
+    expect(mailer.enabled).toBe(false);
+  });
+
+  it("never sends when the transport is switched off", () => {
+    const mailer = createMailerFromConfig({
+      transport: "none",
+      resendApiKey: "re_test",
+      from: "ExcaliDash <noreply@example.com>",
+      replyTo: null,
+      smtp: { ...noSmtp, host: "smtp.example.com" },
+    });
+
+    expect(mailer.enabled).toBe(false);
   });
 });
 
