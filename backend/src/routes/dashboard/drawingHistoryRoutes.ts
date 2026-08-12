@@ -1,5 +1,9 @@
 import express from "express";
 import { canEditDrawing, canViewDrawing, getDrawingAccess } from "../../authz/sharing";
+import {
+  decodeSnapshotField,
+  encodeSnapshotField,
+} from "../../snapshots/snapshotCodec";
 import type { DrawingRouteContext } from "./drawingRouteContext";
 
 export const registerDrawingHistoryRoutes = (
@@ -10,6 +14,7 @@ export const registerDrawingHistoryRoutes = (
     prisma,
     optionalAuth,
     asyncHandler,
+    config,
     parseJsonField,
     invalidateDrawingsCache,
     getRequestPrincipal,
@@ -79,9 +84,9 @@ export const registerDrawingHistoryRoutes = (
 
       return res.json({
         ...snapshot,
-        elements: parseJsonField(snapshot.elements, []),
-        appState: parseJsonField(snapshot.appState, {}),
-        files: parseJsonField(snapshot.files, {}),
+        elements: parseJsonField(decodeSnapshotField(snapshot.elements), []),
+        appState: parseJsonField(decodeSnapshotField(snapshot.appState), {}),
+        files: parseJsonField(decodeSnapshotField(snapshot.files), {}),
       });
     }),
   );
@@ -114,13 +119,14 @@ export const registerDrawingHistoryRoutes = (
         return res.status(404).json({ error: "Snapshot not found" });
 
       // Snapshot current state before restoring (so restore is reversible)
+      const compress = config.enableSnapshotCompression;
       await prisma.drawingSnapshot.create({
         data: {
           drawingId: id,
           version: drawing.version,
-          elements: drawing.elements,
-          appState: drawing.appState,
-          files: drawing.files,
+          elements: encodeSnapshotField(drawing.elements, compress),
+          appState: encodeSnapshotField(drawing.appState, compress),
+          files: encodeSnapshotField(drawing.files, compress),
         },
       });
 
@@ -128,9 +134,10 @@ export const registerDrawingHistoryRoutes = (
       const updated = await prisma.drawing.update({
         where: { id },
         data: {
-          elements: snapshot.elements,
-          appState: snapshot.appState,
-          files: snapshot.files,
+          // Drawing rows are always plain JSON — decode before restoring.
+          elements: decodeSnapshotField(snapshot.elements),
+          appState: decodeSnapshotField(snapshot.appState),
+          files: decodeSnapshotField(snapshot.files),
           version: { increment: 1 },
         },
       });

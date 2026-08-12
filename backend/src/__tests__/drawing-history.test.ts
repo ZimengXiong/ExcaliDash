@@ -2,6 +2,11 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import express from "express";
 import request from "supertest";
 import { registerDrawingRoutes } from "../routes/dashboard/drawings";
+import {
+  decodeSnapshotField,
+  encodeSnapshotField,
+  isEncodedSnapshotField,
+} from "../snapshots/snapshotCodec";
 
 /**
  * Tests for the Drawing Version History feature:
@@ -28,6 +33,23 @@ const mockDrawing = {
   createdAt: new Date(),
   updatedAt: new Date(),
 };
+
+/** Large enough that compression actually kicks in (tiny scenes stay plain). */
+const buildLargeScene = (marker: string): string =>
+  JSON.stringify(
+    Array.from({ length: 300 }, (_, i) => ({
+      id: `${marker}-${i}`,
+      type: "rectangle",
+      x: i,
+      y: i,
+      width: 160,
+      height: 80,
+      strokeColor: "#1e1e1e",
+      backgroundColor: "transparent",
+      groupIds: [],
+      isDeleted: false,
+    })),
+  );
 
 const mockSnapshot = {
   id: MOCK_SNAPSHOT_ID,
@@ -85,7 +107,11 @@ function buildApp() {
     getCachedDrawingsBody: vi.fn().mockReturnValue(null),
     cacheDrawingsResponse: vi.fn(),
     MAX_PAGE_SIZE: 100,
-    config: { nodeEnv: "test", enableAuditLogging: false },
+    config: {
+      nodeEnv: "test",
+      enableAuditLogging: false,
+      enableSnapshotCompression: true,
+    },
     logAuditEvent: vi.fn(),
   } as any);
 
@@ -254,5 +280,88 @@ describe("Drawing Version History", () => {
       // The actual integration is best tested in E2E
       expect(true).toBe(true);
     });
+  });
+});
+
+describe("Snapshot payload compression", () => {
+  it("stores the pre-restore backup compressed", async () => {
+    const { app, prisma } = buildApp();
+    const liveScene = buildLargeScene("live");
+
+    prisma.drawing.findUnique.mockResolvedValue({ ...mockDrawing, elements: liveScene });
+    prisma.drawing.findFirst.mockResolvedValue({ ...mockDrawing, elements: liveScene });
+    prisma.drawingSnapshot.findFirst.mockResolvedValue(mockSnapshot);
+    prisma.drawingSnapshot.create.mockResolvedValue({});
+    prisma.drawing.update.mockResolvedValue(mockDrawing);
+
+    const res = await request(app).post(
+      `/drawings/${MOCK_DRAWING_ID}/history/${MOCK_SNAPSHOT_ID}/restore`,
+    );
+    expect(res.status).toBe(200);
+
+    const stored = prisma.drawingSnapshot.create.mock.calls[0][0].data.elements;
+    expect(isEncodedSnapshotField(stored)).toBe(true);
+    expect(stored.length).toBeLessThan(liveScene.length * 0.25);
+    expect(decodeSnapshotField(stored)).toBe(liveScene);
+  });
+
+  it("writes plain JSON back into the drawing when restoring a compressed snapshot", async () => {
+    const { app, prisma } = buildApp();
+    const archivedScene = buildLargeScene("archived");
+
+    prisma.drawing.findUnique.mockResolvedValue(mockDrawing);
+    prisma.drawing.findFirst.mockResolvedValue(mockDrawing);
+    prisma.drawingSnapshot.findFirst.mockResolvedValue({
+      ...mockSnapshot,
+      elements: encodeSnapshotField(archivedScene),
+    });
+    prisma.drawingSnapshot.create.mockResolvedValue({});
+    prisma.drawing.update.mockResolvedValue(mockDrawing);
+
+    const res = await request(app).post(
+      `/drawings/${MOCK_DRAWING_ID}/history/${MOCK_SNAPSHOT_ID}/restore`,
+    );
+    expect(res.status).toBe(200);
+
+    const restored = prisma.drawing.update.mock.calls[0][0].data.elements;
+    expect(isEncodedSnapshotField(restored)).toBe(false);
+    expect(restored).toBe(archivedScene);
+    expect(JSON.parse(restored)).toHaveLength(300);
+  });
+
+  it("returns decoded elements when previewing a compressed snapshot", async () => {
+    const { app, prisma } = buildApp();
+    const archivedScene = buildLargeScene("preview");
+
+    prisma.drawing.findUnique.mockResolvedValue(mockDrawing);
+    prisma.drawing.findFirst.mockResolvedValue(mockDrawing);
+    prisma.drawingSnapshot.findFirst.mockResolvedValue({
+      ...mockSnapshot,
+      elements: encodeSnapshotField(archivedScene),
+    });
+
+    const res = await request(app).get(
+      `/drawings/${MOCK_DRAWING_ID}/history/${MOCK_SNAPSHOT_ID}`,
+    );
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.elements)).toBe(true);
+    expect(res.body.elements).toHaveLength(300);
+    expect(res.body.elements[0].id).toBe("preview-0");
+  });
+
+  it("still reads snapshots written before compression existed", async () => {
+    const { app, prisma } = buildApp();
+
+    prisma.drawing.findUnique.mockResolvedValue(mockDrawing);
+    prisma.drawing.findFirst.mockResolvedValue(mockDrawing);
+    prisma.drawingSnapshot.findFirst.mockResolvedValue(mockSnapshot);
+
+    const res = await request(app).get(
+      `/drawings/${MOCK_DRAWING_ID}/history/${MOCK_SNAPSHOT_ID}`,
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.elements[0].id).toBe("el-old");
   });
 });

@@ -51,6 +51,7 @@ export type DashboardRouteDeps = {
   config: {
     nodeEnv: string;
     enableAuditLogging: boolean;
+    enableSnapshotCompression: boolean;
   };
   logAuditEvent: LogAuditEvent;
   processFilesForS3: (

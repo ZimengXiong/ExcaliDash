@@ -13,6 +13,7 @@ import {
   toInternalTrashCollectionId,
   toPublicTrashCollectionId,
 } from "./trash";
+import { encodeSnapshotField } from "../../snapshots/snapshotCodec";
 import type { DrawingRouteContext } from "./drawingRouteContext";
 
 export const registerDrawingCreateUpdateRoutes = (
@@ -259,13 +260,20 @@ export const registerDrawingCreateUpdateRoutes = (
       try {
         if (isSceneUpdate) {
           updatedDrawing = await prisma.$transaction(async (tx) => {
+            const compress = config.enableSnapshotCompression;
             await tx.drawingSnapshot.create({
               data: {
                 drawingId: id,
                 version: existingDrawing.version,
-                elements: existingDrawing.elements,
-                appState: existingDrawing.appState,
-                files: existingDrawing.files,
+                elements: encodeSnapshotField(
+                  existingDrawing.elements,
+                  compress,
+                ),
+                appState: encodeSnapshotField(
+                  existingDrawing.appState,
+                  compress,
+                ),
+                files: encodeSnapshotField(existingDrawing.files, compress),
               },
             });
 
