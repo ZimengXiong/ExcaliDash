@@ -81,6 +81,7 @@ export const buildAuthStatusPayload = ({
   onboarding,
   bootstrapRequired,
   passwordPolicy,
+  passwordResetEnabled,
   user,
 }: {
   authMode: AuthMode;
@@ -100,6 +101,8 @@ export const buildAuthStatusPayload = ({
   };
   bootstrapRequired: boolean;
   passwordPolicy: PasswordPolicyPayload;
+  /** True only when the server can actually deliver a reset link. */
+  passwordResetEnabled: boolean;
   user: AuthUser;
 }) => {
   const onboardingRequired = authMode === "local" ? onboarding.needsChoice : false;
@@ -118,6 +121,7 @@ export const buildAuthStatusPayload = ({
     registrationEnabled: effectiveAuthEnabled
       ? getEffectiveRegistrationEnabled(authMode, systemConfig.registrationEnabled)
       : false,
+    passwordResetEnabled: effectiveAuthEnabled ? passwordResetEnabled : false,
     bootstrapRequired: effectiveAuthEnabled ? bootstrapRequired : false,
     authOnboardingRequired: onboardingRequired,
     authOnboardingMode: onboardingMode,

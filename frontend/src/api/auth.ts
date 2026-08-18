@@ -29,6 +29,7 @@ export interface AuthStatusResponse {
   authEnabled?: boolean;
   enabled?: boolean;
   registrationEnabled?: boolean;
+  passwordResetEnabled?: boolean;
   authMode?: "local" | "hybrid" | "oidc_enforced";
   oidcEnabled?: boolean;
   oidcEnforced?: boolean;
@@ -199,6 +200,14 @@ export const authOnboardingChoice = async (
     bootstrapRequired: boolean;
   }>("/auth/onboarding-choice", { enableAuth });
   return response.data;
+};
+
+export const authPasswordResetRequest = async (email: string): Promise<void> => {
+  await axios.post(
+    `${API_URL}/auth/password-reset-request`,
+    { email },
+    { withCredentials: true },
+  );
 };
 
 export const authPasswordResetConfirm = async (

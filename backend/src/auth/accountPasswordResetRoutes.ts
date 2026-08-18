@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
+import { randomUUID } from "crypto";
 import { logAuditEvent } from "../utils/audit";
 import {
   passwordResetConfirmSchema,
@@ -8,6 +9,7 @@ import {
 } from "./schemas";
 import { canUseLocalPasswordFlows } from "./localPassword";
 import { hashTokenForStorage } from "./tokenSecurity";
+import { buildPasswordResetEmail } from "../mail/templates/passwordReset";
 import type { RegisterAccountRoutesDeps } from "./accountRoutes";
 
 export const registerAccountPasswordResetRoutes = (
@@ -19,13 +21,44 @@ export const registerAccountPasswordResetRoutes = (
     loginAttemptRateLimiter,
     ensureAuthEnabled,
     config,
+    mailer,
   } = deps;
+
+  /** The reset link always points at the first configured frontend origin. */
+  const buildResetUrl = (token: string): string => {
+    const baseUrlRaw = config.frontendUrl?.split(",")[0]?.trim();
+    const baseUrlWithProtocol = baseUrlRaw
+      ? /^https?:\/\//i.test(baseUrlRaw)
+        ? baseUrlRaw
+        : `http://${baseUrlRaw}`
+      : "http://localhost:6767";
+    const baseUrl = baseUrlWithProtocol.replace(/\/$/, "");
+    return `${baseUrl}/reset-password-confirm?token=${token}`;
+  };
+  /**
+   * Reset is enabled but nothing can deliver the link. Answering "a link has
+   * been sent" would be a lie, so the endpoint reports the outage instead.
+   * The reply does not depend on the submitted address, so this leaks nothing
+   * about which accounts exist.
+   */
+  const isUndeliverable = (): boolean =>
+    !mailer?.enabled && config.nodeEnv === "production";
+
   router.post("/password-reset-request", loginAttemptRateLimiter, async (req: Request, res: Response) => {
     if (!(await ensureAuthEnabled(res))) return;
     if (!config.enablePasswordReset) {
       return res.status(404).json({
         error: "Not found",
         message: "Password reset feature is not enabled",
+      });
+    }
+    if (isUndeliverable()) {
+      console.error(
+        "[mail] ENABLE_PASSWORD_RESET is on but no mail provider is configured — set RESEND_API_KEY and MAIL_FROM.",
+      );
+      return res.status(503).json({
+        error: "Service unavailable",
+        message: "Password reset is temporarily unavailable",
       });
     }
 
@@ -64,16 +97,34 @@ export const registerAccountPasswordResetRoutes = (
           });
         }
 
+        const resetUrl = buildResetUrl(resetToken);
+
         if (config.nodeEnv === "development") {
           console.log(`[DEV] Password reset token for ${email}: ${resetToken}`);
-          const baseUrlRaw = config.frontendUrl?.split(",")[0]?.trim();
-          const baseUrlWithProtocol = baseUrlRaw
-            ? /^https?:\/\//i.test(baseUrlRaw)
-              ? baseUrlRaw
-              : `http://${baseUrlRaw}`
-            : "http://localhost:6767";
-          const baseUrl = baseUrlWithProtocol.replace(/\/$/, "");
-          console.log(`[DEV] Reset URL: ${baseUrl}/reset-password-confirm?token=${resetToken}`);
+          console.log(`[DEV] Reset URL: ${resetUrl}`);
+        }
+
+        if (mailer?.enabled) {
+          const mail = buildPasswordResetEmail({
+            resetUrl,
+            expiresInMinutes: 60,
+          });
+          // Never leak whether the address exists: a delivery failure is
+          // logged for the operator, the response stays neutral either way.
+          const result = await mailer.send({
+            to: email,
+            subject: mail.subject,
+            html: mail.html,
+            text: mail.text,
+            // Random per send: idempotency keys can surface in provider logs
+            // and exports, so no reset-token material goes in here.
+            idempotencyKey: `password-reset/${randomUUID()}`,
+          });
+          if (result.delivered === false) {
+            console.error(
+              `[mail] Password reset email was not delivered: ${result.reason}`,
+            );
+          }
         }
       }
 

@@ -3,7 +3,11 @@ import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { registerAccountRoutes } from "./accountRoutes";
 
-const buildApp = (options?: { impersonatorId?: string }) => {
+const buildApp = (options?: {
+  impersonatorId?: string;
+  nodeEnv?: string;
+  mailer?: { enabled: boolean; send: ReturnType<typeof vi.fn> };
+}) => {
   const router = express.Router();
   router.use(express.json());
 
@@ -50,18 +54,19 @@ const buildApp = (options?: { impersonatorId?: string }) => {
       enablePasswordReset: true,
       enableAuditLogging: false,
       enableRefreshTokenRotation: false,
-      nodeEnv: "test",
+      nodeEnv: options?.nodeEnv ?? "test",
       frontendUrl: "http://localhost:6767",
     },
     generateTokens: vi.fn().mockReturnValue({ accessToken: "access", refreshToken: "refresh" }),
     getRefreshTokenExpiresAt: vi.fn().mockReturnValue(new Date()),
     setAuthCookies: vi.fn(),
     requireCsrf: vi.fn().mockReturnValue(true),
+    mailer: options?.mailer as any,
   });
 
   const app = express();
   app.use(router);
-  return { app, prisma };
+  return { app, prisma, mailer: options?.mailer };
 };
 
 describe("accountRoutes local-password safeguards", () => {
@@ -220,5 +225,81 @@ describe("accountRoutes local-password safeguards", () => {
     expect(response.status).toBe(400);
     expect(response.body?.message).toContain("valid API key scope");
     expect(prisma.apiKey.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("password reset delivery", () => {
+  const localUser = {
+    id: "user-1",
+    email: "user@example.com",
+    isActive: true,
+    passwordHash: "$2b$12$abcdefghijklmnopqrstuv",
+  };
+
+  const buildMailer = () => ({
+    enabled: true,
+    send: vi.fn().mockResolvedValue({ delivered: true, id: "mail-1" }),
+  });
+
+  it("sends the reset link to the account address", async () => {
+    const mailer = buildMailer();
+    const { app, prisma } = buildApp({ mailer });
+    prisma.user.findUnique.mockResolvedValue(localUser);
+    prisma.passwordResetToken.updateMany.mockResolvedValue({ count: 0 });
+    prisma.passwordResetToken.create.mockResolvedValue({});
+
+    const res = await request(app)
+      .post("/password-reset-request")
+      .send({ email: localUser.email });
+
+    expect(res.status).toBe(200);
+    expect(mailer.send).toHaveBeenCalledTimes(1);
+    const sent = mailer.send.mock.calls[0][0];
+    expect(sent.to).toBe(localUser.email);
+    expect(sent.text).toContain("/reset-password-confirm?token=");
+    expect(sent.idempotencyKey).toMatch(/^password-reset\//);
+  });
+
+  it("sends nothing for an unknown address but answers the same", async () => {
+    const mailer = buildMailer();
+    const { app, prisma } = buildApp({ mailer });
+    prisma.user.findUnique.mockResolvedValue(null);
+
+    const res = await request(app)
+      .post("/password-reset-request")
+      .send({ email: "nobody@example.com" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/if an account/i);
+    expect(mailer.send).not.toHaveBeenCalled();
+  });
+
+  it("still answers neutrally when the provider fails", async () => {
+    const mailer = {
+      enabled: true,
+      send: vi.fn().mockResolvedValue({ delivered: false, reason: "quota" }),
+    };
+    const { app, prisma } = buildApp({ mailer });
+    prisma.user.findUnique.mockResolvedValue(localUser);
+    prisma.passwordResetToken.updateMany.mockResolvedValue({ count: 0 });
+    prisma.passwordResetToken.create.mockResolvedValue({});
+
+    const res = await request(app)
+      .post("/password-reset-request")
+      .send({ email: localUser.email });
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toMatch(/if an account/i);
+  });
+
+  it("reports an outage in production when no provider is configured", async () => {
+    const { app, prisma } = buildApp({ nodeEnv: "production" });
+
+    const res = await request(app)
+      .post("/password-reset-request")
+      .send({ email: localUser.email });
+
+    expect(res.status).toBe(503);
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
   });
 });

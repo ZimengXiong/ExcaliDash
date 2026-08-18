@@ -26,6 +26,42 @@ interface S3Config {
   secretAccessKey: string | null;
 }
 
+type MailTransport = "resend" | "smtp" | "none";
+
+interface MailConfig {
+  transport: MailTransport;
+  resendApiKey: string | null;
+  from: string | null;
+  replyTo: string | null;
+  smtp: {
+    host: string | null;
+    port: number;
+    secure: boolean;
+    user: string | null;
+    password: string | null;
+  };
+}
+
+/**
+ * An explicit MAIL_TRANSPORT always wins. Otherwise the transport follows
+ * whatever is configured, so adding credentials is enough to enable delivery.
+ */
+const resolveMailTransport = (
+  resendApiKey: string | null,
+  smtpHost: string | null,
+): MailTransport => {
+  const explicit = process.env.MAIL_TRANSPORT?.trim().toLowerCase();
+  if (explicit === "resend" || explicit === "smtp" || explicit === "none") {
+    return explicit;
+  }
+  if (explicit) {
+    throw new Error("MAIL_TRANSPORT must be one of: resend, smtp, none");
+  }
+  if (resendApiKey) return "resend";
+  if (smtpHost) return "smtp";
+  return "none";
+}
+
 interface BackupConfig {
   schedule: string | null;
   dir: string;
@@ -53,6 +89,7 @@ interface Config {
   bootstrapSetupCodeMaxAttempts: number;
   passwordPolicy: PasswordPolicyConfig;
   backups: BackupConfig;
+  mail: MailConfig;
   s3: S3Config;
 }
 
@@ -377,6 +414,22 @@ export const config: Config = {
   ),
   passwordPolicy: resolvePasswordPolicyConfig(getRequiredEnvNumber, getOptionalBoolean),
   backups: resolveBackupConfig(),
+  mail: {
+    transport: resolveMailTransport(
+      getOptionalTrimmedEnv("RESEND_API_KEY"),
+      getOptionalTrimmedEnv("SMTP_HOST"),
+    ),
+    resendApiKey: getOptionalTrimmedEnv("RESEND_API_KEY"),
+    from: getOptionalTrimmedEnv("MAIL_FROM"),
+    replyTo: getOptionalTrimmedEnv("MAIL_REPLY_TO"),
+    smtp: {
+      host: getOptionalTrimmedEnv("SMTP_HOST"),
+      port: getRequiredEnvNumber("SMTP_PORT", 587),
+      secure: getOptionalBoolean("SMTP_SECURE", false),
+      user: getOptionalTrimmedEnv("SMTP_USER"),
+      password: getOptionalTrimmedEnv("SMTP_PASSWORD"),
+    },
+  },
   s3: resolveS3Config(),
 };
 
