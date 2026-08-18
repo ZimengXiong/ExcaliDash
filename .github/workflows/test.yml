@@ -108,7 +108,13 @@ jobs:
         run: |
           # Start backend server in background
           cd backend
-          DATABASE_URL="file:${{ github.workspace }}/backend/prisma/e2e-test.db" FRONTEND_URL="http://localhost:6767" npm run dev &
+          # The suite issues far more than the default 60 CSRF requests, so
+          # without raising the limits it locks itself out with HTTP 429.
+          DATABASE_URL="file:${{ github.workspace }}/backend/prisma/e2e-test.db" \
+            FRONTEND_URL="http://localhost:6767" \
+            CSRF_MAX_REQUESTS=100000 \
+            RATE_LIMIT_MAX_REQUESTS=100000 \
+            npm run dev &
           BACKEND_PID=$!
           cd ..
           
