@@ -33,7 +33,11 @@ interface AuthContextType {
   bootstrapRequired: boolean;
   authOnboardingRequired: boolean;
   authOnboardingMode: 'migration' | 'fresh' | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (
+    email: string,
+    password: string,
+    rememberMe?: boolean,
+  ) => Promise<void>;
   register: (email: string, password: string, name: string, setupCode?: string) => Promise<void>;
   logout: () => void;
   retryAuthStatus: () => Promise<void>;
@@ -184,12 +188,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     loadUser();
   }, [loadUser]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (
+    email: string,
+    password: string,
+    rememberMe = false,
+  ) => {
     try {
       if (authEnabled === false) {
         throw new Error("Authentication is disabled");
       }
-      const response = await authLogin(email, password);
+      const response = await authLogin(email, password, rememberMe);
 
       const { user: userData } = response;
 
