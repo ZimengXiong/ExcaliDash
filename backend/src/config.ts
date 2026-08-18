@@ -48,6 +48,7 @@ interface Config {
   enablePasswordReset: boolean;
   enableRefreshTokenRotation: boolean;
   enableAuditLogging: boolean;
+  enableSnapshotCompression: boolean;
   enforceHttpsRedirect: boolean;
   bootstrapSetupCodeTtlMs: number;
   bootstrapSetupCodeMaxAttempts: number;
@@ -366,6 +367,10 @@ export const config: Config = {
     true,
   ),
   enableAuditLogging: getOptionalBoolean("ENABLE_AUDIT_LOGGING", false),
+  enableSnapshotCompression: getOptionalBoolean(
+    "ENABLE_SNAPSHOT_COMPRESSION",
+    true,
+  ),
   enforceHttpsRedirect: getOptionalBoolean("ENFORCE_HTTPS_REDIRECT", true),
   bootstrapSetupCodeTtlMs: getRequiredEnvNumber(
     "BOOTSTRAP_SETUP_CODE_TTL_MS",
