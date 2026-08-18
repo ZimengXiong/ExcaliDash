@@ -143,10 +143,12 @@ export const authLogout = async (): Promise<void> => {
 export const authLogin = async (
   email: string,
   password: string,
+  rememberMe = false,
 ): Promise<{ user: AuthUser }> => {
   const response = await api.post<{ user: AuthUser }>("/auth/login", {
     email,
     password,
+    rememberMe,
   });
   return response.data;
 };

@@ -4,6 +4,8 @@ import { Logo } from '../components/Logo';
 import { authPasswordResetConfirm, isAxiosError } from '../api';
 import { getPasswordPolicy, validatePassword } from '../utils/passwordPolicy';
 import { PasswordRequirements } from '../components/PasswordRequirements';
+import { PasswordInput } from '../components/PasswordInput';
+import { PasswordMatch } from '../components/PasswordMatch';
 
 export const PasswordResetConfirm: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -121,10 +123,9 @@ export const PasswordResetConfirm: React.FC = () => {
               <label htmlFor="password" className="sr-only">
                 New password
               </label>
-              <input
+              <PasswordInput
                 id="password"
                 name="password"
-                type="password"
                 autoComplete="new-password"
                 required
                 minLength={passwordPolicy.minLength}
@@ -141,10 +142,9 @@ export const PasswordResetConfirm: React.FC = () => {
               <label htmlFor="confirmPassword" className="sr-only">
                 Confirm password
               </label>
-              <input
+              <PasswordInput
                 id="confirmPassword"
                 name="confirmPassword"
-                type="password"
                 autoComplete="new-password"
                 required
                 minLength={passwordPolicy.minLength}
@@ -154,6 +154,7 @@ export const PasswordResetConfirm: React.FC = () => {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
               />
+              <PasswordMatch password={password} confirmPassword={confirmPassword} />
             </div>
           </div>
 

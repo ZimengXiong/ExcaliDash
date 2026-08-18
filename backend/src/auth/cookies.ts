@@ -7,6 +7,7 @@ export const REFRESH_TOKEN_COOKIE_NAME = "excalidash-refresh-token";
 
 const DEFAULT_ACCESS_TTL_MS = 15 * 60 * 1000;
 const DEFAULT_REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const DEFAULT_REMEMBERED_REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 const parseDurationToMs = (value: string, fallbackMs: number): number => {
   const parsed = ms(value as StringValue);
@@ -24,6 +25,16 @@ const REFRESH_TOKEN_COOKIE_MAX_AGE_MS = parseDurationToMs(
   config.jwtRefreshExpiresIn,
   DEFAULT_REFRESH_TTL_MS
 );
+const REMEMBERED_REFRESH_TOKEN_COOKIE_MAX_AGE_MS = parseDurationToMs(
+  config.jwtRefreshExpiresInRemembered,
+  DEFAULT_REMEMBERED_REFRESH_TTL_MS
+);
+
+/** The refresh cookie outlives the session only when the user asked for it. */
+export const getRefreshCookieMaxAgeMs = (remember?: boolean): number =>
+  remember
+    ? REMEMBERED_REFRESH_TOKEN_COOKIE_MAX_AGE_MS
+    : REFRESH_TOKEN_COOKIE_MAX_AGE_MS;
 
 const canTrustProxyHeaders = (req: Request): boolean => {
   const trustProxy = req.app?.get?.("trust proxy");
@@ -57,7 +68,8 @@ const baseCookieOptions = (req: Request) => ({
 export const setAuthCookies = (
   req: Request,
   res: Response,
-  tokens: { accessToken: string; refreshToken: string }
+  tokens: { accessToken: string; refreshToken: string },
+  options?: { remember?: boolean }
 ): void => {
   res.cookie(ACCESS_TOKEN_COOKIE_NAME, tokens.accessToken, {
     ...baseCookieOptions(req),
@@ -65,7 +77,7 @@ export const setAuthCookies = (
   });
   res.cookie(REFRESH_TOKEN_COOKIE_NAME, tokens.refreshToken, {
     ...baseCookieOptions(req),
-    maxAge: REFRESH_TOKEN_COOKIE_MAX_AGE_MS,
+    maxAge: getRefreshCookieMaxAgeMs(options?.remember),
   });
 };
 

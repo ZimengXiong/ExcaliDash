@@ -6,6 +6,7 @@ import * as api from '../api';
 import { USER_KEY } from '../utils/impersonation';
 import { getPasswordPolicy, validatePassword } from '../utils/passwordPolicy';
 import { PasswordRequirements } from '../components/PasswordRequirements';
+import { PasswordInput } from '../components/PasswordInput';
 import { AuthStatusErrorPanel } from '../components/AuthStatusErrorPanel';
 
 export const Login: React.FC = () => {
@@ -13,6 +14,7 @@ export const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const {
@@ -94,7 +96,7 @@ export const Login: React.FC = () => {
     setLoading(true);
 
     try {
-      await login(email, password);
+      await login(email, password, rememberMe);
       const stored = localStorage.getItem(USER_KEY);
       const storedUser = stored ? (JSON.parse(stored) as { mustResetPassword?: boolean } | null) : null;
       if (storedUser?.mustResetPassword) {
@@ -225,10 +227,9 @@ export const Login: React.FC = () => {
                     <label htmlFor="password" className="sr-only">
                       Password
                     </label>
-                    <input
+                    <PasswordInput
                       id="password"
                       name="password"
-                      type="password"
                       autoComplete="current-password"
                       required
                       className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white dark:bg-gray-800 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
@@ -244,10 +245,9 @@ export const Login: React.FC = () => {
                     <label htmlFor="newPassword" className="sr-only">
                       New password
                     </label>
-                    <input
+                    <PasswordInput
                       id="newPassword"
                       name="newPassword"
-                      type="password"
                       autoComplete="new-password"
                       required
                       minLength={passwordPolicy.minLength}
@@ -263,10 +263,9 @@ export const Login: React.FC = () => {
                     <label htmlFor="confirmNewPassword" className="sr-only">
                       Confirm new password
                     </label>
-                    <input
+                    <PasswordInput
                       id="confirmNewPassword"
                       name="confirmNewPassword"
-                      type="password"
                       autoComplete="new-password"
                       required
                       minLength={passwordPolicy.minLength}
@@ -291,7 +290,16 @@ export const Login: React.FC = () => {
           )}
 
           {!mustReset && !oidcEnforced && (
-            <div className="flex justify-end">
+            <div className="flex items-center justify-between gap-4">
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 select-none">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                />
+                Stay signed in for 30 days
+              </label>
               <Link
                 to="/reset-password"
                 className="text-sm font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400"

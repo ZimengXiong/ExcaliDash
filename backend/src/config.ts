@@ -41,6 +41,8 @@ interface Config {
   jwtSecret: string;
   jwtAccessExpiresIn: string;
   jwtRefreshExpiresIn: string;
+  /** Longer refresh lifetime for logins that asked to stay signed in. */
+  jwtRefreshExpiresInRemembered: string;
   rateLimitMaxRequests: number;
   csrfMaxRequests: number;
   csrfSecret: string | null;
@@ -356,6 +358,10 @@ export const config: Config = {
   jwtSecret: resolveJwtSecret(getOptionalEnv("NODE_ENV", "development")),
   jwtAccessExpiresIn: getOptionalEnv("JWT_ACCESS_EXPIRES_IN", "15m"),
   jwtRefreshExpiresIn: getOptionalEnv("JWT_REFRESH_EXPIRES_IN", "7d"),
+  jwtRefreshExpiresInRemembered: getOptionalEnv(
+    "JWT_REFRESH_EXPIRES_IN_REMEMBERED",
+    "30d",
+  ),
   rateLimitMaxRequests: getRequiredEnvNumber("RATE_LIMIT_MAX_REQUESTS", 1000),
   csrfMaxRequests: getRequiredEnvNumber("CSRF_MAX_REQUESTS", 60),
   csrfSecret: process.env.CSRF_SECRET || null,

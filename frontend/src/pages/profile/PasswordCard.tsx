@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { PasswordInput } from '../../components/PasswordInput';
 import { useNavigate } from "react-router-dom";
 import { Lock, X } from "lucide-react";
 import * as api from "../../api";
@@ -101,9 +102,8 @@ export const PasswordCard: React.FC<Props> = ({
             <label htmlFor="currentPassword" className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">
               Current Password
             </label>
-            <input
+            <PasswordInput
               id="currentPassword"
-              type="password"
               value={currentPassword}
               onChange={(event) => setCurrentPassword(event.target.value)}
               className="w-full px-4 py-3 bg-white dark:bg-neutral-800 border-2 border-black dark:border-neutral-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500 dark:focus:ring-rose-400 font-medium"
@@ -115,9 +115,8 @@ export const PasswordCard: React.FC<Props> = ({
             <label htmlFor="newPassword" className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">
               New Password
             </label>
-            <input
+            <PasswordInput
               id="newPassword"
-              type="password"
               value={newPassword}
               onChange={(event) => setNewPassword(event.target.value)}
               minLength={passwordPolicy.minLength}
@@ -137,9 +136,8 @@ export const PasswordCard: React.FC<Props> = ({
             <label htmlFor="confirmPassword" className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">
               Confirm New Password
             </label>
-            <input
+            <PasswordInput
               id="confirmPassword"
-              type="password"
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
               minLength={passwordPolicy.minLength}
