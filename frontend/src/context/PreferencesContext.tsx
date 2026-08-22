@@ -23,7 +23,6 @@ const KNOWN_KEYS: PreferenceKey[] = [
   'dashboardSortDirection',
   'language',
   'gridStep',
-  'defaultEngine',
 ];
 
 const pickKnown = (source: Partial<Preferences>): Preferences => {

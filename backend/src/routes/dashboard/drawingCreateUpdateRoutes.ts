@@ -16,13 +16,6 @@ import {
 import type { DrawingRouteContext } from "./drawingRouteContext";
 import { applySceneUpdateTx, isVersionConflict } from "./sceneUpdate";
 import { sanitizeSvg } from "../../security";
-import {
-  engineCreateFieldSchema,
-  tldrawCreateSchema,
-  tldrawUpdateSchema,
-  tldrawSceneExceedsCap,
-  tldrawSceneTooLargeBody,
-} from "./tldrawScene";
 
 export const registerDrawingCreateUpdateRoutes = (
   app: express.Express,
@@ -45,23 +38,59 @@ export const registerDrawingCreateUpdateRoutes = (
     getRequestPrincipal,
     respondWithAuthErrorIfPresent,
   } = context;
+
+  // Interning writes DrawingFile rows (and S3 blobs) before the scene
+  // transaction runs. If the save then fails — most commonly a version
+  // conflict — the freshly created rows would otherwise be orphaned forever.
+  // This compensation deletes only rows this request created (absent before
+  // interning) that the authoritative scene still does not reference.
+  const cleanupUnreferencedInternedFiles = async (
+    drawingId: string,
+    knownBefore: Set<string>,
+    processedFiles: Record<string, unknown> | undefined,
+  ): Promise<void> => {
+    const candidates = Object.keys(processedFiles ?? {}).filter(
+      (fileId) => !knownBefore.has(fileId),
+    );
+    if (candidates.length === 0) return;
+    try {
+      await prisma.$transaction(async (tx) => {
+        const current = await tx.drawing.findUnique({
+          where: { id: drawingId },
+          select: { files: true },
+        });
+        const referenced = new Set(
+          Object.keys(parseJsonField(current?.files ?? "{}", {})),
+        );
+        const deletable = candidates.filter((fileId) => !referenced.has(fileId));
+        if (deletable.length === 0) return;
+        await tx.drawingFile.deleteMany({
+          where: { drawingId, fileId: { in: deletable } },
+        });
+      });
+    } catch (cleanupError) {
+      // Best-effort: a failed sweep only leaves rows for a later trim pass.
+      console.warn("[files] interned-file cleanup failed:", cleanupError);
+    }
+  };
+
+  const listDrawingFileIds = async (
+    drawingId: string,
+  ): Promise<Set<string>> => {
+    const rows = await prisma.drawingFile.findMany({
+      where: { drawingId },
+      select: { fileId: true },
+    });
+    return new Set(rows.map((row) => row.fileId));
+  };
   app.post(
     "/drawings",
     requireAuth,
     asyncHandler(async (req, res) => {
       if (!req.user) return res.status(401).json({ error: "Unauthorized" });
 
-      const engineResult = engineCreateFieldSchema.safeParse(req.body?.engine);
-      if (!engineResult.success) {
-        return respondWithValidationErrors(res, engineResult.error.issues);
-      }
-      const engine = engineResult.data;
-      const isTldraw = engine === "tldraw";
-
       const isImportedDrawing = req.headers["x-imported-file"] === "true";
-      // The imported-file validator is excalidraw-shaped; tldraw import is
-      // deferred, so the header is ignored for tldraw create.
-      if (!isTldraw && isImportedDrawing && !validateImportedDrawing(req.body)) {
+      if (isImportedDrawing && !validateImportedDrawing(req.body)) {
         return res.status(400).json({
           error: "Invalid imported drawing file",
           message:
@@ -69,9 +98,7 @@ export const registerDrawingCreateUpdateRoutes = (
         });
       }
 
-      const parsed = (
-        isTldraw ? tldrawCreateSchema : drawingCreateSchema
-      ).safeParse(req.body);
+      const parsed = drawingCreateSchema.safeParse(req.body);
       if (!parsed.success) {
         return respondWithValidationErrors(res, parsed.error.issues);
       }
@@ -85,14 +112,6 @@ export const registerDrawingCreateUpdateRoutes = (
         files?: Record<string, unknown>;
       };
 
-      if (
-        isTldraw &&
-        tldrawSceneExceedsCap(payload.elements, config.tldrawMaxSceneBytes)
-      ) {
-        return res
-          .status(413)
-          .json(tldrawSceneTooLargeBody(config.tldrawMaxSceneBytes));
-      }
       const drawingName = payload.name ?? "Untitled Drawing";
       const targetCollectionIdRaw =
         payload.collectionId === undefined ? null : payload.collectionId;
@@ -128,44 +147,43 @@ export const registerDrawingCreateUpdateRoutes = (
       }
 
       const newDrawingId = uuidv4();
-      let processedFiles: Record<string, unknown>;
-      let processedPreview: string | null;
-      if (isTldraw) {
-        // tldraw scenes carry no interned files; assets stay inline in the
-        // store. Previews still flow through sanitizeSvg (injected HTML).
-        processedFiles = {};
-        processedPreview =
-          typeof payload.preview === "string"
-            ? sanitizeSvg(payload.preview)
-            : null;
-      } else {
-        const originalFiles = payload.files ?? {};
-        processedFiles = await internDrawingFiles(
-          originalFiles,
-          req.user.id,
+      const originalFiles = payload.files ?? {};
+      const knownFileIdsBefore = await listDrawingFileIds(newDrawingId);
+      const processedFiles = await internDrawingFiles(
+        originalFiles,
+        req.user.id,
+        newDrawingId,
+      );
+      const rewritten = rewritePreviewForInternedFiles(
+        payload.preview ?? null,
+        originalFiles,
+        processedFiles,
+      );
+      const processedPreview: string | null =
+        typeof rewritten === "string" ? rewritten : null;
+
+      let newDrawing;
+      try {
+        newDrawing = await prisma.drawing.create({
+          data: {
+            id: newDrawingId,
+            name: drawingName,
+            elements: JSON.stringify(payload.elements),
+            appState: JSON.stringify(payload.appState),
+            userId: req.user.id,
+            collectionId: targetCollectionId,
+            preview: processedPreview,
+            files: JSON.stringify(processedFiles),
+          },
+        });
+      } catch (error) {
+        await cleanupUnreferencedInternedFiles(
           newDrawingId,
-        );
-        const rewritten = rewritePreviewForInternedFiles(
-          payload.preview ?? null,
-          originalFiles,
+          knownFileIdsBefore,
           processedFiles,
         );
-        processedPreview = typeof rewritten === "string" ? rewritten : null;
+        throw error;
       }
-
-      const newDrawing = await prisma.drawing.create({
-        data: {
-          id: newDrawingId,
-          name: drawingName,
-          engine,
-          elements: JSON.stringify(payload.elements),
-          appState: JSON.stringify(payload.appState),
-          userId: req.user.id,
-          collectionId: targetCollectionId,
-          preview: processedPreview,
-          files: JSON.stringify(processedFiles),
-        },
-      });
       invalidateDrawingsCache();
 
       return res.json({
@@ -174,7 +192,7 @@ export const registerDrawingCreateUpdateRoutes = (
           newDrawing.collectionId,
           req.user.id,
         ),
-        elements: parseJsonField(newDrawing.elements, isTldraw ? {} : []),
+        elements: parseJsonField(newDrawing.elements, []),
         appState: parseJsonField(newDrawing.appState, {}),
         files: parseJsonField(newDrawing.files, {}),
       });
@@ -207,14 +225,7 @@ export const registerDrawingCreateUpdateRoutes = (
       if (!existingDrawing)
         return res.status(404).json({ error: "Drawing not found" });
 
-      // The stored row's engine — never the request body — decides validation.
-      // A client can't smuggle a tldraw payload into an excalidraw row (its
-      // object `elements` fails elementSchema.array()) or vice versa, and
-      // `engine` is never read from the body, so it stays immutable.
-      const isTldraw = existingDrawing.engine === "tldraw";
-      const parsed = (
-        isTldraw ? tldrawUpdateSchema : drawingUpdateSchema
-      ).safeParse(req.body);
+      const parsed = drawingUpdateSchema.safeParse(req.body);
       if (!parsed.success) {
         if (config.nodeEnv === "development") {
           console.error("[API] Validation failed", {
@@ -235,14 +246,6 @@ export const registerDrawingCreateUpdateRoutes = (
         version?: number;
       };
 
-      if (
-        isTldraw &&
-        tldrawSceneExceedsCap(payload.elements, config.tldrawMaxSceneBytes)
-      ) {
-        return res
-          .status(413)
-          .json(tldrawSceneTooLargeBody(config.tldrawMaxSceneBytes));
-      }
       const ownerUserId = existingDrawing.userId;
       const trashCollectionId = getUserTrashCollectionId(ownerUserId);
       const isSceneUpdate =
@@ -267,10 +270,10 @@ export const registerDrawingCreateUpdateRoutes = (
         data.elements = JSON.stringify(payload.elements);
       if (payload.appState !== undefined)
         data.appState = JSON.stringify(payload.appState);
-      // tldraw rows never intern files (schema normalizes files to undefined),
-      // so this block only runs for excalidraw.
       let processedFilesForUpdate: Record<string, unknown> | undefined;
+      let knownFileIdsBeforeUpdate: Set<string> | null = null;
       if (payload.files !== undefined) {
+        knownFileIdsBeforeUpdate = await listDrawingFileIds(id);
         processedFilesForUpdate = await internDrawingFiles(
           payload.files,
           ownerUserId,
@@ -281,19 +284,9 @@ export const registerDrawingCreateUpdateRoutes = (
         // concurrent client's files are never whole-replaced away.
       }
       if (payload.preview !== undefined) {
-        let processedPreview: unknown;
-        if (isTldraw) {
-          // The tldraw schema does not sanitize; the preview is injected HTML,
-          // so it must still pass through sanitizeSvg exactly like excalidraw.
-          processedPreview =
-            typeof payload.preview === "string"
-              ? sanitizeSvg(payload.preview)
-              : payload.preview;
-        } else {
-          processedPreview = processedFilesForUpdate
-            ? rewritePreviewForInternedFiles(payload.preview, payload.files ?? {}, processedFilesForUpdate)
-            : payload.preview;
-        }
+        const processedPreview: unknown = processedFilesForUpdate
+          ? rewritePreviewForInternedFiles(payload.preview, payload.files ?? {}, processedFilesForUpdate)
+          : payload.preview;
         data.preview = typeof processedPreview === "string" ? processedPreview : null;
       }
 
@@ -346,6 +339,13 @@ export const registerDrawingCreateUpdateRoutes = (
           });
         }
       } catch (error) {
+        if (isSceneUpdate && processedFilesForUpdate && knownFileIdsBeforeUpdate) {
+          await cleanupUnreferencedInternedFiles(
+            id,
+            knownFileIdsBeforeUpdate,
+            processedFilesForUpdate,
+          );
+        }
         if (isVersionConflict(error)) {
           const latestDrawing = await prisma.drawing.findFirst({
             where: { id },
@@ -374,7 +374,7 @@ export const registerDrawingCreateUpdateRoutes = (
           updatedDrawing.collectionId,
           ownerUserId,
         ),
-        elements: parseJsonField(updatedDrawing.elements, isTldraw ? {} : []),
+        elements: parseJsonField(updatedDrawing.elements, []),
         appState: parseJsonField(updatedDrawing.appState, {}),
         files: parseJsonField(updatedDrawing.files, {}),
         accessLevel: access,

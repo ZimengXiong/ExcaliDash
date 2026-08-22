@@ -1,4 +1,4 @@
-import React, { Suspense, useCallback, useEffect, useState, useRef } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { getInitialLangCode } from "../components/LanguageSelector";
 import type { UserIdentity } from "../utils/identity";
@@ -10,7 +10,6 @@ import { useEditorAutoHide } from "./editor/useEditorAutoHide";
 import { useEditorIdentity } from "./editor/useEditorIdentity";
 import { EditorDialogs } from "./editor/EditorDialogs";
 import { EditorView } from "./editor/EditorView";
-import { ChatPanel } from "./editor/ChatPanel";
 import { useLibraryImportFromUrl } from "./editor/useLibraryImportFromUrl";
 import { useEditorSnapshotGuards } from "./editor/useEditorSnapshotGuards";
 import { useEditorSceneLoader } from "./editor/useEditorSceneLoader";
@@ -24,24 +23,8 @@ import { useEditorFileUploads } from "./editor/useEditorFileUploads";
 import { useEditorSceneApi } from "./editor/useEditorSceneApi";
 import { useEditorGridStep } from "./editor/useEditorGridStep";
 import { DEFAULT_GRID_STEP } from "../components/GridStepSelector";
-import { useEngineGate } from "./editor/useEngineGate";
-import { EditorLoading } from "./editor/TldrawUnavailable";
 
-// Code-split: excalidraw-only users download zero tldraw bytes (~1.6MB).
-const TldrawEditorPage = React.lazy(() => import("./tldraw/TldrawEditorPage"));
-
-// Dispatcher: resolve the drawing's engine before mounting the (heavy,
-// excalidraw-specific) editor, so a tldraw row never initializes excalidraw.
 export const Editor: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
-  const gate = useEngineGate(id);
-  if (gate.status === "loading") return <EditorLoading />;
-  if (gate.engine === "tldraw")
-    return (
-      <Suspense fallback={<EditorLoading />}>
-        <TldrawEditorPage />
-      </Suspense>
-    );
   return <ExcalidrawEditor />;
 };
 
@@ -114,9 +97,6 @@ const ExcalidrawEditor: React.FC = () => {
   const lastLocalChangeAtRef = useRef<number>(0);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const excalidrawAPI = useRef<any>(null);
-  // Agent op batch ids this client originated (chat panel) so the collaboration
-  // layer replays them with IMMEDIATELY capture for native Ctrl+Z (D5).
-  const selfAgentBatchIdsRef = useRef<Set<string>>(new Set());
   const { resolveSafeSnapshot, normalizeImageElementStatus } =
     useEditorSnapshotGuards({
       lastPersistedElementsRef,
@@ -149,7 +129,6 @@ const ExcalidrawEditor: React.FC = () => {
       computeElementOrderSig,
       recordElementVersion,
       onAccessDenied: handleSocketAccessDenied,
-      selfAgentBatchIdsRef,
     });
   const { scanNow: scanFileUploads } = useEditorFileUploads({
     drawingId: id,
@@ -388,11 +367,6 @@ const ExcalidrawEditor: React.FC = () => {
         previewBackupRef={previewBackup}
         onCloseHistory={() => setIsHistoryOpen(false)}
         onCloseShare={() => setIsShareOpen(false)}
-      />
-      <ChatPanel
-        drawingId={id}
-        canEdit={canEdit}
-        selfAgentBatchIdsRef={selfAgentBatchIdsRef}
       />
     </>
   );

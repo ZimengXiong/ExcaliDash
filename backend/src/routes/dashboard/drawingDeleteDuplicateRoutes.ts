@@ -107,9 +107,6 @@ export const registerDrawingDeleteDuplicateRoutes = (
         data: {
           id: newDrawingId,
           name: `${original.name} (Copy)`,
-          // Copy the engine so a duplicated tldraw drawing stays tldraw rather
-          // than silently reverting to the "excalidraw" column default.
-          engine: original.engine,
           elements: original.elements,
           appState: original.appState,
           files: JSON.stringify(duplicatedFiles),
@@ -127,10 +124,7 @@ export const registerDrawingDeleteDuplicateRoutes = (
           newDrawing.collectionId,
           req.user.id,
         ),
-        elements: parseJsonField(
-          newDrawing.elements,
-          newDrawing.engine === "tldraw" ? {} : [],
-        ),
+        elements: parseJsonField(newDrawing.elements, []),
         appState: parseJsonField(newDrawing.appState, {}),
         files: parseJsonField(newDrawing.files, {}),
       });

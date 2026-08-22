@@ -1,11 +1,6 @@
-export type DrawingEngine = "excalidraw" | "tldraw";
-
 export interface DrawingSummary {
   id: string;
   name: string;
-  // Rendering engine. Absent on responses from older backends; treat as
-  // "excalidraw". Chosen at creation and immutable afterwards.
-  engine?: DrawingEngine;
   collectionId: string | null;
   updatedAt: number;
   createdAt: number;

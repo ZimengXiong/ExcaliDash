@@ -6,7 +6,6 @@ import * as api from "../api";
 import { Toaster } from "sonner";
 import { getPasswordPolicy, validatePassword } from "../utils/passwordPolicy";
 import { AccessControlCard } from "./admin/AccessControlCard";
-import { AiSettingsCard } from "./admin/AiSettingsCard";
 import { AdminHeader, AdminStatusMessages } from "./admin/AdminShell";
 import { CreateUserForm } from "./admin/CreateUserForm";
 import { LoginRateLimitCard } from "./admin/LoginRateLimitCard";
@@ -16,7 +15,6 @@ import type { AdminUser } from "./admin/types";
 import { useAccessControlSettings } from "./admin/useAccessControlSettings";
 import { useAdminCollections } from "./admin/useAdminCollections";
 import { useLoginRateLimitSettings } from "./admin/useLoginRateLimitSettings";
-import { useAiSettings } from "./admin/useAiSettings";
 import {
   IMPERSONATION_KEY,
   type ImpersonationState,
@@ -60,7 +58,6 @@ export const Admin: React.FC = () => {
     tempPassword: string;
   } | null>(null);
   const accessControl = useAccessControlSettings(isAdmin, setError, setSuccess);
-  const aiSettings = useAiSettings({ authEnabled, isAdmin, setError });
   const loginRateLimit = useLoginRateLimitSettings({
     authEnabled,
     isAdmin,
@@ -323,25 +320,6 @@ export const Admin: React.FC = () => {
         onMaxAttemptsChange={loginRateLimit.setMaxAttempts}
         onResetIdentifierChange={loginRateLimit.setResetIdentifier}
         onReset={loginRateLimit.reset}
-      />{" "}
-      <AiSettingsCard
-        loading={aiSettings.loading}
-        saving={aiSettings.saving}
-        provider={aiSettings.provider}
-        baseUrl={aiSettings.baseUrl}
-        model={aiSettings.model}
-        apiKey={aiSettings.apiKey}
-        chatgptEnabled={aiSettings.chatgptEnabled}
-        status={aiSettings.status}
-        envKeyConfigured={aiSettings.envKeyConfigured}
-        dbKeyConfigured={aiSettings.dbKeyConfigured}
-        onProviderChange={aiSettings.setProvider}
-        onBaseUrlChange={aiSettings.setBaseUrl}
-        onModelChange={aiSettings.setModel}
-        onApiKeyChange={aiSettings.setApiKey}
-        onChatgptEnabledChange={aiSettings.setChatgptEnabled}
-        onSave={aiSettings.save}
-        onClearDbKey={aiSettings.clearDbKey}
       />{" "}
       <UsersTable
         users={users}

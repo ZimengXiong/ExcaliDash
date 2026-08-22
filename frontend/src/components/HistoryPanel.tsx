@@ -229,7 +229,7 @@ export const HistoryPanel: React.FC<Props> = ({
                               ).length}
                             </div>
                           ) : (
-                            // Non-array scenes (e.g. a tldraw document snapshot) have no
+                            // Non-array scenes (defensive) have no
                             // flat element list to count; show a neutral note instead of a
                             // misleading "0 elements".
                             <div>Snapshot captured for this version.</div>

@@ -209,7 +209,14 @@ export const registerSocketHandlers = ({
             if (account) {
               trustedUserId = account.id;
               trustedName = toPresenceName(account.name);
+            } else {
+              // Lookup failed mid-session: fall back to a server-derived id
+              // rather than echoing the client-supplied one.
+              trustedUserId = `anon:${socket.id}`.slice(0, 200);
             }
+          } else {
+            // Bootstrap (auth disabled) sessions are server-derived too.
+            trustedUserId = `anon:${socket.id}`.slice(0, 200);
           }
 
           const newUser: PresenceUser = {
@@ -221,8 +228,14 @@ export const registerSocketHandlers = ({
             isActive: true,
           };
 
+          // Presence is keyed per-SOCKET, not per-user id: two tabs of the
+          // same account are two independent participants. Filtering by id
+          // here would orphan the first tab's socket inside the room — its
+          // events silently dropped and its disconnect never announced.
           const currentUsers = roomUsers.get(roomId) || [];
-          const filteredUsers = currentUsers.filter((u) => u.id !== newUser.id);
+          const filteredUsers = currentUsers.filter(
+            (u) => u.socketId !== socket.id,
+          );
           filteredUsers.push(newUser);
           roomUsers.set(roomId, filteredUsers);
 
@@ -277,8 +290,28 @@ export const registerSocketHandlers = ({
         return;
       }
 
-      // Enforce edit permission for every mutation event.
-      const joinedAccess = await getCachedOrFreshAccess(drawingId);
+      // Enforce edit permission for every mutation event. Mutations bypass
+      // the short-TTL access cache so a just-revoked collaborator cannot
+      // ride the stale window to keep writing.
+      let joinedAccess: Awaited<ReturnType<typeof getCachedOrFreshAccess>>;
+      try {
+        const fresh = await getDrawingAccess({ prisma, principal, drawingId });
+        joinedAccess = canViewDrawing(fresh)
+          ? fresh === "owner"
+            ? "owner"
+            : fresh
+          : null;
+        if (!joinedAccess) {
+          state.access.delete(drawingId);
+        } else {
+          state.access.set(drawingId, {
+            access: joinedAccess,
+            checkedAtMs: Date.now(),
+          });
+        }
+      } catch {
+        joinedAccess = await getCachedOrFreshAccess(drawingId);
+      }
       if (!joinedAccess) {
         dropDrawingAccess(drawingId);
         return;

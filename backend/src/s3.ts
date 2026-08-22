@@ -96,7 +96,11 @@ export const getS3Config = (): S3Config | null => s3Config;
  */
 export const generatePresignedDownloadUrl = async (
   key: string,
-  expiresInSeconds = 3600
+  expiresInSeconds = 3600,
+  overrides?: {
+    contentType?: string;
+    contentDisposition?: string;
+  }
 ): Promise<string> => {
   if (!s3Client || !s3Config) {
     throw new Error("S3 is not configured");
@@ -106,6 +110,8 @@ export const generatePresignedDownloadUrl = async (
     Bucket: s3Config.bucket,
     Key: key,
     ResponseCacheControl: "public, max-age=31536000, immutable",
+    ResponseContentType: overrides?.contentType,
+    ResponseContentDisposition: overrides?.contentDisposition,
   });
 
   return getSignedUrl(s3Client, command, { expiresIn: expiresInSeconds });

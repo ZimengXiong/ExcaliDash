@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
 import type { NavigateFunction } from "react-router-dom";
 import * as api from "../../api";
-import type { Collection, DrawingEngine, DrawingSummary } from "../../types";
+import type { Collection, DrawingSummary } from "../../types";
 
 type UseDashboardDrawingActionsParams = {
   drawings: DrawingSummary[];
@@ -59,7 +59,7 @@ export const useDashboardDrawingActions = ({
   const handleViewerActionError = (message: string) =>
     showTemporaryViewerError(message, setViewerActionError);
 
-  const handleCreateDrawing = async (engine: DrawingEngine = "excalidraw") => {
+  const handleCreateDrawing = async () => {
     if (isTrashView || isSharedView) return;
     if (isSharedCollection && currentCollection?.sharedRole !== "edit") {
       handleViewerActionError("Viewers can't create new drawings");
@@ -68,11 +68,7 @@ export const useDashboardDrawingActions = ({
     try {
       const targetCollectionId =
         selectedCollectionId === undefined ? null : selectedCollectionId;
-      const { id } = await api.createDrawing(
-        "Untitled Drawing",
-        targetCollectionId,
-        engine,
-      );
+      const { id } = await api.createDrawing("Untitled Drawing", targetCollectionId);
       navigate(`/editor/${id}`);
     } catch (err) {
       console.error(err);

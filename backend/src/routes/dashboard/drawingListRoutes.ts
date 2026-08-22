@@ -156,7 +156,6 @@ export const registerDrawingListRoutes = (
       const summarySelect: Prisma.DrawingSelect = {
         id: true,
         name: true,
-        engine: true,
         collectionId: true,
         version: true,
         createdAt: true,
@@ -333,7 +332,6 @@ export const registerDrawingListRoutes = (
       const summarySelect: Prisma.DrawingSelect = {
         id: true,
         name: true,
-        engine: true,
         collectionId: true,
         version: true,
         createdAt: true,

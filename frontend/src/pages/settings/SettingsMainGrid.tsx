@@ -1,8 +1,6 @@
 import { Archive, Moon, Sun, Zap, ZapOff } from "lucide-react";
 import type * as api from "../../api";
 import { UpdateSettingsCard } from "./UpdateSettingsCard";
-import { DefaultEngineCard } from "./DefaultEngineCard";
-
 type SettingsMainGridProps = {
   backupExportExt: "excalidash" | "excalidash.zip";
   setBackupExportExt: (ext: "excalidash" | "excalidash.zip") => void;
@@ -172,6 +170,5 @@ export const SettingsMainGrid = ({
       onChannelChange={onUpdateChannelChange}
       onCheckForUpdates={onCheckForUpdates}
     />{" "}
-    <DefaultEngineCard />{" "}
   </div>
 );

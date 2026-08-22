@@ -18,7 +18,6 @@ This file and `backend/.env.example` are generated from that registry; do not ed
 | `UPLOAD_MAX_MB` | `100` | No | Maximum size (in MB) of a single uploaded file accepted by multer (imports, database restores). |
 | `BODY_LIMIT_MB` | `50` | No | Maximum request body size (in MB) for scene JSON/urlencoded payloads and the Socket.IO buffer; images no longer travel in the scene body (see FILE_UPLOAD_MAX_MB), so this bounds scene JSON only. |
 | `FILE_UPLOAD_MAX_MB` | `100` | No | Maximum size (in MB) of a single image accepted by the raw file-upload endpoint (PUT /api/drawings/:id/files/:fileId); the only per-image cap. |
-| `TLDRAW_MAX_SCENE_MB` | `15` | No | Maximum serialized size (in MB) of a tldraw drawing's scene document (its inline data-URL assets included), enforced on create and update; excalidraw drawings are unaffected. |
 
 ## Database
 
@@ -122,26 +121,6 @@ This file and `backend/.env.example` are generated from that registry; do not ed
 | `LINK_SHARE_VIEW_DEFAULT_TTL_MS` | `2592000000` | No | Default lifetime (ms) of view share links (30 days). |
 | `LINK_SHARE_MAX_TTL_MS` | `7776000000` | No | Maximum allowed lifetime (ms) for any share link (90 days). |
 
-## AI
-
-| Variable | Default | Required | Description |
-| --- | --- | --- | --- |
-| `AI_PROVIDER` | `disabled` | No | AI chat-proxy provider: disabled (chat panel hidden), anthropic (Messages API), openai (Chat Completions), custom (any OpenAI-compatible baseUrl), or chatgpt (each user connects their own ChatGPT Plus/Pro subscription via Codex OAuth — billed to the user, no server API key). The admin settings page can override this at runtime. Allowed: disabled, anthropic, openai, custom, chatgpt. |
-| `AI_API_KEY` | _(none — secret)_ | No | Provider API key for the AI chat proxy. Server-side only — never shipped to the browser. An env-provided key always wins over a key stored via the admin settings page. |
-| `AI_BASE_URL` | — | No | Override the provider base URL (e.g. an OpenAI-compatible gateway or self-hosted endpoint). Required for AI_PROVIDER=custom; optional otherwise. |
-| `AI_MODEL` | — | No | Model id the chat proxy requests (e.g. claude-opus-4-8 for anthropic, gpt-4o for openai). Falls back to a provider default when unset. |
-| `AI_MAX_TOKENS_PER_REQUEST` | `4096` | No | Maximum output tokens the chat proxy requests per model call. |
-| `AI_RATE_LIMIT_MAX` | `60` | No | Maximum AI chat requests allowed per user within AI_RATE_LIMIT_WINDOW_MS. |
-| `AI_RATE_LIMIT_WINDOW_MS` | `60000` | No | Rolling window (ms) for the AI chat per-user rate limiter. |
-| `AI_CHATGPT_CLIENT_VERSION` | `0.142.5` | No | Codex `client_version` sent to the ChatGPT backend (AI_PROVIDER=chatgpt). The backend gates the available model set on this — bump it toward the current Codex CLI release without a redeploy if models disappear. |
-| `AI_CHATGPT_MODELS` | — | No | Comma-separated Codex model slugs offered when AI_PROVIDER=chatgpt (first is the default). Falls back to a built-in gpt-5.x list when unset. |
-| `AI_CHATGPT_CLIENT_ID` | — | No | Override the ChatGPT/Codex OAuth client id. Defaults to the public Codex CLI client. Only change if OpenAI rotates the client. |
-| `AI_CHATGPT_ISSUER` | — | No | Override the ChatGPT OAuth issuer origin (authorize/token endpoints). Defaults to https://auth.openai.com. |
-| `AI_CHATGPT_REDIRECT_URI` | — | No | OAuth redirect URI for the Codex loopback flow. Defaults to http://localhost:1455/auth/callback; the connect flow uses manual URL paste so this need not be reachable by the server. |
-| `AI_CHATGPT_CODEX_BASE_URL` | — | No | Base URL of the ChatGPT-backed Codex responses API. Defaults to https://chatgpt.com/backend-api/codex. |
-| `AI_CHATGPT_SCOPE` | — | No | OAuth scopes requested for the ChatGPT session. Defaults to 'openid profile email offline_access' (offline_access is required for refresh). |
-| `AI_CHATGPT_ORIGINATOR` | — | No | `originator` header/param value identifying the client to OpenAI. Defaults to codex_cli_rs. |
-
 ## Frontend (build-time)
 
 | Variable | Default | Required | Description |
@@ -149,4 +128,3 @@ This file and `backend/.env.example` are generated from that registry; do not ed
 | `VITE_API_URL` | `/api` | No | Base URL the frontend uses to reach the backend API. Keep /api so requests stay same-origin (proxied by Vite in dev and nginx in production), avoiding CORS. Consumed outside the backend; documented only. |
 | `VITE_EXCALIDASH_UI_FONT_FAMILY` | `Excalifont` | No | Optional app-shell display font family override. Falls back to Excalifont when unset. Consumed outside the backend; documented only. |
 | `VITE_EXCALIDASH_UI_FONT_URL` | — | No | Optional self-hosted WOFF2 URL for the display font; when set, a matching @font-face is injected for VITE_EXCALIDASH_UI_FONT_FAMILY. Consumed outside the backend; documented only. |
-| `VITE_TLDRAW_LICENSE_KEY` | — | No | Optional tldraw SDK license key passed to the tldraw editor. Unset by default: the free tldraw 3.x license keeps the on-canvas "Made with tldraw" watermark (which must not be hidden). Deployers who purchase a key can set it here to remove the watermark. Only affects tldraw-engine drawings; excalidraw is unaffected. Consumed outside the backend; documented only. |

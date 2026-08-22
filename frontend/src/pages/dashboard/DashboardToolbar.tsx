@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import type { DrawingSortField, SortDirection } from "../../api";
-import type { Collection, DrawingEngine } from "../../types";
+import type { Collection } from "../../types";
 import { NewDrawingControl } from "./NewDrawingControl";
 
 type SortOption = {
@@ -51,7 +51,7 @@ type DashboardToolbarProps = {
   onShowBulkMoveMenuChange: (value: boolean) => void;
   onBulkMove: (collectionId: string | null) => void;
   onImportDrawings: (files: FileList | null) => void;
-  onCreateDrawing: (engine: DrawingEngine) => void;
+  onCreateDrawing: () => void;
   onViewerActionError: (message: string) => void;
 };
 

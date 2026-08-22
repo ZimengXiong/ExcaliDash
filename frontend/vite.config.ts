@@ -40,16 +40,6 @@ export default defineConfig(({ command }) => {
       },
     },
     build: {
-      // The tldraw SDK (~1.6MB) is only ever reached through the lazy
-      // `TldrawEditorPage` import (React.lazy behind the Editor engine branch),
-      // so Rollup emits it as its own on-demand chunk and excalidraw-only users
-      // download zero tldraw bytes. We deliberately do NOT force a named
-      // `manualChunks` for tldraw: assigning tldraw modules to a manual chunk
-      // makes Rollup fold shared vendor code (React and other common libs) into
-      // that large chunk and pull it onto the eager entry — the opposite of the
-      // goal. The default async-chunk placement already isolates it correctly;
-      // we only lift the size-warning ceiling so that legitimately-large lazy
-      // chunk does not trip the build warning.
       chunkSizeWarningLimit: 2000,
     },
     server: {

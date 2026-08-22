@@ -38,21 +38,6 @@ export const registrationToggleSchema = z.object({
   enabled: z.boolean(),
 });
 
-// Admin AI settings update. All fields optional; null/empty clears the DB
-// override (falls back to env). `apiKey` is write-only — the special sentinel
-// "__unchanged__" leaves the stored (encrypted) key untouched, and an empty
-// string clears it.
-export const aiSettingsUpdateSchema = z.object({
-  provider: z
-    .enum(["disabled", "anthropic", "openai", "custom", "chatgpt"])
-    .nullable()
-    .optional(),
-  baseUrl: z.string().trim().max(2000).nullable().optional(),
-  model: z.string().trim().max(200).nullable().optional(),
-  apiKey: z.string().max(4000).optional(),
-  chatgptEnabled: z.boolean().optional(),
-});
-
 export const oidcJitProvisioningToggleSchema = z.object({
   enabled: z.boolean(),
 });
@@ -155,8 +140,4 @@ export const userPreferencesSchema = z.object({
   dashboardSortDirection: z.enum(["asc", "desc"]).optional(),
   language: z.string().trim().min(1).max(35).optional(),
   gridStep: z.number().int().min(1).max(100).optional(),
-  // Preferred engine for newly created drawings. Unset (or explicitly null,
-  // which clears a prior choice) means "ask on every create". Immutable per
-  // drawing once created — this only seeds the creation dialog's default.
-  defaultEngine: z.enum(["excalidraw", "tldraw"]).nullable().optional(),
 }).strict();

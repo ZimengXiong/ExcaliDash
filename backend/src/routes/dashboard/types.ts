@@ -52,7 +52,6 @@ export type DashboardRouteDeps = {
   config: {
     nodeEnv: string;
     enableAuditLogging: boolean;
-    tldrawMaxSceneBytes: number;
   };
   logAuditEvent: LogAuditEvent;
   internDrawingFiles: (
@@ -64,13 +63,7 @@ export type DashboardRouteDeps = {
   // disconnect collaborators whose access was just revoked. Optional so route
   // unit tests can omit the socket layer.
   revalidateDrawingAccess?: (drawingId: string) => Promise<void> | void;
-  // Socket.IO server used to broadcast agent-applied edits into a drawing's
+  // Socket.IO server used to broadcast edits into a drawing's
   // collaboration room. Optional so route unit tests can omit the socket layer.
   io?: SocketIoServer;
-  // Per-key/user rate limit for the agent ops endpoint. Optional so route
-  // unit tests can omit it (a safe default is applied).
-  agentOps?: {
-    rateLimitMaxRequests: number;
-    rateLimitWindowMs: number;
-  };
 };

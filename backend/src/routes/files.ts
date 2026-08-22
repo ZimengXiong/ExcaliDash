@@ -96,9 +96,11 @@ export const registerFileRoutes = (
   // ------------------------------------------------------------------
   app.put(
     "/drawings/:drawingId/files/:fileId",
+    // requireAuth runs BEFORE the raw-body parser so unauthenticated clients
+    // can't impose the buffer cost of up to FILE_UPLOAD_MAX_MB per request.
+    requireAuth,
     rawUpload,
     handleUploadPayloadError,
-    requireAuth,
     asyncHandler(async (req, res) => {
       const userId = req.user?.id;
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -259,9 +261,21 @@ export const registerFileRoutes = (
         return res.status(404).json({ error: "File not found" });
       }
 
+      // The redirect bypasses the app's CSP/nosniff headers, so pin the
+      // content type to the stored (whitelisted) value and force scriptable
+      // types — SVG can carry <script> — to download instead of render.
+      const isScriptableType =
+        fileRecord.mimeType === "image/svg+xml" ||
+        fileRecord.mimeType === "text/html";
       const downloadUrl = await generatePresignedDownloadUrl(
         fileRecord.s3Key,
-        DOWNLOAD_EXPIRES_IN
+        DOWNLOAD_EXPIRES_IN,
+        {
+          contentType: fileRecord.mimeType,
+          contentDisposition: isScriptableType
+            ? "attachment"
+            : `inline; filename="${fileId}"`,
+        }
       );
 
       return res.redirect(302, downloadUrl);
