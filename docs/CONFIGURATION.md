@@ -79,8 +79,6 @@ This file and `backend/.env.example` are generated from that registry; do not ed
 | `RATE_LIMIT_MAX_REQUESTS` | `1000` | No | Maximum general API requests per rate-limit window. |
 | `RATE_LIMIT_WINDOW_MS` | `900000` | No | General API rate-limit window in milliseconds (default 15 minutes); pairs with RATE_LIMIT_MAX_REQUESTS. |
 | `CSRF_RATE_LIMIT_WINDOW_MS` | `60000` | No | CSRF-token issuance rate-limit window in milliseconds (default 1 minute); pairs with CSRF_MAX_REQUESTS. |
-| `AGENT_OPS_RATE_LIMIT_MAX` | `120` | No | Maximum agent ops-batch requests (POST /api/drawings/:id/ops) per key/user per window. |
-| `AGENT_OPS_RATE_LIMIT_WINDOW_MS` | `60000` | No | Agent ops-batch rate-limit window in milliseconds (default 1 minute); pairs with AGENT_OPS_RATE_LIMIT_MAX. |
 | `ENFORCE_HTTPS_REDIRECT` | `true` | No | Redirect HTTP requests to HTTPS when a secure origin is detected. |
 | `API_KEY_HASH_PEPPER` | _(none — secret)_ | No | Pepper mixed into API-key hashes; set before creating keys (see docs). |
 | `DEBUG_CSRF` | `false` | No | Enable verbose CSRF debug logging. |
