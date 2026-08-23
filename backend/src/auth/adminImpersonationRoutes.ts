@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { logAuditEvent } from "../utils/audit";
+import { config as appConfig } from "../config";
 import type { RegisterAdminRoutesDeps } from "./adminRoutes";
 import { impersonateSchema } from "./schemas";
 import { hashTokenForStorage } from "./tokenSecurity";
@@ -139,7 +140,7 @@ export const registerAdminImpersonationRoutes = (deps: RegisterAdminRoutesDeps) 
               },
             });
           } catch {
-            if (process.env.NODE_ENV === "development") {
+            if (appConfig.isDev) {
               console.debug(
                 "Refresh token storage skipped (feature disabled or table missing)",
               );

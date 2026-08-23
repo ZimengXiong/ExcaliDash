@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import request from "supertest";
 import fs from "fs";
 import path from "path";
+import JSZip from "jszip";
 import {
   createExcalidashArchiveWithDuplicateDrawingIds,
   createLegacySqliteDb,
@@ -192,5 +193,52 @@ describe("Import compatibility (legacy exports)", () => {
 
     expect(res.status).toBe(400);
     expect(String(res.body.message || "")).toContain("Duplicate drawing id");
+  });
+
+  const downloadExport = async (): Promise<Buffer> =>
+    new Promise((resolve, reject) => {
+      agent
+        .get("/export/excalidash")
+        .set("User-Agent", userAgent)
+        .buffer(true)
+        .parse((res: any, callback: (err: Error | null, body: Buffer) => void) => {
+          const chunks: Buffer[] = [];
+          res.on("data", (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
+          res.on("end", () => callback(null, Buffer.concat(chunks)));
+          res.on("error", (err: Error) => callback(err, Buffer.alloc(0)));
+        })
+        .end((err: Error | null, res: any) => (err ? reject(err) : resolve(res.body as Buffer)));
+    });
+
+  it("leaves excalidraw drawings byte-identical through export + re-import", async () => {
+    const elements = [{ id: "el1", type: "rectangle", x: 0, y: 0, width: 5, height: 5 }];
+    await prisma.drawing.create({
+      data: {
+        id: "excalidraw-roundtrip-1",
+        name: "Sketch",
+        elements: JSON.stringify(elements),
+        appState: JSON.stringify({}),
+        files: "{}",
+        version: 1,
+        userId: BOOTSTRAP_USER_ID,
+      },
+    });
+
+    const buffer = await downloadExport();
+    const zip = await JSZip.loadAsync(buffer);
+    const manifest = JSON.parse(await zip.file("excalidash.manifest.json")!.async("string"));
+    const entry = manifest.drawings.find((d: any) => d.id === "excalidraw-roundtrip-1");
+    expect(entry.filePath).toMatch(/\.excalidraw$/);
+
+    const res = await agent
+      .post("/import/excalidash")
+      .set("User-Agent", userAgent)
+      .set(csrfHeaderName, csrfToken)
+      .attach("archive", buffer, "backup.excalidash");
+
+    expect(res.status).toBe(200);
+
+    const row = await prisma.drawing.findUnique({ where: { id: "excalidraw-roundtrip-1" } });
+    expect(JSON.parse(row!.elements)).toEqual(elements);
   });
 });

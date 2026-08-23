@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
 import { Request, Response } from "express";
 import { logAuditEvent } from "../utils/audit";
+import { config as appConfig } from "../config";
 import type { RegisterAdminRoutesDeps } from "./adminRoutes";
 
 export const registerAdminUserPasswordRoutes = (deps: RegisterAdminRoutesDeps) => {
@@ -64,7 +65,7 @@ export const registerAdminUserPasswordRoutes = (deps: RegisterAdminRoutesDeps) =
             data: { revoked: true },
           });
         } catch {
-          if (process.env.NODE_ENV === "development") {
+          if (appConfig.isDev) {
             console.debug(
               "Refresh token revocation skipped (feature disabled or table missing)",
             );

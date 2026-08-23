@@ -66,16 +66,3 @@ export const asyncHandler = <T = void>(
     Promise.resolve(fn(req, res, next)).catch(next);
   };
 };
-
-/**
- * Create an operational error (known error that can be safely shown to client)
- */
-export const createError = (
-  message: string,
-  statusCode: number = 400
-): AppError => {
-  const error: AppError = new Error(message);
-  error.statusCode = statusCode;
-  error.isOperational = true;
-  return error;
-};

@@ -39,25 +39,27 @@ export const getElementContentSig = (element: any): string => {
 };
 
 /**
- * Matches CaptureUpdateAction.NEVER from @excalidraw/excalidraw.
- * Kept as a local constant so that shared.ts doesn't pull in the full
- * excalidraw UI bundle, which breaks jsdom-based unit tests.
+ * Matches CaptureUpdateAction.{NEVER,IMMEDIATELY} from @excalidraw/excalidraw.
+ * Kept as local constants so that shared.ts doesn't pull in the full excalidraw
+ * UI bundle, which breaks jsdom-based unit tests. The enum values are the
+ * literal strings "NEVER" / "IMMEDIATELY" (see store.d.ts).
  */
 const CAPTURE_UPDATE_NEVER = "NEVER" as const;
+type CaptureMode = "NEVER" | "IMMEDIATELY";
 
 type RemoteSceneUpdate =
   | {
       collaborators: Map<string, any>;
-      captureUpdate: typeof CAPTURE_UPDATE_NEVER;
+      captureUpdate: CaptureMode;
     }
   | {
       elements: any[];
       files?: Record<string, any>;
-      captureUpdate: typeof CAPTURE_UPDATE_NEVER;
+      captureUpdate: CaptureMode;
     }
   | {
       files: Record<string, any>;
-      captureUpdate: typeof CAPTURE_UPDATE_NEVER;
+      captureUpdate: CaptureMode;
     };
 
 type BuildRemoteSceneUpdateInput = {
@@ -67,6 +69,12 @@ type BuildRemoteSceneUpdateInput = {
   elementOrder?: readonly string[] | null;
   lastSyncedFiles?: Record<string, any>;
   incomingFiles?: Record<string, any>;
+  /**
+   * Undo-stack behavior for element updates. Remote peer edits default to
+   * NEVER (not locally undoable); a self-originated agent batch replayed to the
+   * requesting editor passes IMMEDIATELY so native Ctrl+Z works (D5).
+   */
+  captureUpdate?: CaptureMode;
 };
 
 export const getPersistedAppState = (appState: Record<string, any> | null | undefined) => {
@@ -86,6 +94,7 @@ export const buildRemoteSceneUpdate = ({
   elementOrder = null,
   lastSyncedFiles = {},
   incomingFiles = {},
+  captureUpdate = CAPTURE_UPDATE_NEVER,
 }: BuildRemoteSceneUpdateInput): {
   sceneUpdate: RemoteSceneUpdate | null;
   mergedElements: any[] | null;
@@ -121,7 +130,7 @@ export const buildRemoteSceneUpdate = ({
       sceneUpdate: {
         elements: mergedElements,
         ...(shouldUpdateFiles ? { files: nextFiles } : {}),
-        captureUpdate: CAPTURE_UPDATE_NEVER,
+        captureUpdate,
       },
       mergedElements,
       nextFiles,
@@ -249,6 +258,56 @@ export const getFilesDelta = (
   }
 
   return delta;
+};
+
+/**
+ * Map of Excalidraw fileId → stored ref URL (`/api/files/<drawingId>/<fileId>`)
+ * for images that have been uploaded out-of-band via the per-file upload
+ * endpoint. Consumed by {@link applyUploadedFileRefs}.
+ */
+export type UploadedFileRefs = Record<string, string>;
+
+/**
+ * Replace the inline base64 dataURL of any already-uploaded file with a small
+ * metadata + ref entry so scene PUTs and socket emits carry KB, not MB.
+ *
+ * Only entries that (a) have a recorded ref and (b) still carry an inline
+ * `data:` URL are rewritten — entries not yet uploaded keep their inline bytes
+ * (the server interns them, so an upload race never loses data), and entries
+ * already ref-shaped pass through untouched. Returns the input unchanged when
+ * nothing was substituted.
+ */
+export const applyUploadedFileRefs = (
+  files: Record<string, any> | null | undefined,
+  uploadedRefs: UploadedFileRefs | null | undefined,
+): Record<string, any> => {
+  if (!files || typeof files !== "object") return files ?? {};
+  if (!uploadedRefs || Object.keys(uploadedRefs).length === 0) return files;
+
+  let changed = false;
+  const result: Record<string, any> = {};
+  for (const [fileId, file] of Object.entries(files)) {
+    const refUrl = uploadedRefs[fileId];
+    const dataURL = (file as any)?.dataURL;
+    if (
+      refUrl &&
+      file &&
+      typeof dataURL === "string" &&
+      dataURL.startsWith("data:")
+    ) {
+      changed = true;
+      result[fileId] = {
+        id: (file as any).id ?? fileId,
+        mimeType: (file as any).mimeType,
+        created: (file as any).created,
+        lastRetrieved: (file as any).lastRetrieved ?? Date.now(),
+        dataURL: refUrl,
+      };
+    } else {
+      result[fileId] = file;
+    }
+  }
+  return changed ? result : files;
 };
 
 export const UIOptions = {

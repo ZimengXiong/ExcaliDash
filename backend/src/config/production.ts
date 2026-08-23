@@ -1,12 +1,23 @@
 export type ProductionValidationConfig = {
   jwtSecret: string;
+  apiKeyHashPepper: string;
   oidc: {
     enabled: boolean;
     redirectUri: string | null;
   };
 };
 
+const DEFAULT_API_KEY_HASH_PEPPER = "api-key-hash-pepper";
+
 export const validateProductionConfig = (config: ProductionValidationConfig): void => {
+  if (config.apiKeyHashPepper === DEFAULT_API_KEY_HASH_PEPPER) {
+    console.warn(
+      "[security] API_KEY_HASH_PEPPER is using the built-in default value in production. " +
+        "Set a unique API_KEY_HASH_PEPPER BEFORE creating any API keys; changing it later " +
+        "invalidates all existing API keys.",
+    );
+  }
+
   const normalizedSecret = config.jwtSecret.trim();
   const insecureJwtSecretPlaceholders = new Set([
     "your-secret-key-change-in-production",

@@ -9,4 +9,3 @@ export const api = axios.create({
 
 export { default as axios } from "axios";
 export const isAxiosError = axios.isAxiosError;
-export default api;

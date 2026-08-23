@@ -39,6 +39,9 @@ export default defineConfig(({ command }) => {
         target: "es2022",
       },
     },
+    build: {
+      chunkSizeWarningLimit: 2000,
+    },
     server: {
       proxy: {
         "/api": {

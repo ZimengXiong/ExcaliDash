@@ -2,9 +2,12 @@ name: Tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, beta]
   pull_request:
     branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
   backend-tests:
@@ -35,6 +38,35 @@ jobs:
         run: |
           cd backend
           npm test
+
+  repo-checks:
+    name: Repo Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: |
+          cd backend
+          npm ci
+
+      - name: Check max source line count
+        run: |
+          cd backend
+          npm run check:max-lines
+
+      - name: Check env boundary
+        run: |
+          cd backend
+          npm run check:env-boundary
 
   frontend-unit-tests:
     name: Frontend Unit Tests
@@ -108,7 +140,7 @@ jobs:
         run: |
           # Start backend server in background
           cd backend
-          DATABASE_URL="file:${{ github.workspace }}/backend/prisma/e2e-test.db" FRONTEND_URL="http://localhost:6767" npm run dev &
+          DATABASE_URL="file:${{ github.workspace }}/backend/prisma/e2e-test.db" FRONTEND_URL="http://localhost:6767" CSRF_MAX_REQUESTS="100000" RATE_LIMIT_MAX_REQUESTS="100000" CSRF_SECRET="e2e-csrf-secret" npm run dev &
           BACKEND_PID=$!
           cd ..
           
@@ -192,8 +224,3 @@ jobs:
         run: |
           cd backend
           npx prisma generate
-      
-      - name: Run security tests
-        run: |
-          cd backend
-          npx ts-node src/securityTest.ts

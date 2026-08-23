@@ -39,13 +39,9 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   const { t } = useI18n();
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const code = e.target.value;
-    try {
-      localStorage.setItem(STORAGE_KEY, code);
-    } catch {
-      // ignore localStorage errors in restricted environments
-    }
-    onChange(code);
+    // Persistence (localStorage mirror + server sync) is owned by the shared
+    // preferences context via the onChange handler.
+    onChange(e.target.value);
   };
 
   return (

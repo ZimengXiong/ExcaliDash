@@ -74,7 +74,6 @@ describe("useDashboardData", () => {
     });
 
     expect(getDrawingsMock).toHaveBeenCalledWith("", undefined, {
-      includePreview: true,
       limit: 24,
       offset: 0,
       sortField: "updatedAt",
@@ -122,7 +121,6 @@ describe("useDashboardData", () => {
     });
 
     expect(getDrawingsMock).toHaveBeenNthCalledWith(2, "", undefined, {
-      includePreview: true,
       limit: 24,
       offset: 2,
       sortField: "updatedAt",

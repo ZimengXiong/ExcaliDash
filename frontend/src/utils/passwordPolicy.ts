@@ -28,9 +28,6 @@ export type PasswordRequirement = {
   ok: boolean;
 };
 
-export const STRONG_PASSWORD_MESSAGE =
-  "Password must be at least 12 characters and include upper, lower, number, and symbol";
-
 const PASSWORD_POLICY_STORAGE_KEY = "excalidash-password-policy";
 
 const DEFAULT_STRONG_POLICY: PasswordPolicyResponse = {
@@ -116,11 +113,6 @@ export const cachePasswordPolicy = (policy: Partial<PasswordPolicyResponse> | nu
     // localStorage can be unavailable in restricted browser contexts.
   }
 };
-
-export const strongPasswordPattern =
-  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{12,100}$/;
-
-export const strongPasswordPatternHtml = buildPatternHtml(DEFAULT_STRONG_POLICY);
 
 export const getPasswordPolicy = (opts?: { strong?: boolean }): PasswordPolicy => {
   const strong = typeof opts?.strong === "boolean" ? opts.strong : true;

@@ -1,4 +1,4 @@
-export const hasLocalPasswordHash = (
+const hasLocalPasswordHash = (
   passwordHash: string | null | undefined
 ): passwordHash is string => typeof passwordHash === "string" && passwordHash.startsWith("$2");
 

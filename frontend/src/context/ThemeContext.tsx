@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import * as api from '../api';
+import React, { createContext, useContext, useEffect } from 'react';
+import { usePreference } from './PreferencesContext';
 
 type Theme = 'light' | 'dark';
 
@@ -11,31 +11,12 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [theme, setTheme] = useState<Theme>(() => {
-    const savedTheme = localStorage.getItem('theme');
-    return savedTheme === 'dark' || savedTheme === 'light' ? savedTheme : 'light';
-  });
+  // Server-backed via the shared preferences context (no-clobber-on-first-mount
+  // and refetch-on-user-change live there); this wrapper only owns the DOM side
+  // effects for the resolved theme.
+  const [theme, setTheme] = usePreference('theme', 'light');
 
   useEffect(() => {
-    let cancelled = false;
-    api.getUserPreferences()
-      .then((preferences) => {
-        if (cancelled) return;
-        if (preferences.theme === 'dark' || preferences.theme === 'light') {
-          setTheme(preferences.theme);
-        }
-      })
-      .catch(() => {
-        // Anonymous/local pre-login screens keep using localStorage.
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('theme', theme);
-
     const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
     if (link) {
       link.href = theme === 'dark' ? '/favicon-dark.svg' : '/favicon-light.svg';
@@ -49,13 +30,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [theme]);
 
   const toggleTheme = () => {
-    setTheme((prev) => {
-      const next = prev === 'light' ? 'dark' : 'light';
-      api.updateUserPreferences({ theme: next }).catch(() => {
-        // Keep local preference even when the user is anonymous/offline.
-      });
-      return next;
-    });
+    setTheme(theme === 'light' ? 'dark' : 'light');
   };
 
   return (

@@ -54,6 +54,8 @@ export interface UserPreferences {
   theme?: "light" | "dark";
   dashboardSortField?: DrawingSortField;
   dashboardSortDirection?: SortDirection;
+  language?: string;
+  gridStep?: number;
 }
 
 export interface ApiKeyMetadata {
@@ -79,7 +81,7 @@ export const API_KEY_SCOPES = [
   "collections:write",
 ] as const;
 
-export const fetchCsrfToken = async (): Promise<void> => {
+const fetchCsrfToken = async (): Promise<void> => {
   const response = await axios.get<{ token: string; header: string }>(
     `${API_URL}/csrf-token`,
     { withCredentials: true },
@@ -88,8 +90,16 @@ export const fetchCsrfToken = async (): Promise<void> => {
   csrfHeaderName = response.data.header || "x-csrf-token";
 };
 
-export const clearCsrfToken = (): void => {
+const clearCsrfToken = (): void => {
   csrfToken = null;
+};
+
+// Exposes the current CSRF header/token so keepalive/sendBeacon saves fired
+// during pagehide (where the axios interceptor pipeline can't run) can still
+// satisfy the CSRF middleware.
+export const getCsrfHeader = (): { name: string; token: string } | null => {
+  if (!csrfToken) return null;
+  return { name: csrfHeaderName, token: csrfToken };
 };
 
 export const authStatus = async (): Promise<AuthStatusResponse> => {

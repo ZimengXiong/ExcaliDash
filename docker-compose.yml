@@ -4,6 +4,9 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: excalidash-backend
+    # Run an init process (PID 1) that reaps zombies and forwards SIGTERM/SIGINT
+    # to node so graceful shutdown (io.close / prisma.$disconnect) actually runs.
+    init: true
     environment:
       - DATABASE_PROVIDER=sqlite
       - DATABASE_URL=file:/app/prisma/dev.db

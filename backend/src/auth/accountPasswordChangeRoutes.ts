@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import bcrypt from "bcrypt";
 import { logAuditEvent } from "../utils/audit";
+import { config as appConfig } from "../config";
 import { changePasswordSchema, mustResetPasswordSchema } from "./schemas";
 import { canUseLocalPasswordFlows } from "./localPassword";
 import { hashTokenForStorage } from "./tokenSecurity";
@@ -80,7 +81,7 @@ export const registerAccountPasswordChangeRoutes = (
             data: { revoked: true },
           });
         } catch {
-          if (process.env.NODE_ENV === "development") {
+          if (appConfig.isDev) {
             console.debug("Refresh token revocation skipped (feature disabled or table missing)");
           }
         }
@@ -168,7 +169,7 @@ export const registerAccountPasswordChangeRoutes = (
             data: { revoked: true },
           });
         } catch {
-          if (process.env.NODE_ENV === "development") {
+          if (appConfig.isDev) {
             console.debug("Refresh token revocation skipped (feature disabled or table missing)");
           }
         }
@@ -187,7 +188,7 @@ export const registerAccountPasswordChangeRoutes = (
             },
           });
         } catch {
-          if (process.env.NODE_ENV === "development") {
+          if (appConfig.isDev) {
             console.debug("Refresh token storage skipped (feature disabled or table missing)");
           }
         }

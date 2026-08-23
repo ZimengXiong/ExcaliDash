@@ -1,5 +1,5 @@
 import { PrismaClient } from "../generated/client";
-import { config } from "../config";
+import { config, authModeEnablesAuth } from "../config";
 
 export const BOOTSTRAP_USER_ID = "bootstrap-admin";
 export const DEFAULT_SYSTEM_CONFIG_ID = "default";
@@ -26,12 +26,23 @@ export const createAuthModeService = (
   };
 
   const ensureSystemConfig = async () => {
+    // Read first. The default row is created once (at startup, or on the
+    // first request that hits this path) and then never needs writing on a
+    // read path like /auth/status. Doing an upsert on every call took a
+    // write lock per request, which under SQLite serialises readers behind
+    // the writer and surfaces as `database is locked` timeouts (issue #182).
+    // Fall back to upsert only when the row is genuinely missing — upsert
+    // (not create) keeps the concurrent first-write race safe.
+    const existing = await prisma.systemConfig.findUnique({
+      where: { id: DEFAULT_SYSTEM_CONFIG_ID },
+    });
+    if (existing) return existing;
     return prisma.systemConfig.upsert({
       where: { id: DEFAULT_SYSTEM_CONFIG_ID },
       update: {},
       create: {
         id: DEFAULT_SYSTEM_CONFIG_ID,
-        authEnabled: config.authMode !== "local",
+        authEnabled: authModeEnablesAuth(config.authMode),
         authOnboardingCompleted: false,
         registrationEnabled: false,
         oidcJitProvisioningEnabled: null,
@@ -43,10 +54,14 @@ export const createAuthModeService = (
   };
 
   const getAuthEnabled = async (): Promise<boolean> => {
+    // Non-local modes are resolved purely from AUTH_MODE and never consult the
+    // runtime toggle: hybrid/oidc_enforced force auth on, `disabled` forces it
+    // off (every request runs as the shared bootstrap acting user).
     if (config.authMode !== "local") {
       const now = Date.now();
-      authEnabledCache = { value: true, fetchedAt: now };
-      return true;
+      const value = authModeEnablesAuth(config.authMode);
+      authEnabledCache = { value, fetchedAt: now };
+      return value;
     }
 
     const now = Date.now();

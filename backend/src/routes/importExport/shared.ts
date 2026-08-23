@@ -76,7 +76,7 @@ export type RegisterImportExportDeps = {
 
 const getZipEntries = (zip: JSZip) => Object.values(zip.files).filter((entry) => !entry.dir);
 
-export const normalizeArchivePath = (filePath: string): string =>
+const normalizeArchivePath = (filePath: string): string =>
   path.posix.normalize(filePath.replace(/\\/g, "/"));
 
 export const assertSafeArchivePath = (filePath: string) => {

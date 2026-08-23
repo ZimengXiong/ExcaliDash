@@ -14,12 +14,12 @@ import {
 import { isNonBrowserApiKeyBearerRequest } from "../auth/apiKeys";
 
 const CSRF_CLIENT_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30; // 30 days
-const CSRF_RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 
 type RegisterCsrfProtectionDeps = {
   app: express.Express;
   isAllowedOrigin: (origin?: string) => boolean;
   maxRequestsPerWindow: number;
+  rateLimitWindowMs: number;
   enableDebugLogging?: boolean;
 };
 
@@ -27,6 +27,7 @@ export const registerCsrfProtection = ({
   app,
   isAllowedOrigin,
   maxRequestsPerWindow,
+  rateLimitWindowMs,
   enableDebugLogging,
 }: RegisterCsrfProtectionDeps) => {
   const canTrustProxyHeaders = (req: express.Request): boolean => {
@@ -125,7 +126,7 @@ export const registerCsrfProtection = ({
       }
       clientLimit.count++;
     } else {
-      csrfRateLimit.set(ip, { count: 1, resetTime: now + CSRF_RATE_LIMIT_WINDOW });
+      csrfRateLimit.set(ip, { count: 1, resetTime: now + rateLimitWindowMs });
     }
 
     csrfCleanupCounter += 1;

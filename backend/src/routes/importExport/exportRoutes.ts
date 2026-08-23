@@ -143,19 +143,20 @@ export const registerExcalidashExportRoute = (deps: RegisterImportExportDeps) =>
     for (const drawing of drawings) {
       const meta = drawingsManifestById.get(drawing.id);
       if (!meta) continue;
-      const drawingData = {
-        type: "excalidraw" as const,
-        version: 2 as const,
-        source: exportSource,
-        elements: parseJsonField(drawing.elements, [] as unknown[]),
-        appState: parseJsonField(drawing.appState, {} as Record<string, unknown>),
-        files: parseJsonField(drawing.files, {} as Record<string, unknown>),
-        excalidash: {
-          drawingId: drawing.id,
-          collectionId: drawing.collectionId ?? null,
-          exportedAt,
-        },
+      const excalidashMeta = {
+        drawingId: drawing.id,
+        collectionId: drawing.collectionId ?? null,
+        exportedAt,
       };
+      const drawingData = {
+              type: "excalidraw" as const,
+              version: 2 as const,
+              source: exportSource,
+              elements: parseJsonField(drawing.elements, [] as unknown[]),
+              appState: parseJsonField(drawing.appState, {} as Record<string, unknown>),
+              files: parseJsonField(drawing.files, {} as Record<string, unknown>),
+              excalidash: excalidashMeta,
+            };
       assertSafeArchivePath(meta.filePath);
       archive.append(JSON.stringify(drawingData, null, 2), { name: meta.filePath });
     }

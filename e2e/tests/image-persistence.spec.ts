@@ -88,8 +88,14 @@ test.describe("Image Persistence - Browser E2E Tests", () => {
     const savedFiles = drawing.files || {};  // Already parsed by API
 
     expect(savedFiles["test-image-1"]).toBeDefined();
-    expect(savedFiles["test-image-1"].dataURL).toBe(largeDataUrl);
-    expect(savedFiles["test-image-1"].dataURL.length).toBe(largeDataUrl.length);
+    expect(savedFiles["test-image-1"].dataURL).toBe(`/api/files/${drawing.id}/test-image-1`);
+
+    // The stored ref is client-relative ("/api/files/..."); the backend
+    // serves it without the "/api" prefix outside the reverse proxy.
+    const fileUrl = savedFiles["test-image-1"].dataURL.replace(/^\/api/, "");
+    const fileResponse = await request.get(`${API_URL}${fileUrl}`);
+    expect(fileResponse.ok()).toBe(true);
+    expect(fileResponse.headers()["content-type"]).toContain("image/png");
 
     console.log("✓ Large image data preserved correctly through save/reload cycle");
   });
@@ -123,7 +129,7 @@ test.describe("Image Persistence - Browser E2E Tests", () => {
     const savedFiles = drawing.files || {};  // Already parsed by API
 
     expect(savedFiles["embedded-test-image"]).toBeDefined();
-    expect(savedFiles["embedded-test-image"].dataURL).toBe(fixtureData.files["embedded-test-image"].dataURL);
+    expect(savedFiles["embedded-test-image"].dataURL).toBe(`/api/files/${drawing.id}/embedded-test-image`);
   });
 
   test("should handle multiple images of varying sizes", async ({ request }) => {
@@ -159,8 +165,7 @@ test.describe("Image Persistence - Browser E2E Tests", () => {
 
     for (const [id, originalFile] of Object.entries(files)) {
       expect(savedFiles[id]).toBeDefined();
-      expect(savedFiles[id].dataURL).toBe((originalFile as any).dataURL);
-      expect(savedFiles[id].dataURL.length).toBe((originalFile as any).dataURL.length);
+      expect(savedFiles[id].dataURL).toBe(`/api/files/${drawing.id}/${id}`);
     }
 
     console.log("✓ Multiple images of varying sizes preserved correctly");
@@ -192,19 +197,10 @@ test.describe("Security - Malicious Content Blocking", () => {
       },
     });
 
-    if (!response.ok()) {
-      const text = await response.text();
-      console.error(`API Error: ${response.status()} - ${text}`);
-    }
-    expect(response.ok()).toBe(true);
-    const drawing = await response.json();
-    const savedFiles = drawing.files;  // Already parsed by API
-
-    expect(savedFiles["malicious-image"].dataURL).not.toContain("javascript:");
-
-    await request.delete(`${API_URL}/drawings/${drawing.id}`, {
-      headers: await getCsrfHeaders(request),
-    });
+    // The API rejects malicious payloads outright (400) instead of
+    // sanitizing and saving them.
+    expect(response.ok()).toBe(false);
+    expect(response.status()).toBe(400);
   });
 
   test("should block script tags in image data", async ({ request }) => {
@@ -231,18 +227,9 @@ test.describe("Security - Malicious Content Blocking", () => {
       },
     });
 
-    if (!response.ok()) {
-      const text = await response.text();
-      console.error(`API Error: ${response.status()} - ${text}`);
-    }
-    expect(response.ok()).toBe(true);
-    const drawing = await response.json();
-    const savedFiles = drawing.files;  // Already parsed by API
-
-    expect(savedFiles["malicious-image"].dataURL).not.toContain("<script>");
-
-    await request.delete(`${API_URL}/drawings/${drawing.id}`, {
-      headers: await getCsrfHeaders(request),
-    });
+    // The API rejects malicious payloads outright (400) instead of
+    // sanitizing and saving them.
+    expect(response.ok()).toBe(false);
+    expect(response.status()).toBe(400);
   });
 });

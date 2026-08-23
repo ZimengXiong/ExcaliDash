@@ -1,8 +1,7 @@
 {
   "name": "backend",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "",
-  "main": "index.js",
   "scripts": {
     "build": "prisma generate && tsc",
     "predev": "node scripts/predev-migrate.cjs",
@@ -16,7 +15,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "check:max-lines": "node ../scripts/check-source-line-count.cjs"
+    "check:max-lines": "node ../scripts/check-source-line-count.cjs",
+    "check:env-boundary": "node ../scripts/check-env-boundary.cjs",
+    "gen:env": "ts-node src/config/generateEnvReference.ts"
   },
   "keywords": [],
   "author": "",
@@ -56,9 +57,7 @@
     "@types/ms": "^2.1.0",
     "@types/multer": "^2.0.0",
     "@types/node": "^24.10.1",
-    "@types/socket.io": "^3.0.1",
     "@types/supertest": "^6.0.3",
-    "@types/uuid": "^10.0.0",
     "nodemon": "^3.1.11",
     "supertest": "^7.1.4",
     "ts-node": "^10.9.2",

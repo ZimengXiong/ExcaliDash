@@ -1,5 +1,6 @@
 import express from "express";
 import { compareSemver, parseSemver } from "../../utils/semver";
+import { config } from "../../config";
 import type { SystemRouteDeps } from "./index";
 
 type UpdateChannel = "stable" | "prerelease";
@@ -34,23 +35,16 @@ let cache:
     }
   | null = null;
 
-export const parseChannel = (raw: unknown): UpdateChannel => {
+const parseChannel = (raw: unknown): UpdateChannel => {
   const normalized = typeof raw === "string" ? raw.trim().toLowerCase() : "";
   return normalized === "prerelease" ? "prerelease" : "stable";
 };
 
-export const envOutboundEnabled = (): boolean => {
-  const raw = (process.env.UPDATE_CHECK_OUTBOUND ?? "true").trim().toLowerCase();
-  return raw === "true" || raw === "1" || raw === "yes";
-};
+const envOutboundEnabled = (): boolean => config.updateCheck.outbound;
 
-export const envGithubToken = (): string | null => {
-  const raw = process.env.UPDATE_CHECK_GITHUB_TOKEN ?? process.env.GITHUB_TOKEN ?? "";
-  const trimmed = raw.trim();
-  return trimmed.length > 0 ? trimmed : null;
-};
+const envGithubToken = (): string | null => config.updateCheck.githubToken;
 
-export const pickLatestRelease = (
+const pickLatestRelease = (
   releases: GithubRelease[],
   channel: UpdateChannel
 ): GithubRelease | null => {
@@ -81,7 +75,7 @@ export const pickLatestRelease = (
   return best.r;
 };
 
-export const normalizeVersion = (raw: string): string | null => {
+const normalizeVersion = (raw: string): string | null => {
   const parsed = parseSemver(raw);
   if (!parsed) return null;
   const base = `${parsed.major}.${parsed.minor}.${parsed.patch}`;

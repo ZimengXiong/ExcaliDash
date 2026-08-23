@@ -226,33 +226,4 @@ describe("Drawing Version History", () => {
     });
   });
 
-  describe("Snapshot creation on scene update", () => {
-    it("creates a snapshot when elements are updated", async () => {
-      prisma.drawing.findUnique.mockResolvedValue(mockDrawing);
-      prisma.drawing.findFirst.mockResolvedValue(mockDrawing);
-      prisma.drawingUpdateSchema = { safeParse: vi.fn() };
-      prisma.drawingSnapshot.create.mockResolvedValue({});
-      prisma.drawing.updateMany.mockResolvedValue({ count: 1 });
-
-      // Reconfigure drawingUpdateSchema mock for this test
-      const { app: testApp, prisma: testPrisma } = buildApp();
-      const updatePayload = {
-        elements: [{ id: "el-new", type: "text" }],
-        appState: { viewBackgroundColor: "#000" },
-        version: 5,
-      };
-
-      // Mock the schema validation to return the payload
-      (testApp as any)._router = undefined; // Force re-init
-      // We need to test the PUT handler behavior directly
-      testPrisma.drawing.findUnique.mockResolvedValue(mockDrawing);
-      testPrisma.drawing.findFirst.mockResolvedValue({ ...mockDrawing, version: 6 });
-      testPrisma.drawingSnapshot.create.mockResolvedValue({});
-      testPrisma.drawing.updateMany.mockResolvedValue({ count: 1 });
-
-      // This validates that the snapshot creation was wired in
-      // The actual integration is best tested in E2E
-      expect(true).toBe(true);
-    });
-  });
 });

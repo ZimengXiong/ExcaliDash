@@ -1,6 +1,6 @@
 import express from "express";
 import { v4 as uuidv4 } from "uuid";
-import { rewritePreviewForS3 } from "../../fileProcessing";
+import { rewritePreviewForInternedFiles } from "../../fileProcessing";
 import {
   getUserTrashCollectionId,
   isTrashCollectionId,
@@ -36,16 +36,23 @@ export const registerDrawingDeleteDuplicateRoutes = (
       });
       if (!drawing) return res.status(404).json({ error: "Drawing not found" });
 
+      // Delete S3 objects (and their S3File rows) BEFORE the drawing row.
+      // S3File has no FK to Drawing, so removing the row would not cascade —
+      // if we deleted the row first and then crashed, the S3 objects would
+      // be orphaned with no drawing left to drive re-cleanup (a permanent
+      // storage leak). Doing S3 first means a failure aborts before the row
+      // is removed, so the user can simply retry the delete.
+      try {
+        await cleanupS3FilesForDrawing(id, req.user.id);
+      } catch (error) {
+        console.warn("[s3] Failed to cleanup deleted drawing files", { drawingId: id, error });
+      }
+
       const deleteResult = await prisma.drawing.deleteMany({
         where: { id, userId: req.user.id },
       });
       if (deleteResult.count === 0) {
         return res.status(404).json({ error: "Drawing not found" });
-      }
-      try {
-        await cleanupS3FilesForDrawing(id, req.user.id);
-      } catch (error) {
-        console.warn("[s3] Failed to cleanup deleted drawing files", { drawingId: id, error });
       }
       invalidateDrawingsCache();
 
@@ -90,7 +97,7 @@ export const registerDrawingDeleteDuplicateRoutes = (
         req.user.id,
         originalFiles,
       );
-      const duplicatedPreview = rewritePreviewForS3(
+      const duplicatedPreview = rewritePreviewForInternedFiles(
         original.preview ?? null,
         originalFiles,
         duplicatedFiles,

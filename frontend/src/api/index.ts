@@ -1,4 +1,4 @@
-export { api as default, api, API_URL, axios, isAxiosError } from "./client";
+export { api, API_URL, isAxiosError } from "./client";
 export * from "./system";
 export * from "./drawings";
 export * from "./collections";

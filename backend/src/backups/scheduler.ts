@@ -21,6 +21,10 @@ type ParsedCron = {
   daysOfMonth: CronPart;
   months: CronPart;
   daysOfWeek: CronPart;
+  // Track whether the day fields were restricted (not "*") so we can apply the
+  // standard cron rule: OR the two day fields when both are constrained.
+  daysOfMonthRestricted: boolean;
+  daysOfWeekRestricted: boolean;
 };
 
 const parseDatabasePath = (databaseUrl?: string): string | null => {
@@ -74,7 +78,7 @@ const parseCronPart = (raw: string, min: number, max: number): CronPart => {
   return values;
 };
 
-const parseCronSchedule = (raw: string): ParsedCron => {
+export const parseCronSchedule = (raw: string): ParsedCron => {
   const parts = raw.trim().split(/\s+/);
   const normalized = parts.length === 5 ? ["0", ...parts] : parts;
   if (normalized.length !== 6) {
@@ -88,18 +92,27 @@ const parseCronSchedule = (raw: string): ParsedCron => {
     daysOfMonth: parseCronPart(normalized[3], 1, 31),
     months: parseCronPart(normalized[4], 1, 12),
     daysOfWeek: parseCronPart(normalized[5], 0, 7),
+    daysOfMonthRestricted: normalized[3] !== "*",
+    daysOfWeekRestricted: normalized[5] !== "*",
   };
 };
 
-const cronMatches = (cron: ParsedCron, date: Date): boolean => {
+export const cronMatches = (cron: ParsedCron, date: Date): boolean => {
   const day = date.getDay();
+  const domMatch = cron.daysOfMonth.has(date.getDate());
+  const dowMatch = cron.daysOfWeek.has(day) || (day === 0 && cron.daysOfWeek.has(7));
+  // Standard cron: when both day-of-month and day-of-week are restricted the
+  // job runs if EITHER matches; otherwise the constrained field applies.
+  const dayMatch =
+    cron.daysOfMonthRestricted && cron.daysOfWeekRestricted
+      ? domMatch || dowMatch
+      : domMatch && dowMatch;
   return (
     cron.seconds.has(date.getSeconds()) &&
     cron.minutes.has(date.getMinutes()) &&
     cron.hours.has(date.getHours()) &&
-    cron.daysOfMonth.has(date.getDate()) &&
     cron.months.has(date.getMonth() + 1) &&
-    (cron.daysOfWeek.has(day) || (day === 0 && cron.daysOfWeek.has(7)))
+    dayMatch
   );
 };
 

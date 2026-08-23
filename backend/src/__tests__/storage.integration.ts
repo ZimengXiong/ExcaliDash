@@ -116,7 +116,7 @@ describe("Storage management routes", () => {
 
   beforeEach(async () => {
     await cleanupTestDb(prisma);
-    await prisma.s3File.deleteMany({});
+    await prisma.drawingFile.deleteMany({});
     await prisma.user.deleteMany({});
 
     const passwordHash = await bcrypt.hash("password123", 10);

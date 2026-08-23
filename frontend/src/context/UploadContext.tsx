@@ -4,7 +4,7 @@ import { uuidv4 } from '../utils/uuid';
 
 export type UploadStatus = 'pending' | 'uploading' | 'processing' | 'success' | 'error';
 
-export interface UploadTask {
+interface UploadTask {
   id: string;
   fileName: string;
   status: UploadStatus;

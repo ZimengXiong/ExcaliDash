@@ -3,18 +3,28 @@ import { describe, expect, it, vi, beforeAll, beforeEach } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { Dashboard } from "./Dashboard";
+import { PreferencesProvider } from "../context/PreferencesContext";
 
 const mockCreateDrawing = vi.fn();
 const mockUploadFiles = vi.fn();
 const mockUseDashboardData = vi.fn();
+const mockGetUserPreferences = vi.fn();
+const mockUpdateUserPreferences = vi.fn();
 
 vi.mock("../api", async () => {
   const actual = await vi.importActual("../api");
   return {
     ...actual,
     createDrawing: (...args: unknown[]) => mockCreateDrawing(...args),
+    getUserPreferences: (...args: unknown[]) => mockGetUserPreferences(...args),
+    updateUserPreferences: (...args: unknown[]) =>
+      mockUpdateUserPreferences(...args),
   };
 });
+
+vi.mock("../context/AuthContext", () => ({
+  useAuth: () => ({ user: null }),
+}));
 
 vi.mock("../context/UploadContext", () => ({
   useUpload: () => ({
@@ -50,6 +60,8 @@ describe("Dashboard - Collection Sharing Viewer Restrictions", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetUserPreferences.mockResolvedValue({});
+    mockUpdateUserPreferences.mockResolvedValue({});
     mockUseDashboardData.mockReturnValue({
       drawings: [],
       setDrawings: vi.fn(),
@@ -74,11 +86,13 @@ describe("Dashboard - Collection Sharing Viewer Restrictions", () => {
 
   it("blocks New Drawing for view-only shared collections", () => {
     render(
-      <MemoryRouter initialEntries={["/collections?id=shared-col-1"]}>
-        <Routes>
-          <Route path="*" element={<Dashboard />} />
-        </Routes>
-      </MemoryRouter>,
+      <PreferencesProvider>
+        <MemoryRouter initialEntries={["/collections?id=shared-col-1"]}>
+          <Routes>
+            <Route path="*" element={<Dashboard />} />
+          </Routes>
+        </MemoryRouter>
+      </PreferencesProvider>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /new drawing/i }));
@@ -89,11 +103,13 @@ describe("Dashboard - Collection Sharing Viewer Restrictions", () => {
 
   it("blocks Import for view-only shared collections", () => {
     render(
-      <MemoryRouter initialEntries={["/collections?id=shared-col-1"]}>
-        <Routes>
-          <Route path="*" element={<Dashboard />} />
-        </Routes>
-      </MemoryRouter>,
+      <PreferencesProvider>
+        <MemoryRouter initialEntries={["/collections?id=shared-col-1"]}>
+          <Routes>
+            <Route path="*" element={<Dashboard />} />
+          </Routes>
+        </MemoryRouter>
+      </PreferencesProvider>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /import/i }));

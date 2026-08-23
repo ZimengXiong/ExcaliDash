@@ -189,6 +189,9 @@ The root README keeps the install path short. See
 auth/OIDC, database provider, offline, backup, password policy, and operational
 details.
 
+For the full environment-variable reference, see
+[configuration](docs/CONFIGURATION.md).
+
 For release-candidate validation across multiple local configurations, see the
 [configuration lab](docs/CONFIG_LAB.md).
 

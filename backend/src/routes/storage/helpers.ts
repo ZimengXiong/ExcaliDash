@@ -1,7 +1,14 @@
-export type S3FileRecord = {
+/**
+ * A stored-blob record from the DrawingFile table. `storage` selects the
+ * backend: "db" rows keep bytes inline (s3Key is null); "s3" rows point at
+ * an S3 object via s3Key.
+ */
+export type StoredFileRecord = {
   fileId: string;
-  s3Key: string;
+  storage: string;
+  s3Key: string | null;
   mimeType: string;
+  sizeBytes: number;
 };
 
 export type S3ObjectRecord = {
@@ -37,23 +44,23 @@ export const buildFilesDiff = ({
   allCanvasRefs,
   activeCanvasRefs,
   sqliteFileIds,
-  s3FileRecords,
+  storedRecords,
   s3Objects,
 }: {
   allCanvasRefs: Set<string>;
   activeCanvasRefs: Set<string>;
   sqliteFileIds: Set<string>;
-  s3FileRecords: S3FileRecord[];
+  storedRecords: StoredFileRecord[];
   s3Objects: S3ObjectRecord[];
 }) => {
-  const s3RecordMap = new Map(s3FileRecords.map((record) => [record.fileId, record]));
+  const recordMap = new Map(storedRecords.map((record) => [record.fileId, record]));
   const s3ObjectMap = new Map(
     s3Objects.map((object) => [fileIdFromS3Key(object.key), object] as const),
   );
   const allFileIds = new Set<string>([
     ...allCanvasRefs,
     ...sqliteFileIds,
-    ...s3FileRecords.map((record) => record.fileId),
+    ...storedRecords.map((record) => record.fileId),
   ]);
   for (const object of s3Objects) {
     const fileId = fileIdFromS3Key(object.key);
@@ -61,18 +68,20 @@ export const buildFilesDiff = ({
   }
 
   return Array.from(allFileIds).map((fileId) => {
-    const s3Record = s3RecordMap.get(fileId);
+    const record = recordMap.get(fileId);
     const s3Object = s3ObjectMap.get(fileId);
     return {
       fileId,
       inCanvas: allCanvasRefs.has(fileId),
       inCanvasActive: activeCanvasRefs.has(fileId),
       inSqlite: sqliteFileIds.has(fileId),
-      inS3: Boolean(s3Object),
-      inS3Record: Boolean(s3Record),
-      s3Key: s3Record?.s3Key ?? s3Object?.key ?? null,
-      mimeType: s3Record?.mimeType ?? null,
-      s3SizeBytes: s3Object?.size ?? null,
+      // In db-mode there is no S3 object; a DrawingFile row (storage="db")
+      // that carries bytes is the equivalent "object present" signal.
+      inS3: Boolean(s3Object) || record?.storage === "db",
+      inS3Record: Boolean(record),
+      s3Key: record?.s3Key ?? s3Object?.key ?? null,
+      mimeType: record?.mimeType ?? null,
+      s3SizeBytes: s3Object?.size ?? record?.sizeBytes ?? null,
     };
   });
 };

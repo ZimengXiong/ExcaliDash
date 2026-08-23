@@ -136,7 +136,7 @@ export const initTestDb = async (prisma: PrismaClient) => {
  * Generate a sample base64 PNG image data URL
  * This creates a small but valid PNG for testing
  */
-export const generateSampleImageDataUrl = (size: "small" | "medium" | "large" = "small"): string => {
+const generateSampleImageDataUrl = (size: "small" | "medium" | "large" = "small"): string => {
   const smallPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
   
   if (size === "small") {

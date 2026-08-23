@@ -3,6 +3,7 @@ import type { NavigateFunction } from "react-router-dom";
 import type { MutableRefObject } from "react";
 import { toast } from "sonner";
 import * as api from "../../api";
+import { rehydrateFilesProgressive } from "../../utils/rehydrateFiles";
 import { getPersistedAppState, hasRenderableElements } from "./shared";
 
 type AccessLevel = "none" | "view" | "edit" | "owner";
@@ -22,6 +23,7 @@ type SceneLoaderParams = {
     latestElements: MutableRefObject<readonly any[]>;
     initialSceneElements: MutableRefObject<readonly any[]>;
     latestFiles: MutableRefObject<any>;
+    isSyncing: MutableRefObject<boolean>;
     lastSyncedFiles: MutableRefObject<Record<string, any>>;
     lastSyncedElementOrderSig: MutableRefObject<string>;
     lastPersistedFiles: MutableRefObject<Record<string, any>>;
@@ -41,6 +43,10 @@ type SceneLoaderParams = {
   setIsSceneLoading: (loading: boolean) => void;
   setLoadError: (error: string | null) => void;
   recordElementVersion: (element: any) => void;
+  normalizeImageElementStatus: (
+    elements?: readonly any[],
+    files?: Record<string, any> | null,
+  ) => readonly any[];
 };
 
 const buildEmptyScene = () => ({
@@ -67,6 +73,7 @@ export const useEditorSceneLoader = ({
   setIsSceneLoading,
   setLoadError,
   recordElementVersion,
+  normalizeImageElementStatus,
 }: SceneLoaderParams) => {
   const resetRefs = useCallback(() => {
     refs.isBootstrappingScene.current = true;
@@ -86,7 +93,21 @@ export const useEditorSceneLoader = ({
     refs.excalidrawAPI.current = null;
   }, [refs]);
 
+  // Depend on the user id scalar, not the user object identity: a new object
+  // reference for the same logged-in user must not re-run the loader (which
+  // would reset refs and re-fetch mid-session).
+  const userId =
+    typeof user === "object" && user !== null && "id" in user
+      ? (user as { id?: unknown }).id
+      : undefined;
+  const userIdKey = typeof userId === "string" ? userId : null;
+
   useEffect(() => {
+    // A slow, stale load must never write its result into the persistence refs
+    // after the user has navigated to a different drawing — that is how one
+    // drawing's data used to leak into another. The cleanup flips this flag and
+    // every post-await step bails on it.
+    let cancelled = false;
     resetRefs();
     setIsReady(false);
     setIsSceneLoading(true);
@@ -95,12 +116,13 @@ export const useEditorSceneLoader = ({
 
     const loadData = async () => {
       if (!id) {
+        if (cancelled) return;
         setInitialData(buildEmptyScene());
         setIsSceneLoading(false);
         return;
       }
       try {
-        const libraryItemsPromise = user
+        const libraryItemsPromise = userIdKey
           ? api.getLibrary().catch((err) => {
               console.warn("Failed to load library, using empty:", err);
               return [];
@@ -110,6 +132,7 @@ export const useEditorSceneLoader = ({
           api.getDrawing(id),
           libraryItemsPromise,
         ]);
+        if (cancelled) return;
         setDrawingName(data.name);
         setAccessLevel(
           data.accessLevel === "view" ||
@@ -118,23 +141,22 @@ export const useEditorSceneLoader = ({
             ? data.accessLevel
             : "owner",
         );
-        const elements = data.elements || [];
-        const files = data.files || {};
+        const rawElements = data.elements || [];
+        // Paint first, stream images in. In S3 (or db-ref) mode the loaded
+        // files carry `/api/files/...` (or public S3) references rather than
+        // inline data: URLs. We no longer await re-inlining before the first
+        // paint — the scene renders immediately with whatever is inline and the
+        // referenced files stream into the canvas as each fetch lands. Inline
+        // image elements are flipped to `saved` so they render at once; ref-only
+        // elements stay non-saved and show Excalidraw's own loading state until
+        // their bytes arrive.
+        const files: Record<string, any> = data.files || {};
+        const elements = normalizeImageElementStatus(rawElements, files);
         const hasPreview =
           typeof data.preview === "string" && data.preview.trim().length > 0;
         const loadedRenderable = hasRenderableElements(elements);
         refs.suspiciousBlankLoad.current = !loadedRenderable && hasPreview;
         refs.hasSceneChangesSinceLoad.current = false;
-        if (import.meta.env.DEV) {
-          console.log("[Editor] Loaded drawing", {
-            drawingId: id,
-            elementCount: elements.length,
-            loadedRenderable,
-            hasPreview,
-            version: data.version ?? null,
-            suspiciousBlankLoad: refs.suspiciousBlankLoad.current,
-          });
-        }
         refs.latestElements.current = elements;
         refs.initialSceneElements.current = elements;
         refs.latestFiles.current = files;
@@ -157,7 +179,75 @@ export const useEditorSceneLoader = ({
           scrollToContent: true,
           libraryItems,
         });
+
+        // Stream referenced files into the canvas as they land. Each hydrated
+        // dataURL is written into latestFiles AND lastSyncedFiles/
+        // lastPersistedFiles for the same fileId in the same step: this mirrors
+        // how compressedFilesResult is handled in useEditorPersistence, so the
+        // freshly-inlined bytes are never diffed by getFilesDelta as a "changed
+        // file" and re-uploaded/re-saved. `isSyncing` wraps the addFiles push so
+        // it doesn't trigger the broadcast/save loop. Every callback bails when
+        // the effect is cancelled (stale-load guard); files that resolve before
+        // the Excalidraw API is registered queue and flush once it appears.
+        const pendingCanvasFiles: Record<string, any>[] = [];
+        let flushScheduled = false;
+        const pushToCanvas = (batch: Record<string, any>[]): boolean => {
+          const excalidrawApi = refs.excalidrawAPI.current;
+          if (!excalidrawApi || typeof excalidrawApi.addFiles !== "function") {
+            return false;
+          }
+          refs.isSyncing.current = true;
+          try {
+            excalidrawApi.addFiles(batch);
+          } finally {
+            refs.isSyncing.current = false;
+          }
+          return true;
+        };
+        const flushPendingCanvasFiles = () => {
+          flushScheduled = false;
+          if (cancelled || pendingCanvasFiles.length === 0) return;
+          if (pushToCanvas(pendingCanvasFiles)) {
+            pendingCanvasFiles.length = 0;
+            return;
+          }
+          if (!flushScheduled) {
+            flushScheduled = true;
+            setTimeout(flushPendingCanvasFiles, 50);
+          }
+        };
+        const handleFileReady = (
+          fileId: string,
+          hydratedFile: Record<string, any>,
+        ) => {
+          if (cancelled) return;
+          refs.latestFiles.current = {
+            ...refs.latestFiles.current,
+            [fileId]: hydratedFile,
+          };
+          refs.lastSyncedFiles.current = {
+            ...refs.lastSyncedFiles.current,
+            [fileId]: hydratedFile,
+          };
+          refs.lastPersistedFiles.current = {
+            ...refs.lastPersistedFiles.current,
+            [fileId]: hydratedFile,
+          };
+          if (!pushToCanvas([hydratedFile])) {
+            pendingCanvasFiles.push(hydratedFile);
+            if (!flushScheduled) {
+              flushScheduled = true;
+              setTimeout(flushPendingCanvasFiles, 50);
+            }
+          }
+        };
+        void rehydrateFilesProgressive(
+          files,
+          handleFileReady,
+          () => cancelled,
+        );
       } catch (err) {
+        if (cancelled) return;
         console.error("Failed to load drawing", err);
         let message = "Failed to load drawing";
         if (api.isAxiosError(err)) {
@@ -197,17 +287,21 @@ export const useEditorSceneLoader = ({
         setLoadError(message);
         setInitialData(null);
       } finally {
-        setIsSceneLoading(false);
+        if (!cancelled) setIsSceneLoading(false);
       }
     };
 
     loadData();
+    return () => {
+      cancelled = true;
+    };
   }, [
     id,
     location.hash,
     location.pathname,
     location.search,
     navigate,
+    normalizeImageElementStatus,
     recordElementVersion,
     refs,
     resetRefs,
@@ -217,6 +311,6 @@ export const useEditorSceneLoader = ({
     setIsReady,
     setIsSceneLoading,
     setLoadError,
-    user,
+    userIdKey,
   ]);
 };

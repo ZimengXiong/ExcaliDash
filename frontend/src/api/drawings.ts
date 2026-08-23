@@ -1,6 +1,61 @@
 import type { Drawing, DrawingSummary } from "../types";
 import { normalizePreviewSvg } from "../utils/previewSvg";
-import { api } from "./client";
+import { api, isAxiosError } from "./client";
+
+// Per-file image upload capability. The endpoint below is served by newer
+// backends only; against an older server the route 404s (or 501s). The first
+// such response flips this flag off for the rest of the session so callers stop
+// attempting per-file uploads and fall back to inlining bytes in the scene PUT
+// (which the server still interns) — a new frontend degrades to old behavior.
+let fileUploadSupported = true;
+
+export const isFileUploadSupported = (): boolean => fileUploadSupported;
+
+export type UploadedFileRef = { url: string };
+
+/**
+ * Upload the raw bytes of a single drawing image to
+ * `PUT /drawings/:drawingId/files/:fileId`. Idempotent and content-addressed:
+ * `fileId` is Excalidraw's content hash, so re-uploading is a no-op.
+ *
+ * Returns the ref URL to store in place of the inline dataURL, or `null` when
+ * the backend does not support per-file uploads (404/501) — in which case the
+ * capability is disabled for the session and the caller keeps the inline bytes.
+ * Other errors (network, 413, 5xx) are thrown so the caller can retry.
+ */
+export const uploadDrawingFile = async (
+  drawingId: string,
+  fileId: string,
+  body: ArrayBuffer | Uint8Array | Blob,
+  mimeType: string,
+): Promise<UploadedFileRef | null> => {
+  if (!fileUploadSupported) return null;
+  try {
+    const response = await api.put<{ url?: string }>(
+      `/drawings/${drawingId}/files/${fileId}`,
+      body,
+      {
+        headers: {
+          "Content-Type": mimeType || "application/octet-stream",
+        },
+      },
+    );
+    const url =
+      typeof response.data?.url === "string" && response.data.url.length > 0
+        ? response.data.url
+        : `/api/files/${drawingId}/${fileId}`;
+    return { url };
+  } catch (err) {
+    if (
+      isAxiosError(err) &&
+      (err.response?.status === 404 || err.response?.status === 501)
+    ) {
+      fileUploadSupported = false;
+      return null;
+    }
+    throw err;
+  }
+};
 
 const coerceTimestamp = (value: string | number | Date): number => {
   if (typeof value === "number") return value;
@@ -60,7 +115,6 @@ export type SortDirection = "asc" | "desc";
 
 type DrawingQueryOptions = {
   includeData?: boolean;
-  includePreview?: boolean;
   limit?: number;
   offset?: number;
   sortField?: DrawingSortField;
@@ -75,7 +129,6 @@ const buildDrawingParams = (
   const params: Record<string, string | number> = {};
   if (search) params.search = search;
   if (collectionId !== undefined) params.collectionId = collectionId === null ? "null" : collectionId;
-  if (options?.includePreview) params.includePreview = "true";
   if (options?.limit !== undefined) params.limit = options.limit;
   if (options?.offset !== undefined) params.offset = options.offset;
   if (options?.sortField) params.sortField = options.sortField;
@@ -122,6 +175,17 @@ export async function getSharedDrawings(
 export const getDrawing = async (id: string) => {
   const response = await api.get<Drawing>(`/drawings/${id}`);
   return deserializeDrawing(response.data);
+};
+
+// Previews are no longer inlined into list responses; fetch them per-drawing.
+// The endpoint is ETag-cacheable (revalidates on updatedAt), so repeated calls
+// are cheap once the browser has a copy.
+export const getDrawingPreview = async (id: string): Promise<string | null> => {
+  const response = await api.get<{ preview: string | null }>(
+    `/drawings/${id}/preview`,
+  );
+  const preview = response.data?.preview;
+  return typeof preview === "string" ? normalizePreviewSvg(preview) : null;
 };
 
 export type ShareResolvedUser = { id: string; name: string; email: string };
@@ -186,6 +250,19 @@ export const revokeDrawingPermission = async (
   return response.data;
 };
 
+// Recipient-scoped: hide/unhide a drawing shared with the current user from
+// their own "Shared with me" list. Does not affect the owner or other grantees.
+export const setSharedDrawingHidden = async (
+  drawingId: string,
+  hidden: boolean,
+): Promise<{ success: true; hidden: boolean }> => {
+  const response = await api.patch<{ success: true; hidden: boolean }>(
+    `/drawings/${drawingId}/shared-visibility`,
+    { hidden },
+  );
+  return response.data;
+};
+
 export const createLinkShare = async (
   drawingId: string,
   params: { permission: "view" | "edit"; expiresAt?: string | null; passphrase?: string },
@@ -207,12 +284,15 @@ export const revokeLinkShare = async (
   return response.data;
 };
 
-export const createDrawing = async (name?: string, collectionId?: string | null) => {
+export const createDrawing = async (
+  name?: string,
+  collectionId?: string | null,
+) => {
   const response = await api.post<{ id: string }>("/drawings", {
     name: name || "Untitled Drawing",
     collectionId: collectionId ?? null,
-    elements: [],
     appState: {},
+    elements: [],
   });
   return response.data;
 };

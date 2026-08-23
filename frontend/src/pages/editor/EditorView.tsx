@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronUp,
+  CloudOff,
   Download,
   History,
   Loader2,
@@ -14,6 +15,7 @@ import { Toaster } from "sonner";
 import {
   LanguageSelector,
 } from "../../components/LanguageSelector";
+import { GridStepSelector } from "../../components/GridStepSelector";
 import type { UserIdentity } from "../../utils/identity";
 import { UIOptions } from "./shared";
 
@@ -25,6 +27,7 @@ type EditorViewProps = {
   id?: string;
   accessLevel: "none" | "view" | "edit" | "owner";
   autoHideEnabled: boolean;
+  autosaveFailing: boolean;
   canEdit: boolean;
   drawingName: string;
   editorContainerRef: React.RefObject<HTMLDivElement>;
@@ -52,6 +55,8 @@ type EditorViewProps = {
   onRenameSubmit: (event: React.FormEvent) => void;
   onSetExcalidrawAPI: (api: any) => void;
   onSetLangCode: (langCode: string) => void;
+  gridStep: number;
+  onSetGridStep: (gridStep: number) => void;
   onShareOpen: () => void;
   onHistoryOpen: () => void;
   onToggleAutoHide: () => void;
@@ -86,6 +91,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
   id,
   accessLevel,
   autoHideEnabled,
+  autosaveFailing,
   canEdit,
   drawingName,
   editorContainerRef,
@@ -113,6 +119,8 @@ export const EditorView: React.FC<EditorViewProps> = ({
   onRenameSubmit,
   onSetExcalidrawAPI,
   onSetLangCode,
+  gridStep,
+  onSetGridStep,
   onShareOpen,
   onHistoryOpen,
   onToggleAutoHide,
@@ -161,6 +169,16 @@ export const EditorView: React.FC<EditorViewProps> = ({
         )}
       </div>
       <div className="flex items-center gap-3">
+        {canEdit && autosaveFailing ? (
+          <span
+            className="flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200 border border-red-200 dark:border-red-800"
+            title="Your recent changes could not be saved. Check your connection and try again."
+            role="status"
+          >
+            <CloudOff size={14} />
+            Unsaved changes
+          </span>
+        ) : null}
         {!canEdit ? (
           <span className="text-xs font-semibold px-2 py-1 rounded-full bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200 border border-amber-200 dark:border-amber-800">
             Read-only
@@ -262,6 +280,9 @@ export const EditorView: React.FC<EditorViewProps> = ({
             <MainMenu.DefaultItems.ChangeCanvasBackground />
             <MainMenu.DefaultItems.Help />
             <MainMenu.Separator />
+            <MainMenu.ItemCustom>
+              <GridStepSelector gridStep={gridStep} onChange={onSetGridStep} />
+            </MainMenu.ItemCustom>
             <MainMenu.ItemCustom>
               <LanguageSelector langCode={langCode} onChange={onSetLangCode} />
             </MainMenu.ItemCustom>

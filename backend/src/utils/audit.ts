@@ -53,7 +53,8 @@ export const logAuditEvent = async (data: AuditLogData): Promise<void> => {
       },
     });
   } catch (error) {
-    if (process.env.NODE_ENV === "development") {
+    const { config } = await import("../config");
+    if (config.isDev) {
       console.debug("Audit logging skipped (feature disabled or table missing):", error);
     }
   }
@@ -100,7 +101,8 @@ export const getAuditLogs = async (
       })(),
     }));
   } catch (error) {
-    if (process.env.NODE_ENV === "development") {
+    const { config } = await import("../config");
+    if (config.isDev) {
       console.debug("Failed to retrieve audit logs (feature disabled or table missing):", error);
     }
     return [];

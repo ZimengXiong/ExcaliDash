@@ -7,15 +7,11 @@ export interface PasswordPolicyConfig {
   requireSymbol: boolean;
 }
 
-type EnvBooleanReader = (key: string, defaultValue: boolean) => boolean;
-type EnvNumberReader = (key: string, defaultValue: number) => number;
+import { readBoolean, readNumber } from "./env";
 
-export const resolvePasswordPolicyConfig = (
-  getRequiredEnvNumber: EnvNumberReader,
-  getOptionalBoolean: EnvBooleanReader,
-): PasswordPolicyConfig => {
-  const minLength = getRequiredEnvNumber("PASSWORD_MIN_LENGTH", 12);
-  const maxLength = getRequiredEnvNumber("PASSWORD_MAX_LENGTH", 100);
+export const resolvePasswordPolicyConfig = (): PasswordPolicyConfig => {
+  const minLength = readNumber("PASSWORD_MIN_LENGTH", 12);
+  const maxLength = readNumber("PASSWORD_MAX_LENGTH", 100);
   if (maxLength < minLength) {
     throw new Error("PASSWORD_MAX_LENGTH must be greater than or equal to PASSWORD_MIN_LENGTH");
   }
@@ -23,10 +19,10 @@ export const resolvePasswordPolicyConfig = (
   return {
     minLength,
     maxLength,
-    requireUppercase: getOptionalBoolean("PASSWORD_REQUIRE_UPPERCASE", true),
-    requireLowercase: getOptionalBoolean("PASSWORD_REQUIRE_LOWERCASE", true),
-    requireNumber: getOptionalBoolean("PASSWORD_REQUIRE_NUMBER", true),
-    requireSymbol: getOptionalBoolean("PASSWORD_REQUIRE_SYMBOL", true),
+    requireUppercase: readBoolean("PASSWORD_REQUIRE_UPPERCASE", true),
+    requireLowercase: readBoolean("PASSWORD_REQUIRE_LOWERCASE", true),
+    requireNumber: readBoolean("PASSWORD_REQUIRE_NUMBER", true),
+    requireSymbol: readBoolean("PASSWORD_REQUIRE_SYMBOL", true),
   };
 };
 

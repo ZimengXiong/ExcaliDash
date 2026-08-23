@@ -37,6 +37,8 @@ backend/src/generated/
 .env
 .env.local
 .env.production
+# frontend/.env.production is intentionally committed; keep this exception explicit
+!frontend/.env.production
 .env.staging
 
 # Build outputs

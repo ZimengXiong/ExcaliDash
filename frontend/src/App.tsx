@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { ThemeProvider } from './context/ThemeContext';
 import { UploadProvider } from './context/UploadContext';
 import { AuthProvider } from './context/AuthContext';
+import { PreferencesProvider } from './context/PreferencesContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Loader2 } from 'lucide-react';
 
@@ -25,10 +26,11 @@ const PageLoader = () => (
 
 function App() {
   return (
-    <ThemeProvider>
-      <Router>
-        <AuthProvider>
-          <UploadProvider>
+    <Router>
+      <AuthProvider>
+        <PreferencesProvider>
+          <ThemeProvider>
+            <UploadProvider>
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/login" element={<Login />} />
@@ -88,10 +90,11 @@ function App() {
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </Suspense>
-          </UploadProvider>
-        </AuthProvider>
-      </Router>
-    </ThemeProvider>
+            </UploadProvider>
+          </ThemeProvider>
+        </PreferencesProvider>
+      </AuthProvider>
+    </Router>
   );
 }
 

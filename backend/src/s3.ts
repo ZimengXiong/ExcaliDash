@@ -9,8 +9,10 @@ import {
   DeleteObjectCommand,
   ListObjectsV2Command,
   CopyObjectCommand,
+  HeadBucketCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { config } from "./config";
 
 export interface S3Config {
   bucket: string;
@@ -32,8 +34,7 @@ let s3Config: S3Config | null = null;
  * Shared S3 object-key prefix. Reading the env var in one place avoids
  * upload and cleanup code paths drifting onto different prefixes.
  */
-export const FILE_KEY_PREFIX =
-  process.env.S3_KEY_PREFIX?.replace(/\/+$/, "") || "excalidash";
+const FILE_KEY_PREFIX = config.s3.keyPrefix;
 
 /**
  * Build the canonical S3 object key for a given drawing's image file.
@@ -89,40 +90,17 @@ export const isS3Enabled = (): boolean =>
 export const getS3Config = (): S3Config | null => s3Config;
 
 /**
- * Generate a presigned PUT URL that allows a browser to upload a single object directly to S3.
- * @param key      S3 object key
- * @param mimeType Content-Type of the upload
- * @param expiresInSeconds URL validity window (default: 5 minutes)
- */
-export const generatePresignedUploadUrl = async (
-  key: string,
-  mimeType: string,
-  expiresInSeconds = 300
-): Promise<string> => {
-  if (!s3Client || !s3Config) {
-    throw new Error("S3 is not configured");
-  }
-
-  const command = new PutObjectCommand({
-    Bucket: s3Config.bucket,
-    Key: key,
-    ContentType: mimeType,
-    // Image keys contain a content hash, so they are immutable — cache
-    // aggressively to reduce repeated downloads from S3/CDN.
-    CacheControl: "public, max-age=31536000, immutable",
-  });
-
-  return getSignedUrl(s3Client, command, { expiresIn: expiresInSeconds });
-};
-
-/**
  * Generate a presigned GET URL for reading a private S3 object.
  * @param key             S3 object key
  * @param expiresInSeconds URL validity window (default: 1 hour)
  */
 export const generatePresignedDownloadUrl = async (
   key: string,
-  expiresInSeconds = 3600
+  expiresInSeconds = 3600,
+  overrides?: {
+    contentType?: string;
+    contentDisposition?: string;
+  }
 ): Promise<string> => {
   if (!s3Client || !s3Config) {
     throw new Error("S3 is not configured");
@@ -132,6 +110,8 @@ export const generatePresignedDownloadUrl = async (
     Bucket: s3Config.bucket,
     Key: key,
     ResponseCacheControl: "public, max-age=31536000, immutable",
+    ResponseContentType: overrides?.contentType,
+    ResponseContentDisposition: overrides?.contentDisposition,
   });
 
   return getSignedUrl(s3Client, command, { expiresIn: expiresInSeconds });
@@ -142,9 +122,10 @@ export const generatePresignedDownloadUrl = async (
  * Falls back to the standard virtual-hosted-style S3 URL when S3_PUBLIC_URL is not set.
  *
  * NOTE: When using a custom S3-compatible endpoint (MinIO, R2, etc.) without
- * setting S3_PUBLIC_URL, this function logs a warning and returns a best-effort
- * AWS-style URL that will likely not resolve correctly.  Always set S3_PUBLIC_URL
- * when using non-AWS endpoints.
+ * setting S3_PUBLIC_URL, this returns a best-effort AWS-style URL that will
+ * likely not resolve correctly. Always set S3_PUBLIC_URL when using non-AWS
+ * endpoints. The startup storage doctor surfaces this misconfiguration once
+ * (see server/storageDoctor.ts) rather than warning on every request.
  */
 export const getPublicUrl = (key: string): string => {
   if (!s3Config) {
@@ -158,18 +139,43 @@ export const getPublicUrl = (key: string): string => {
     return `${base}/${key}`;
   }
 
-  if (s3Config.endpoint) {
-    // Custom endpoint without S3_PUBLIC_URL is ambiguous — the URL format
-    // varies between MinIO, Cloudflare R2, and other services.
-    console.warn(
-      "[S3] S3_PUBLIC_URL is not set but a custom S3_ENDPOINT is configured. " +
-        "Public image URLs may not resolve correctly. Set S3_PUBLIC_URL to the " +
-        "public base URL of your bucket or CDN."
-    );
+  // Standard AWS virtual-hosted-style URL. When a custom endpoint is set
+  // without S3_PUBLIC_URL this is ambiguous, but the storage doctor already
+  // warns about that case at startup instead of on every request.
+  return `https://${s3Config.bucket}.s3.${s3Config.region}.amazonaws.com/${key}`;
+};
+
+/**
+ * Best-effort reachability probe used by the startup storage doctor.
+ * Sends a HeadBucket request with a hard timeout so a hung endpoint cannot
+ * stall startup. Never throws — resolves with `{ ok: false, error }` on any
+ * failure so the caller can render a non-fatal warning.
+ */
+export const checkBucketReachable = async (
+  timeoutMs = 3000
+): Promise<{ ok: true } | { ok: false; error: string }> => {
+  if (!s3Client || !s3Config) {
+    return { ok: false, error: "S3 is not configured" };
   }
 
-  // Standard AWS virtual-hosted-style URL.
-  return `https://${s3Config.bucket}.s3.${s3Config.region}.amazonaws.com/${key}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    await s3Client.send(new HeadBucketCommand({ Bucket: s3Config.bucket }), {
+      abortSignal: controller.signal,
+    });
+    return { ok: true };
+  } catch (error) {
+    const message =
+      controller.signal.aborted
+        ? `timed out after ${timeoutMs}ms`
+        : error instanceof Error
+          ? error.message
+          : String(error);
+    return { ok: false, error: message };
+  } finally {
+    clearTimeout(timer);
+  }
 };
 
 /**

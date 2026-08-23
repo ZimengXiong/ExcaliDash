@@ -1,5 +1,5 @@
 .PHONY: help install dev build test test-frontend test-backend test-e2e test-e2e-docker \
-        lint lint-frontend lint-backend clean docker-build docker-run docker-down docker-logs \
+        lint lint-frontend lint-backend check clean docker-build docker-run docker-down docker-logs \
         lab-build lab-up lab-down lab-reset lab-status lab-logs lab-smoke lab-open \
         release pre-release version-bump changelog changelog-open changelog-keep db-migrate db-reset
 
@@ -117,6 +117,12 @@ lint-frontend: ## Run frontend linter
 
 lint-backend: ## Run backend linter (if available)
 	@echo "Backend linting not configured"
+
+check: ## Run repo checks (max source line count + env boundary)
+	@echo "Running repo checks..."
+	cd backend && npm run check:max-lines
+	cd backend && npm run check:env-boundary
+	@echo "Repo checks passed."
 
 clean: ## Clean build artifacts and node_modules
 	@echo "Cleaning build artifacts..."

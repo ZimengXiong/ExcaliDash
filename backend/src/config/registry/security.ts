@@ -1,0 +1,62 @@
+import type { EnvVarSpec } from "./types";
+
+export const securityEnv: readonly EnvVarSpec[] = [
+  {
+    name: "CSRF_SECRET",
+    group: "Security",
+    kind: "string",
+    secret: true,
+    requiredInProduction: true,
+    doc: "Secret used to sign CSRF tokens; a dev fallback is derived when unset.",
+  },
+  {
+    name: "CSRF_MAX_REQUESTS",
+    group: "Security",
+    kind: "number",
+    default: "60",
+    doc: "Maximum CSRF-token issuances per rate-limit window.",
+  },
+  {
+    name: "RATE_LIMIT_MAX_REQUESTS",
+    group: "Security",
+    kind: "number",
+    default: "1000",
+    doc: "Maximum general API requests per rate-limit window.",
+  },
+  {
+    name: "RATE_LIMIT_WINDOW_MS",
+    group: "Security",
+    kind: "number",
+    default: "900000",
+    doc: "General API rate-limit window in milliseconds (default 15 minutes); pairs with RATE_LIMIT_MAX_REQUESTS.",
+  },
+  {
+    name: "CSRF_RATE_LIMIT_WINDOW_MS",
+    group: "Security",
+    kind: "number",
+    default: "60000",
+    doc: "CSRF-token issuance rate-limit window in milliseconds (default 1 minute); pairs with CSRF_MAX_REQUESTS.",
+  },
+
+  {
+    name: "ENFORCE_HTTPS_REDIRECT",
+    group: "Security",
+    kind: "boolean",
+    default: "true",
+    doc: "Redirect HTTP requests to HTTPS when a secure origin is detected.",
+  },
+  {
+    name: "API_KEY_HASH_PEPPER",
+    group: "Security",
+    kind: "string",
+    secret: true,
+    doc: "Pepper mixed into API-key hashes; set before creating keys (see docs).",
+  },
+  {
+    name: "DEBUG_CSRF",
+    group: "Security",
+    kind: "boolean",
+    default: "false",
+    doc: "Enable verbose CSRF debug logging.",
+  },
+];

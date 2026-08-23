@@ -67,10 +67,3 @@ export const compareSemver = (a: ParsedSemver, b: ParsedSemver): number => {
 
   return 0;
 };
-
-export const isSemverGreater = (aRaw: string, bRaw: string): boolean | null => {
-  const a = parseSemver(aRaw);
-  const b = parseSemver(bRaw);
-  if (!a || !b) return null;
-  return compareSemver(a, b) > 0;
-};

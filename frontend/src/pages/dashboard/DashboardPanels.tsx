@@ -111,6 +111,7 @@ type DrawingsGridProps = {
   onToggleSelection: (id: string, event: React.MouseEvent) => void;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
+  onHide: (id: string) => void;
   onDuplicate: (id: string) => void;
   onMoveToCollection: (id: string, collectionId: string | null) => void;
   onOpenDrawing: (id: string) => void;
@@ -134,6 +135,7 @@ export const DrawingsGrid: React.FC<DrawingsGridProps> = ({
   onToggleSelection,
   onRename,
   onDelete,
+  onHide,
   onDuplicate,
   onMoveToCollection,
   onOpenDrawing,
@@ -208,6 +210,7 @@ export const DrawingsGrid: React.FC<DrawingsGridProps> = ({
               }
               onRename={onRename}
               onDelete={onDelete}
+              onHide={isSharedView ? onHide : undefined}
               onDuplicate={onDuplicate}
               onMoveToCollection={onMoveToCollection}
               onClick={(id, event) => {

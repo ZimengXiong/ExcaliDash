@@ -84,8 +84,6 @@ const COLORS = [
   "#f43f5e",
 ];
 
-const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
 const hashString = (input: string): number => {
   let hash = 0x811c9dc5;
   for (let i = 0; i < input.length; i += 1) {
@@ -146,20 +144,12 @@ const generateClientId = (): string => {
   return `id-${hashString(entropy).toString(16)}-${hashString(`${entropy}:2`).toString(16)}`;
 };
 
-export const getOrCreateBrowserFingerprint = (): string => {
+const getOrCreateBrowserFingerprint = (): string => {
   const existing = localStorage.getItem(DEVICE_ID_KEY);
   if (existing) return existing;
   const generated = generateClientId();
   localStorage.setItem(DEVICE_ID_KEY, generated);
   return generated;
-};
-
-export const getFingerprintInitials = (seed?: string): string => {
-  const fingerprint = seed || getOrCreateBrowserFingerprint();
-  const hash = hashString(fingerprint);
-  const first = ALPHABET[hash % ALPHABET.length];
-  const second = ALPHABET[Math.floor(hash / ALPHABET.length) % ALPHABET.length];
-  return `${first}${second}`;
 };
 
 export const getUserIdentity = (): UserIdentity => {
