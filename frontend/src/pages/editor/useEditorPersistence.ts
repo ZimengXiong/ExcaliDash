@@ -129,6 +129,7 @@ export const useEditorPersistence = ({
         return;
       }
       let persistableFiles = files ?? refs.latestFiles.current ?? {};
+      const editorFilesBeforeCompression = persistableFiles;
       const compressedFilesResult =
         await compressExcalidrawFiles(persistableFiles);
       if (compressedFilesResult.changed) {
@@ -147,7 +148,10 @@ export const useEditorPersistence = ({
           }
         }
         refs.latestFiles.current = persistableFiles;
-        refs.lastSyncedFiles.current = persistableFiles;
+        // Excalidraw may retain the original blob when addFiles receives an
+        // existing content-derived ID, so compare realtime changes against
+        // the file map that is still in the editor.
+        refs.lastSyncedFiles.current = editorFilesBeforeCompression;
       }
       // Swap inline bytes for a ref on any file already uploaded out-of-band so
       // the PUT ships KB, not MB. Files not yet uploaded keep their inline
