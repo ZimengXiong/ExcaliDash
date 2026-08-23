@@ -1,8 +1,8 @@
-# ExcaliDash 0.7.0-dev
+# ExcaliDash 0.6.1-dev
 
 Release date: August 23, 2026
 
-This prerelease combines the stable `0.6.0` foundation with the redesigned interface, canvas assistant, and drawing agent API. It is intended for release-candidate testing before `0.7.0`.
+This prerelease combines the stable `0.6.0` foundation with the redesigned interface, canvas assistant, and drawing agent API. It is intended for release-candidate testing before `0.6.1`.
 
 ## Highlights
 
