@@ -24,10 +24,6 @@ import {
 
 const DOWNLOAD_EXPIRES_IN = 3600; // 1 hour   – cached by browser
 
-/** Loose guard: drawingId / fileId must be safe, path-traversal-free identifiers. */
-const isValidIdSegment = (value: string): boolean =>
-  /^[\w-]{1,200}$/.test(value);
-
 export type FileRouteDeps = {
   prisma: PrismaClient;
   requireAuth: express.RequestHandler;
@@ -105,12 +101,17 @@ export const registerFileRoutes = (
       const userId = req.user?.id;
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-      const { drawingId, fileId } = req.params;
+      const drawingId = req.params.drawingId;
+      const fileId = req.params.fileId;
       if (
         typeof drawingId !== "string" ||
-        typeof fileId !== "string" ||
-        !isValidIdSegment(drawingId) ||
-        !isValidIdSegment(fileId)
+        typeof fileId !== "string"
+      ) {
+        return res.status(400).json({ error: "Invalid id segment" });
+      }
+      if (
+        !/^[\w-]{1,200}$/.test(drawingId) ||
+        !/^[\w-]{1,200}$/.test(fileId)
       ) {
         return res.status(400).json({ error: "Invalid id segment" });
       }
@@ -218,12 +219,17 @@ export const registerFileRoutes = (
     "/files/:drawingId/:fileId",
     optionalAuth,
     asyncHandler(async (req, res) => {
-      const { drawingId, fileId } = req.params;
+      const drawingId = req.params.drawingId;
+      const fileId = req.params.fileId;
       if (
         typeof drawingId !== "string" ||
-        typeof fileId !== "string" ||
-        !isValidIdSegment(drawingId) ||
-        !isValidIdSegment(fileId)
+        typeof fileId !== "string"
+      ) {
+        return res.status(400).json({ error: "Invalid id segment" });
+      }
+      if (
+        !/^[\w-]{1,200}$/.test(drawingId) ||
+        !/^[\w-]{1,200}$/.test(fileId)
       ) {
         return res.status(400).json({ error: "Invalid id segment" });
       }
