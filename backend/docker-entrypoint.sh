@@ -50,6 +50,26 @@ fi
 
 export CSRF_SECRET
 
+# Docker secrets can provide the confidential OIDC client secret without
+# exposing it directly in the container environment.
+if [ -n "${OIDC_CLIENT_SECRET_FILE:-}" ]; then
+    if [ -n "${OIDC_CLIENT_SECRET:-}" ]; then
+        echo "ERROR: Both OIDC_CLIENT_SECRET and OIDC_CLIENT_SECRET_FILE are set. Use only one." >&2
+        exit 1
+    fi
+    if [ ! -r "${OIDC_CLIENT_SECRET_FILE}" ]; then
+        echo "ERROR: OIDC_CLIENT_SECRET_FILE is not readable: ${OIDC_CLIENT_SECRET_FILE}" >&2
+        exit 1
+    fi
+
+    OIDC_CLIENT_SECRET="$(tr -d '\r\n' < "${OIDC_CLIENT_SECRET_FILE}")"
+    if [ -z "${OIDC_CLIENT_SECRET}" ]; then
+        echo "ERROR: OIDC_CLIENT_SECRET_FILE is empty: ${OIDC_CLIENT_SECRET_FILE}" >&2
+        exit 1
+    fi
+    export OIDC_CLIENT_SECRET
+fi
+
 # Set default DATABASE_PROVIDER if not set
 if [ -z "${DATABASE_PROVIDER:-}" ]; then
     echo "DATABASE_PROVIDER not set, defaulting to sqlite"
