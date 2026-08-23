@@ -25,8 +25,8 @@ import {
 const DOWNLOAD_EXPIRES_IN = 3600; // 1 hour   – cached by browser
 
 /** Loose guard: drawingId / fileId must be safe, path-traversal-free identifiers. */
-const isValidIdSegment = (value: unknown): value is string =>
-  typeof value === "string" && /^[\w-]{1,200}$/.test(value);
+const isValidIdSegment = (value: string): boolean =>
+  /^[\w-]{1,200}$/.test(value);
 
 export type FileRouteDeps = {
   prisma: PrismaClient;
@@ -106,7 +106,12 @@ export const registerFileRoutes = (
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
       const { drawingId, fileId } = req.params;
-      if (!isValidIdSegment(drawingId) || !isValidIdSegment(fileId)) {
+      if (
+        typeof drawingId !== "string" ||
+        typeof fileId !== "string" ||
+        !isValidIdSegment(drawingId) ||
+        !isValidIdSegment(fileId)
+      ) {
         return res.status(400).json({ error: "Invalid id segment" });
       }
 
@@ -214,7 +219,12 @@ export const registerFileRoutes = (
     optionalAuth,
     asyncHandler(async (req, res) => {
       const { drawingId, fileId } = req.params;
-      if (!isValidIdSegment(drawingId) || !isValidIdSegment(fileId)) {
+      if (
+        typeof drawingId !== "string" ||
+        typeof fileId !== "string" ||
+        !isValidIdSegment(drawingId) ||
+        !isValidIdSegment(fileId)
+      ) {
         return res.status(400).json({ error: "Invalid id segment" });
       }
 
