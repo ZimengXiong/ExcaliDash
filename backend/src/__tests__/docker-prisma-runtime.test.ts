@@ -28,4 +28,13 @@ describe("Docker Prisma client startup", () => {
     );
     expect(entrypoint).not.toMatch(/npx\s+prisma\s+generate/);
   });
+
+  it("starts as a non-root user without unconditional privileged operations", () => {
+    expect(dockerfile).toMatch(/^USER nodejs$/m);
+    expect(dockerfile).toContain("chown nodejs:nodejs /app/dist");
+    expect(dockerfile).toContain("/app/uploads /app/prisma /app/dist/generated");
+    expect(entrypoint).toContain('if [ "$(id -u)" -eq 0 ]; then');
+    expect(entrypoint).not.toContain("Fix permissions unconditionally");
+    expect(entrypoint).toContain("run_as_app_user npx prisma migrate deploy");
+  });
 });

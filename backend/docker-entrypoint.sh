@@ -7,6 +7,14 @@ MIGRATION_LOCK_DIR="/app/prisma/.migration-lock"
 MIGRATION_LOCK_TIMEOUT_SECONDS="${MIGRATION_LOCK_TIMEOUT_SECONDS:-120}"
 RUN_MIGRATIONS="${RUN_MIGRATIONS:-true}"
 
+run_as_app_user() {
+    if [ "$(id -u)" -eq 0 ]; then
+        su-exec nodejs "$@"
+    else
+        "$@"
+    fi
+}
+
 # Ensure JWT secret exists for production startup.
 # Backward compatibility: older installs may not have JWT_SECRET configured.
 if [ -z "${JWT_SECRET:-}" ]; then
@@ -111,9 +119,13 @@ rm -rf /app/dist/generated
 mkdir -p /app/dist/generated
 cp -R "${PRISMA_CLIENT_SOURCE}/." /app/dist/generated/
 
-# 2. Fix permissions unconditionally (Running as root)
-echo "Fixing filesystem permissions..."
-chown -R nodejs:nodejs /app/uploads /app/prisma /app/dist/generated
+# An explicit root override remains compatible with existing root-owned
+# volumes. Normal image startup is already UID 1001 and never calls chown.
+if [ "$(id -u)" -eq 0 ]; then
+    echo "Fixing filesystem permissions..."
+    chown -R nodejs:nodejs /app/uploads /app/prisma /app/dist/generated
+fi
+
 chmod 755 /app/uploads
 chmod -R 755 /app/dist/generated
 chmod 600 "${JWT_SECRET_FILE}"
@@ -147,7 +159,7 @@ if [ "${RUN_MIGRATIONS}" = "true" ] || [ "${RUN_MIGRATIONS}" = "1" ]; then
     # Best-effort cleanup so future startups don't block forever.
     trap 'rmdir "${MIGRATION_LOCK_DIR}" 2>/dev/null || true' EXIT INT TERM
 
-    su-exec nodejs npx prisma migrate deploy
+    run_as_app_user npx prisma migrate deploy
 
     rmdir "${MIGRATION_LOCK_DIR}" 2>/dev/null || true
     trap - EXIT INT TERM
@@ -155,6 +167,11 @@ else
     echo "Skipping database migrations (RUN_MIGRATIONS=${RUN_MIGRATIONS})"
 fi
 
-# 4. Start Application (Drop privileges to nodejs)
-echo "Starting application as nodejs..."
-exec su-exec nodejs node dist/index.js
+# 4. Start Application
+if [ "$(id -u)" -eq 0 ]; then
+    echo "Starting application as nodejs..."
+    exec su-exec nodejs node dist/index.js
+fi
+
+echo "Starting application as uid $(id -u)..."
+exec node dist/index.js

@@ -57,7 +57,7 @@ services:
       dockerfile: frontend/Dockerfile
     container_name: excalidash-frontend
     ports:
-      - "6767:80"
+      - "6767:8080"
     environment:
       # Backend URL for nginx proxy (host:port format, no protocol)
       # Override for reverse proxy setups (e.g., excalidash-backend.svc.cluster.local:8000)
@@ -76,7 +76,7 @@ services:
           "--quiet",
           "--tries=1",
           "--spider",
-          "http://127.0.0.1:80",
+          "http://127.0.0.1:8080",
         ]
       interval: 30s
       timeout: 10s

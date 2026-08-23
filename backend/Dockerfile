@@ -71,14 +71,17 @@ COPY --from=builder /app/dist ./dist
 # entrypoint selects one without invoking Prisma's generator at runtime.
 COPY --from=builder /app/prisma_clients ./prisma_clients
 
-# Create necessary directories (ownership will be set in entrypoint)
-RUN mkdir -p /app/uploads /app/prisma
+# Prepare runtime-writable paths before dropping privileges. Named volumes
+# inherit this ownership on first use; bind mounts must be writable by UID 1001.
+RUN mkdir -p /app/uploads /app/prisma /app/dist/generated && \
+    chown nodejs:nodejs /app/dist && \
+    chown -R nodejs:nodejs /app/uploads /app/prisma /app/dist/generated
 
 # Copy and set permissions for entrypoint script
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
-# REMOVED: USER nodejs (We must stay root to fix permissions in entrypoint)
+USER nodejs
 
 EXPOSE 8000
 

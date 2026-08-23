@@ -22,8 +22,7 @@ services:
       - DATABASE_URL=file:/app/prisma/e2e-test.db
       - PORT=8000
       - NODE_ENV=test
-      # Include both with and without :80 because browsers omit default ports in Origin.
-      - FRONTEND_URL=http://frontend,http://frontend:80,http://localhost:5173
+      - FRONTEND_URL=http://frontend:8080,http://localhost:5173
     ports:
       - "8000:8000"
     healthcheck:
@@ -44,13 +43,13 @@ services:
       context: ..
       dockerfile: frontend/Dockerfile
     ports:
-      - "5173:80"
+      - "5173:8080"
     depends_on:
       backend:
         condition: service_healthy
     healthcheck:
       # Use IPv4 loopback explicitly to avoid IPv6 localhost resolution issues.
-      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:80"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -69,7 +68,7 @@ services:
       backend:
         condition: service_healthy
     environment:
-      - BASE_URL=http://frontend:80
+      - BASE_URL=http://frontend:8080
       - API_URL=http://backend:8000
       - NO_SERVER=true
       - CI=true

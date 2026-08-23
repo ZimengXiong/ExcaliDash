@@ -54,7 +54,7 @@ services:
     image: zimengxiong/excalidash-frontend:latest
     container_name: excalidash-frontend
     ports:
-      - "6767:80"
+      - "6767:8080"
     depends_on:
       - backend
     networks:
@@ -69,7 +69,7 @@ services:
           "--quiet",
           "--tries=1",
           "--spider",
-          "http://127.0.0.1:80",
+          "http://127.0.0.1:8080",
         ]
       interval: 30s
       timeout: 10s
