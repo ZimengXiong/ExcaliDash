@@ -103,10 +103,10 @@ export const registerFileRoutes = (
 
       const drawingId = req.params.drawingId;
       const fileId = req.params.fileId;
-      if (
-        typeof drawingId !== "string" ||
-        typeof fileId !== "string"
-      ) {
+      if (typeof drawingId !== "string") {
+        return res.status(400).json({ error: "Invalid id segment" });
+      }
+      if (typeof fileId !== "string") {
         return res.status(400).json({ error: "Invalid id segment" });
       }
       if (
@@ -221,10 +221,10 @@ export const registerFileRoutes = (
     asyncHandler(async (req, res) => {
       const drawingId = req.params.drawingId;
       const fileId = req.params.fileId;
-      if (
-        typeof drawingId !== "string" ||
-        typeof fileId !== "string"
-      ) {
+      if (typeof drawingId !== "string") {
+        return res.status(400).json({ error: "Invalid id segment" });
+      }
+      if (typeof fileId !== "string") {
         return res.status(400).json({ error: "Invalid id segment" });
       }
       if (
