@@ -31,7 +31,7 @@ export const registerAccountPasswordResetRoutes = (
         ? configuredOrigin
         : `http://${configuredOrigin}`
       : "http://localhost:6767";
-    return `${origin.replace(/\/$/, "")}/reset-password-confirm?token=${token}`;
+    return `${origin.replace(/\/$/, "")}/reset-password-confirm#token=${encodeURIComponent(token)}`;
   };
 
   router.get("/password-reset-capability", (_req: Request, res: Response) => {
@@ -65,9 +65,19 @@ export const registerAccountPasswordResetRoutes = (
       }
 
       const { email } = parsed.data;
-      const user = await prisma.user.findUnique({ where: { email } });
+      const ipAddress = req.ip || req.connection.remoteAddress || undefined;
+      const userAgent = req.headers["user-agent"] || undefined;
+      const response = res.json({
+        message: "If an account with that email exists, a password reset link has been sent.",
+      });
 
-      if (user && user.isActive && canUseLocalPasswordFlows(user)) {
+      // Perform lookup, token creation, and delivery only after the neutral
+      // response has been sent. Otherwise database and mail latency reveal
+      // whether the address belongs to an active local account.
+      void (async () => {
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user || !user.isActive || !canUseLocalPasswordFlows(user)) return;
+
         const resetToken = crypto.randomBytes(32).toString("hex");
         const expiresAt = new Date();
         expiresAt.setHours(expiresAt.getHours() + 1);
@@ -76,7 +86,6 @@ export const registerAccountPasswordResetRoutes = (
           where: { userId: user.id, used: false },
           data: { used: true },
         });
-
         await prisma.passwordResetToken.create({
           data: { userId: user.id, token: hashTokenForStorage(resetToken), expiresAt },
         });
@@ -85,8 +94,8 @@ export const registerAccountPasswordResetRoutes = (
           await logAuditEvent({
             userId: user.id,
             action: "password_reset_requested",
-            ipAddress: req.ip || req.connection.remoteAddress || undefined,
-            userAgent: req.headers["user-agent"] || undefined,
+            ipAddress,
+            userAgent,
           });
         }
 
@@ -95,31 +104,26 @@ export const registerAccountPasswordResetRoutes = (
           console.log(`[DEV] Password reset token for ${email}: ${resetToken}`);
           console.log(`[DEV] Reset URL: ${resetUrl}`);
         }
+        if (!mailer?.enabled) return;
 
-        if (mailer?.enabled) {
-          const message = buildPasswordResetEmail({
-            resetUrl,
-            expiresInMinutes: 60,
-          });
-          try {
-            const result = await mailer.send({
-              to: email,
-              ...message,
-              idempotencyKey: `password-reset/${crypto.randomUUID()}`,
-            });
-            if (result.delivered === false) {
-              console.error(`[mail] Password reset email was not delivered: ${result.reason}`);
-            }
-          } catch (error) {
-            const reason = error instanceof Error ? error.message : String(error);
-            console.error(`[mail] Password reset delivery failed: ${reason}`);
-          }
+        const message = buildPasswordResetEmail({
+          resetUrl,
+          expiresInMinutes: 60,
+        });
+        const result = await mailer.send({
+          to: email,
+          ...message,
+          idempotencyKey: `password-reset/${crypto.randomUUID()}`,
+        });
+        if (result.delivered === false) {
+          console.error(`[mail] Password reset email was not delivered: ${result.reason}`);
         }
-      }
-
-      return res.json({
-        message: "If an account with that email exists, a password reset link has been sent.",
+      })().catch((error) => {
+        const reason = error instanceof Error ? error.message : String(error);
+        console.error(`[mail] Password reset processing failed: ${reason}`);
       });
+
+      return response;
     } catch (error) {
       console.error("Password reset request error:", error);
       return res.status(500).json({

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect, useLayoutEffect, useMemo } from 'react';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { Logo } from '../components/Logo';
 import { authPasswordResetConfirm, isAxiosError } from '../api';
 import { getPasswordPolicy, validatePassword } from '../utils/passwordPolicy';
@@ -8,9 +8,26 @@ import { PasswordInput } from '../components/PasswordInput';
 import { PasswordMatch } from '../components/PasswordMatch';
 
 export const PasswordResetConfirm: React.FC = () => {
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
-  const token = searchParams.get('token');
+  const token = useMemo(() => {
+    const fragmentParams = new URLSearchParams(location.hash.replace(/^#/, ''));
+    return fragmentParams.get('token') ?? new URLSearchParams(location.search).get('token');
+  }, [location.hash, location.search]);
+
+  useLayoutEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const fragmentParams = new URLSearchParams(location.hash.replace(/^#/, ''));
+    const hadToken = searchParams.has('token') || fragmentParams.has('token');
+    if (!hadToken) return;
+    searchParams.delete('token');
+    fragmentParams.delete('token');
+
+    const safeSearch = searchParams.toString();
+    const safeFragment = fragmentParams.toString();
+    const safeUrl = `${location.pathname}${safeSearch ? `?${safeSearch}` : ''}${safeFragment ? `#${safeFragment}` : ''}`;
+    window.history.replaceState(window.history.state, '', safeUrl);
+  }, [location.hash, location.pathname, location.search]);
   
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');

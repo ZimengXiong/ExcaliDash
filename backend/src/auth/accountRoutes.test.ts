@@ -88,6 +88,7 @@ describe("accountRoutes local-password safeguards", () => {
       .send({ email: "invitee@example.com" });
 
     expect(response.status).toBe(200);
+    await vi.waitFor(() => expect(prisma.user.findUnique).toHaveBeenCalled());
     expect(prisma.passwordResetToken.create).not.toHaveBeenCalled();
     expect(prisma.passwordResetToken.updateMany).not.toHaveBeenCalled();
   });
@@ -106,8 +107,10 @@ describe("accountRoutes local-password safeguards", () => {
       .send({ email: "local@example.com" });
 
     expect(response.status).toBe(200);
+    await vi.waitFor(() =>
+      expect(prisma.passwordResetToken.create).toHaveBeenCalledTimes(1),
+    );
     expect(prisma.passwordResetToken.updateMany).toHaveBeenCalledTimes(1);
-    expect(prisma.passwordResetToken.create).toHaveBeenCalledTimes(1);
   });
 
   it("rejects password reset confirmation for accounts without a local password", async () => {
@@ -262,11 +265,66 @@ describe("password reset delivery", () => {
       .send({ email: localUser.email });
 
     expect(response.status).toBe(200);
-    expect(mailer.send).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(mailer.send).toHaveBeenCalledTimes(1));
     expect(mailer.send.mock.calls[0][0]).toMatchObject({
       to: localUser.email,
       subject: expect.stringMatching(/reset/i),
       idempotencyKey: expect.stringMatching(/^password-reset\//),
+    });
+    expect(mailer.send.mock.calls[0][0].text).toContain(
+      "http://localhost:6767/reset-password-confirm#token=",
+    );
+    expect(mailer.send.mock.calls[0][0].text).not.toContain("?token=");
+  });
+
+  it("does not wait for reset email delivery", async () => {
+    let finishDelivery: ((value: { delivered: true; id: string }) => void) | undefined;
+    const mailer = {
+      enabled: true,
+      send: vi.fn().mockImplementation(() => new Promise((resolve) => {
+        finishDelivery = resolve;
+      })),
+    };
+    const { app, prisma } = buildApp({ mailer });
+    prisma.user.findUnique.mockResolvedValue(localUser);
+    prisma.passwordResetToken.updateMany.mockResolvedValue({ count: 0 });
+    prisma.passwordResetToken.create.mockResolvedValue({});
+
+    const response = await request(app)
+      .post("/password-reset-request")
+      .send({ email: localUser.email });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      message: "If an account with that email exists, a password reset link has been sent.",
+    });
+    await vi.waitFor(() => expect(mailer.send).toHaveBeenCalledTimes(1));
+    expect(finishDelivery).toBeTypeOf("function");
+    finishDelivery?.({ delivered: true, id: "mail-delayed" });
+  });
+
+  it("returns the same neutral response for known and unknown accounts", async () => {
+    const mailer = {
+      enabled: true,
+      send: vi.fn().mockResolvedValue({ delivered: true, id: "mail-1" }),
+    };
+    const known = buildApp({ mailer });
+    known.prisma.user.findUnique.mockResolvedValue(localUser);
+    known.prisma.passwordResetToken.updateMany.mockResolvedValue({ count: 0 });
+    known.prisma.passwordResetToken.create.mockResolvedValue({});
+    const unknown = buildApp({ mailer });
+    unknown.prisma.user.findUnique.mockResolvedValue(null);
+
+    const knownResponse = await request(known.app)
+      .post("/password-reset-request")
+      .send({ email: localUser.email });
+    const unknownResponse = await request(unknown.app)
+      .post("/password-reset-request")
+      .send({ email: "missing@example.com" });
+
+    expect({ status: knownResponse.status, body: knownResponse.body }).toEqual({
+      status: unknownResponse.status,
+      body: unknownResponse.body,
     });
   });
 
@@ -280,6 +338,7 @@ describe("password reset delivery", () => {
   });
 
   it("keeps the response neutral when a mail transport rejects", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const mailer = {
       enabled: true,
       send: vi.fn().mockRejectedValue(new Error("transport offline")),
@@ -295,5 +354,9 @@ describe("password reset delivery", () => {
 
     expect(response.status).toBe(200);
     expect(response.body.message).toMatch(/if an account/i);
+    await vi.waitFor(() => expect(mailer.send).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(consoleError).toHaveBeenCalledWith(
+      "[mail] Password reset processing failed: transport offline",
+    ));
   });
 });
