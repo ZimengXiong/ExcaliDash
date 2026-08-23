@@ -320,6 +320,25 @@ export const UIOptions = {
   },
 } as const;
 
+/**
+ * Allow user-selected web embeds without permitting scriptable or local URL
+ * schemes. Excalidraw otherwise falls back to its short built-in domain list,
+ * which makes the generic Web Embed tool reject most websites.
+ */
+export const validateEmbeddableUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === "https:" || url.protocol === "http:") &&
+      url.hostname.length > 0 &&
+      url.username === "" &&
+      url.password === ""
+    );
+  } catch {
+    return false;
+  }
+};
+
 export { getInitialsFromName } from "../../utils/user";
 
 export const getColorFromString = (str: string): string => {

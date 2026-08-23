@@ -6,9 +6,22 @@ import {
   isSuspiciousEmptySnapshot,
   isStaleEmptySnapshot,
   isStaleNonRenderableSnapshot,
+  validateEmbeddableUrl,
 } from "./shared";
 
 describe("editor/shared scene guards", () => {
+  it("accepts HTTP(S) web embeds outside Excalidraw's built-in domain list", () => {
+    expect(validateEmbeddableUrl("https://example.com/embed/123")).toBe(true);
+    expect(validateEmbeddableUrl("http://localhost:3000/dashboard")).toBe(true);
+  });
+
+  it("rejects malformed, credentialed, and non-web embed URLs", () => {
+    expect(validateEmbeddableUrl("not a URL")).toBe(false);
+    expect(validateEmbeddableUrl("javascript:alert(1)")).toBe(false);
+    expect(validateEmbeddableUrl("data:text/html,<script>alert(1)</script>")).toBe(false);
+    expect(validateEmbeddableUrl("https://user:password@example.com")).toBe(false);
+  });
+
   it("detects renderable elements", () => {
     expect(hasRenderableElements([{ id: "a", isDeleted: false }])).toBe(true);
     expect(

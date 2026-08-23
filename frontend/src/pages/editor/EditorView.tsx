@@ -19,7 +19,7 @@ import { GridStepSelector } from "../../components/GridStepSelector";
 import { ShareModal } from "../../components/ShareModal";
 import { UserAvatar as ProfileAvatar } from "../../components/UserAvatar";
 import type { UserIdentity } from "../../utils/identity";
-import { UIOptions } from "./shared";
+import { UIOptions, validateEmbeddableUrl } from "./shared";
 
 interface Peer extends UserIdentity {
   isActive: boolean;
@@ -290,6 +290,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
           onLibraryChange={onLibraryChange}
           excalidrawAPI={onSetExcalidrawAPI}
           UIOptions={UIOptions}
+          validateEmbeddable={validateEmbeddableUrl}
           viewModeEnabled={!canEdit || isHistoryOpen}
         >
           <MainMenu>
