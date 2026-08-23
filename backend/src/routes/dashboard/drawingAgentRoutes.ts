@@ -7,11 +7,8 @@ import {
   getDrawingAccess,
 } from "../../authz/sharing";
 import { sanitizeDrawingData } from "../../security";
-import {
-  applyOps,
-  type ApplyOpsSuccess,
-  type ApplyOpsContext,
-} from "../../agent/applyOps";
+import { applyOps, type ApplyOpsSuccess } from "../../agent/applyOps";
+import { prepareFailed, prepareOpsContext } from "../../agent/prepareOps";
 import { opsBatchSchema, type OpError } from "../../agent/opSchemas";
 import { buildStructuralSummary, summarizeElements } from "../../agent/summary";
 import { applySceneUpdateTx, isVersionConflict } from "./sceneUpdate";
@@ -83,22 +80,20 @@ export const registerDrawingAgentRoutes = (
       }
       const { ops, clientBatchId } = parsed.data;
 
-      // revert_to_snapshot needs the pre-image; fetch every referenced snapshot
-      // up front so the applier stays synchronous inside the tx.
-      const ctx: ApplyOpsContext = {};
-      const revertVersions = ops
-        .filter((op) => op.op === "revert_to_snapshot")
-        .map((op) => (op as { version: number }).version);
-      if (revertVersions.length > 0) {
+      // Snapshots and layouts are prepared before the transaction: the applier
+      // stays synchronous inside it, and a slow solve never holds the write lock.
+      const prepared = await prepareOpsContext(ops, async (versions) => {
         const snaps = await prisma.drawingSnapshot.findMany({
-          where: { drawingId: id, version: { in: revertVersions } },
+          where: { drawingId: id, version: { in: versions } },
         });
         const map = new Map<number, any[]>();
-        for (const snap of snaps) {
-          map.set(snap.version, parseJsonField(snap.elements, []));
-        }
-        ctx.snapshotElementsByVersion = map;
+        for (const snap of snaps) map.set(snap.version, parseJsonField(snap.elements, []));
+        return map;
+      });
+      if (prepareFailed(prepared)) {
+        return res.status(prepared.status).json(prepared.body);
       }
+      const ctx = (prepared as Extract<typeof prepared, { ok: true }>).ctx;
 
       let opsError: OpError[] | null = null;
       let applied: ApplyOpsSuccess | null = null;
