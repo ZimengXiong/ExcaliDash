@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { PenTool, Check, Clock } from "lucide-react";
 import type { DrawingSummary, Collection } from "../types";
 import { formatDistanceToNow } from "date-fns";
@@ -59,8 +59,37 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
   const [showStorageModal, setShowStorageModal] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+  const [shouldLoadPreview, setShouldLoadPreview] = useState(
+    Boolean(drawing.preview),
+  );
   const { previewSvg, hasEmbeddedImages, buildExportDrawing } =
-    useDrawingPreview(drawing, onPreviewGenerated);
+    useDrawingPreview(drawing, onPreviewGenerated, shouldLoadPreview);
+
+  useEffect(() => {
+    if (drawing.preview) {
+      setShouldLoadPreview(true);
+      return;
+    }
+
+    setShouldLoadPreview(false);
+    const container = previewContainerRef.current;
+    if (!container || typeof IntersectionObserver === "undefined") {
+      setShouldLoadPreview(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return;
+        setShouldLoadPreview(true);
+        observer.disconnect();
+      },
+      { rootMargin: "320px 0px" },
+    );
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [drawing.id, drawing.preview]);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,6 +194,7 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
         </div>
 
         <div
+          ref={previewContainerRef}
           onClick={(e) => !isTrash && onClick(drawing.id, e)}
           className={clsx(
             "aspect-[16/10] bg-slate-50 dark:bg-neutral-800/30 relative overflow-hidden flex items-center justify-center border-b-2 border-slate-800 dark:border-neutral-700 rounded-t-xl transition-colors",

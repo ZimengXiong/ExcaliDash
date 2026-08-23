@@ -38,6 +38,7 @@ const normalizeImageElementsForPreview = (
 export const useDrawingPreview = (
   drawing: DrawingSummary,
   onPreviewGenerated?: (id: string, preview: string) => void,
+  loadPreview = true,
 ) => {
   const [previewSvg, setPreviewSvg] = useState<string | null>(
     drawing.preview ?? null,
@@ -86,8 +87,11 @@ export const useDrawingPreview = (
 
   useEffect(() => {
     let cancelled = false;
+    setPreviewSvg(drawing.preview ?? null);
     if (drawing.preview) {
-      setPreviewSvg(drawing.preview);
+      return;
+    }
+    if (!loadPreview) {
       return;
     }
     const generatePreview = async () => {
@@ -143,7 +147,13 @@ export const useDrawingPreview = (
     return () => {
       cancelled = true;
     };
-  }, [drawing.id, drawing.preview, ensureFullData, onPreviewGenerated]);
+  }, [
+    drawing.id,
+    drawing.preview,
+    ensureFullData,
+    loadPreview,
+    onPreviewGenerated,
+  ]);
 
   const buildExportDrawing = useCallback(async (): Promise<Drawing> => {
     const data = await ensureFullData();

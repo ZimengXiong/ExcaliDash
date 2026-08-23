@@ -57,6 +57,28 @@ describe("useDrawingPreview", () => {
     expect(getDrawingMock).not.toHaveBeenCalled();
   });
 
+  it("defers network work until preview loading is enabled", async () => {
+    getDrawingPreviewMock.mockResolvedValue("<svg>stored</svg>");
+
+    const { result, rerender } = renderHook(
+      ({ loadPreview }) =>
+        useDrawingPreview(makeSummary(), undefined, loadPreview),
+      { initialProps: { loadPreview: false } },
+    );
+
+    expect(result.current.previewSvg).toBeNull();
+    expect(getDrawingPreviewMock).not.toHaveBeenCalled();
+    expect(getDrawingMock).not.toHaveBeenCalled();
+
+    rerender({ loadPreview: true });
+
+    await waitFor(() => {
+      expect(result.current.previewSvg).toBe("<svg>stored</svg>");
+    });
+    expect(getDrawingPreviewMock).toHaveBeenCalledTimes(1);
+    expect(getDrawingPreviewMock).toHaveBeenCalledWith("d1");
+  });
+
   it("falls back to full-data fetch when there is no stored preview", async () => {
     getDrawingPreviewMock.mockResolvedValue(null);
     getDrawingMock.mockResolvedValue({
