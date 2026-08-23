@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import type { NavigateFunction } from "react-router-dom";
 import * as api from "../../api";
 import type { Collection, DrawingSummary } from "../../types";
@@ -345,13 +345,13 @@ export const useDashboardDrawingActions = ({
     if (preview) event.dataTransfer.setDragImage(preview, 80, 50);
   };
 
-  const handlePreviewGenerated = (id: string, preview: string) => {
+  const handlePreviewGenerated = useCallback((id: string, preview: string) => {
     setDrawings((current) =>
       current.map((drawing) =>
         drawing.id === id ? { ...drawing, preview } : drawing,
       ),
     );
-  };
+  }, [setDrawings]);
 
   return {
     drawingToDelete,

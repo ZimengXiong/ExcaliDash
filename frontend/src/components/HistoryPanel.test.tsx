@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import * as api from "../api";
 import { HistoryPanel } from "./HistoryPanel";
@@ -123,5 +123,117 @@ describe("HistoryPanel", () => {
       );
       expect(onPreview).toHaveBeenCalledWith(null);
     });
+  });
+
+  it("ignores a snapshot response that arrives after the panel closes", async () => {
+    let resolveSnapshot!: (snapshot: api.DrawingSnapshotFull) => void;
+    const pendingSnapshot = new Promise<api.DrawingSnapshotFull>((resolve) => {
+      resolveSnapshot = resolve;
+    });
+    const snapshot = {
+      id: "snapshot-late",
+      drawingId: "drawing-1",
+      version: 5,
+      createdAt: "2026-07-28T06:45:11.000Z",
+      elements: [],
+      appState: {},
+      files: {},
+    };
+    vi.mocked(api.getDrawingHistory).mockResolvedValueOnce({
+      snapshots: [snapshot],
+      totalCount: 1,
+    });
+    vi.mocked(api.getDrawingSnapshot).mockReturnValueOnce(pendingSnapshot);
+    const onPreview = vi.fn();
+
+    const { rerender } = render(
+      <HistoryPanel
+        drawingId="drawing-1"
+        getCurrentVersion={() => 5}
+        isOpen
+        onClose={vi.fn()}
+        onRestore={vi.fn()}
+        onPreview={onPreview}
+      />,
+    );
+    fireEvent.click(await screen.findByText("Version 5"));
+
+    rerender(
+      <HistoryPanel
+        drawingId="drawing-1"
+        getCurrentVersion={() => 5}
+        isOpen={false}
+        onClose={vi.fn()}
+        onRestore={vi.fn()}
+        onPreview={onPreview}
+      />,
+    );
+    await act(async () => {
+      resolveSnapshot(snapshot);
+      await pendingSnapshot;
+    });
+
+    expect(onPreview).not.toHaveBeenCalledWith(snapshot);
+    expect(screen.queryByRole("dialog", { name: "Version history" })).toBeNull();
+  });
+
+  it("keeps the newest preview when snapshot responses arrive out of order", async () => {
+    let resolveFirst!: (snapshot: api.DrawingSnapshotFull) => void;
+    let resolveSecond!: (snapshot: api.DrawingSnapshotFull) => void;
+    const firstSnapshot = new Promise<api.DrawingSnapshotFull>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const secondSnapshot = new Promise<api.DrawingSnapshotFull>((resolve) => {
+      resolveSecond = resolve;
+    });
+    const snapshotA = {
+      id: "snapshot-a",
+      drawingId: "drawing-1",
+      version: 6,
+      createdAt: "2026-07-28T06:45:11.000Z",
+      elements: [],
+      appState: {},
+      files: {},
+    };
+    const snapshotB = {
+      ...snapshotA,
+      id: "snapshot-b",
+      version: 7,
+    };
+    vi.mocked(api.getDrawingHistory).mockResolvedValueOnce({
+      snapshots: [snapshotA, snapshotB],
+      totalCount: 2,
+    });
+    vi.mocked(api.getDrawingSnapshot).mockImplementation((_drawingId, id) =>
+      id === snapshotA.id ? firstSnapshot : secondSnapshot,
+    );
+    const onPreview = vi.fn();
+
+    render(
+      <HistoryPanel
+        drawingId="drawing-1"
+        getCurrentVersion={() => 7}
+        isOpen
+        onClose={vi.fn()}
+        onRestore={vi.fn()}
+        onPreview={onPreview}
+      />,
+    );
+    fireEvent.click(await screen.findByText("Version 6"));
+    fireEvent.click(screen.getByText("Version 7"));
+
+    await act(async () => {
+      resolveSecond(snapshotB);
+      await secondSnapshot;
+    });
+    expect(onPreview).toHaveBeenCalledTimes(1);
+    expect(onPreview).toHaveBeenLastCalledWith(snapshotB);
+
+    await act(async () => {
+      resolveFirst(snapshotA);
+      await firstSnapshot;
+    });
+    expect(onPreview).toHaveBeenCalledTimes(1);
+    expect(onPreview).toHaveBeenLastCalledWith(snapshotB);
   });
 });

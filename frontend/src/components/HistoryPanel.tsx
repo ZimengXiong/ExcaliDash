@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, RotateCcw, Clock, ChevronDown } from "lucide-react";
 import * as api from "../api";
@@ -43,6 +43,9 @@ export const HistoryPanel: React.FC<Props> = ({
   const [previewData, setPreviewData] = useState<api.DrawingSnapshotFull | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [confirmRestore, setConfirmRestore] = useState<string | null>(null);
+  const previewRequestSequence = useRef(0);
+  const isOpenRef = useRef(isOpen);
+  isOpenRef.current = isOpen;
   const [position, setPosition] = useState<{ left?: number; right?: number; top: number }>({
     right: 12,
     top: 76,
@@ -62,6 +65,7 @@ export const HistoryPanel: React.FC<Props> = ({
   }, [drawingId]);
 
   useEffect(() => {
+    previewRequestSequence.current += 1;
     if (isOpen) {
       loadHistory();
       setPreviewId(null);
@@ -75,6 +79,9 @@ export const HistoryPanel: React.FC<Props> = ({
         onPreview(null);
       }
     }
+    return () => {
+      previewRequestSequence.current += 1;
+    };
   }, [isOpen, loadHistory]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -99,17 +106,31 @@ export const HistoryPanel: React.FC<Props> = ({
   const handlePreview = async (snapshotId: string) => {
     if (previewId === snapshotId) {
       // Toggle off — restore current canvas
+      previewRequestSequence.current += 1;
       setPreviewId(null);
       setPreviewData(null);
       onPreview(null);
       return;
     }
+    const requestSequence = ++previewRequestSequence.current;
     setPreviewId(snapshotId);
     try {
       const data = await api.getDrawingSnapshot(drawingId, snapshotId);
+      if (
+        !isOpenRef.current ||
+        previewRequestSequence.current !== requestSequence
+      ) {
+        return;
+      }
       setPreviewData(data);
       onPreview(data);
     } catch {
+      if (
+        !isOpenRef.current ||
+        previewRequestSequence.current !== requestSequence
+      ) {
+        return;
+      }
       setPreviewId(null);
       setPreviewData(null);
       onPreview(null);
