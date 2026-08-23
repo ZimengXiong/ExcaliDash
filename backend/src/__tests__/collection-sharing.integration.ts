@@ -220,6 +220,39 @@ describe("Collection Sharing - Backend Integration", () => {
     expect(createDrawingResponse.body?.userId).toBe(editor.id);
   });
 
+  it("uses the stronger collection role when a direct drawing grant is weaker", async () => {
+    const collection = await createCollection();
+    const drawing = await createDrawingInCollection(collection.id);
+
+    await prisma.collectionShare.create({
+      data: {
+        collectionId: collection.id,
+        granteeUserId: editor.id,
+        role: "edit",
+        createdByUserId: owner.id,
+      },
+    });
+    await prisma.drawingPermission.create({
+      data: {
+        drawingId: drawing.id,
+        granteeUserId: editor.id,
+        permission: "view",
+        createdByUserId: owner.id,
+      },
+    });
+
+    const updateResponse = await editorAgent
+      .put(`/drawings/${drawing.id}`)
+      .set("User-Agent", userAgent)
+      .set("Authorization", `Bearer ${editorToken}`)
+      .set(editorCsrfHeaderName, editorCsrfToken)
+      .send({ name: "Edited through collection role" });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body?.name).toBe("Edited through collection role");
+    expect(updateResponse.body?.accessLevel).toBe("edit");
+  });
+
   it("revokes access after removing collection share", async () => {
     const collection = await createCollection();
     await createDrawingInCollection(collection.id);
