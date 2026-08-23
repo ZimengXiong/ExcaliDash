@@ -101,14 +101,16 @@ export const registerFileRoutes = (
       const userId = req.user?.id;
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-      const drawingId = req.params.drawingId;
-      const fileId = req.params.fileId;
-      if (typeof drawingId !== "string") {
+      const drawingIdParam = req.params.drawingId;
+      const fileIdParam = req.params.fileId;
+      if (Array.isArray(drawingIdParam) || typeof drawingIdParam !== "string") {
         return res.status(400).json({ error: "Invalid id segment" });
       }
-      if (typeof fileId !== "string") {
+      if (Array.isArray(fileIdParam) || typeof fileIdParam !== "string") {
         return res.status(400).json({ error: "Invalid id segment" });
       }
+      const drawingId = String(drawingIdParam);
+      const fileId = String(fileIdParam);
       if (
         !/^[\w-]{1,200}$/.test(drawingId) ||
         !/^[\w-]{1,200}$/.test(fileId)
@@ -219,14 +221,16 @@ export const registerFileRoutes = (
     "/files/:drawingId/:fileId",
     optionalAuth,
     asyncHandler(async (req, res) => {
-      const drawingId = req.params.drawingId;
-      const fileId = req.params.fileId;
-      if (typeof drawingId !== "string") {
+      const drawingIdParam = req.params.drawingId;
+      const fileIdParam = req.params.fileId;
+      if (Array.isArray(drawingIdParam) || typeof drawingIdParam !== "string") {
         return res.status(400).json({ error: "Invalid id segment" });
       }
-      if (typeof fileId !== "string") {
+      if (Array.isArray(fileIdParam) || typeof fileIdParam !== "string") {
         return res.status(400).json({ error: "Invalid id segment" });
       }
+      const drawingId = String(drawingIdParam);
+      const fileId = String(fileIdParam);
       if (
         !/^[\w-]{1,200}$/.test(drawingId) ||
         !/^[\w-]{1,200}$/.test(fileId)
