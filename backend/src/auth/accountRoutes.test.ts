@@ -3,7 +3,11 @@ import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { registerAccountRoutes } from "./accountRoutes";
 
-const buildApp = (options?: { impersonatorId?: string }) => {
+const buildApp = (options?: {
+  impersonatorId?: string;
+  nodeEnv?: string;
+  mailer?: { enabled: boolean; send: ReturnType<typeof vi.fn> };
+}) => {
   const router = express.Router();
   router.use(express.json());
 
@@ -50,13 +54,14 @@ const buildApp = (options?: { impersonatorId?: string }) => {
       enablePasswordReset: true,
       enableAuditLogging: false,
       enableRefreshTokenRotation: false,
-      nodeEnv: "test",
+      nodeEnv: options?.nodeEnv ?? "test",
       frontendUrl: "http://localhost:6767",
     },
     generateTokens: vi.fn().mockReturnValue({ accessToken: "access", refreshToken: "refresh" }),
     getRefreshTokenExpiresAt: vi.fn().mockReturnValue(new Date()),
     setAuthCookies: vi.fn(),
     requireCsrf: vi.fn().mockReturnValue(true),
+    mailer: options?.mailer,
   });
 
   const app = express();
@@ -220,5 +225,75 @@ describe("accountRoutes local-password safeguards", () => {
     expect(response.status).toBe(400);
     expect(response.body?.message).toContain("valid API key scope");
     expect(prisma.apiKey.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("password reset delivery", () => {
+  const localUser = {
+    id: "user-1",
+    email: "user@example.com",
+    isActive: true,
+    passwordHash: "$2b$12$abcdefghijklmnopqrstuv",
+  };
+
+  it("reports whether this process can deliver reset links", async () => {
+    const disabled = await request(buildApp({ nodeEnv: "production" }).app)
+      .get("/password-reset-capability");
+    expect(disabled.body).toEqual({ enabled: false });
+
+    const mailer = { enabled: true, send: vi.fn() };
+    const enabled = await request(buildApp({ nodeEnv: "production", mailer }).app)
+      .get("/password-reset-capability");
+    expect(enabled.body).toEqual({ enabled: true });
+  });
+
+  it("sends a reset link to a local account", async () => {
+    const mailer = {
+      enabled: true,
+      send: vi.fn().mockResolvedValue({ delivered: true, id: "mail-1" }),
+    };
+    const { app, prisma } = buildApp({ mailer });
+    prisma.user.findUnique.mockResolvedValue(localUser);
+    prisma.passwordResetToken.updateMany.mockResolvedValue({ count: 0 });
+    prisma.passwordResetToken.create.mockResolvedValue({});
+
+    const response = await request(app)
+      .post("/password-reset-request")
+      .send({ email: localUser.email });
+
+    expect(response.status).toBe(200);
+    expect(mailer.send).toHaveBeenCalledTimes(1);
+    expect(mailer.send.mock.calls[0][0]).toMatchObject({
+      to: localUser.email,
+      subject: expect.stringMatching(/reset/i),
+      idempotencyKey: expect.stringMatching(/^password-reset\//),
+    });
+  });
+
+  it("returns 503 before account lookup when production delivery is unavailable", async () => {
+    const { app, prisma } = buildApp({ nodeEnv: "production" });
+    const response = await request(app)
+      .post("/password-reset-request")
+      .send({ email: localUser.email });
+    expect(response.status).toBe(503);
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("keeps the response neutral when a mail transport rejects", async () => {
+    const mailer = {
+      enabled: true,
+      send: vi.fn().mockRejectedValue(new Error("transport offline")),
+    };
+    const { app, prisma } = buildApp({ mailer });
+    prisma.user.findUnique.mockResolvedValue(localUser);
+    prisma.passwordResetToken.updateMany.mockResolvedValue({ count: 0 });
+    prisma.passwordResetToken.create.mockResolvedValue({});
+
+    const response = await request(app)
+      .post("/password-reset-request")
+      .send({ email: localUser.email });
+
+    expect(response.status).toBe(200);
+    expect(response.body.message).toMatch(/if an account/i);
   });
 });

@@ -4,5 +4,6 @@ export * from "./drawings";
 export * from "./collections";
 export * from "./storage";
 export * from "./auth";
+export * from "./passwordReset";
 export * from "./ai";
 export * from "./chatgpt";

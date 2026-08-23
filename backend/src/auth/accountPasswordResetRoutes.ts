@@ -9,6 +9,7 @@ import {
 } from "./schemas";
 import { canUseLocalPasswordFlows } from "./localPassword";
 import { hashTokenForStorage } from "./tokenSecurity";
+import { buildPasswordResetEmail } from "../mail/templates/passwordReset";
 import type { RegisterAccountRoutesDeps } from "./accountRoutes";
 
 export const registerAccountPasswordResetRoutes = (
@@ -20,13 +21,37 @@ export const registerAccountPasswordResetRoutes = (
     loginAttemptRateLimiter,
     ensureAuthEnabled,
     config,
+    mailer,
   } = deps;
+
+  const buildResetUrl = (token: string): string => {
+    const configuredOrigin = config.frontendUrl?.split(",")[0]?.trim();
+    const origin = configuredOrigin
+      ? /^https?:\/\//i.test(configuredOrigin)
+        ? configuredOrigin
+        : `http://${configuredOrigin}`
+      : "http://localhost:6767";
+    return `${origin.replace(/\/$/, "")}/reset-password-confirm?token=${token}`;
+  };
+
+  router.get("/password-reset-capability", (_req: Request, res: Response) => {
+    const deliveryAvailable = config.nodeEnv !== "production" || Boolean(mailer?.enabled);
+    return res.json({ enabled: config.enablePasswordReset && deliveryAvailable });
+  });
+
   router.post("/password-reset-request", loginAttemptRateLimiter, async (req: Request, res: Response) => {
     if (!(await ensureAuthEnabled(res))) return;
     if (!config.enablePasswordReset) {
       return res.status(404).json({
         error: "Not found",
         message: "Password reset feature is not enabled",
+      });
+    }
+    if (config.nodeEnv === "production" && !mailer?.enabled) {
+      console.error("[mail] Password reset is enabled, but mail delivery is not configured");
+      return res.status(503).json({
+        error: "Service unavailable",
+        message: "Password reset is temporarily unavailable",
       });
     }
 
@@ -65,16 +90,30 @@ export const registerAccountPasswordResetRoutes = (
           });
         }
 
+        const resetUrl = buildResetUrl(resetToken);
         if (config.nodeEnv === "development") {
           console.log(`[DEV] Password reset token for ${email}: ${resetToken}`);
-          const baseUrlRaw = config.frontendUrl?.split(",")[0]?.trim();
-          const baseUrlWithProtocol = baseUrlRaw
-            ? /^https?:\/\//i.test(baseUrlRaw)
-              ? baseUrlRaw
-              : `http://${baseUrlRaw}`
-            : "http://localhost:6767";
-          const baseUrl = baseUrlWithProtocol.replace(/\/$/, "");
-          console.log(`[DEV] Reset URL: ${baseUrl}/reset-password-confirm?token=${resetToken}`);
+          console.log(`[DEV] Reset URL: ${resetUrl}`);
+        }
+
+        if (mailer?.enabled) {
+          const message = buildPasswordResetEmail({
+            resetUrl,
+            expiresInMinutes: 60,
+          });
+          try {
+            const result = await mailer.send({
+              to: email,
+              ...message,
+              idempotencyKey: `password-reset/${crypto.randomUUID()}`,
+            });
+            if (result.delivered === false) {
+              console.error(`[mail] Password reset email was not delivered: ${result.reason}`);
+            }
+          } catch (error) {
+            const reason = error instanceof Error ? error.message : String(error);
+            console.error(`[mail] Password reset delivery failed: ${reason}`);
+          }
         }
       }
 

@@ -218,17 +218,6 @@ export const authOnboardingChoice = async (
   return response.data;
 };
 
-export const authPasswordResetConfirm = async (
-  token: string,
-  password: string,
-): Promise<void> => {
-  await axios.post(
-    `${API_URL}/auth/password-reset-confirm`,
-    { token, password },
-    { withCredentials: true },
-  );
-};
-
 const clearStoredAuth = () => {
   localStorage.removeItem(USER_KEY);
 };

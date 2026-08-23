@@ -29,6 +29,7 @@ import {
   resolveUpdateCheckConfig,
 } from "./config/derived";
 import { type AiConfig, resolveAiConfig } from "./config/ai";
+import { type MailConfig, resolveMailConfig } from "./config/mail";
 
 export { buildPasswordPolicyMessage, validatePasswordAgainstPolicy };
 
@@ -92,6 +93,7 @@ interface Config {
   linkShare: LinkShareConfig;
   updateCheck: UpdateCheckConfig;
   ai: AiConfig;
+  mail: MailConfig;
 }
 
 export type AuthMode = "local" | "hybrid" | "oidc_enforced" | "disabled";
@@ -388,6 +390,7 @@ export const config: Config = {
   linkShare: resolveLinkShareConfig(),
   updateCheck: resolveUpdateCheckConfig(),
   ai: resolveAiConfig(),
+  mail: resolveMailConfig(),
 };
 if (config.nodeEnv === "production") {
   validateProductionConfig(config);

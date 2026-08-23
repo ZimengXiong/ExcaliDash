@@ -37,6 +37,15 @@ This file and `backend/.env.example` are generated from that registry; do not ed
 | `JWT_ACCESS_EXPIRES_IN` | `15m` | No | Access-token lifetime (vercel/ms style duration). |
 | `JWT_REFRESH_EXPIRES_IN` | `7d` | No | Refresh-token lifetime (vercel/ms style duration). |
 | `ENABLE_PASSWORD_RESET` | `false` | No | Enable the password-reset flow. |
+| `MAIL_TRANSPORT` | — | No | Transport for password-reset email; when unset, configured Resend credentials take precedence over SMTP. Allowed: smtp, resend, none. |
+| `MAIL_FROM` | — | No | Sender address for password-reset email. |
+| `MAIL_REPLY_TO` | — | No | Optional reply-to address for password-reset email. |
+| `RESEND_API_KEY` | _(none — secret)_ | No | Resend API key used when the Resend mail transport is selected. |
+| `SMTP_HOST` | — | No | SMTP server hostname. |
+| `SMTP_PORT` | `587` | No | SMTP server port. |
+| `SMTP_SECURE` | `false` | No | Use TLS immediately for SMTP, typically on port 465. |
+| `SMTP_USER` | — | No | Optional SMTP authentication username; set with SMTP_PASSWORD. |
+| `SMTP_PASSWORD` | _(none — secret)_ | No | Optional SMTP authentication password; set with SMTP_USER. |
 | `ENABLE_REFRESH_TOKEN_ROTATION` | `true` | No | Rotate refresh tokens on each successful refresh. |
 | `ENABLE_AUDIT_LOGGING` | `false` | No | Write authentication/authorization audit-log entries. |
 | `DISABLE_ONBOARDING_GATE` | `false` | No | Disable the first-run onboarding gate in local-mode production. |
