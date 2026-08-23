@@ -113,13 +113,15 @@ export const HistoryPanel: React.FC<Props> = ({
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[90] flex justify-end">
-      <div
-        className="absolute inset-0 bg-neutral-900/20 backdrop-blur-sm"
-        onClick={onClose}
-      />
+    <div className={clsx("fixed inset-0 z-[90] flex justify-end", previewId && "pointer-events-none")}>
+      {!previewId && (
+        <div
+          className="absolute inset-0 bg-neutral-900/20 backdrop-blur-sm"
+          onClick={onClose}
+        />
+      )}
 
-      <div className="relative w-full max-w-sm bg-white dark:bg-neutral-900 border-l-2 border-black dark:border-neutral-700 shadow-[-4px_0px_0px_0px_rgba(0,0,0,1)] dark:shadow-[-4px_0px_0px_0px_rgba(255,255,255,0.08)] animate-in slide-in-from-right duration-200 flex flex-col h-full">
+      <div className="pointer-events-auto relative w-full max-w-sm bg-white dark:bg-neutral-900 border-l-2 border-black dark:border-neutral-700 shadow-[-4px_0px_0px_0px_rgba(0,0,0,1)] dark:shadow-[-4px_0px_0px_0px_rgba(255,255,255,0.08)] animate-in slide-in-from-right duration-200 flex flex-col h-full">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b-2 border-black dark:border-neutral-700 bg-white dark:bg-neutral-900">
           <div className="flex items-center gap-2">
