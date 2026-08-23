@@ -8,6 +8,7 @@ import type {
 } from "../types";
 import { useAuth } from "../context/AuthContext";
 import { RoleSelect } from "./RoleSelect";
+import { UserAvatar } from "./UserAvatar";
 
 type Props = {
   collectionId: string;
@@ -144,10 +145,10 @@ export const ShareCollectionModal: React.FC<Props> = ({
         onClick={onClose}
       />
 
-      <div className="relative w-full max-w-[500px] bg-white dark:bg-neutral-900 rounded-2xl border-2 border-black dark:border-neutral-700 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.08)] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-[500px] bg-white dark:bg-neutral-900 rounded-2xl border-2 border-slate-800 dark:border-neutral-700 shadow-[3px_3px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.18)] flex flex-col animate-in fade-in zoom-in-95 duration-200">
 
         {/* Header */}
-        <div className="px-6 py-4 flex items-center justify-between border-b-2 border-black dark:border-neutral-700">
+        <div className="px-6 py-4 flex items-center justify-between border-b-2 border-slate-800 dark:border-neutral-700">
           <h2
             className="text-base font-bold text-slate-800 dark:text-neutral-100 truncate pr-4"
             title={collectionName}
@@ -156,7 +157,7 @@ export const ShareCollectionModal: React.FC<Props> = ({
           </h2>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-neutral-400 hover:text-neutral-950 dark:hover:text-white transition-colors"
+            className="ui-icon-button h-8 w-8 border-transparent bg-transparent shadow-none dark:bg-transparent"
           >
             <X size={18} />
           </button>
@@ -182,11 +183,11 @@ export const ShareCollectionModal: React.FC<Props> = ({
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Add people by name or email"
-                  className="w-full pl-10 pr-4 py-2 rounded-xl border-2 border-black dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800 text-slate-900 dark:text-neutral-100 focus:outline-none focus:border-indigo-600 dark:focus:border-indigo-500 transition-all text-sm font-semibold placeholder:text-slate-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.05)]"
+                  className="w-full pl-10 pr-4 py-2 rounded-xl border-2 border-slate-800 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800 text-slate-900 dark:text-neutral-100 focus:outline-none focus:border-indigo-600 dark:focus:border-indigo-500 transition-all text-sm font-semibold placeholder:text-slate-400 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)]"
                 />
               </div>
               {/* Role picker for new additions */}
-              <div className="shrink-0 border-2 border-black dark:border-neutral-700 rounded-xl px-1 bg-white dark:bg-neutral-900 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.05)]">
+              <div className="shrink-0 border-2 border-slate-800 dark:border-neutral-700 rounded-xl px-1 bg-white dark:bg-neutral-900 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)]">
                 <RoleSelect
                   value={addRole}
                   onChange={(v) => setAddRole(v as CollectionShareRole)}
@@ -195,16 +196,14 @@ export const ShareCollectionModal: React.FC<Props> = ({
             </div>
 
             {results.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-2 border-2 border-black dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-900 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.08)] overflow-hidden z-[200] animate-in fade-in slide-in-from-top-2">
+              <div className="absolute top-full left-0 right-0 mt-2 border-2 border-slate-800 dark:border-neutral-700 rounded-xl bg-white dark:bg-neutral-900 shadow-[3px_3px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.18)] overflow-hidden z-[200] animate-in fade-in slide-in-from-top-2">
                 {results.map((u) => (
                   <button
                     key={u.id}
                     onClick={() => handleAdd(u)}
-                    className="w-full text-left px-4 py-2.5 flex items-center gap-3 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors group border-b last:border-b-0 border-slate-100 dark:border-neutral-800"
+                    className="ui-menu-item gap-3 border-b border-slate-100 px-4 py-2.5 last:border-b-0 dark:border-neutral-800"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center text-indigo-700 dark:text-indigo-300 font-bold text-xs border-2 border-black dark:border-neutral-600">
-                      {u.name.charAt(0).toUpperCase()}
-                    </div>
+                    <UserAvatar name={u.name} size="sm" />
                     <div className="flex-1 min-w-0">
                       <div className="text-xs font-bold text-slate-900 dark:text-neutral-100 truncate">
                         {u.name}
@@ -233,9 +232,7 @@ export const ShareCollectionModal: React.FC<Props> = ({
             <div className="space-y-0.5">
               {/* Owner row */}
               <div className="flex items-center gap-3 px-1 py-1.5 min-h-[48px]">
-                <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-neutral-800 flex items-center justify-center text-slate-600 dark:text-neutral-300 font-bold text-sm border-2 border-black dark:border-neutral-600 shrink-0">
-                  {user?.name?.charAt(0).toUpperCase() ?? "U"}
-                </div>
+                <UserAvatar name={user?.name || "User"} size="sm" />
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-bold text-slate-900 dark:text-neutral-100 leading-tight">
                     {user?.name}{" "}
@@ -266,9 +263,7 @@ export const ShareCollectionModal: React.FC<Props> = ({
                   key={s.id}
                   className="flex items-center gap-3 px-1 py-1.5 min-h-[48px] group"
                 >
-                  <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold text-sm border-2 border-indigo-600 dark:border-indigo-500 shrink-0">
-                    {s.granteeUser.name.charAt(0).toUpperCase()}
-                  </div>
+                  <UserAvatar name={s.granteeUser.name} size="sm" />
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-bold text-slate-900 dark:text-neutral-100 leading-tight truncate">
                       {s.granteeUser.name}
@@ -297,10 +292,10 @@ export const ShareCollectionModal: React.FC<Props> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 flex items-center justify-end border-t-2 border-black dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800/50 rounded-b-[14px]">
+        <div className="px-6 py-4 flex items-center justify-end border-t-2 border-slate-800 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800/50 rounded-b-[14px]">
           <button
             onClick={onClose}
-            className="px-6 py-2 rounded-xl bg-indigo-600 dark:bg-indigo-500 text-white border-2 border-black font-bold text-xs hover:-translate-y-0.5 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0 active:shadow-none transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+            className="ui-button-primary px-6 text-xs"
           >
             Done
           </button>
@@ -309,7 +304,7 @@ export const ShareCollectionModal: React.FC<Props> = ({
         {/* Loading overlay */}
         {isLoading && (
           <div className="absolute inset-0 bg-white/20 dark:bg-black/10 backdrop-blur-[1px] flex items-center justify-center z-[300] pointer-events-none rounded-[14px]">
-            <div className="bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 p-4 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+            <div className="bg-white dark:bg-neutral-900 border-2 border-slate-800 dark:border-neutral-700 p-4 rounded-2xl shadow-[3px_3px_0px_0px_rgba(30,41,59,0.9)]">
               <RefreshCw
                 size={24}
                 strokeWidth={2.5}

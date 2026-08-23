@@ -53,7 +53,9 @@ export const useDashboardDrawingActions = ({
     (collection) => collection.id === selectedCollectionId,
   );
   const isSharedCollection = !!(
-    currentCollection && currentCollection.isOwner === false
+    selectedCollectionId !== "trash" &&
+    currentCollection &&
+    currentCollection.isOwner === false
   );
 
   const handleViewerActionError = (message: string) =>

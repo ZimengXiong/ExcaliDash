@@ -156,10 +156,10 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
         onClick={onClose}
       />
 
-      <div className="relative w-full max-w-3xl max-h-[90vh] flex flex-col bg-white dark:bg-neutral-900 rounded-2xl border-2 border-black dark:border-neutral-700 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.08)] animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-3xl max-h-[90vh] flex flex-col bg-white dark:bg-neutral-900 rounded-2xl border-2 border-slate-800 dark:border-neutral-700 shadow-[3px_3px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.18)] animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="flex items-center gap-3 p-5 pb-4 border-b-2 border-black dark:border-neutral-700">
-          <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-300 border-2 border-indigo-200 dark:border-indigo-900/30">
+        <div className="flex items-center gap-3 p-5 pb-4 border-b-2 border-slate-800 dark:border-neutral-700">
+          <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900/30">
             <HardDrive size={20} />
           </div>
           <div className="flex-1 min-w-0">
@@ -172,7 +172,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
+            className="ui-icon-button h-8 w-8 border-transparent bg-transparent shadow-none dark:bg-transparent"
           >
             <X size={20} />
           </button>
@@ -201,13 +201,13 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                 setConfirmAction('trim');
                 setConfirmInput('');
               }}
-              className="px-4 py-2.5 font-bold rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all duration-200 bg-rose-600 text-white flex items-center gap-2"
+              className="ui-button-danger px-4 py-2.5"
             >
               <Scissors size={16} />
               Trim History
             </button>
             <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
-              Remove deleted elements and orphaned file references from this drawing.
+              Clean up deleted elements and unused files.
             </p>
           </div>
 
@@ -222,7 +222,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
               <button
                 onClick={loadDiff}
                 disabled={loading}
-                className="px-3 py-1.5 text-sm font-bold rounded-xl border-2 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[1px_1px_0px_0px_rgba(255,255,255,0.08)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all duration-200 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 flex items-center gap-1.5 disabled:opacity-50"
+                className="ui-button-secondary px-3 py-1.5"
               >
                 <RefreshCw size={14} className={clsx(loading && 'animate-spin')} />
                 Refresh
@@ -243,19 +243,19 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                 </p>
 
                 {/* Table */}
-                <div className="border-2 border-black dark:border-neutral-700 rounded-xl overflow-hidden">
+                <div className="border border-slate-350 dark:border-neutral-700 rounded-xl overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="bg-neutral-100 dark:bg-neutral-800 border-b-2 border-black dark:border-neutral-700">
+                        <tr className="bg-neutral-100 dark:bg-neutral-800 border-b border-slate-350 dark:border-neutral-700">
                           <th className="w-10 px-3 py-2 text-center">
                             <span className="sr-only">Select</span>
                           </th>
-                          <th className="px-3 py-2 text-left font-bold text-neutral-700 dark:text-neutral-300">File ID</th>
-                          <th className="px-3 py-2 text-center font-bold text-neutral-700 dark:text-neutral-300">Canvas</th>
-                          <th className="px-3 py-2 text-center font-bold text-neutral-700 dark:text-neutral-300">SQLite</th>
-                          <th className="px-3 py-2 text-center font-bold text-neutral-700 dark:text-neutral-300">S3</th>
-                          <th className="px-3 py-2 text-right font-bold text-neutral-700 dark:text-neutral-300">Size</th>
+                          <th className="px-3 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-300">File ID</th>
+                          <th className="px-3 py-2 text-center font-semibold text-neutral-700 dark:text-neutral-300">Canvas</th>
+                          <th className="px-3 py-2 text-center font-semibold text-neutral-700 dark:text-neutral-300">SQLite</th>
+                          <th className="px-3 py-2 text-center font-semibold text-neutral-700 dark:text-neutral-300">S3</th>
+                          <th className="px-3 py-2 text-right font-semibold text-neutral-700 dark:text-neutral-300">Size</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -280,7 +280,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                                   className="accent-rose-600 w-4 h-4 disabled:opacity-30"
                                 />
                               </td>
-                              <td className="px-3 py-2 text-neutral-900 dark:text-neutral-100 font-mono text-xs truncate max-w-[200px]" title={file.fileId}>
+                              <td className="max-w-[200px] truncate px-3 py-2 text-xs font-semibold tracking-tight text-neutral-900 dark:text-neutral-100" title={file.fileId}>
                                 {file.fileId}
                               </td>
                               <td className="px-3 py-2 text-center">
@@ -318,7 +318,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                       setConfirmInput('');
                     }}
                     disabled={selectedIds.size === 0}
-                    className="px-4 py-2.5 font-bold rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all duration-200 bg-rose-600 text-white flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] disabled:hover:translate-y-0"
+                    className="ui-button-danger px-4 py-2.5"
                   >
                     <Trash2 size={16} />
                     Delete Selected Orphans ({selectedIds.size})
@@ -330,7 +330,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t-2 border-black dark:border-neutral-700 flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/10 rounded-b-2xl">
+        <div className="p-4 border-t-2 border-slate-800 dark:border-neutral-700 flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/10 rounded-b-2xl">
           <AlertTriangle size={14} className="shrink-0" />
           These operations are irreversible.
         </div>
@@ -340,16 +340,14 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
           <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-white/90 dark:bg-neutral-900/90 backdrop-blur-sm">
             <div className="w-full max-w-sm p-6 space-y-4">
               <div className="flex flex-col items-center text-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center text-rose-600 dark:text-rose-300 border-2 border-rose-200 dark:border-rose-900/30">
+                <div className="w-12 h-12 rounded-full bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-900/30">
                   <AlertTriangle size={24} strokeWidth={2.5} />
                 </div>
                 <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
                   {confirmAction === 'trim' ? 'Trim History' : 'Delete Orphan Files'}
                 </h3>
                 <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                  Type the drawing name to confirm:
-                  <br />
-                  <span className="font-bold text-neutral-700 dark:text-neutral-200">{drawingName}</span>
+                  Type <span className="font-bold text-neutral-750 dark:text-neutral-200">{drawingName}</span> to confirm:
                 </p>
               </div>
 
@@ -359,7 +357,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                 onChange={(e) => setConfirmInput(e.target.value)}
                 placeholder={drawingName}
                 autoFocus
-                className="w-full px-3 py-2 rounded-xl border-2 border-black dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-3 py-2 rounded-xl border-2 border-slate-800 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
 
               <div className="flex gap-3">
@@ -369,14 +367,14 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                     setConfirmInput('');
                   }}
                   disabled={actionLoading}
-                  className="flex-1 px-4 py-2.5 bg-emerald-50 dark:bg-neutral-800 text-emerald-700 dark:text-emerald-200 font-bold rounded-xl border-2 border-emerald-200 dark:border-neutral-700 hover:bg-emerald-100 dark:hover:bg-neutral-700 hover:border-emerald-300 dark:hover:border-neutral-600 hover:-translate-y-0.5 transition-all duration-200"
+                  className="ui-button-secondary flex-1 px-4 py-2.5"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={confirmAction === 'trim' ? handleTrim : handleDeleteOrphans}
                   disabled={!confirmMatch || actionLoading}
-                  className="flex-1 px-4 py-2.5 font-bold rounded-xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 active:translate-y-0 active:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all duration-200 bg-rose-600 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] disabled:hover:translate-y-0 flex items-center justify-center gap-2"
+                  className="ui-button-danger flex-1 px-4 py-2.5"
                 >
                   {actionLoading && <Loader2 size={16} className="animate-spin" />}
                   Confirm

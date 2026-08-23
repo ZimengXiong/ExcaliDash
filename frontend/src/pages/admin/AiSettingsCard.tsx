@@ -1,6 +1,12 @@
 import React from "react";
 import { Sparkles } from "lucide-react";
 import type { AiProvider } from "./useAiSettings";
+import { PlayfulSelect } from "../../components/PlayfulSelect";
+import { PlayfulSwitch } from "../../components/PlayfulSwitch";
+import {
+  SettingsCard,
+  SettingsSectionHeader,
+} from "../settings/SettingsRow";
 
 type AiSettingsCardProps = {
   loading: boolean;
@@ -37,8 +43,7 @@ const PROVIDERS: { value: AiProvider; label: string }[] = [
   { value: "chatgpt", label: "ChatGPT (per-user subscription)" },
 ];
 
-const inputClass =
-  "w-full px-4 py-3 bg-white dark:bg-neutral-800 border-2 border-slate-200 dark:border-neutral-700 rounded-xl text-slate-900 dark:text-white outline-none";
+const inputClass = "ui-input w-full";
 const labelClass =
   "block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2";
 
@@ -61,54 +66,33 @@ export const AiSettingsCard: React.FC<AiSettingsCardProps> = ({
   onSave,
   onClearDbKey,
 }) => (
-  <div className="mb-6 bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] p-4 sm:p-6">
-    <div className="flex items-center gap-3 mb-4">
-      <div className="w-12 h-12 bg-slate-50 dark:bg-neutral-800 rounded-xl flex items-center justify-center border-2 border-slate-200 dark:border-neutral-700">
-        <Sparkles size={24} className="text-slate-700 dark:text-neutral-200" />
-      </div>
-      <div className="min-w-0">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">AI Assistant</h2>
-        <p className="text-sm text-slate-600 dark:text-neutral-400 font-medium">
-          Configure the AI chat proxy. The provider key is stored server-side only.
-        </p>
-      </div>
-      {loading && (
-        <span className="ml-auto text-sm text-slate-500 dark:text-neutral-500 font-medium">
-          Loading…
+  <section className="mb-8">
+    <SettingsSectionHeader
+      icon={<Sparkles size={20} />}
+      tileClassName="border-black bg-indigo-400 text-black dark:border-neutral-700 dark:bg-indigo-400 dark:text-black"
+      title="AI assistant"
+      subtitle="Choose the canvas agent provider. Secrets stay on the server."
+    >
+      {loading ? (
+        <span className="text-xs font-bold text-slate-400 dark:text-neutral-500">Loading…</span>
+      ) : status ? (
+        <span className={`rounded-full border-2 px-2.5 py-0.5 text-xs font-bold ${status.available ? "border-emerald-700 bg-emerald-100 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" : "border-slate-300 bg-slate-100 text-slate-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"}`}>
+          {status.available ? "Ready" : "Setup needed"}
         </span>
-      )}
-    </div>
-
-    {status && (
-      <div className="mb-4 text-sm font-medium">
-        <span
-          className={
-            status.available
-              ? "text-emerald-700 dark:text-emerald-300"
-              : "text-slate-500 dark:text-neutral-400"
-          }
-        >
-          {status.available
-            ? `Available — ${status.provider} / ${status.model ?? "default"}`
-            : "Not available (provider or key missing)"}
-        </span>
-      </div>
-    )}
-
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      ) : null}
+    </SettingsSectionHeader>
+    <SettingsCard>
+    <div className="grid grid-cols-1 gap-4 p-4 sm:p-5 lg:grid-cols-3">
       <div>
         <label className={labelClass}>Provider</label>
-        <select
+        <PlayfulSelect
+          ariaLabel="AI provider"
           value={provider}
-          onChange={(e) => onProviderChange(e.target.value as AiProvider)}
-          className={inputClass}
-        >
-          {PROVIDERS.map((p) => (
-            <option key={p.value} value={p.value}>
-              {p.label}
-            </option>
-          ))}
-        </select>
+          onChange={(value) => onProviderChange(value as AiProvider)}
+          options={PROVIDERS}
+          className="w-full min-w-0"
+          buttonClassName="w-full"
+        />
       </div>
       <div>
         <label className={labelClass}>Model</label>
@@ -131,30 +115,21 @@ export const AiSettingsCard: React.FC<AiSettingsCardProps> = ({
     </div>
 
     {provider === "chatgpt" && (
-      <div className="mt-4 rounded-xl border-2 border-slate-200 dark:border-neutral-700 p-4">
-        <label className="flex items-center gap-3">
-          <input
-            type="checkbox"
+      <div className="flex flex-wrap items-center gap-3 border-t-2 border-slate-100 px-4 py-4 dark:border-neutral-800 sm:px-5">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold text-slate-900 dark:text-white">ChatGPT subscriptions</p>
+          <p className="mt-0.5 text-xs font-medium text-slate-500 dark:text-neutral-400">Allow users to connect their own ChatGPT Plus or Pro account.</p>
+        </div>
+          <PlayfulSwitch
             checked={chatgptEnabled}
-            onChange={(e) => onChatgptEnabledChange(e.target.checked)}
-            className="h-5 w-5"
+            onChange={onChatgptEnabledChange}
+            ariaLabel="Allow ChatGPT subscriptions"
           />
-          <span className="text-sm font-bold text-slate-700 dark:text-neutral-300">
-            Allow users to connect their ChatGPT subscription
-          </span>
-        </label>
-        <p className="mt-2 text-sm text-slate-600 dark:text-neutral-400 font-medium">
-          Each user links their own ChatGPT Plus/Pro account from the canvas
-          assistant — requests bill their subscription and no server API key is
-          used. This is an unofficial channel (Codex sign-in) that OpenAI may
-          change or block. The available models depend on the configured Codex
-          client version (AI_CHATGPT_CLIENT_VERSION).
-        </p>
       </div>
     )}
 
     {provider !== "chatgpt" && (
-    <div className="mt-4">
+    <div className="border-t-2 border-slate-100 px-4 py-4 dark:border-neutral-800 sm:px-5">
       <label className={labelClass}>API key</label>
       {envKeyConfigured ? (
         <p className="text-sm text-slate-500 dark:text-neutral-400 font-medium">
@@ -176,7 +151,7 @@ export const AiSettingsCard: React.FC<AiSettingsCardProps> = ({
               type="button"
               onClick={() => void onClearDbKey()}
               disabled={saving}
-              className="px-4 py-2 text-sm font-bold rounded-xl border-2 border-black dark:border-neutral-700 bg-white dark:bg-neutral-900 text-slate-900 dark:text-neutral-200 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-0.5 transition-all disabled:opacity-60 flex-shrink-0"
+              className="ui-button-secondary flex-shrink-0 px-4"
             >
               Clear key
             </button>
@@ -186,14 +161,18 @@ export const AiSettingsCard: React.FC<AiSettingsCardProps> = ({
     </div>
     )}
 
-    <div className="mt-4 flex justify-end">
+    <div className="flex items-center justify-between gap-3 border-t-2 border-slate-100 px-4 py-4 dark:border-neutral-800 sm:px-5">
+      <p className="text-xs font-medium text-slate-500 dark:text-neutral-400">
+        {status?.available ? `${status.provider} · ${status.model ?? "default model"}` : "Complete the provider setup to enable the canvas agent."}
+      </p>
       <button
         onClick={() => void onSave()}
         disabled={saving}
-        className="px-5 py-2 text-sm font-bold rounded-xl border-2 border-black dark:border-neutral-700 bg-indigo-600 text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 transition-all disabled:opacity-60"
+        className="ui-button-primary shrink-0 px-5"
       >
         {saving ? "Saving…" : "Save AI settings"}
       </button>
     </div>
-  </div>
+    </SettingsCard>
+  </section>
 );

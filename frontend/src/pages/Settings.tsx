@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Layout } from "../components/Layout";
 import { useNavigate } from "react-router-dom";
 import * as api from "../api";
@@ -8,42 +8,41 @@ import { useAuth } from "../context/AuthContext";
 import { SettingsMainGrid } from "./settings/SettingsMainGrid";
 import { AdvancedSettings } from "./settings/AdvancedSettings";
 import { SettingsConfirmModals } from "./settings/SettingsConfirmModals";
+import { ApiKeysCard } from "./profile/ApiKeysCard";
+import { AiSettingsCard } from "./admin/AiSettingsCard";
+import { useAiSettings } from "./admin/useAiSettings";
+import { Toaster } from "sonner";
 import { displayFontFamily } from "../utils/displayFont";
+import {
+  EXCALIDASH_REQUIRED_MESSAGE,
+  isExcalidashFile,
+} from "../utils/importUtils";
 export const Settings: React.FC = () => {
   const [collections, setCollections] = useState<Collection[]>([]);
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const { authEnabled, user, authMode } = useAuth();
-  const [legacyDbImportConfirmation, setLegacyDbImportConfirmation] = useState<{
-    isOpen: boolean;
-    file: File | null;
-    info: null | {
-      drawings: number;
-      collections: number;
-      legacyLatestMigration: string | null;
-      currentLatestMigration: string | null;
-    };
-  }>({ isOpen: false, file: null, info: null });
-  const [importError, setImportError] = useState<{
-    isOpen: boolean;
-    message: string;
-  }>({ isOpen: false, message: "" });
-  const [importSuccess, setImportSuccess] = useState<{
-    isOpen: boolean;
-    message: React.ReactNode;
-  }>({ isOpen: false, message: "" });
-  const [legacyDbImportLoading, setLegacyDbImportLoading] = useState(false);
+  const isSingleUserOwner = authEnabled === false;
+  const isAdmin = isSingleUserOwner || user?.role === "ADMIN";
+  const mustResetPassword = Boolean(user?.mustResetPassword);
+  const [settingsSuccess, setSettingsSuccess] = useState("");
   const [authToggleLoading, setAuthToggleLoading] = useState(false);
   const [authToggleError, setAuthToggleError] = useState<string | null>(null);
+  const setAiError = useCallback(
+    (message: string) => setAuthToggleError(message || null),
+    [],
+  );
+  const aiSettings = useAiSettings({
+    authEnabled,
+    isAdmin,
+    setError: setAiError,
+  });
   const [authToggleConfirm, setAuthToggleConfirm] = useState<{
     isOpen: boolean;
     nextEnabled: boolean | null;
   }>({ isOpen: false, nextEnabled: null });
   const [authDisableFinalConfirmOpen, setAuthDisableFinalConfirmOpen] =
     useState(false);
-  const [backupExportExt, setBackupExportExt] = useState<
-    "excalidash" | "excalidash.zip"
-  >("excalidash");
   const [backupImportConfirmation, setBackupImportConfirmation] = useState<{
     isOpen: boolean;
     file: File | null;
@@ -131,7 +130,7 @@ export const Settings: React.FC = () => {
   };
   useEffect(() => {
     void checkForUpdates(updateChannel);
-  }, []);
+  }, [updateChannel]);
   const setAuthEnabled = async (enabled: boolean) => {
     setAuthToggleLoading(true);
     setAuthToggleError(null);
@@ -165,8 +164,7 @@ export const Settings: React.FC = () => {
   };
   const exportBackup = async () => {
     try {
-      const extQuery = backupExportExt === "excalidash.zip" ? "?ext=zip" : "";
-      const response = await api.api.get(`/export/excalidash${extQuery}`, {
+      const response = await api.api.get("/export/excalidash", {
         responseType: "blob",
       });
       const blob = new Blob([response.data], { type: "application/zip" });
@@ -174,10 +172,7 @@ export const Settings: React.FC = () => {
       const link = document.createElement("a");
       link.href = url;
       const date = new Date().toISOString().split("T")[0];
-      link.download =
-        backupExportExt === "excalidash.zip"
-          ? `excalidash-backup-${date}.excalidash.zip`
-          : `excalidash-backup-${date}.excalidash`;
+      link.download = `excalidash-backup-${date}.excalidash`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -191,6 +186,13 @@ export const Settings: React.FC = () => {
     }
   };
   const verifyBackupFile = async (file: File) => {
+    if (!isExcalidashFile(file)) {
+      setBackupImportError({
+        isOpen: true,
+        message: EXCALIDASH_REQUIRED_MESSAGE,
+      });
+      return;
+    }
     setBackupImportLoading(true);
     try {
       const formData = new FormData();
@@ -229,42 +231,6 @@ export const Settings: React.FC = () => {
       setBackupImportLoading(false);
     }
   };
-  const verifyLegacyDbFile = async (file: File) => {
-    setLegacyDbImportLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append("db", file);
-      const response = await api.api.post<{
-        valid: boolean;
-        drawings: number;
-        collections: number;
-        latestMigration: string | null;
-        currentLatestMigration: string | null;
-      }>("/import/sqlite/legacy/verify", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-      setLegacyDbImportConfirmation({
-        isOpen: true,
-        file,
-        info: {
-          drawings: response.data.drawings,
-          collections: response.data.collections,
-          legacyLatestMigration: response.data.latestMigration ?? null,
-          currentLatestMigration: response.data.currentLatestMigration ?? null,
-        },
-      });
-    } catch (err: unknown) {
-      console.error("Legacy DB verify failed:", err);
-      let message = "Failed to verify legacy database file.";
-      if (api.isAxiosError(err)) {
-        message =
-          err.response?.data?.message || err.response?.data?.error || message;
-      }
-      setImportError({ isOpen: true, message });
-    } finally {
-      setLegacyDbImportLoading(false);
-    }
-  };
   const handleCreateCollection = async (name: string) => {
     await api.createCollection(name);
     const newCollections = await api.getCollections();
@@ -295,6 +261,8 @@ export const Settings: React.FC = () => {
       onDeleteCollection={handleDeleteCollection}
     >
       {" "}
+      <div className="mx-auto w-full max-w-3xl">
+      <Toaster position="top-right" />
       <h1
         className="text-3xl sm:text-4xl lg:text-5xl mb-6 lg:mb-8 text-slate-900 dark:text-white pl-1"
         style={{ fontFamily: displayFontFamily }}
@@ -310,52 +278,74 @@ export const Settings: React.FC = () => {
           </p>{" "}
         </div>
       )}{" "}
-      <SettingsMainGrid
-        backupExportExt={backupExportExt}
-        setBackupExportExt={setBackupExportExt}
-        exportBackup={exportBackup}
-        theme={theme}
-        toggleTheme={toggleTheme}
-        imageCompression={imageCompression}
-        toggleImageCompression={toggleImageCompression}
-        updateChannel={updateChannel}
-        updateInfo={updateInfo}
-        updateLoading={updateLoading}
-        updateError={updateError}
-        onUpdateChannelChange={(next) => {
-          try {
-            window.localStorage?.setItem?.(UPDATE_CHANNEL_KEY, next);
-          } catch {
-            // Ignore unavailable storage in private/embedded contexts.
-          }
-          setUpdateChannel(next);
-          void checkForUpdates(next);
-        }}
-        onCheckForUpdates={() => void checkForUpdates(updateChannel)}
-      />{" "}
+      {settingsSuccess && (
+        <div className="mb-6 rounded-xl border-2 border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20">
+          <p className="font-medium text-green-800 dark:text-green-200">
+            {settingsSuccess}
+          </p>
+        </div>
+      )}{" "}
+      <div className="space-y-10">
+        <ApiKeysCard
+          disabled={mustResetPassword}
+          onSuccess={setSettingsSuccess}
+        />
+        <AiSettingsCard
+          loading={aiSettings.loading}
+          saving={aiSettings.saving}
+          provider={aiSettings.provider}
+          baseUrl={aiSettings.baseUrl}
+          model={aiSettings.model}
+          apiKey={aiSettings.apiKey}
+          chatgptEnabled={aiSettings.chatgptEnabled}
+          status={aiSettings.status}
+          envKeyConfigured={aiSettings.envKeyConfigured}
+          dbKeyConfigured={aiSettings.dbKeyConfigured}
+          onProviderChange={aiSettings.setProvider}
+          onBaseUrlChange={aiSettings.setBaseUrl}
+          onModelChange={aiSettings.setModel}
+          onApiKeyChange={aiSettings.setApiKey}
+          onChatgptEnabledChange={aiSettings.setChatgptEnabled}
+          onSave={aiSettings.save}
+          onClearDbKey={aiSettings.clearDbKey}
+        />
+      </div>
+      <div className="mt-10">
+        <SettingsMainGrid
+          exportBackup={exportBackup}
+          theme={theme}
+          toggleTheme={toggleTheme}
+          imageCompression={imageCompression}
+          toggleImageCompression={toggleImageCompression}
+          updateChannel={updateChannel}
+          updateInfo={updateInfo}
+          updateLoading={updateLoading}
+          updateError={updateError}
+          onUpdateChannelChange={(next) => {
+            try {
+              window.localStorage?.setItem?.(UPDATE_CHANNEL_KEY, next);
+            } catch {
+              // Ignore unavailable storage in private/embedded contexts.
+            }
+            setUpdateChannel(next);
+            void checkForUpdates(next);
+          }}
+          onCheckForUpdates={() => void checkForUpdates(updateChannel)}
+        />
+      </div>{" "}
       <AdvancedSettings
         authEnabled={authEnabled}
         authMode={authMode}
         authToggleLoading={authToggleLoading}
         backupImportLoading={backupImportLoading}
-        legacyDbImportLoading={legacyDbImportLoading}
         isManagedAuthMode={isManagedAuthMode}
         user={user}
         appVersion={appVersion}
         buildLabel={buildLabel}
         verifyBackupFile={verifyBackupFile}
-        verifyLegacyDbFile={verifyLegacyDbFile}
         confirmToggleAuthEnabled={confirmToggleAuthEnabled}
-        setImportError={setImportError}
-        setImportSuccess={setImportSuccess}
       />{" "}
       <SettingsConfirmModals
-        legacyDbImportConfirmation={legacyDbImportConfirmation}
-        setLegacyDbImportConfirmation={setLegacyDbImportConfirmation}
-        importError={importError}
-        setImportError={setImportError}
-        importSuccess={importSuccess}
-        setImportSuccess={setImportSuccess}
         authToggleConfirm={authToggleConfirm}
         setAuthToggleConfirm={setAuthToggleConfirm}
         authDisableFinalConfirmOpen={authDisableFinalConfirmOpen}
@@ -369,6 +359,7 @@ export const Settings: React.FC = () => {
         setBackupImportError={setBackupImportError}
         setBackupImportLoading={setBackupImportLoading}
       />{" "}
+      </div>
     </Layout>
   );
 };

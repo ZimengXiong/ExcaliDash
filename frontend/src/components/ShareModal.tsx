@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import {
-  X,
   Link as LinkIcon,
   AlertTriangle,
   Check,
@@ -27,7 +26,6 @@ type Props = {
 
 export const ShareModal: React.FC<Props> = ({
   drawingId,
-  drawingName,
   isOpen,
   onClose,
 }) => {
@@ -44,7 +42,7 @@ export const ShareModal: React.FC<Props> = ({
   const [userResults, setUserResults] = useState<api.ShareResolvedUser[]>([]);
   const [userPermission, setUserPermission] = useState<"view" | "edit">("view");
   const [linkPermission, setLinkPermission] = useState<"view" | "edit">("view");
-  const [expiryOption, setExpiryOption] = useState("1d");
+  const [expiryOption, setExpiryOption] = useState("1h");
   const [customExpiry, setCustomExpiry] = useState("");
   const [isCopied, setIsCopied] = useState(false);
 
@@ -104,7 +102,7 @@ export const ShareModal: React.FC<Props> = ({
     setUserResults([]);
     setUserPermission("view");
     setLinkPermission("view");
-    setExpiryOption("1d");
+    setExpiryOption("1h");
     setCustomExpiry("");
     setIsCopied(false);
     void refresh();
@@ -232,9 +230,6 @@ export const ShareModal: React.FC<Props> = ({
     setIsLoading(true);
     setError(null);
     try {
-      if (activeLink) {
-        await api.revokeLinkShare(drawingId, activeLink.id);
-      }
       const perm = newPermission ?? linkPermission;
       setLinkPermission(perm);
       let expiresAt =
@@ -281,33 +276,19 @@ export const ShareModal: React.FC<Props> = ({
   const currentLinkUrl = activeLink ? shareableEditorUrl : "";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <>
+      {/* Click-outside backdrop (completely transparent, no blur) */}
       <div
-        className="absolute inset-0 bg-neutral-900/20 backdrop-blur-sm"
+        className="fixed inset-0 z-[150] bg-transparent cursor-default"
         onClick={onClose}
       />
 
-      <div className="relative w-full max-w-[420px] bg-white dark:bg-neutral-900 rounded-2xl border-2 border-black dark:border-neutral-700 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.08)] flex flex-col animate-in fade-in zoom-in-95 duration-200">
-        {/* Header */}
-        <div className="px-6 py-4 flex items-center justify-between border-b-2 border-black dark:border-neutral-700">
-          <h2
-            className="text-base font-bold text-slate-800 dark:text-neutral-100 truncate pr-4"
-            title={drawingName}
-          >
-            Share "{drawingName}"
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg text-neutral-400 hover:text-neutral-950 dark:hover:text-white transition-colors"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
+      {/* The popover container positioned under the share button */}
+      <div className="absolute right-0 top-full mt-2 z-[160] flex max-h-[calc(100vh-5rem)] w-[460px] flex-col overflow-hidden rounded-2xl border-2 border-slate-800 bg-white font-sans shadow-[3px_3px_0px_0px_rgba(30,41,59,0.9)] animate-in fade-in slide-in-from-top-3 duration-200 dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.18)]">
         {/* Content */}
-        <div className="flex-1 px-6 py-5 space-y-5 overflow-visible">
+        <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
           {error && (
-            <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-xs font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-3">
+            <div className="flex items-center gap-2.5 rounded-xl border-2 border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-600 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-400">
               <AlertTriangle size={16} strokeWidth={2} />
               {error}
             </div>
@@ -317,8 +298,10 @@ export const ShareModal: React.FC<Props> = ({
             user={user}
             sharing={sharing}
             userQuery={userQuery}
+            userPermission={userPermission}
             userResults={userResults}
             setUserQuery={setUserQuery}
+            setUserPermission={setUserPermission}
             handleAddUser={handleAddUser}
             handleRevokeUser={handleRevokeUser}
             handleUpdateUserPermission={handleUpdateUserPermission}
@@ -340,17 +323,16 @@ export const ShareModal: React.FC<Props> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 flex items-center justify-between border-t-2 border-black dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800/50 rounded-b-[14px]">
+        <div className="flex items-center justify-between border-t-2 border-slate-100 px-4 py-3 dark:border-neutral-800 bg-slate-50 dark:bg-neutral-900/50">
           <button
             onClick={() => handleCopy(currentLinkUrl)}
             disabled={!activeLink}
             className={clsx(
-              "flex items-center gap-2 px-4 py-2 rounded-xl border-2 font-bold text-xs transition-all active:translate-x-[1px] active:translate-y-[1px]",
+              "w-full py-2.5",
               isCopied
-                ? "bg-emerald-500 text-white border-black shadow-none translate-x-[1px] translate-y-[1px]"
-                : "bg-white dark:bg-neutral-900 border-black dark:border-neutral-600 text-indigo-600 dark:text-indigo-400 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.05)] hover:-translate-y-0.5",
-              !activeLink &&
-                "opacity-40 grayscale cursor-not-allowed shadow-none",
+                ? "ui-button-success"
+                : "ui-button-secondary",
+              !activeLink && "cursor-not-allowed opacity-40 shadow-none",
             )}
           >
             {isCopied ? (
@@ -358,20 +340,13 @@ export const ShareModal: React.FC<Props> = ({
             ) : (
               <LinkIcon size={14} strokeWidth={2.5} />
             )}
-            {isCopied ? "Copied" : "Copy Link"}
-          </button>
-
-          <button
-            onClick={onClose}
-            className="px-6 py-2 rounded-xl bg-indigo-600 dark:bg-indigo-500 text-white border-2 border-black font-bold text-xs hover:-translate-y-0.5 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-0 active:shadow-none transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
-          >
-            Done
+            {isCopied ? "Copied Link!" : "Copy Link"}
           </button>
         </div>
 
         {isLoading && (
-          <div className="absolute inset-0 bg-white/20 dark:bg-black/10 backdrop-blur-[1px] flex items-center justify-center z-[300] pointer-events-none rounded-[14px]">
-            <div className="bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 p-4 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+          <div className="absolute inset-0 bg-white/20 dark:bg-black/10 backdrop-blur-[1px] flex items-center justify-center z-[300] pointer-events-none rounded-[14px]" role="status" aria-label="Updating sharing settings">
+            <div className="ui-popover p-4">
               <RefreshCw
                 size={24}
                 strokeWidth={2.5}
@@ -381,6 +356,6 @@ export const ShareModal: React.FC<Props> = ({
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 };

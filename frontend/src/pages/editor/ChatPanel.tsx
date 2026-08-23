@@ -47,7 +47,7 @@ const BatchCard: React.FC<{
 }> = ({ batch, onUndo }) => {
   const lines = batch.summaryDelta.filter((l) => l.trim().length > 0);
   return (
-    <div className="mt-2 rounded-lg border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/70 dark:bg-indigo-950/30 p-2.5 text-xs">
+    <div className="mt-2 rounded-xl border-2 border-indigo-200 bg-indigo-50/70 p-2.5 text-xs dark:border-indigo-900/60 dark:bg-indigo-950/30">
       <div className="flex items-center justify-between gap-2">
         <span className="font-semibold text-indigo-700 dark:text-indigo-300">
           {STR.applied}
@@ -97,10 +97,10 @@ const MessageBubble: React.FC<{
     <div className={clsx("flex", isUser ? "justify-end" : "justify-start")}>
       <div
         className={clsx(
-          "max-w-[85%] rounded-2xl px-3 py-2 text-sm",
+          "max-w-[88%] rounded-2xl border-2 px-3 py-2 text-sm",
           isUser
-            ? "bg-indigo-600 text-white rounded-br-sm"
-            : "bg-gray-100 dark:bg-neutral-800 text-gray-900 dark:text-gray-100 rounded-bl-sm",
+            ? "rounded-br-md border-black bg-indigo-600 text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:border-neutral-600"
+            : "rounded-bl-md border-slate-200 bg-white text-slate-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100",
         )}
       >
         {message.text ? (
@@ -231,7 +231,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         aria-label={STR.open}
         title={STR.open}
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg hover:bg-indigo-500 transition-colors"
+        className="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-xl border-2 border-black bg-indigo-500 text-white shadow-[3px_3px_0_0_#000] transition-all hover:-translate-y-0.5 hover:shadow-[5px_5px_0_0_#000] dark:border-neutral-600 dark:bg-indigo-500"
       >
         <Sparkles size={22} />
       </button>
@@ -240,19 +240,19 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
   return (
     <aside
-      className="fixed top-0 right-0 z-40 flex h-screen w-full max-w-sm flex-col border-l border-gray-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 shadow-xl"
+      className="fixed inset-y-3 right-3 z-40 flex w-[calc(100%-1.5rem)] max-w-sm flex-col overflow-hidden rounded-2xl border-2 border-black bg-white shadow-[6px_6px_0_0_#000] dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-[6px_6px_0_0_rgba(255,255,255,0.14)]"
       aria-label={STR.title}
     >
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-gray-200 dark:border-neutral-800 px-4">
-        <span className="flex items-center gap-2 font-semibold text-gray-900 dark:text-gray-100">
-          <Sparkles size={18} className="text-indigo-500" />
+      <header className="flex h-16 shrink-0 items-center justify-between border-b-2 border-slate-100 px-4 dark:border-neutral-800">
+        <span className="flex items-center gap-3 font-bold text-gray-900 dark:text-gray-100">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl border-2 border-black bg-indigo-400 text-black dark:border-neutral-700"><Sparkles size={17} /></span>
           {STR.title}
         </span>
         <button
           type="button"
           aria-label={STR.close}
           onClick={() => setIsOpen(false)}
-          className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors"
+          className="ui-icon-button h-9 w-9"
         >
           <X size={18} />
         </button>
@@ -273,9 +273,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             data-testid="chat-messages"
           >
             {messages.length === 0 ? (
-              <p className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                {STR.empty}
-              </p>
+              <div className="mx-auto mt-10 max-w-[15rem] text-center text-sm text-gray-500 dark:text-gray-400">
+                <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-dashed border-indigo-300 bg-indigo-50 text-indigo-600 dark:border-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-300"><Sparkles size={21} /></span>
+                <p className="font-semibold text-slate-700 dark:text-neutral-200">What should I draw?</p>
+                <p className="mt-1 text-xs font-medium">{STR.empty}</p>
+              </div>
             ) : (
               messages.map((message) => (
                 <MessageBubble
@@ -289,7 +291,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
           <form
             onSubmit={handleSubmit}
-            className="shrink-0 border-t border-gray-200 dark:border-neutral-800 p-3"
+            className="shrink-0 border-t-2 border-gray-100 p-3 dark:border-neutral-800"
           >
             <div className="flex items-end gap-2">
               <textarea
@@ -300,7 +302,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 maxLength={20_000}
                 placeholder={STR.placeholder}
                 aria-label={STR.placeholder}
-                className="max-h-32 min-h-[2.5rem] flex-1 resize-none rounded-xl border border-gray-300 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 outline-none focus:border-indigo-500"
+                className="ui-input max-h-32 min-h-[2.75rem] flex-1 resize-none px-3 py-2 text-sm"
               />
           {isStreaming ? (
             <button
@@ -308,7 +310,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               onClick={stop}
               title={STR.stop}
               aria-label={STR.stop}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-200 dark:bg-neutral-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-neutral-600 transition-colors"
+              className="ui-icon-button h-11 w-11 shrink-0"
             >
               <Loader2 size={18} className="animate-spin" />
             </button>
@@ -318,7 +320,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               disabled={draft.trim().length === 0}
               title={STR.send}
               aria-label={STR.send}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-default transition-colors"
+              className="ui-button-primary h-11 w-11 shrink-0 px-0 disabled:opacity-40"
             >
               <Send size={18} />
             </button>

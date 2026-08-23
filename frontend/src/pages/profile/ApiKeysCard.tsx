@@ -2,6 +2,13 @@ import React, { useEffect, useState } from "react";
 import { Copy, KeyRound, Trash2 } from "lucide-react";
 import * as api from "../../api";
 import { ConfirmModal } from "../../components/ConfirmModal";
+import { InfoPopover } from "../../components/InfoPopover";
+import {
+  SettingsCard,
+  SettingsSectionHeader,
+  settingsButtonClass,
+  settingsSelectClass,
+} from "../settings/SettingsRow";
 
 const API_KEY_SCOPE_LABELS: Record<string, string> = {
   "drawings:read": "Read drawings",
@@ -9,6 +16,9 @@ const API_KEY_SCOPE_LABELS: Record<string, string> = {
   "collections:read": "Read collections",
   "collections:write": "Write collections",
 };
+
+const createButtonClass =
+  "ui-button-primary";
 
 const getApiErrorMessage = (err: unknown, fallback: string) => {
   if (api.isAxiosError(err)) {
@@ -39,6 +49,7 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
   const [generatedTokenName, setGeneratedTokenName] = useState("");
   const [copiedToken, setCopiedToken] = useState(false);
   const [apiKeyToRevoke, setApiKeyToRevoke] = useState<api.ApiKeyMetadata | null>(null);
+  const [showAllKeys, setShowAllKeys] = useState(false);
 
   useEffect(() => {
     if (disabled) {
@@ -140,58 +151,53 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
   };
 
   return (
-    <>
-      <div className="bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 bg-emerald-50 dark:bg-neutral-800 rounded-xl flex items-center justify-center border-2 border-emerald-100 dark:border-neutral-700">
-            <KeyRound size={24} className="text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">API Keys</h2>
-            <p className="text-sm text-slate-600 dark:text-neutral-400 font-medium">
-              Create bearer tokens for scripts and integrations. Tokens are shown only once.
-            </p>
-          </div>
-        </div>
+    <section>
+      <SettingsSectionHeader
+        icon={<KeyRound size={20} />}
+        tileClassName="border-black bg-emerald-400 text-black dark:border-neutral-700 dark:bg-emerald-400 dark:text-black"
+        title="API Keys"
+        subtitle="Tokens for apps and scripts"
+      />
 
-        {disabled ? (
-          <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800 rounded-xl">
-            <p className="text-amber-900 dark:text-amber-200 font-bold">
-              API key management is unavailable until you reset your password.
-            </p>
-            <p className="text-sm text-amber-800 dark:text-amber-200/80 font-medium mt-1">
-              Change your password below, then return here to create and manage API keys.
-            </p>
-          </div>
-        ) : (
-          <>
-            {error && (
-              <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl">
-                <p className="text-red-800 dark:text-red-200 font-medium">{error}</p>
-              </div>
-            )}
+      {disabled ? (
+        <div className="p-3.5 bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800 rounded-xl">
+          <p className="text-amber-900 dark:text-amber-200 font-bold">
+            API key management is unavailable until you reset your password.
+          </p>
+          <p className="text-xs text-amber-800 dark:text-amber-200/80 font-medium mt-0.5">
+            Change your password below, then return here to create and manage API keys.
+          </p>
+        </div>
+      ) : (
+        <>
+          {error && (
+            <div className="mb-3 p-3.5 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl">
+              <p className="text-red-800 dark:text-red-200 font-medium">{error}</p>
+            </div>
+          )}
+          <SettingsCard>
             {generatedToken && (
-              <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-800 rounded-xl" aria-live="polite">
+              <div className="bg-amber-50 px-4 py-3.5 dark:bg-amber-900/20 sm:px-5" aria-live="polite">
                 <p className="text-amber-900 dark:text-amber-200 font-bold">
                   Copy this token now. You will not be able to see it again.
                 </p>
-                <p className="text-sm text-amber-800 dark:text-amber-200/80 font-medium mt-1">
+                <p className="text-xs text-amber-800 dark:text-amber-200/80 font-medium mt-0.5">
                   New API key: {generatedTokenName}
                 </p>
-                <div className="mt-4 flex flex-col sm:flex-row gap-3">
+                <div className="mt-3 flex flex-col sm:flex-row gap-2">
                   <input
                     aria-label={`Generated API token for ${generatedTokenName}`}
                     value={generatedToken}
                     readOnly
-                    className="flex-1 px-4 py-3 bg-white dark:bg-neutral-800 border-2 border-black dark:border-neutral-700 rounded-xl font-mono text-xs text-slate-900 dark:text-white"
+                    className={`${settingsSelectClass} flex-1 text-xs font-semibold tracking-tight`}
                     onFocus={(event) => event.target.select()}
                   />
                   <button
                     onClick={() => void handleCopyGeneratedToken()}
                     aria-label="Copy generated API token"
-                    className="px-4 py-3 bg-amber-500 text-white font-bold rounded-xl border-2 border-black dark:border-neutral-700 flex items-center justify-center gap-2"
+                    className="ui-button-primary"
                   >
-                    <Copy size={18} />
+                    <Copy size={14} />
                     {copiedToken ? "Copied" : "Copy"}
                   </button>
                   <button
@@ -200,7 +206,7 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
                       setGeneratedTokenName("");
                       setCopiedToken(false);
                     }}
-                    className="px-4 py-3 bg-white dark:bg-neutral-800 text-slate-700 dark:text-neutral-300 font-bold rounded-xl border-2 border-black dark:border-neutral-700"
+                    className={settingsButtonClass}
                   >
                     Done
                   </button>
@@ -208,45 +214,53 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
               </div>
             )}
 
-            <div className="mb-6 space-y-4">
-              <div className="flex flex-col sm:flex-row gap-3">
-                <div className="flex-1">
-                  <label htmlFor="apiKeyName" className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">
+            <div className="px-4 py-3.5 sm:px-5">
+              <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+                <div className="min-w-0 flex-1 basis-40">
+                  <label
+                    htmlFor="apiKeyName"
+                    className="block text-sm font-bold text-slate-900 dark:text-white sm:text-base"
+                  >
                     API Key Name
                   </label>
-                  <input
-                    id="apiKeyName"
-                    type="text"
-                    value={apiKeyName}
-                    onChange={(event) => setApiKeyName(event.target.value)}
-                    maxLength={100}
-                    className="w-full px-4 py-3 bg-white dark:bg-neutral-800 border-2 border-black dark:border-neutral-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 font-medium"
-                    placeholder="Example: Backup script"
-                  />
+                  <p className="mt-0.5 text-xs font-medium text-slate-500 dark:text-neutral-400">
+                    Example: Backup script
+                  </p>
                 </div>
+                <input
+                  id="apiKeyName"
+                  type="text"
+                  value={apiKeyName}
+                  onChange={(event) => setApiKeyName(event.target.value)}
+                  maxLength={100}
+                  className={`${settingsSelectClass} ml-auto w-48`}
+                  placeholder="Key name"
+                />
                 <button
                   onClick={() => void handleCreateApiKey()}
                   disabled={apiKeysLoading || actionLoading || !apiKeyName.trim() || selectedScopes.length === 0}
-                  className="sm:self-end px-6 py-3 bg-emerald-600 dark:bg-emerald-500 text-white font-bold rounded-xl border-2 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={createButtonClass}
                 >
                   {actionLoading ? "Creating..." : "Create API Key"}
                 </button>
               </div>
-              <fieldset>
-                <legend className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">
+              <fieldset className="mt-3">
+                <legend className="text-xs font-semibold text-slate-500 dark:text-neutral-400">
                   Scopes
                 </legend>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="mt-1.5 flex flex-wrap gap-2">
                   {api.API_KEY_SCOPES.map((scope) => (
-                    <label key={scope} className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-neutral-800 border-2 border-slate-200 dark:border-neutral-700 rounded-xl text-sm font-medium text-slate-700 dark:text-neutral-300">
+                    <label
+                      key={scope}
+                      className="flex items-center gap-2 rounded-lg border-2 border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+                    >
                       <input
                         type="checkbox"
                         checked={selectedScopes.includes(scope)}
                         onChange={(event) => handleApiKeyScopeChange(scope, event.target.checked)}
-                        className="h-4 w-4 accent-emerald-600"
+                        className="h-3.5 w-3.5 accent-emerald-600"
                       />
                       <span>{API_KEY_SCOPE_LABELS[scope]}</span>
-                      <span className="font-mono text-xs text-slate-500 dark:text-neutral-500">{scope}</span>
                     </label>
                   ))}
                 </div>
@@ -254,49 +268,90 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
             </div>
 
             {apiKeysLoading ? (
-              <p className="text-slate-600 dark:text-neutral-400 font-medium">Loading API keys...</p>
+              <p className="px-4 py-3.5 text-sm text-slate-600 dark:text-neutral-400 font-medium sm:px-5">
+                Loading API keys...
+              </p>
             ) : apiKeys.length === 0 ? (
-              <p className="text-slate-600 dark:text-neutral-400 font-medium">No API keys have been created yet.</p>
+              <p className="px-4 py-3.5 text-sm text-slate-600 dark:text-neutral-400 font-medium sm:px-5">
+                No API keys have been created yet.
+              </p>
             ) : (
-              <div className="space-y-4">
-                {apiKeys.map((apiKey) => {
-                  const revoked = Boolean(apiKey.revokedAt);
-                  return (
-                    <div key={apiKey.id} className="p-4 bg-slate-50 dark:bg-neutral-800 border-2 border-slate-200 dark:border-neutral-700 rounded-xl">
-                      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-lg font-bold text-slate-900 dark:text-white break-words">{apiKey.name}</h3>
-                            <span className={revoked ? "px-2 py-1 text-xs font-bold rounded-full bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-800" : "px-2 py-1 text-xs font-bold rounded-full bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-800"}>
-                              {revoked ? "Revoked" : "Active"}
-                            </span>
-                          </div>
-                          <dl className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                            <div><dt className="font-bold text-slate-700 dark:text-neutral-300">Prefix</dt><dd className="font-mono text-slate-600 dark:text-neutral-400 break-all">{apiKey.prefix}</dd></div>
-                            <div><dt className="font-bold text-slate-700 dark:text-neutral-300">Scopes</dt><dd className="text-slate-600 dark:text-neutral-400">{apiKey.scopes.length > 0 ? apiKey.scopes.join(", ") : "None"}</dd></div>
-                            <div><dt className="font-bold text-slate-700 dark:text-neutral-300">Created</dt><dd className="text-slate-600 dark:text-neutral-400">{formatApiKeyDate(apiKey.createdAt)}</dd></div>
-                            <div><dt className="font-bold text-slate-700 dark:text-neutral-300">Last Used</dt><dd className="text-slate-600 dark:text-neutral-400">{formatApiKeyDate(apiKey.lastUsedAt)}</dd></div>
-                            <div><dt className="font-bold text-slate-700 dark:text-neutral-300">Revoked</dt><dd className="text-slate-600 dark:text-neutral-400">{formatApiKeyDate(apiKey.revokedAt)}</dd></div>
-                          </dl>
+              <>
+              {apiKeys.slice(0, showAllKeys ? apiKeys.length : 3).map((apiKey) => {
+                const revoked = Boolean(apiKey.revokedAt);
+                return (
+                  <div key={apiKey.id} className="px-4 py-3.5 sm:px-5">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                      <div className="min-w-0 flex-1 basis-40">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-sm font-bold text-slate-900 dark:text-white break-words sm:text-base">
+                            {apiKey.name}
+                          </h3>
+                          <span
+                            className={
+                              revoked
+                                ? "rounded-full border-2 border-black bg-rose-400 px-2 py-0.5 text-[11px] font-bold text-black dark:border-neutral-700 dark:bg-rose-400 dark:text-black"
+                                : "rounded-full border-2 border-black bg-emerald-400 px-2 py-0.5 text-[11px] font-bold text-black dark:border-neutral-700 dark:bg-emerald-400 dark:text-black"
+                            }
+                          >
+                            {revoked ? "Revoked" : "Active"}
+                          </span>
+                          <InfoPopover label={`Details for API key ${apiKey.name}`}>
+                              <p>
+                                <span className="font-bold text-slate-900 dark:text-white">Prefix</span>
+                                <span className="ml-2 text-slate-500 dark:text-neutral-400">{apiKey.prefix}</span>
+                              </p>
+                              <p>
+                                <span className="font-bold text-slate-900 dark:text-white">Scopes</span>
+                                <span className="ml-2 text-slate-500 dark:text-neutral-400">
+                                  {apiKey.scopes.length > 0 ? apiKey.scopes.join(", ") : "None"}
+                                </span>
+                              </p>
+                              <p className="text-slate-500 dark:text-neutral-400">
+                                Created {formatApiKeyDate(apiKey.createdAt)}
+                              </p>
+                              <p className="text-slate-500 dark:text-neutral-400">
+                                Last used {formatApiKeyDate(apiKey.lastUsedAt)}
+                              </p>
+                              {revoked ? (
+                                <p className="text-slate-500 dark:text-neutral-400">
+                                  Revoked {formatApiKeyDate(apiKey.revokedAt)}
+                                </p>
+                              ) : null}
+                          </InfoPopover>
                         </div>
+                      </div>
+                      {!revoked ? (
                         <button
                           onClick={() => setApiKeyToRevoke(apiKey)}
-                          disabled={actionLoading || revoked}
-                          className="px-4 py-2 bg-white dark:bg-neutral-900 text-red-700 dark:text-red-300 font-bold rounded-xl border-2 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                          disabled={actionLoading}
+                          className="ui-button-secondary ml-auto text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
                           aria-label={`Revoke API key ${apiKey.name}`}
                         >
-                          <Trash2 size={18} />
+                          <Trash2 size={14} />
                           Revoke
                         </button>
-                      </div>
+                      ) : null}
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
+              {apiKeys.length > 3 ? (
+                <div className="px-4 py-3 text-center sm:px-5">
+                  <button
+                    type="button"
+                    className="ui-button-secondary"
+                    onClick={() => setShowAllKeys((value) => !value)}
+                  >
+                    {showAllKeys ? "Show less" : `Show ${apiKeys.length - 3} more`}
+                  </button>
+                </div>
+              ) : null}
+              </>
             )}
-          </>
-        )}
-      </div>
+          </SettingsCard>
+        </>
+      )}
       <ConfirmModal
         isOpen={Boolean(apiKeyToRevoke)}
         title="Revoke API Key"
@@ -305,6 +360,6 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
         onConfirm={() => apiKeyToRevoke && void handleRevokeApiKey(apiKeyToRevoke.id)}
         onCancel={() => setApiKeyToRevoke(null)}
       />
-    </>
+    </section>
   );
 };

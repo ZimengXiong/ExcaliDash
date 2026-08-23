@@ -133,12 +133,12 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
         className={clsx(
           "drawing-card group relative flex flex-col bg-white dark:bg-neutral-900 rounded-2xl border-2 transition-all duration-200 ease-out",
           !isTrash &&
-            "hover:-translate-y-1 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)]",
+            "hover:-translate-y-1 hover:shadow-[3px_3px_0px_0px_rgba(30,41,59,0.9)] dark:hover:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.18)]",
           isTrash &&
-            "shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] opacity-80 grayscale-[0.5]",
+            "shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.15)] opacity-80 grayscale-[0.5]",
           isSelected
-            ? "border-neutral-500 dark:border-neutral-500 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)]"
-            : "border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)]",
+            ? "border-neutral-500 dark:border-neutral-500 shadow-[3px_3px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.18)]"
+            : "border-slate-800 dark:border-neutral-700 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.15)]",
         )}
       >
         <div
@@ -167,14 +167,13 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
         <div
           onClick={(e) => !isTrash && onClick(drawing.id, e)}
           className={clsx(
-            "aspect-[16/10] bg-slate-50 dark:bg-neutral-800/30 relative overflow-hidden flex items-center justify-center border-b-2 border-black dark:border-neutral-700 rounded-t-xl transition-colors",
+            "aspect-[16/10] bg-slate-50 dark:bg-neutral-800/30 relative overflow-hidden flex items-center justify-center border-b-2 border-slate-800 dark:border-neutral-700 rounded-t-xl transition-colors",
             !isTrash &&
               "cursor-pointer group-hover:bg-neutral-100/10 dark:group-hover:bg-neutral-850",
             isTrash && "cursor-default",
           )}
         >
           <div className="absolute inset-0 opacity-[0.25] bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] [background-size:24px_24px]"></div>
-
           {previewSvg ? (
             <div
               className={clsx(
@@ -213,7 +212,7 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
                   onBlur={() => setIsRenaming(false)}
                   onDragStart={(e) => e.stopPropagation()}
                   onMouseDown={(e) => e.stopPropagation()}
-                  className="w-full px-2 py-1 -ml-2 text-sm sm:text-base font-bold text-slate-900 dark:text-white border-2 border-black dark:border-neutral-600 rounded-lg focus:outline-none shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] bg-white dark:bg-neutral-800"
+                  className="w-full px-2 py-1 -ml-2 text-sm sm:text-base font-semibold text-slate-900 dark:text-white border-2 border-slate-800 dark:border-neutral-600 rounded-lg focus:outline-none shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)] bg-white dark:bg-neutral-800"
                 />
               </form>
             ) : (

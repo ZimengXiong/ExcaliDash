@@ -48,10 +48,7 @@ test.describe("Export Functionality", () => {
 
     await expect(page.getByRole("heading", { name: "Export Backup" })).toBeVisible();
     await expect(page.getByRole("button", { name: /^Export$/ })).toBeVisible();
-    const downloadNameSelect = page.getByRole("combobox", { name: "Download name" });
-    await expect(downloadNameSelect).toBeVisible();
-    await expect(downloadNameSelect.locator('option[value="excalidash"]')).toHaveText(".excalidash");
-    await expect(downloadNameSelect.locator('option[value="excalidash.zip"]')).toHaveText(".excalidash.zip");
+    await expect(page.getByText("Export backup")).toBeVisible();
   });
 
   test("should export .excalidash via API", async ({ request }) => {
@@ -110,7 +107,7 @@ test.describe.serial("Import Functionality", () => {
     await page.goto("/settings");
     await page.waitForLoadState("networkidle");
 
-    const advancedDetails = page.locator("details", { hasText: "Advanced / Legacy" });
+    const advancedDetails = page.locator("details", { hasText: "Advanced" });
     await expect(advancedDetails).toHaveCount(1);
     const isOpen = await advancedDetails.evaluate((el) => el.hasAttribute("open"));
     if (!isOpen) {
@@ -119,6 +116,7 @@ test.describe.serial("Import Functionality", () => {
 
     await expect(page.getByRole("heading", { name: "Import Backup" })).toBeVisible();
     await expect(page.locator("#settings-import-backup")).toBeAttached();
+    await expect(page.getByRole("button", { name: "Choose file" })).toBeVisible();
   });
 
   test("should import .excalidraw file from Dashboard", async ({ page }) => {
@@ -271,7 +269,7 @@ test.describe.serial("Import Functionality", () => {
     });
 
     await expect(page.getByText("Uploads (Done)")).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText("Failed")).toBeVisible();
+    await expect(page.getByTitle(/not valid JSON/)).toBeVisible();
   });
 
   test("should import multiple drawings at once", async ({ page }) => {

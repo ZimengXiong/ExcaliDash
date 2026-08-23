@@ -10,6 +10,11 @@ import {
   type LegacyExportDrawing,
 } from "./importHelpers";
 
+export const EXCALIDASH_REQUIRED_MESSAGE = "A .excalidash file is required.";
+
+export const isExcalidashFile = (file: Pick<File, "name">): boolean =>
+  file.name.toLowerCase().endsWith(".excalidash");
+
 export const importDrawings = async (
   files: File[],
   targetCollectionId: string | null,

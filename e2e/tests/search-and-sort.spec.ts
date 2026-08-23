@@ -117,15 +117,15 @@ test.describe("Sort Drawings", () => {
   let createdDrawingIds: string[] = [];
 
   const getSortFieldButton = (page: Page) =>
-    page.getByRole("button", { name: /^(Name|Date Created|Date Modified)$/ }).first();
+    page.getByRole("button", { name: "Sort drawings" });
 
   const chooseSortField = async (
     page: Page,
     label: "Name" | "Date Created" | "Date Modified"
   ) => {
     await getSortFieldButton(page).click();
-    await page.getByRole("button", { name: label }).last().click();
-    await expect(getSortFieldButton(page)).toHaveText(new RegExp(label));
+    await page.getByRole("option", { name: label }).click();
+    await expect(getSortFieldButton(page)).toContainText(label);
   };
 
   test.afterEach(async ({ request }) => {

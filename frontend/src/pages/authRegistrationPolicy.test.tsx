@@ -67,7 +67,7 @@ describe("auth page registration policy", () => {
     );
 
     expect(screen.queryByRole("link", { name: /create a new account/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/sign in with an existing account/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^sign in$/i })).toBeInTheDocument();
   });
 
   it("redirects away from /register when registration is disabled outside bootstrap flow", () => {

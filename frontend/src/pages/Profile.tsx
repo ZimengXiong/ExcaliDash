@@ -1,323 +1,337 @@
-import React, { useState, useEffect } from 'react';
-import { Layout } from '../components/Layout';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import * as api from '../api';
-import type { Collection } from '../types';
-import { User, Save, X } from 'lucide-react';
-import { USER_KEY } from '../utils/impersonation';
+import React, { useState, useEffect } from "react";
+import { Layout } from "../components/Layout";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import * as api from "../api";
+import type { Collection } from "../types";
+import { Save } from "lucide-react";
 import { displayFontFamily } from "../utils/displayFont";
-import { ApiKeysCard } from "./profile/ApiKeysCard";
 import { PasswordCard } from "./profile/PasswordCard";
+import { getApiErrorMessage } from "../utils/getApiErrorMessage";
+import { UserAvatar } from "../components/UserAvatar";
+import {
+  SettingsCard,
+  settingsButtonClass,
+  settingsPrimaryButtonClass,
+  settingsSelectClass,
+} from "./settings/SettingsRow";
 
 export const Profile: React.FC = () => {
-    const { user: authUser, logout, authEnabled } = useAuth();
-    const navigate = useNavigate();
-    const mustResetPassword = Boolean(authUser?.mustResetPassword);
-    const [collections, setCollections] = useState<Collection[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
+  const { user: authUser, logout, authEnabled, authMode, updateUser } =
+    useAuth();
+  const navigate = useNavigate();
+  const mustResetPassword = Boolean(authUser?.mustResetPassword);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-    const [name, setName] = useState('');
-    const [email, setEmail] = useState('');
-    const [showEmailForm, setShowEmailForm] = useState(false);
-    const [emailCurrentPassword, setEmailCurrentPassword] = useState('');
-    const [emailLoading, setEmailLoading] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [showEmailForm, setShowEmailForm] = useState(false);
+  const [emailCurrentPassword, setEmailCurrentPassword] = useState("");
+  const [emailLoading, setEmailLoading] = useState(false);
 
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const collectionsData = await api.getCollections();
+        setCollections(collectionsData);
 
-
-    useEffect(() => {
-        if (authEnabled === false) {
-            navigate('/settings', { replace: true });
-            return;
+        if (authUser) {
+          setName(authUser.name);
+          setEmail(authUser.email);
         }
-        const fetchData = async () => {
-            try {
-                const collectionsData = await api.getCollections();
-                setCollections(collectionsData);
-                
-                if (authUser) {
-                    setName(authUser.name);
-                    setEmail(authUser.email);
-                }
-            } catch (err) {
-                console.error('Failed to fetch data:', err);
-            }
-        };
-        fetchData();
-    }, [authEnabled, authUser, navigate]);
-
-
-
-
-
-    const handleSelectCollection = (id: string | null | undefined) => {
-        if (id === undefined) navigate('/');
-        else if (id === null) navigate('/collections?id=unorganized');
-        else navigate(`/collections?id=${id}`);
+      } catch (err) {
+        console.error("Failed to fetch data:", err);
+      }
     };
+    fetchData();
+  }, [authEnabled, authUser, navigate]);
 
-    const handleCreateCollection = async (name: string) => {
-        await api.createCollection(name);
-        const newCollections = await api.getCollections();
-        setCollections(newCollections);
-    };
+  const handleSelectCollection = (id: string | null | undefined) => {
+    if (id === undefined) navigate("/");
+    else if (id === null) navigate("/collections?id=unorganized");
+    else navigate(`/collections?id=${id}`);
+  };
 
-    const handleEditCollection = async (id: string, name: string) => {
-        setCollections(prev => prev.map(c => c.id === id ? { ...c, name } : c));
-        await api.updateCollection(id, name);
-    };
+  const handleCreateCollection = async (name: string) => {
+    const collection = await api.createCollection(name);
+    setCollections((prev) => [...prev, collection]);
+  };
 
-    const handleDeleteCollection = async (id: string) => {
-        setCollections(prev => prev.filter(c => c.id !== id));
-        await api.deleteCollection(id);
-    };
-
-    const handleUpdateName = async () => {
-        if (mustResetPassword) {
-            setError('You must reset your password before updating your profile');
-            return;
-        }
-        if (!name.trim()) {
-            setError('Name cannot be empty');
-            return;
-        }
-
-        setLoading(true);
-        setError('');
-        setSuccess('');
-
-        try {
-            const response = await api.api.put<{ user: { id: string; email: string; name: string; createdAt: string; updatedAt: string } }>('/auth/profile', { name: name.trim() });
-            setSuccess('Name updated successfully');
-            if (response.data?.user) {
-                localStorage.setItem('excalidash-user', JSON.stringify(response.data.user));
-                setTimeout(() => window.location.reload(), 500);
-            }
-        } catch (err: unknown) {
-            let message = 'Failed to update name';
-            if (api.isAxiosError(err)) {
-                if (err.response?.data?.message) {
-                    message = err.response.data.message;
-                } else if (err.response?.data?.error) {
-                    message = err.response.data.error;
-                }
-            }
-            setError(message);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-
-
-    const handleUpdateEmail = async () => {
-        if (mustResetPassword) {
-            setError('You must reset your password before changing your email');
-            return;
-        }
-        if (!email.trim()) {
-            setError('Email cannot be empty');
-            return;
-        }
-        if (!emailCurrentPassword) {
-            setError('Current password is required to change email');
-            return;
-        }
-
-        setEmailLoading(true);
-        setError('');
-        setSuccess('');
-
-        try {
-            const response = await api.api.put<{
-                user: { id: string; email: string; name: string; createdAt: string; updatedAt: string };
-            }>('/auth/email', {
-                email: email.trim(),
-                currentPassword: emailCurrentPassword,
-            });
-
-            localStorage.setItem(USER_KEY, JSON.stringify(response.data.user));
-
-            setSuccess('Email updated successfully');
-            setShowEmailForm(false);
-            setEmailCurrentPassword('');
-
-            setTimeout(() => window.location.reload(), 500);
-        } catch (err: unknown) {
-            let message = 'Failed to update email';
-            if (api.isAxiosError(err)) {
-                if (err.response?.data?.message) {
-                    message = err.response.data.message;
-                } else if (err.response?.data?.error) {
-                    message = err.response.data.error;
-                }
-            }
-            setError(message);
-        } finally {
-            setEmailLoading(false);
-        }
-    };
-
-    return (
-        <Layout
-            collections={collections}
-            selectedCollectionId="PROFILE"
-            onSelectCollection={handleSelectCollection}
-            onCreateCollection={handleCreateCollection}
-            onEditCollection={handleEditCollection}
-            onDeleteCollection={handleDeleteCollection}
-        >
-            <h1 className="text-3xl sm:text-5xl mb-6 sm:mb-8 text-slate-900 dark:text-white pl-1" style={{ fontFamily: displayFontFamily }}>
-                Profile
-            </h1>
-
-            {success && (
-                <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-800 rounded-xl">
-                    <p className="text-green-800 dark:text-green-200 font-medium">{success}</p>
-                </div>
-            )}
-            {error && (
-                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl">
-                    <p className="text-red-800 dark:text-red-200 font-medium">{error}</p>
-                </div>
-            )}
-
-            <div className="space-y-6">
-                <div className="bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] p-6">
-                    <div className="flex items-center gap-3 mb-6">
-                        <div className="w-12 h-12 bg-indigo-50 dark:bg-neutral-800 rounded-xl flex items-center justify-center border-2 border-indigo-100 dark:border-neutral-700">
-                            <User size={24} className="text-indigo-600 dark:text-indigo-400" />
-                        </div>
-                        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Personal Information</h2>
-                    </div>
-
-                            {mustResetPassword && (
-                                <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800 rounded-xl">
-                                    <p className="text-amber-900 dark:text-amber-200 font-bold">
-                                        Password reset required
-                                    </p>
-                                    <p className="text-sm text-amber-800 dark:text-amber-200/80 font-medium mt-1">
-                                        Change your password below before using ExcaliDash.
-                                    </p>
-                                </div>
-                            )}
-		                    <div className="space-y-4">
-	                        <div>
-	                            <label htmlFor="email" className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">
-	                                Email Address
-	                            </label>
-	                            <div className="flex gap-3">
-	                                <input
-	                                    id="email"
-	                                    type="email"
-	                                    value={email}
-	                                    onChange={(e) => setEmail(e.target.value)}
-	                                    disabled={!showEmailForm}
-	                                    className={
-	                                        showEmailForm
-	                                            ? "flex-1 px-4 py-3 bg-white dark:bg-neutral-800 border-2 border-black dark:border-neutral-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 font-medium"
-	                                            : "flex-1 px-4 py-3 bg-slate-50 dark:bg-neutral-800 border-2 border-slate-200 dark:border-neutral-700 rounded-xl text-slate-600 dark:text-neutral-400 cursor-not-allowed"
-	                                    }
-	                                />
-		                                {!showEmailForm && (
-		                                    <button
-		                                        onClick={() => {
-		                                            setShowEmailForm(true);
-		                                            setEmailCurrentPassword('');
-		                                            setError('');
-		                                            setSuccess('');
-		                                        }}
-                                                disabled={mustResetPassword}
-		                                        className="px-6 py-3 bg-white dark:bg-neutral-800 text-slate-700 dark:text-neutral-300 font-bold rounded-xl border-2 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-0.5 transition-all duration-200"
-		                                    >
-		                                        Change
-		                                    </button>
-		                                )}
-	                            </div>
-
-	                            {showEmailForm && (
-	                                <div className="mt-4 space-y-3">
-	                                    <div>
-	                                        <label htmlFor="emailCurrentPassword" className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">
-	                                            Current Password
-	                                        </label>
-	                                        <input
-	                                            id="emailCurrentPassword"
-	                                            type="password"
-	                                            value={emailCurrentPassword}
-	                                            onChange={(e) => setEmailCurrentPassword(e.target.value)}
-	                                            className="w-full px-4 py-3 bg-white dark:bg-neutral-800 border-2 border-black dark:border-neutral-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 font-medium"
-	                                            placeholder="Enter current password"
-	                                        />
-	                                    </div>
-	                                    <div className="flex gap-3">
-	                                        <button
-	                                            onClick={handleUpdateEmail}
-	                                            disabled={
-	                                                emailLoading ||
-	                                                !email.trim() ||
-	                                                !emailCurrentPassword ||
-	                                                email.trim() === authUser?.email
-	                                            }
-	                                            className="flex-1 px-6 py-3 bg-indigo-600 dark:bg-indigo-500 text-white font-bold rounded-xl border-2 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-	                                        >
-	                                            {emailLoading ? 'Saving...' : 'Save Email'}
-	                                        </button>
-	                                        <button
-	                                            onClick={() => {
-	                                                setShowEmailForm(false);
-	                                                setEmail(authUser?.email || '');
-	                                                setEmailCurrentPassword('');
-	                                                setError('');
-	                                            }}
-	                                            disabled={emailLoading}
-	                                            className="px-6 py-3 bg-white dark:bg-neutral-800 text-slate-700 dark:text-neutral-300 font-bold rounded-xl border-2 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-	                                        >
-	                                            <X size={18} />
-	                                            Cancel
-	                                        </button>
-	                                    </div>
-	                                </div>
-	                            )}
-	                        </div>
-
-                        <div>
-                            <label htmlFor="name" className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">
-                                Display Name
-                            </label>
-                            <div className="flex gap-3">
-                                <input
-                                    id="name"
-                                    type="text"
-                                    value={name}
-                                    onChange={(e) => setName(e.target.value)}
-                                    className="flex-1 px-4 py-3 bg-white dark:bg-neutral-800 border-2 border-black dark:border-neutral-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 font-medium"
-                                    placeholder="Your name"
-                                />
-	                                <button
-	                                    onClick={handleUpdateName}
-	                                    disabled={mustResetPassword || loading || !name.trim() || name === authUser?.name}
-	                                    className="px-6 py-3 bg-indigo-600 dark:bg-indigo-500 text-white font-bold rounded-xl border-2 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:hover:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:disabled:hover:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] flex items-center gap-2"
-	                                >
-	                                    <Save size={18} />
-	                                    Save
-	                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <ApiKeysCard disabled={mustResetPassword} onSuccess={setSuccess} />
-
-                <PasswordCard
-                    mustResetPassword={mustResetPassword}
-                    logout={logout}
-                    onError={setError}
-                    onSuccess={setSuccess}
-                />
-            </div>
-        </Layout>
+  const handleEditCollection = async (id: string, name: string) => {
+    setCollections((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, name } : c)),
     );
+    await api.updateCollection(id, name);
+  };
+
+  const handleDeleteCollection = async (id: string) => {
+    setCollections((prev) => prev.filter((c) => c.id !== id));
+    await api.deleteCollection(id);
+  };
+
+  const handleUpdateName = async () => {
+    if (mustResetPassword) {
+      setError("You must reset your password before updating your profile");
+      return;
+    }
+    if (!name.trim()) {
+      setError("Name cannot be empty");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const response = await api.api.put<{
+        user: {
+          id: string;
+          email: string;
+          name: string;
+          createdAt: string;
+          updatedAt: string;
+        };
+      }>("/auth/profile", { name: name.trim() });
+      setSuccess("Name updated successfully");
+      if (response.data?.user) {
+        updateUser(response.data.user);
+      }
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, "Failed to update name"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateEmail = async () => {
+    if (mustResetPassword) {
+      setError("You must reset your password before changing your email");
+      return;
+    }
+    if (!email.trim()) {
+      setError("Email cannot be empty");
+      return;
+    }
+    if (!emailCurrentPassword) {
+      setError("Current password is required to change email");
+      return;
+    }
+
+    setEmailLoading(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const response = await api.api.put<{
+        user: {
+          id: string;
+          email: string;
+          name: string;
+          createdAt: string;
+          updatedAt: string;
+        };
+      }>("/auth/email", {
+        email: email.trim(),
+        currentPassword: emailCurrentPassword,
+      });
+
+      updateUser(response.data.user);
+
+      setSuccess("Email updated successfully");
+      setShowEmailForm(false);
+      setEmailCurrentPassword("");
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, "Failed to update email"));
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
+  return (
+    <Layout
+      collections={collections}
+      selectedCollectionId="PROFILE"
+      onSelectCollection={handleSelectCollection}
+      onCreateCollection={handleCreateCollection}
+      onEditCollection={handleEditCollection}
+      onDeleteCollection={handleDeleteCollection}
+    >
+      <div className="mx-auto w-full max-w-3xl">
+        <h1
+          className="text-3xl sm:text-5xl mb-6 sm:mb-8 text-slate-900 dark:text-white pl-1"
+          style={{ fontFamily: displayFontFamily }}
+        >
+          Profile
+        </h1>
+
+      {success && (
+        <div className="mb-4 p-3.5 bg-green-50 dark:bg-green-900/20 border-2 border-green-200 dark:border-green-800 rounded-xl">
+          <p className="text-green-800 dark:text-green-200 font-medium">
+            {success}
+          </p>
+        </div>
+      )}
+      {error && (
+        <div className="mb-4 p-3.5 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl">
+          <p className="text-red-800 dark:text-red-200 font-medium">{error}</p>
+        </div>
+      )}
+
+      <div className="space-y-6">
+        {authEnabled ? (
+          <section>
+            {mustResetPassword && (
+              <div className="mb-3 p-3.5 bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800 rounded-xl">
+                <p className="text-amber-900 dark:text-amber-200 font-bold">
+                  Password reset required
+                </p>
+                <p className="text-xs text-amber-800 dark:text-amber-200/80 font-medium mt-0.5">
+                  Change your password below before using ExcaliDash.
+                </p>
+              </div>
+            )}
+
+            <SettingsCard>
+              {authUser && (
+                <div className="relative overflow-hidden bg-indigo-50/70 px-5 py-5 dark:bg-indigo-950/20 sm:px-6">
+                  <div className="relative flex flex-wrap items-center gap-5">
+                    <UserAvatar name={authUser.name} size="lg" />
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                      <input
+                        id="name"
+                        aria-label="Display name"
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className={`${settingsSelectClass} min-w-40 flex-1`}
+                        placeholder="Your name"
+                      />
+                      <button
+                        onClick={handleUpdateName}
+                        disabled={
+                          mustResetPassword ||
+                          loading ||
+                          !name.trim() ||
+                          name === authUser?.name
+                        }
+                        className={settingsPrimaryButtonClass}
+                      >
+                        <Save size={14} />
+                        Save
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div className="px-4 py-3.5 sm:px-5">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <div className="min-w-0 flex-1 basis-40">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white sm:text-base">
+                      Email
+                    </h3>
+                    <p className="mt-0.5 truncate text-xs font-medium text-slate-500 dark:text-neutral-400">
+                      {email}
+                    </p>
+                  </div>
+                  {!showEmailForm && (
+                    <button
+                      onClick={() => {
+                        setShowEmailForm(true);
+                        setEmailCurrentPassword("");
+                        setError("");
+                        setSuccess("");
+                      }}
+                      disabled={mustResetPassword}
+                      className={`${settingsButtonClass} ml-auto`}
+                    >
+                      Change
+                    </button>
+                  )}
+                </div>
+
+                {showEmailForm && (
+                  <div className="mt-3 max-w-md space-y-3">
+                    <div>
+                      <label
+                        htmlFor="email"
+                        className="mb-1 block text-xs font-semibold text-slate-500 dark:text-neutral-400"
+                      >
+                        New email
+                      </label>
+                      <input
+                        id="email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className={`${settingsSelectClass} w-full`}
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="emailCurrentPassword"
+                        className="mb-1 block text-xs font-semibold text-slate-500 dark:text-neutral-400"
+                      >
+                        Current password
+                      </label>
+                      <input
+                        id="emailCurrentPassword"
+                        type="password"
+                        value={emailCurrentPassword}
+                        onChange={(e) =>
+                          setEmailCurrentPassword(e.target.value)
+                        }
+                        className={`${settingsSelectClass} w-full`}
+                        placeholder="Enter current password"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleUpdateEmail}
+                        disabled={
+                          emailLoading ||
+                          !email.trim() ||
+                          !emailCurrentPassword ||
+                          email.trim() === authUser?.email
+                        }
+                        className={settingsPrimaryButtonClass}
+                      >
+                        {emailLoading ? "Saving…" : "Save email"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowEmailForm(false);
+                          setEmail(authUser?.email || "");
+                          setEmailCurrentPassword("");
+                          setError("");
+                        }}
+                        disabled={emailLoading}
+                        className={settingsButtonClass}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+            </SettingsCard>
+          </section>
+        ) : null}
+
+        {authEnabled && authMode !== "oidc_enforced" ? (
+          <PasswordCard
+            mustResetPassword={mustResetPassword}
+            logout={logout}
+            onError={setError}
+            onSuccess={setSuccess}
+          />
+        ) : null}
+      </div>
+      </div>
+    </Layout>
+  );
 };

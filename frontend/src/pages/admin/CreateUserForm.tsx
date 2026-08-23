@@ -1,53 +1,74 @@
-import React from "react";
-import { UserCog } from "lucide-react";
+import React, { useState } from "react";
+import { ShieldCheck, User, UserCog } from "lucide-react";
 import { PasswordRequirements } from "../../components/PasswordRequirements";
-import type { PasswordPolicy } from "../../utils/passwordPolicy";
+import { PlayfulSelect } from "../../components/PlayfulSelect";
+import { validatePassword, type PasswordPolicy } from "../../utils/passwordPolicy";
 
-type CreateUserFormProps = {
+export type CreateUserInput = {
   email: string;
   name: string;
-  username: string;
-  password: string;
+  username?: string;
+  password?: string;
   oidcOnly: boolean;
-  oidcEnabled: boolean;
   role: "ADMIN" | "USER";
-  mustReset: boolean;
-  active: boolean;
+  mustResetPassword: boolean;
+  isActive: boolean;
+};
+
+type CreateUserFormProps = {
+  oidcEnabled: boolean;
   passwordPolicy: PasswordPolicy;
-  onSubmit: (event: React.FormEvent) => void;
+  onSubmit: (input: CreateUserInput) => boolean | Promise<boolean>;
   onCancel: () => void;
-  onEmailChange: (value: string) => void;
-  onNameChange: (value: string) => void;
-  onUsernameChange: (value: string) => void;
-  onPasswordChange: (value: string) => void;
-  onOidcOnlyChange: (value: boolean) => void;
-  onRoleChange: (value: "ADMIN" | "USER") => void;
-  onMustResetChange: (value: boolean) => void;
-  onActiveChange: (value: boolean) => void;
 };
 
 export const CreateUserForm: React.FC<CreateUserFormProps> = ({
-  email,
-  name,
-  username,
-  password,
-  oidcOnly,
   oidcEnabled,
-  role,
-  mustReset,
-  active,
   passwordPolicy,
   onSubmit,
   onCancel,
-  onEmailChange,
-  onNameChange,
-  onUsernameChange,
-  onPasswordChange,
-  onOidcOnlyChange,
-  onRoleChange,
-  onMustResetChange,
-  onActiveChange,
-}) => (
+}) => {
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [oidcOnly, setOidcOnly] = useState(false);
+  const [role, setRole] = useState<"ADMIN" | "USER">("USER");
+  const [mustReset, setMustReset] = useState(true);
+  const [active, setActive] = useState(true);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const reset = () => {
+    setEmail("");
+    setName("");
+    setUsername("");
+    setPassword("");
+    setOidcOnly(false);
+    setRole("USER");
+    setMustReset(true);
+    setActive(true);
+    setValidationError(null);
+  };
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const error = oidcOnly ? null : validatePassword(password, passwordPolicy);
+    if (error) {
+      setValidationError(error);
+      return;
+    }
+    setValidationError(null);
+    const created = await onSubmit({
+      email: email.trim().toLowerCase(),
+      name: name.trim(),
+      username: username.trim() || undefined,
+      password: oidcOnly ? undefined : password,
+      oidcOnly,
+      role,
+      mustResetPassword: oidcOnly ? false : mustReset,
+      isActive: active,
+    });
+    if (created) reset();
+  };
+  return (
   <div className="mb-6 bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-2xl shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] p-4 sm:p-6">
     <div className="flex items-center gap-3 mb-4">
       <div className="w-12 h-12 bg-indigo-50 dark:bg-neutral-800 rounded-xl flex items-center justify-center border-2 border-indigo-100 dark:border-neutral-700">
@@ -57,7 +78,8 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
         Create User
       </h2>
     </div>
-    <form onSubmit={onSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {validationError && <p className="md:col-span-2 text-sm font-medium text-red-600">{validationError}</p>}
       <div>
         <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">
           Email
@@ -65,7 +87,7 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
         <input
           type="email"
           value={email}
-          onChange={(event) => onEmailChange(event.target.value)}
+          onChange={(event) => setEmail(event.target.value)}
           required
           className="w-full px-4 py-3 bg-white dark:bg-neutral-800 border-2 border-slate-200 dark:border-neutral-700 rounded-xl text-slate-900 dark:text-white outline-none"
         />
@@ -77,7 +99,7 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
         <input
           type="text"
           value={name}
-          onChange={(event) => onNameChange(event.target.value)}
+          onChange={(event) => setName(event.target.value)}
           required
           className="w-full px-4 py-3 bg-white dark:bg-neutral-800 border-2 border-slate-200 dark:border-neutral-700 rounded-xl text-slate-900 dark:text-white outline-none"
         />
@@ -89,7 +111,7 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
         <input
           type="text"
           value={username}
-          onChange={(event) => onUsernameChange(event.target.value)}
+          onChange={(event) => setUsername(event.target.value)}
           className="w-full px-4 py-3 bg-white dark:bg-neutral-800 border-2 border-slate-200 dark:border-neutral-700 rounded-xl text-slate-900 dark:text-white outline-none"
         />
       </div>
@@ -101,8 +123,8 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
           type="button"
           onClick={() => {
             const next = !oidcOnly;
-            onOidcOnlyChange(next);
-            if (next) onMustResetChange(false);
+            setOidcOnly(next);
+            if (next) setMustReset(false);
           }}
           disabled={!oidcEnabled}
           className={`w-full px-4 py-3 rounded-xl border-2 font-bold transition-all text-sm ${
@@ -127,7 +149,7 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
           <input
             type="password"
             value={password}
-            onChange={(event) => onPasswordChange(event.target.value)}
+            onChange={(event) => setPassword(event.target.value)}
             minLength={passwordPolicy.minLength}
             maxLength={passwordPolicy.maxLength}
             pattern={passwordPolicy.patternHtml}
@@ -145,14 +167,17 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
         <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">
           Role
         </label>
-        <select
+        <PlayfulSelect
+          ariaLabel="Role"
           value={role}
-          onChange={(event) => onRoleChange(event.target.value as "ADMIN" | "USER")}
-          className="w-full px-4 py-3 bg-white dark:bg-neutral-800 border-2 border-slate-200 dark:border-neutral-700 rounded-xl text-slate-900 dark:text-white outline-none"
-        >
-          <option value="USER">USER</option>
-          <option value="ADMIN">ADMIN</option>
-        </select>
+          onChange={(value) => setRole(value as "ADMIN" | "USER")}
+          options={[
+            { value: "USER", label: "USER", icon: <User size={14} /> },
+            { value: "ADMIN", label: "ADMIN", icon: <ShieldCheck size={14} /> },
+          ]}
+          className="w-full"
+          buttonClassName="w-full px-4 py-3 font-normal"
+        />
       </div>
       <div className="flex flex-col sm:flex-row items-center gap-4 pt-4">
         <div className="flex-1 w-full">
@@ -161,7 +186,7 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
           </label>
           <button
             type="button"
-            onClick={() => !oidcOnly && onMustResetChange(!mustReset)}
+            onClick={() => !oidcOnly && setMustReset(!mustReset)}
             disabled={oidcOnly}
             className={`w-full px-4 py-3 rounded-xl border-2 font-bold transition-all text-sm ${
               mustReset
@@ -182,7 +207,7 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
           </label>
           <button
             type="button"
-            onClick={() => onActiveChange(!active)}
+            onClick={() => setActive(!active)}
             className={`w-full px-4 py-3 rounded-xl border-2 font-bold transition-all text-sm ${
               active
                 ? "border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300"
@@ -196,18 +221,19 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
       <div className="md:col-span-2 flex items-center justify-end gap-3 pt-2">
         <button
           type="button"
-          onClick={onCancel}
-          className="px-4 py-2 text-sm font-bold rounded-xl border-2 border-black dark:border-neutral-700 bg-white dark:bg-neutral-900 text-slate-900 dark:text-neutral-200"
+          onClick={() => { reset(); onCancel(); }}
+          className="ui-button-secondary px-4"
         >
           Cancel
         </button>
         <button
           type="submit"
-          className="px-4 py-2 text-sm font-bold rounded-xl border-2 border-black dark:border-neutral-700 bg-indigo-600 text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-0.5 transition-all"
+          className="ui-button-primary px-4"
         >
           Create
         </button>
       </div>
     </form>
   </div>
-);
+  );
+};

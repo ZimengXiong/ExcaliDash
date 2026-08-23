@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { LogIn, RefreshCw, XCircle } from 'lucide-react';
 import { api, isAxiosError } from '../api';
 import { useAuth } from '../context/AuthContext';
+import { PlayfulSelect } from './PlayfulSelect';
 import {
   IMPERSONATION_KEY,
   USER_KEY,
@@ -198,7 +199,7 @@ export const ImpersonationBanner: React.FC = () => {
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <div className="flex items-center gap-1.5 text-red-700 dark:text-red-400 flex-shrink-0">
             <LogIn size={14} strokeWidth={2.5} />
-            <span className="text-[10px] font-black uppercase tracking-wider">Impersonating</span>
+            <span className="text-xs font-bold">Impersonating</span>
           </div>
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-sm font-bold text-red-900 dark:text-red-100 truncate">
@@ -211,28 +212,28 @@ export const ImpersonationBanner: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2 ml-auto">
-          <div className="hidden lg:flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-red-700/60 dark:text-red-400/40">
+          <div className="hidden items-center gap-1.5 text-xs font-semibold text-red-700/60 dark:text-red-400/40 lg:flex">
             Switch:
           </div>
-          <select
+          <PlayfulSelect
+            ariaLabel="Switch impersonation target"
             value={impersonation.target.id}
-            onChange={(e) => {
-              void switchTarget(e.target.value);
+            onChange={(value) => {
+              void switchTarget(value);
             }}
             disabled={busy || loadingTargets || options.length === 0}
-            className="h-8 min-w-[140px] max-w-[200px] px-2 rounded-lg border border-red-200 dark:border-red-800/50 bg-white/50 dark:bg-neutral-900/50 text-xs font-bold text-red-900 dark:text-red-100 outline-none hover:border-red-300 dark:hover:border-red-700 transition-colors disabled:opacity-50"
-          >
-            {options.map((target) => (
-              <option key={target.id} value={target.id}>
-                {target.name}
-              </option>
-            ))}
-          </select>
+            size="sm"
+            buttonClassName="min-w-[140px] max-w-[200px]"
+            options={options.map((target) => ({
+              value: target.id,
+              label: target.name,
+            }))}
+          />
           <button
             type="button"
             onClick={stop}
             disabled={busy}
-            className="h-8 flex items-center justify-center gap-1.5 px-3 rounded-lg bg-red-600 dark:bg-red-600/80 text-[11px] font-black uppercase tracking-wider text-white hover:bg-red-700 dark:hover:bg-red-500 transition-all disabled:opacity-50 shadow-sm shadow-red-900/10"
+            className="ui-button-danger h-8 px-3 text-[11px]"
           >
             <XCircle size={14} strokeWidth={2.5} />
             <span className="hidden sm:inline">Stop</span>
@@ -253,7 +254,7 @@ export const ImpersonationBanner: React.FC = () => {
             <button
               type="button"
               onClick={() => void loadTargets()}
-              className="px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/40 border border-red-200 dark:border-red-700/50 hover:bg-red-200 transition-colors"
+              className="ui-icon-button h-7 w-7 border-transparent bg-transparent shadow-none dark:bg-transparent"
             >
               Retry
             </button>

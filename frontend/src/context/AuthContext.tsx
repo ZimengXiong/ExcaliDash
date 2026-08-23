@@ -9,9 +9,12 @@ import {
   authLogin,
   authRegister,
   isAxiosError,
+  startOidcSignOut,
 } from '../api';
+import { toast } from 'sonner';
+import { clearOidcAutoLoginSuppression, suppressOidcAutoLogin } from '../utils/oidcLogout';
 
-interface User {
+export interface User {
   id: string;
   username?: string | null;
   email: string;
@@ -24,6 +27,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   authEnabled: boolean | null;
+  aiEnabled: boolean;
   registrationEnabled: boolean;
   authStatusError: string | null;
   authMode: 'local' | 'hybrid' | 'oidc_enforced';
@@ -35,7 +39,8 @@ interface AuthContextType {
   authOnboardingMode: 'migration' | 'fresh' | null;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string, setupCode?: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  updateUser: (updates: Partial<User>) => void;
   retryAuthStatus: () => Promise<void>;
   isAuthenticated: boolean;
 }
@@ -49,6 +54,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [authEnabled, setAuthEnabled] = useState<boolean | null>(null);
+  const [aiEnabled, setAiEnabled] = useState(true);
   const [registrationEnabled, setRegistrationEnabled] = useState(false);
   const [authStatusError, setAuthStatusError] = useState<string | null>(null);
   const [authMode, setAuthMode] = useState<'local' | 'hybrid' | 'oidc_enforced'>('local');
@@ -68,6 +74,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       try {
         const statusResponse = await authStatus();
         setAuthStatusError(null);
+        setAiEnabled(statusResponse?.aiEnabled !== false);
         const enabled =
           typeof statusResponse?.authEnabled === "boolean"
             ? statusResponse.authEnabled
@@ -150,6 +157,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       try {
         const response = await authMe();
+        clearOidcAutoLoginSuppression();
         setUser(response.user);
         localStorage.setItem(USER_KEY, JSON.stringify(response.user));
       } catch {
@@ -183,6 +191,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     loadUser();
   }, [loadUser]);
+
+  useEffect(() => {
+    const refreshAiEnabled = () => {
+      void authStatus()
+        .then((status) => setAiEnabled(status?.aiEnabled !== false))
+        .catch(() => undefined);
+    };
+    const interval = window.setInterval(refreshAiEnabled, 10_000);
+    window.addEventListener("focus", refreshAiEnabled);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshAiEnabled);
+    };
+  }, []);
 
   const login = async (email: string, password: string) => {
     try {
@@ -242,13 +264,34 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const logout = () => {
-    void authLogout().catch(() => undefined);
+  const logout = async () => {
+    let oidcLogout = false;
+    try {
+      oidcLogout = (await authLogout()).oidcLogout;
+    } catch (error) {
+      // Do not claim that the user signed out when the server session could
+      // still be refreshed. This also avoids an enforced-OIDC redirect loop.
+      console.error("Logout failed", error);
+      toast.error("Could not sign out. Please try again.");
+      return;
+    }
+    suppressOidcAutoLogin();
     localStorage.removeItem(USER_KEY);
     setUser(null);
-    setTimeout(() => {
-      navigate('/login');
-    }, 0);
+    if (oidcLogout) {
+      startOidcSignOut();
+      return;
+    }
+    navigate('/login');
+  };
+
+  const updateUser = (updates: Partial<User>) => {
+    setUser((currentUser) => {
+      if (!currentUser) return currentUser;
+      const nextUser = { ...currentUser, ...updates };
+      localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
+      return nextUser;
+    });
   };
 
   return (
@@ -257,6 +300,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         user,
         loading,
         authEnabled,
+        aiEnabled,
         registrationEnabled,
         authStatusError,
         authMode,
@@ -269,6 +313,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         login,
         register,
         logout,
+        updateUser,
         retryAuthStatus: loadUser,
         isAuthenticated: !!user,
       }}

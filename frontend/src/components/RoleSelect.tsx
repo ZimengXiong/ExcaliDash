@@ -38,7 +38,7 @@ export const RoleSelect: React.FC<{
           event.stopPropagation();
           setOpen(!open);
         }}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-semibold text-slate-700 dark:text-neutral-300 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-all outline-none"
+        className="ui-button-secondary px-2.5 py-1.5"
       >
         {current.label}
         <ChevronDown
@@ -48,7 +48,7 @@ export const RoleSelect: React.FC<{
       </button>
 
       {open && (
-        <div className="absolute top-full right-0 mt-1 min-w-[150px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-lg overflow-hidden z-[200] animate-in fade-in zoom-in-95 duration-100">
+        <div className="ui-menu absolute top-full right-0 mt-1 min-w-[150px] z-[200] animate-in fade-in zoom-in-95 duration-100">
           {options.map((option) => (
             <button
               key={option.value}
@@ -59,16 +59,13 @@ export const RoleSelect: React.FC<{
                 setOpen(false);
               }}
               className={clsx(
-                "w-full text-left px-4 py-2.5 text-sm font-semibold transition-colors flex items-center justify-between border-b last:border-b-0 border-slate-100 dark:border-neutral-800/60",
-                option.value === value
-                  ? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400"
-                  : option.danger
-                    ? "text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20"
-                    : "text-slate-700 dark:text-neutral-300 hover:bg-slate-50 dark:hover:bg-neutral-800",
+                "ui-menu-item justify-between",
+                option.value === value && "ui-menu-item-selected",
+                option.danger && "ui-menu-item-danger",
               )}
             >
               {option.label}
-              {option.value === value && !option.danger && <Check size={14} strokeWidth={3} />}
+              {option.value === value && !option.danger && <Check size={13} strokeWidth={3} />}
             </button>
           ))}
         </div>
