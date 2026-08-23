@@ -5,6 +5,7 @@ import path from "path";
 import JSZip from "jszip";
 import {
   createExcalidashArchiveWithDuplicateDrawingIds,
+  createExcalidashArchiveWithLargeDrawing,
   createLegacySqliteDb,
   createLegacySqliteDbWithDuplicateDrawingIds,
   createTempDir,
@@ -169,6 +170,24 @@ describe("Import compatibility (legacy exports)", () => {
 
     expect(res.status).toBe(400);
     expect(String(res.body.message || "")).toContain("Duplicate drawing id");
+  });
+
+  it("imports a backup whose drawing JSON exceeds the former 5 MiB limit", async () => {
+    const archive = await createExcalidashArchiveWithLargeDrawing();
+    const res = await agent
+      .post("/import/excalidash")
+      .set("User-Agent", userAgent)
+      .set(csrfHeaderName, csrfToken)
+      .attach("archive", archive, "large-backup.excalidash");
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const drawing = await prisma.drawing.findUnique({
+      where: { id: "large-backup-drawing" },
+    });
+    expect(drawing).toBeTruthy();
+    expect(JSON.parse(drawing!.files)).toHaveProperty("large-image");
   });
 
   it("rejects legacy verify when DB has duplicate drawing IDs", async () => {

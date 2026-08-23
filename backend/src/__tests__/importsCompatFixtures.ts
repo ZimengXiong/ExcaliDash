@@ -196,6 +196,50 @@ export const createExcalidashArchiveWithDuplicateDrawingIds = async (): Promise<
   return filePath;
 };
 
+export const createExcalidashArchiveWithLargeDrawing = async (): Promise<Buffer> => {
+  const zip = new JSZip();
+  const drawingId = "large-backup-drawing";
+  const drawingPath = "Unorganized/large-backup-drawing.excalidraw";
+  const manifest = {
+    format: "excalidash",
+    formatVersion: 1,
+    exportedAt: new Date().toISOString(),
+    unorganizedFolder: "Unorganized",
+    collections: [] as any[],
+    drawings: [
+      {
+        id: drawingId,
+        name: "Large backup drawing",
+        filePath: drawingPath,
+        collectionId: null,
+      },
+    ],
+  };
+  const dataURL = `data:image/png;base64,${"A".repeat(5 * 1024 * 1024)}`;
+
+  zip.file("excalidash.manifest.json", JSON.stringify(manifest));
+  zip.file(
+    drawingPath,
+    JSON.stringify({
+      type: "excalidraw",
+      version: 2,
+      source: "test",
+      elements: [],
+      appState: {},
+      files: {
+        "large-image": {
+          id: "large-image",
+          mimeType: "image/png",
+          dataURL,
+          created: 1,
+        },
+      },
+    })
+  );
+
+  return zip.generateAsync({ type: "nodebuffer" });
+};
+
 export const createLegacySqliteDbWithDuplicateDrawingIds = (): string => {
   const dir = createTempDir();
   const filePath = path.join(dir, "legacy-duplicate-ids.db");
