@@ -28,6 +28,7 @@ model User {
   refreshTokens       RefreshToken[]
   apiKeys             ApiKey[]
   auditLogs           AuditLog[]
+  chatGptConnection   ChatGptConnection?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 }
@@ -45,13 +46,39 @@ model SystemConfig {
   bootstrapSetupCodeIssuedAt DateTime?
   bootstrapSetupCodeExpiresAt DateTime?
   bootstrapSetupCodeFailedAttempts Int @default(0)
-  // Admin kill-switch for the per-user ChatGPT (subscription) provider. Null =
+  aiProvider                 String?
+  aiBaseUrl                  String?
+  aiModel                    String?
+  aiApiKeyEncrypted          String?
+  // Admin kill-switch for the per-user ChatGPT subscription provider. Null means enabled.
+  aiChatgptEnabled           Boolean?
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt
 }
 
-// Short-lived pending OAuth authorizations (PKCE verifier + CSRF state), tied
-// to the initiating user. Consumed once by the callback, then deleted.
+model ChatGptConnection {
+  userId                String   @id
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId             String
+  accessTokenEncrypted  String
+  refreshTokenEncrypted String
+  expiresAt             BigInt
+  accountEmail          String?
+  planType              String?
+  needsReconnect        Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model ChatGptAuthState {
+  state        String   @id
+  userId       String
+  codeVerifier String
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+}
+
 model Collection {
   id        String            @id @default(uuid())
   name      String
@@ -80,6 +107,7 @@ model Drawing {
   permissions  DrawingPermission[]
   linkShares   DrawingLinkShare[]
   snapshots    DrawingSnapshot[]
+  agentKeys    ApiKey[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
@@ -192,6 +220,8 @@ model ApiKey {
   tokenHash  String    @unique
   prefix     String
   scopes     String    @default("drawings:read,drawings:write,collections:read,collections:write")
+  drawingId  String?
+  drawing    Drawing?  @relation(fields: [drawingId], references: [id], onDelete: Cascade)
   lastUsedAt DateTime?
   revokedAt  DateTime?
   createdAt  DateTime  @default(now())
@@ -199,6 +229,7 @@ model ApiKey {
 
   @@index([userId, createdAt])
   @@index([keyId, revokedAt])
+  @@index([drawingId])
 }
 
 model AuditLog {

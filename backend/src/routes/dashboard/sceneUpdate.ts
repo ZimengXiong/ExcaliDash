@@ -65,6 +65,7 @@ type ApplySceneUpdateArgs = {
 
 type ApplySceneUpdateResult = {
   drawing: DrawingRow;
+  revertVersion: number;
 };
 
 export const applySceneUpdateTx = async (
@@ -137,7 +138,7 @@ export const applySceneUpdateTx = async (
         if (!updated) {
           throw versionConflictError;
         }
-        return { drawing: updated };
+        return { drawing: updated, revertVersion: current.version };
       });
     } catch (error) {
       if (isVersionConflict(error) && attempt < attempts - 1) {

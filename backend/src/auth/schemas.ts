@@ -38,6 +38,35 @@ export const registrationToggleSchema = z.object({
   enabled: z.boolean(),
 });
 
+const aiBaseUrlSchema = z
+  .string()
+  .trim()
+  .max(2000)
+  .refine((value) => {
+    if (!value) return true;
+    try {
+      const parsed = new URL(value);
+      return (
+        (parsed.protocol === "http:" || parsed.protocol === "https:") &&
+        !parsed.username &&
+        !parsed.password
+      );
+    } catch {
+      return false;
+    }
+  }, "Base URL must be an HTTP(S) URL without embedded credentials");
+
+export const aiSettingsUpdateSchema = z.object({
+  provider: z
+    .enum(["disabled", "anthropic", "openai", "custom", "chatgpt"])
+    .nullable()
+    .optional(),
+  baseUrl: aiBaseUrlSchema.nullable().optional(),
+  model: z.string().trim().max(200).nullable().optional(),
+  apiKey: z.string().max(4000).optional(),
+  chatgptEnabled: z.boolean().optional(),
+});
+
 export const oidcJitProvisioningToggleSchema = z.object({
   enabled: z.boolean(),
 });

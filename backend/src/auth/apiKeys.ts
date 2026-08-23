@@ -16,6 +16,13 @@ export const DEFAULT_API_KEY_SCOPES = [
   "collections:write",
 ] as const;
 
+// Scope carried only by per-drawing agent tokens (ApiKey.drawingId set). It is
+// intentionally absent from DEFAULT_API_KEY_SCOPES so account-wide keys can
+// never self-assign it — it is granted exclusively by the agent-token mint
+// route and confines the key to its drawing's agent routes.
+export const AGENT_OPS_SCOPE = "agent:ops";
+export const AGENT_TOKEN_SCOPES = [AGENT_OPS_SCOPE] as const;
+
 export const generateApiKey = (): {
   token: string;
   keyId: string;
@@ -34,7 +41,7 @@ export const generateApiKey = (): {
   };
 };
 
-const hashApiKey = (token: string): string =>
+export const hashApiKey = (token: string): string =>
   crypto
     .scryptSync(token, API_KEY_SCRYPT_PEPPER, API_KEY_SCRYPT_KEYLEN, {
       N: API_KEY_SCRYPT_N,
@@ -71,7 +78,7 @@ export const parseApiKeyScopes = (raw: string | null | undefined): string[] =>
     .map((scope) => scope.trim())
     .filter((scope) => scope.length > 0);
 
-const hasBearerApiKey = (authorizationHeader: unknown): boolean => {
+export const hasBearerApiKey = (authorizationHeader: unknown): boolean => {
   const header = Array.isArray(authorizationHeader)
     ? authorizationHeader[0]
     : authorizationHeader;

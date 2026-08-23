@@ -66,4 +66,8 @@ export type DashboardRouteDeps = {
   // Socket.IO server used to broadcast edits into a drawing's
   // collaboration room. Optional so route unit tests can omit the socket layer.
   io?: SocketIoServer;
+  agentOps?: {
+    rateLimitMaxRequests: number;
+    rateLimitWindowMs: number;
+  };
 };

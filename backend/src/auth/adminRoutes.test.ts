@@ -12,6 +12,7 @@ const buildApp = (options?: {
 
   const prisma = {
     systemConfig: {
+      findUnique: vi.fn(),
       upsert: vi.fn(),
     },
     user: {
@@ -153,5 +154,73 @@ describe("admin OIDC access controls", () => {
 
     expect(response.status).toBe(409);
     expect(response.body?.message).toContain("OIDC-only invited users require OIDC");
+  });
+});
+
+describe("admin AI settings", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns configuration metadata without exposing the encrypted key", async () => {
+    const { app, prisma } = buildApp({ authMode: "local" });
+    prisma.systemConfig.findUnique.mockResolvedValue({
+      id: "default",
+      aiProvider: "openai",
+      aiBaseUrl: "https://api.openai.com/v1",
+      aiModel: "gpt-4o",
+      aiApiKeyEncrypted: "aesgcm$secret-material",
+      aiChatgptEnabled: true,
+    });
+
+    const response = await request(app).get("/ai/settings");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      overrides: {
+        provider: "openai",
+        baseUrl: "https://api.openai.com/v1",
+        model: "gpt-4o",
+      },
+      dbKeyConfigured: true,
+    });
+    expect(JSON.stringify(response.body)).not.toContain("secret-material");
+  });
+
+  it("encrypts an API key before persistence and never returns it", async () => {
+    const { app, prisma } = buildApp({ authMode: "local" });
+    prisma.systemConfig.upsert.mockImplementation(async ({ update }: any) => ({
+      id: "default",
+      aiProvider: "openai",
+      aiBaseUrl: null,
+      aiModel: "gpt-4o",
+      aiApiKeyEncrypted: update.aiApiKeyEncrypted,
+      aiChatgptEnabled: true,
+    }));
+
+    const response = await request(app).put("/ai/settings").send({
+      provider: "openai",
+      model: "gpt-4o",
+      apiKey: "sk-test-plaintext",
+    });
+
+    expect(response.status).toBe(200);
+    const persisted = prisma.systemConfig.upsert.mock.calls[0][0].update;
+    expect(persisted.aiApiKeyEncrypted).toMatch(/^aesgcm\$/);
+    expect(persisted.aiApiKeyEncrypted).not.toContain("sk-test-plaintext");
+    expect(JSON.stringify(response.body)).not.toContain("sk-test-plaintext");
+    expect(response.body.dbKeyConfigured).toBe(true);
+  });
+
+  it("rejects a base URL with embedded credentials", async () => {
+    const { app, prisma } = buildApp({ authMode: "local" });
+
+    const response = await request(app).put("/ai/settings").send({
+      provider: "custom",
+      baseUrl: "https://user:password@example.com/v1",
+    });
+
+    expect(response.status).toBe(400);
+    expect(prisma.systemConfig.upsert).not.toHaveBeenCalled();
   });
 });

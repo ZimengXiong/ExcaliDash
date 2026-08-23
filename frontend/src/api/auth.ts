@@ -81,7 +81,7 @@ export const API_KEY_SCOPES = [
   "collections:write",
 ] as const;
 
-const fetchCsrfToken = async (): Promise<void> => {
+export const fetchCsrfToken = async (): Promise<void> => {
   const response = await axios.get<{ token: string; header: string }>(
     `${API_URL}/csrf-token`,
     { withCredentials: true },
@@ -90,7 +90,7 @@ const fetchCsrfToken = async (): Promise<void> => {
   csrfHeaderName = response.data.header || "x-csrf-token";
 };
 
-const clearCsrfToken = (): void => {
+export const clearCsrfToken = (): void => {
   csrfToken = null;
 };
 
@@ -226,7 +226,7 @@ const clearStoredAuth = () => {
   localStorage.removeItem(USER_KEY);
 };
 
-const ensureCsrfToken = async (): Promise<void> => {
+export const ensureCsrfToken = async (): Promise<void> => {
   if (csrfToken) return;
   csrfTokenPromise ||= fetchCsrfToken().finally(() => {
     csrfTokenPromise = null;

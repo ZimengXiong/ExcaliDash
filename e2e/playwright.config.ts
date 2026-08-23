@@ -4,6 +4,9 @@ const FRONTEND_PORT = 6767;
 const BACKEND_PORT = 8000;
 const FRONTEND_URL = process.env.BASE_URL || `http://localhost:${FRONTEND_PORT}`;
 const BACKEND_URL = process.env.API_URL || `http://localhost:${BACKEND_PORT}`;
+const AGENT_AUTH = process.env.E2E_AGENT_AUTH === "true";
+const frontendRuntimePort = new URL(FRONTEND_URL).port || "80";
+const backendRuntimePort = new URL(BACKEND_URL).port || "80";
 
 /**
  * Playwright configuration for E2E browser testing
@@ -17,7 +20,7 @@ const BACKEND_URL = process.env.API_URL || `http://localhost:${BACKEND_PORT}`;
 export default defineConfig({
   testDir: "./tests",
 
-  globalSetup: "./global-setup",
+  globalSetup: AGENT_AUTH ? "./global-setup-agent" : "./global-setup",
 
   // The suite uses one backend SQLite database and performs broad cleanup by
   // naming convention, so running tests concurrently creates cross-test leaks.
@@ -78,20 +81,26 @@ export default defineConfig({
       stdout: "pipe",
       stderr: "pipe",
       env: {
-        DATABASE_URL: "file:./dev.db",
+        DATABASE_URL: AGENT_AUTH ? "file:./agent-e2e.db" : "file:./dev.db",
+        PORT: backendRuntimePort,
         FRONTEND_URL,
         CSRF_MAX_REQUESTS: "100000",
         RATE_LIMIT_MAX_REQUESTS: "100000",
         CSRF_SECRET: "e2e-csrf-secret",
+        JWT_SECRET: "e2e-jwt-secret-that-is-long-enough-for-tests",
+        AI_PROVIDER: AGENT_AUTH ? "chatgpt" : "disabled",
       },
     },
     {
-      command: "cd ../frontend && npm run dev -- --host",
+      command: `cd ../frontend && npm run dev -- --host --port ${frontendRuntimePort}`,
       url: FRONTEND_URL,
       reuseExistingServer: process.env.E2E_REUSE_SERVER === "true",
       timeout: 120000,
       stdout: "pipe",
       stderr: "pipe",
+      env: {
+        VITE_DEV_BACKEND_URL: BACKEND_URL,
+      },
     },
   ],
 });
