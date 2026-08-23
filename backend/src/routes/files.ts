@@ -24,6 +24,10 @@ import {
 
 const DOWNLOAD_EXPIRES_IN = 3600; // 1 hour   – cached by browser
 
+/** Loose guard: drawingId / fileId must be safe, path-traversal-free identifiers. */
+const isValidIdSegment = (value: unknown): value is string =>
+  typeof value === "string" && /^[\w-]{1,200}$/.test(value);
+
 export type FileRouteDeps = {
   prisma: PrismaClient;
   requireAuth: express.RequestHandler;
@@ -101,20 +105,8 @@ export const registerFileRoutes = (
       const userId = req.user?.id;
       if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-      const drawingIdParam = req.params.drawingId;
-      const fileIdParam = req.params.fileId;
-      if (Array.isArray(drawingIdParam) || typeof drawingIdParam !== "string") {
-        return res.status(400).json({ error: "Invalid id segment" });
-      }
-      if (Array.isArray(fileIdParam) || typeof fileIdParam !== "string") {
-        return res.status(400).json({ error: "Invalid id segment" });
-      }
-      const drawingId = String(drawingIdParam);
-      const fileId = String(fileIdParam);
-      if (
-        !/^[\w-]{1,200}$/.test(drawingId) ||
-        !/^[\w-]{1,200}$/.test(fileId)
-      ) {
+      const { drawingId, fileId } = req.params;
+      if (!isValidIdSegment(drawingId) || !isValidIdSegment(fileId)) {
         return res.status(400).json({ error: "Invalid id segment" });
       }
 
@@ -140,7 +132,12 @@ export const registerFileRoutes = (
       }
 
       const body = req.body;
-      if (!Buffer.isBuffer(body) || body.length === 0) {
+      if (
+        typeof body !== "object" ||
+        body === null ||
+        !Buffer.isBuffer(body) ||
+        body.length === 0
+      ) {
         return res.status(400).json({
           error: "Empty request body",
           message: "Send the raw image bytes as the request body.",
@@ -221,20 +218,8 @@ export const registerFileRoutes = (
     "/files/:drawingId/:fileId",
     optionalAuth,
     asyncHandler(async (req, res) => {
-      const drawingIdParam = req.params.drawingId;
-      const fileIdParam = req.params.fileId;
-      if (Array.isArray(drawingIdParam) || typeof drawingIdParam !== "string") {
-        return res.status(400).json({ error: "Invalid id segment" });
-      }
-      if (Array.isArray(fileIdParam) || typeof fileIdParam !== "string") {
-        return res.status(400).json({ error: "Invalid id segment" });
-      }
-      const drawingId = String(drawingIdParam);
-      const fileId = String(fileIdParam);
-      if (
-        !/^[\w-]{1,200}$/.test(drawingId) ||
-        !/^[\w-]{1,200}$/.test(fileId)
-      ) {
+      const { drawingId, fileId } = req.params;
+      if (!isValidIdSegment(drawingId) || !isValidIdSegment(fileId)) {
         return res.status(400).json({ error: "Invalid id segment" });
       }
 
