@@ -328,9 +328,34 @@ export const UIOptions = {
 export const validateEmbeddableUrl = (value: string): boolean => {
   try {
     const url = new URL(value);
+    const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+    const privateName =
+      hostname === "localhost" ||
+      !hostname.includes(".") ||
+      [".localhost", ".local", ".localdomain", ".internal", ".lan", ".home"].some(
+        (suffix) => hostname.endsWith(suffix),
+      );
+    const ipv4 = hostname.split(".").map(Number);
+    const isIpv4 =
+      ipv4.length === 4 &&
+      ipv4.every((part) => Number.isInteger(part) && part >= 0 && part <= 255);
+    const privateIpv4 =
+      isIpv4 &&
+      (ipv4[0] === 0 ||
+        ipv4[0] === 10 ||
+        ipv4[0] === 127 ||
+        (ipv4[0] === 100 && ipv4[1] >= 64 && ipv4[1] <= 127) ||
+        (ipv4[0] === 169 && ipv4[1] === 254) ||
+        (ipv4[0] === 172 && ipv4[1] >= 16 && ipv4[1] <= 31) ||
+        (ipv4[0] === 192 && ipv4[1] === 168) ||
+        ipv4[0] >= 224);
+
     return (
-      (url.protocol === "https:" || url.protocol === "http:") &&
-      url.hostname.length > 0 &&
+      url.protocol === "https:" &&
+      hostname.length > 0 &&
+      !privateName &&
+      !privateIpv4 &&
+      !hostname.includes(":") &&
       url.username === "" &&
       url.password === ""
     );

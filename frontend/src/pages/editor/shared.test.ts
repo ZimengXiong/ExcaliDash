@@ -10,16 +10,20 @@ import {
 } from "./shared";
 
 describe("editor/shared scene guards", () => {
-  it("accepts HTTP(S) web embeds outside Excalidraw's built-in domain list", () => {
+  it("accepts public HTTPS embeds outside Excalidraw's built-in domain list", () => {
     expect(validateEmbeddableUrl("https://example.com/embed/123")).toBe(true);
-    expect(validateEmbeddableUrl("http://localhost:3000/dashboard")).toBe(true);
   });
 
-  it("rejects malformed, credentialed, and non-web embed URLs", () => {
+  it("rejects malformed, credentialed, insecure, and private-network embed URLs", () => {
     expect(validateEmbeddableUrl("not a URL")).toBe(false);
     expect(validateEmbeddableUrl("javascript:alert(1)")).toBe(false);
     expect(validateEmbeddableUrl("data:text/html,<script>alert(1)</script>")).toBe(false);
     expect(validateEmbeddableUrl("https://user:password@example.com")).toBe(false);
+    expect(validateEmbeddableUrl("http://example.com/embed/123")).toBe(false);
+    expect(validateEmbeddableUrl("https://localhost:3000/dashboard")).toBe(false);
+    expect(validateEmbeddableUrl("https://router.local/dashboard")).toBe(false);
+    expect(validateEmbeddableUrl("https://192.168.1.10/dashboard")).toBe(false);
+    expect(validateEmbeddableUrl("https://[::1]/dashboard")).toBe(false);
   });
 
   it("detects renderable elements", () => {
