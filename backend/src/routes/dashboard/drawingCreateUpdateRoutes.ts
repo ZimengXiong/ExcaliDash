@@ -247,6 +247,8 @@ export const registerDrawingCreateUpdateRoutes = (
       };
 
       const ownerUserId = existingDrawing.userId;
+      const actingUserId =
+        principal?.kind === "user" ? principal.userId : ownerUserId;
       const trashCollectionId = getUserTrashCollectionId(ownerUserId);
       const isSceneUpdate =
         payload.elements !== undefined ||
@@ -302,11 +304,24 @@ export const registerDrawingCreateUpdateRoutes = (
           (data as Prisma.DrawingUncheckedUpdateInput).collectionId =
             trashCollectionId;
         } else if (payload.collectionId) {
-          const collection = await prisma.collection.findFirst({
-            where: { id: payload.collectionId, userId: ownerUserId },
+          const ownedCollection = await prisma.collection.findFirst({
+            where: { id: payload.collectionId, userId: actingUserId },
           });
-          if (!collection)
-            return res.status(404).json({ error: "Collection not found" });
+          if (!ownedCollection) {
+            const editableShare = await prisma.collectionShare.findFirst({
+              where: {
+                collectionId: payload.collectionId,
+                granteeUserId: actingUserId,
+                role: "edit",
+              },
+              select: { id: true },
+            });
+            if (!editableShare) {
+              return res
+                .status(404)
+                .json({ error: "Collection not found" });
+            }
+          }
           (data as Prisma.DrawingUncheckedUpdateInput).collectionId =
             payload.collectionId;
         } else {
