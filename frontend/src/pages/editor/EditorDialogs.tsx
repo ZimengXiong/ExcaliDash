@@ -61,6 +61,11 @@ export const EditorDialogs: React.FC<EditorDialogsProps> = ({
               appState: getHistoryPreviewAppState(snapshot.appState),
               captureUpdate: CaptureUpdateAction.NEVER,
             });
+            excalidrawAPI.scrollToContent(elements, {
+              animate: false,
+              fitToViewport: true,
+            });
+            excalidrawAPI.setActiveTool({ type: "hand" });
             return;
           }
           if (previewBackupRef.current) {

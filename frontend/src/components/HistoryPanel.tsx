@@ -69,7 +69,11 @@ export const HistoryPanel: React.FC<Props> = ({
       setConfirmRestore(null);
     } else {
       // Panel closed — restore current canvas
-      if (previewId) onPreview(null);
+      if (previewId) {
+        setPreviewId(null);
+        setPreviewData(null);
+        onPreview(null);
+      }
     }
   }, [isOpen, loadHistory]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -106,7 +110,9 @@ export const HistoryPanel: React.FC<Props> = ({
       setPreviewData(data);
       onPreview(data);
     } catch {
+      setPreviewId(null);
       setPreviewData(null);
+      onPreview(null);
     }
   };
 
@@ -143,7 +149,10 @@ export const HistoryPanel: React.FC<Props> = ({
     <>
       <div
         data-testid="history-dismiss-layer"
-        className="fixed inset-0 z-[150] bg-transparent"
+        className={clsx(
+          "fixed inset-0 z-[150] bg-transparent",
+          previewData && "pointer-events-none",
+        )}
         onClick={onClose}
         aria-hidden="true"
       />

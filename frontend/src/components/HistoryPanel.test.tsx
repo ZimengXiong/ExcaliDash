@@ -8,6 +8,7 @@ vi.mock("../api", () => ({
     snapshots: [],
     totalCount: 0,
   }),
+  getDrawingSnapshot: vi.fn(),
 }));
 
 describe("HistoryPanel", () => {
@@ -39,6 +40,88 @@ describe("HistoryPanel", () => {
       expect(api.getDrawingHistory).toHaveBeenCalledWith("drawing-1", {
         limit: 100,
       });
+    });
+  });
+
+  it("lets canvas pointer events through while previewing a snapshot", async () => {
+    vi.mocked(api.getDrawingHistory).mockResolvedValueOnce({
+      snapshots: [
+        {
+          id: "snapshot-1",
+          version: 3,
+          createdAt: "2026-07-28T06:45:11.000Z",
+        },
+      ],
+      totalCount: 1,
+    });
+    vi.mocked(api.getDrawingSnapshot).mockResolvedValueOnce({
+      id: "snapshot-1",
+      drawingId: "drawing-1",
+      version: 3,
+      createdAt: "2026-07-28T06:45:11.000Z",
+      elements: [],
+      appState: {},
+      files: {},
+    });
+
+    render(
+      <HistoryPanel
+        drawingId="drawing-1"
+        getCurrentVersion={() => 3}
+        isOpen
+        onClose={vi.fn()}
+        onRestore={vi.fn()}
+        onPreview={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(await screen.findByText("Version 3"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("history-dismiss-layer")).toHaveClass(
+        "pointer-events-none",
+      );
+    });
+  });
+
+  it("keeps the canvas dismiss layer active when a preview fails to load", async () => {
+    const onPreview = vi.fn();
+    vi.mocked(api.getDrawingHistory).mockResolvedValueOnce({
+      snapshots: [
+        {
+          id: "snapshot-2",
+          version: 4,
+          createdAt: "2026-07-28T06:45:11.000Z",
+        },
+      ],
+      totalCount: 1,
+    });
+    vi.mocked(api.getDrawingSnapshot).mockRejectedValueOnce(
+      new Error("snapshot unavailable"),
+    );
+
+    render(
+      <HistoryPanel
+        drawingId="drawing-1"
+        getCurrentVersion={() => 4}
+        isOpen
+        onClose={vi.fn()}
+        onRestore={vi.fn()}
+        onPreview={onPreview}
+      />,
+    );
+
+    fireEvent.click(await screen.findByText("Version 4"));
+
+    await waitFor(() => {
+      expect(api.getDrawingSnapshot).toHaveBeenCalledWith(
+        "drawing-1",
+        "snapshot-2",
+      );
+      expect(screen.getByTestId("history-dismiss-layer")).not.toHaveClass(
+        "pointer-events-none",
+      );
+      expect(onPreview).toHaveBeenCalledWith(null);
     });
   });
 });
