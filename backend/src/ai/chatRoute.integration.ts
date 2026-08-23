@@ -16,11 +16,11 @@ const scripted = vi.hoisted(() => ({ queue: [] as any[], calls: 0 }));
 
 vi.mock("./providers/anthropic", () => ({
   anthropicAdapter: {
-    complete: async () => {
+    complete: async (request: { signal: AbortSignal }) => {
       scripted.calls += 1;
       const next = scripted.queue.shift();
       if (typeof next?.beforeReturn === "function") {
-        await next.beforeReturn();
+        await next.beforeReturn(request);
         return next.result;
       }
       return next ?? { text: "", toolCalls: [] };
@@ -130,6 +130,28 @@ describe("ai/chatRoute", () => {
       .post("/ai/chat")
       .send({ drawingId: drawing.id, messages: [{ role: "user", content: "hi" }] });
     expect(res.status).toBe(503);
+  });
+
+  it("keeps the provider request active after consuming the request body", async () => {
+    await enableAi(prisma);
+    const drawing = await createDrawing(prisma, userId);
+    scripted.queue = [
+      {
+        beforeReturn: async ({ signal }: { signal: AbortSignal }) => {
+          await new Promise<void>((resolve) => setImmediate(resolve));
+          expect(signal.aborted).toBe(false);
+        },
+        result: { text: "Still connected.", toolCalls: [] },
+      },
+    ];
+    const app = buildApp(prisma, userId, []);
+    const res = await request(app)
+      .post("/ai/chat")
+      .send({ drawingId: drawing.id, messages: [{ role: "user", content: "hi" }] });
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain("Still connected.");
+    expect(res.text).toContain("event: done");
   });
 
   it("rejects agent/API-key principals", async () => {

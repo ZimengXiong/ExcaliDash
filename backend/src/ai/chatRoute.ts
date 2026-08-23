@@ -205,7 +205,12 @@ export const registerAiRoutes = (
       };
 
       const abort = new AbortController();
-      req.on("close", () => abort.abort());
+      // The request stream closes after its body has been consumed, even while
+      // the response (and provider call) is still active. Only cancel when the
+      // response connection closes before we finish writing it.
+      res.on("close", () => {
+        if (!res.writableEnded) abort.abort();
+      });
 
       let summary = buildStructuralSummary({
         name: drawing.name,
