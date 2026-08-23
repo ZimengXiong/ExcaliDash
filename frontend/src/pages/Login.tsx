@@ -6,6 +6,8 @@ import * as api from '../api';
 import { USER_KEY } from '../utils/impersonation';
 import { getPasswordPolicy, validatePassword } from '../utils/passwordPolicy';
 import { PasswordRequirements } from '../components/PasswordRequirements';
+import { PasswordInput } from '../components/PasswordInput';
+import { PasswordMatch } from '../components/PasswordMatch';
 import { AuthStatusErrorPanel } from '../components/AuthStatusErrorPanel';
 import { clearOidcAutoLoginSuppression, isOidcAutoLoginSuppressed } from '../utils/oidcLogout';
 
@@ -221,10 +223,9 @@ export const Login: React.FC = () => {
                     <label htmlFor="password" className="sr-only">
                       Password
                     </label>
-                    <input
+                    <PasswordInput
                       id="password"
                       name="password"
-                      type="password"
                       autoComplete="current-password"
                       required
                       className="ui-input block w-full"
@@ -240,10 +241,9 @@ export const Login: React.FC = () => {
                     <label htmlFor="newPassword" className="sr-only">
                       New password
                     </label>
-                    <input
+                    <PasswordInput
                       id="newPassword"
                       name="newPassword"
-                      type="password"
                       autoComplete="new-password"
                       required
                       minLength={passwordPolicy.minLength}
@@ -259,10 +259,9 @@ export const Login: React.FC = () => {
                     <label htmlFor="confirmNewPassword" className="sr-only">
                       Confirm new password
                     </label>
-                    <input
+                    <PasswordInput
                       id="confirmNewPassword"
                       name="confirmNewPassword"
-                      type="password"
                       autoComplete="new-password"
                       required
                       minLength={passwordPolicy.minLength}
@@ -271,6 +270,10 @@ export const Login: React.FC = () => {
                       placeholder="Confirm new password"
                       value={confirmNewPassword}
                       onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    />
+                    <PasswordMatch
+                      password={newPassword}
+                      confirmPassword={confirmNewPassword}
                     />
                   </div>
                 </>

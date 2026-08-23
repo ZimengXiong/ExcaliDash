@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Lock } from "lucide-react";
 import * as api from "../../api";
 import { PasswordRequirements } from "../../components/PasswordRequirements";
+import { PasswordInput } from "../../components/PasswordInput";
+import { PasswordMatch } from "../../components/PasswordMatch";
 import { getPasswordPolicy, validatePassword } from "../../utils/passwordPolicy";
 import {
   SettingsCard,
@@ -117,9 +119,8 @@ export const PasswordCard: React.FC<Props> = ({
               <label htmlFor="currentPassword" className={fieldLabelClass}>
                 Current Password
               </label>
-              <input
+              <PasswordInput
                 id="currentPassword"
-                type="password"
                 value={currentPassword}
                 onChange={(event) => setCurrentPassword(event.target.value)}
                 className={`${settingsSelectClass} w-full`}
@@ -131,9 +132,8 @@ export const PasswordCard: React.FC<Props> = ({
               <label htmlFor="newPassword" className={fieldLabelClass}>
                 New Password
               </label>
-              <input
+              <PasswordInput
                 id="newPassword"
-                type="password"
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
                 minLength={passwordPolicy.minLength}
@@ -153,9 +153,8 @@ export const PasswordCard: React.FC<Props> = ({
               <label htmlFor="confirmPassword" className={fieldLabelClass}>
                 Confirm New Password
               </label>
-              <input
+              <PasswordInput
                 id="confirmPassword"
-                type="password"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
                 minLength={passwordPolicy.minLength}
@@ -163,6 +162,10 @@ export const PasswordCard: React.FC<Props> = ({
                 pattern={passwordPolicy.patternHtml}
                 className={`${settingsSelectClass} w-full`}
                 placeholder="Confirm new password"
+              />
+              <PasswordMatch
+                password={newPassword}
+                confirmPassword={confirmPassword}
               />
             </div>
 
