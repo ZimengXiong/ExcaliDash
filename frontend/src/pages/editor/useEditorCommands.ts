@@ -264,15 +264,20 @@ export const useEditorCommands = ({
     setIsSavingOnLeave,
   ]);
 
-  const handleExportClick = useCallback(() => {
-    if (!refs.excalidrawAPI.current) return;
+  const handleExportClick = useCallback(async () => {
+    if (!refs.excalidrawAPI.current || !drawingId) return;
     const elements =
       refs.excalidrawAPI.current.getSceneElementsIncludingDeleted();
     const appState = refs.excalidrawAPI.current.getAppState();
     const files = refs.excalidrawAPI.current.getFiles() || {};
-    exportFromEditor(drawingName, elements, appState, files);
-    toast.success("Drawing exported");
-  }, [drawingName, refs]);
+    try {
+      await exportFromEditor(drawingId, drawingName, elements, appState, files);
+      toast.success("Drawing exported");
+    } catch (error) {
+      console.error("Failed to export drawing", error);
+      toast.error("Failed to bundle drawing images. Please try again.");
+    }
+  }, [drawingId, drawingName, refs]);
 
   const handleToggleAutoHide = useCallback(() => {
     setAutoHideEnabled(!autoHideEnabled);

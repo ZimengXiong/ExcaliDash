@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   filesNeedRehydration,
+  rehydrateFilesForExport,
   rehydrateFilesFromUrls,
   rehydrateFilesProgressive,
 } from "../rehydrateFiles";
@@ -131,6 +132,51 @@ describe("rehydrateFilesFromUrls", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(out.inline.dataURL).toBe("data:image/png;base64,AAAA");
     expect(out.remote.dataURL.startsWith("data:image/png;base64,")).toBe(true);
+  });
+});
+
+describe("rehydrateFilesForExport", () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("bundles public S3 references through the authenticated file route", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      blob: async () => blobFor("image/png", [4, 5, 6]),
+    });
+
+    const result = await rehydrateFilesForExport({
+      image: {
+        id: "image",
+        mimeType: "image/png",
+        dataURL: "https://cdn.example.com/private/image.png",
+      },
+    }, "drawing id");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/files/drawing%20id/image",
+      { credentials: "same-origin" },
+    );
+    expect(result.image.dataURL).toMatch(/^data:image\/png;base64,/);
+  });
+
+  it("rejects a download instead of emitting an unresolved image reference", async () => {
+    fetchMock.mockResolvedValue({ ok: false });
+
+    await expect(rehydrateFilesForExport({
+      missing: {
+        id: "missing",
+        dataURL: "/api/files/drawing/missing",
+      },
+    }, "drawing")).rejects.toThrow("Could not bundle 1 drawing image");
   });
 });
 

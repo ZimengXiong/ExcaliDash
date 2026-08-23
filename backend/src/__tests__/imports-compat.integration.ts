@@ -260,4 +260,54 @@ describe("Import compatibility (legacy exports)", () => {
     const row = await prisma.drawing.findUnique({ where: { id: "excalidraw-roundtrip-1" } });
     expect(JSON.parse(row!.elements)).toEqual(elements);
   });
+
+  it("exports managed image references as portable inline data URLs", async () => {
+    const imageBytes = Buffer.from("portable backup image");
+    await prisma.drawing.create({
+      data: {
+        id: "portable-image-export",
+        name: "Portable image",
+        elements: "[]",
+        appState: "{}",
+        files: JSON.stringify({
+          image: {
+            id: "image",
+            mimeType: "image/png",
+            dataURL: "/api/files/portable-image-export/image",
+            created: 123,
+          },
+        }),
+        version: 1,
+        userId: BOOTSTRAP_USER_ID,
+      },
+    });
+    await prisma.drawingFile.create({
+      data: {
+        drawingId: "portable-image-export",
+        fileId: "image",
+        mimeType: "image/png",
+        sizeBytes: imageBytes.length,
+        storage: "db",
+        data: imageBytes,
+      },
+    });
+
+    const zip = await JSZip.loadAsync(await downloadExport());
+    const manifest = JSON.parse(
+      await zip.file("excalidash.manifest.json")!.async("string"),
+    );
+    const entry = manifest.drawings.find(
+      (drawing: any) => drawing.id === "portable-image-export",
+    );
+    const exportedDrawing = JSON.parse(
+      await zip.file(entry.filePath)!.async("string"),
+    );
+
+    expect(exportedDrawing.files.image).toMatchObject({
+      id: "image",
+      mimeType: "image/png",
+      dataURL: `data:image/png;base64,${imageBytes.toString("base64")}`,
+      created: 123,
+    });
+  });
 });

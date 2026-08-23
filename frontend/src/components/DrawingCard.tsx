@@ -109,7 +109,7 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
     try {
       setIsExporting(true);
       setExportError(null);
-      exportDrawingToFile(await buildExportDrawing());
+      await exportDrawingToFile(await buildExportDrawing());
     } catch (error) {
       console.error("Failed to export drawing", error);
       setExportError("Failed to export drawing. Please try again.");

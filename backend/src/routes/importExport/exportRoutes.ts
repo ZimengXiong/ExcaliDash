@@ -9,6 +9,7 @@ import {
   sanitizePathSegment,
   toPublicTrashCollectionId,
 } from "./shared";
+import { embedDrawingFilesForExport } from "./exportFiles";
 
 export const registerExcalidashExportRoute = (deps: RegisterImportExportDeps) => {
   const {
@@ -143,6 +144,20 @@ export const registerExcalidashExportRoute = (deps: RegisterImportExportDeps) =>
     for (const drawing of drawings) {
       const meta = drawingsManifestById.get(drawing.id);
       if (!meta) continue;
+      const storedFiles = await prisma.drawingFile.findMany({
+        where: { drawingId: drawing.id },
+        select: {
+          fileId: true,
+          mimeType: true,
+          storage: true,
+          s3Key: true,
+          data: true,
+        },
+      });
+      const files = await embedDrawingFilesForExport(
+        parseJsonField(drawing.files, {} as Record<string, unknown>),
+        storedFiles,
+      );
       const excalidashMeta = {
         drawingId: drawing.id,
         collectionId: drawing.collectionId ?? null,
@@ -154,7 +169,7 @@ export const registerExcalidashExportRoute = (deps: RegisterImportExportDeps) =>
               source: exportSource,
               elements: parseJsonField(drawing.elements, [] as unknown[]),
               appState: parseJsonField(drawing.appState, {} as Record<string, unknown>),
-              files: parseJsonField(drawing.files, {} as Record<string, unknown>),
+              files,
               excalidash: excalidashMeta,
             };
       assertSafeArchivePath(meta.filePath);

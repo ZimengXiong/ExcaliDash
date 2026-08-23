@@ -202,6 +202,23 @@ export const uploadBuffer = async (
   await s3Client.send(command);
 };
 
+/** Download an object as raw bytes for server-side backup/export work. */
+export const downloadBuffer = async (key: string): Promise<Buffer> => {
+  if (!s3Client || !s3Config) {
+    throw new Error("S3 is not configured");
+  }
+
+  const response = await s3Client.send(new GetObjectCommand({
+    Bucket: s3Config.bucket,
+    Key: key,
+  }));
+  if (!response.Body) {
+    throw new Error(`S3 object has no body: ${key}`);
+  }
+
+  return Buffer.from(await response.Body.transformToByteArray());
+};
+
 /**
  * List all objects under a given prefix. Handles pagination automatically.
  */

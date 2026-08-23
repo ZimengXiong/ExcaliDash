@@ -113,6 +113,43 @@ export const rehydrateFilesFromUrls = async (
 };
 
 /**
+ * Strict rehydration for portable .excalidraw downloads. Route managed files
+ * through the authenticated same-origin endpoint (also avoiding public-S3
+ * CORS requirements), then reject the export if any reference remains.
+ */
+export const rehydrateFilesForExport = async (
+  files: Record<string, any> | null | undefined,
+  drawingId: string,
+): Promise<Record<string, any>> => {
+  if (!files || typeof files !== "object") return {};
+
+  const sameOriginFiles = Object.fromEntries(
+    Object.entries(files).map(([fileId, file]) => {
+      if (!isRehydratableRef(file?.dataURL)) return [fileId, file];
+      return [fileId, {
+        ...file,
+        dataURL: `/api/files/${encodeURIComponent(drawingId)}/${encodeURIComponent(fileId)}`,
+      }];
+    }),
+  );
+  const hydrated = await rehydrateFilesFromUrls(sameOriginFiles);
+  const unresolved = Object.entries(hydrated)
+    .filter(([, file]) =>
+      typeof file?.dataURL === "string" &&
+      file.dataURL.length > 0 &&
+      !file.dataURL.startsWith("data:"),
+    )
+    .map(([fileId]) => fileId);
+
+  if (unresolved.length > 0) {
+    throw new Error(
+      `Could not bundle ${unresolved.length} drawing image(s): ${unresolved.join(", ")}`,
+    );
+  }
+  return hydrated;
+};
+
+/**
  * Bound on concurrent file fetches — matches the ~6 parallel connections a
  * browser opens per origin so we saturate the pipe without head-of-line
  * blocking behind a single slow blob.
