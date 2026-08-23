@@ -1,17 +1,32 @@
-import { ChevronRight, Info, ShieldCheck, Upload } from "lucide-react";
+import type React from "react";
+import {
+  ArchiveRestore,
+  ChevronRight,
+  Info,
+  ShieldCheck,
+  Upload,
+} from "lucide-react";
 import { SettingsRow, settingsButtonClass } from "./SettingsRow";
+import { importLegacyFiles } from "../../utils/importUtils";
+
+type DialogState = { isOpen: boolean; message: string };
+type SuccessDialogState = { isOpen: boolean; message: React.ReactNode };
 
 type AdvancedSettingsProps = {
   authEnabled: boolean | null;
   authMode: string | null | undefined;
   authToggleLoading: boolean;
   backupImportLoading: boolean;
+  legacyDbImportLoading: boolean;
   isManagedAuthMode: boolean;
   user: { role?: string } | null | undefined;
   appVersion: string;
   buildLabel: string | undefined;
   verifyBackupFile: (file: File) => Promise<void>;
+  verifyLegacyDbFile: (file: File) => Promise<void>;
   confirmToggleAuthEnabled: () => void;
+  setImportError: React.Dispatch<React.SetStateAction<DialogState>>;
+  setImportSuccess: React.Dispatch<React.SetStateAction<SuccessDialogState>>;
 };
 
 export const AdvancedSettings = ({
@@ -19,12 +34,16 @@ export const AdvancedSettings = ({
   authMode,
   authToggleLoading,
   backupImportLoading,
+  legacyDbImportLoading,
   isManagedAuthMode,
   user,
   appVersion,
   buildLabel,
   verifyBackupFile,
+  verifyLegacyDbFile,
   confirmToggleAuthEnabled,
+  setImportError,
+  setImportSuccess,
 }: AdvancedSettingsProps) => (
   <details className="group mt-10 overflow-hidden rounded-2xl border-2 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:border-neutral-700 dark:bg-neutral-900 dark:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)]">
     <summary className="flex cursor-pointer select-none items-center gap-2 px-4 py-3.5 text-sm font-bold text-slate-800 dark:text-neutral-200 sm:px-5 sm:text-base">
@@ -61,6 +80,64 @@ export const AdvancedSettings = ({
           className={settingsButtonClass}
         >
           {backupImportLoading ? "Verifying…" : "Choose file"}
+        </button>
+      </SettingsRow>
+
+      <SettingsRow
+        icon={<ArchiveRestore size={20} />}
+        tileClassName="border-black bg-amber-300 text-black dark:border-neutral-700 dark:bg-amber-400 dark:text-black"
+        title="Legacy import"
+        description="Import .excalidraw, legacy JSON, ZIP, or a legacy SQLite database"
+      >
+        <input
+          type="file"
+          multiple
+          accept=".sqlite,.db,.json,.excalidraw,.zip"
+          className="hidden"
+          id="settings-import-legacy"
+          onChange={async (event) => {
+            const files = Array.from(event.target.files || []);
+            if (files.length === 0) return;
+            const databaseFile = files.find(
+              (file) =>
+                file.name.endsWith(".sqlite") || file.name.endsWith(".db"),
+            );
+            if (databaseFile) {
+              if (files.length > 1) {
+                setImportError({
+                  isOpen: true,
+                  message:
+                    "Import legacy database files separately from other files.",
+                });
+              } else {
+                await verifyLegacyDbFile(databaseFile);
+              }
+              event.target.value = "";
+              return;
+            }
+            const result = await importLegacyFiles(files, null, () => {});
+            if (result.failed > 0) {
+              setImportError({
+                isOpen: true,
+                message: `Import completed with errors.\nSucceeded: ${result.success}\nFailed: ${result.failed}\nErrors:\n${result.errors.join("\n")}`,
+              });
+            } else {
+              setImportSuccess({
+                isOpen: true,
+                message: `Imported ${result.success} file(s).`,
+              });
+            }
+            event.target.value = "";
+          }}
+        />
+        <button
+          onClick={() =>
+            document.getElementById("settings-import-legacy")?.click()
+          }
+          disabled={legacyDbImportLoading}
+          className={settingsButtonClass}
+        >
+          {legacyDbImportLoading ? "Verifying…" : "Choose files"}
         </button>
       </SettingsRow>
 

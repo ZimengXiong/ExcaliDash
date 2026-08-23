@@ -26,6 +26,25 @@ export const Settings: React.FC = () => {
   const isAdmin = isSingleUserOwner || user?.role === "ADMIN";
   const mustResetPassword = Boolean(user?.mustResetPassword);
   const [settingsSuccess, setSettingsSuccess] = useState("");
+  const [legacyDbImportConfirmation, setLegacyDbImportConfirmation] = useState<{
+    isOpen: boolean;
+    file: File | null;
+    info: null | {
+      drawings: number;
+      collections: number;
+      legacyLatestMigration: string | null;
+      currentLatestMigration: string | null;
+    };
+  }>({ isOpen: false, file: null, info: null });
+  const [importError, setImportError] = useState({
+    isOpen: false,
+    message: "",
+  });
+  const [importSuccess, setImportSuccess] = useState<{
+    isOpen: boolean;
+    message: React.ReactNode;
+  }>({ isOpen: false, message: "" });
+  const [legacyDbImportLoading, setLegacyDbImportLoading] = useState(false);
   const [authToggleLoading, setAuthToggleLoading] = useState(false);
   const [authToggleError, setAuthToggleError] = useState<string | null>(null);
   const setAiError = useCallback(
@@ -231,6 +250,42 @@ export const Settings: React.FC = () => {
       setBackupImportLoading(false);
     }
   };
+  const verifyLegacyDbFile = async (file: File) => {
+    setLegacyDbImportLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("db", file);
+      const response = await api.api.post<{
+        valid: boolean;
+        drawings: number;
+        collections: number;
+        latestMigration: string | null;
+        currentLatestMigration: string | null;
+      }>("/import/sqlite/legacy/verify", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      setLegacyDbImportConfirmation({
+        isOpen: true,
+        file,
+        info: {
+          drawings: response.data.drawings,
+          collections: response.data.collections,
+          legacyLatestMigration: response.data.latestMigration ?? null,
+          currentLatestMigration: response.data.currentLatestMigration ?? null,
+        },
+      });
+    } catch (err: unknown) {
+      console.error("Legacy DB verify failed:", err);
+      let message = "Failed to verify legacy database file.";
+      if (api.isAxiosError(err)) {
+        message =
+          err.response?.data?.message || err.response?.data?.error || message;
+      }
+      setImportError({ isOpen: true, message });
+    } finally {
+      setLegacyDbImportLoading(false);
+    }
+  };
   const handleCreateCollection = async (name: string) => {
     await api.createCollection(name);
     const newCollections = await api.getCollections();
@@ -262,103 +317,113 @@ export const Settings: React.FC = () => {
     >
       {" "}
       <div className="mx-auto w-full max-w-3xl">
-      <Toaster position="top-right" />
-      <h1
-        className="text-3xl sm:text-4xl lg:text-5xl mb-6 lg:mb-8 text-slate-900 dark:text-white pl-1"
-        style={{ fontFamily: displayFontFamily }}
-      >
-        {" "}
-        Settings{" "}
-      </h1>{" "}
-      {authToggleError && (
-        <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl">
+        <Toaster position="top-right" />
+        <h1
+          className="text-3xl sm:text-4xl lg:text-5xl mb-6 lg:mb-8 text-slate-900 dark:text-white pl-1"
+          style={{ fontFamily: displayFontFamily }}
+        >
           {" "}
-          <p className="text-red-800 dark:text-red-200 font-medium">
-            {authToggleError}
-          </p>{" "}
+          Settings{" "}
+        </h1>{" "}
+        {authToggleError && (
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl">
+            {" "}
+            <p className="text-red-800 dark:text-red-200 font-medium">
+              {authToggleError}
+            </p>{" "}
+          </div>
+        )}{" "}
+        {settingsSuccess && (
+          <div className="mb-6 rounded-xl border-2 border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20">
+            <p className="font-medium text-green-800 dark:text-green-200">
+              {settingsSuccess}
+            </p>
+          </div>
+        )}{" "}
+        <div className="space-y-10">
+          <ApiKeysCard
+            disabled={mustResetPassword}
+            onSuccess={setSettingsSuccess}
+          />
+          <AiSettingsCard
+            loading={aiSettings.loading}
+            saving={aiSettings.saving}
+            provider={aiSettings.provider}
+            baseUrl={aiSettings.baseUrl}
+            model={aiSettings.model}
+            apiKey={aiSettings.apiKey}
+            chatgptEnabled={aiSettings.chatgptEnabled}
+            status={aiSettings.status}
+            envKeyConfigured={aiSettings.envKeyConfigured}
+            dbKeyConfigured={aiSettings.dbKeyConfigured}
+            onProviderChange={aiSettings.setProvider}
+            onBaseUrlChange={aiSettings.setBaseUrl}
+            onModelChange={aiSettings.setModel}
+            onApiKeyChange={aiSettings.setApiKey}
+            onChatgptEnabledChange={aiSettings.setChatgptEnabled}
+            onSave={aiSettings.save}
+            onClearDbKey={aiSettings.clearDbKey}
+          />
         </div>
-      )}{" "}
-      {settingsSuccess && (
-        <div className="mb-6 rounded-xl border-2 border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20">
-          <p className="font-medium text-green-800 dark:text-green-200">
-            {settingsSuccess}
-          </p>
-        </div>
-      )}{" "}
-      <div className="space-y-10">
-        <ApiKeysCard
-          disabled={mustResetPassword}
-          onSuccess={setSettingsSuccess}
-        />
-        <AiSettingsCard
-          loading={aiSettings.loading}
-          saving={aiSettings.saving}
-          provider={aiSettings.provider}
-          baseUrl={aiSettings.baseUrl}
-          model={aiSettings.model}
-          apiKey={aiSettings.apiKey}
-          chatgptEnabled={aiSettings.chatgptEnabled}
-          status={aiSettings.status}
-          envKeyConfigured={aiSettings.envKeyConfigured}
-          dbKeyConfigured={aiSettings.dbKeyConfigured}
-          onProviderChange={aiSettings.setProvider}
-          onBaseUrlChange={aiSettings.setBaseUrl}
-          onModelChange={aiSettings.setModel}
-          onApiKeyChange={aiSettings.setApiKey}
-          onChatgptEnabledChange={aiSettings.setChatgptEnabled}
-          onSave={aiSettings.save}
-          onClearDbKey={aiSettings.clearDbKey}
-        />
-      </div>
-      <div className="mt-10">
-        <SettingsMainGrid
-          exportBackup={exportBackup}
-          theme={theme}
-          toggleTheme={toggleTheme}
-          imageCompression={imageCompression}
-          toggleImageCompression={toggleImageCompression}
-          updateChannel={updateChannel}
-          updateInfo={updateInfo}
-          updateLoading={updateLoading}
-          updateError={updateError}
-          onUpdateChannelChange={(next) => {
-            try {
-              window.localStorage?.setItem?.(UPDATE_CHANNEL_KEY, next);
-            } catch {
-              // Ignore unavailable storage in private/embedded contexts.
-            }
-            setUpdateChannel(next);
-            void checkForUpdates(next);
-          }}
-          onCheckForUpdates={() => void checkForUpdates(updateChannel)}
-        />
-      </div>{" "}
-      <AdvancedSettings
-        authEnabled={authEnabled}
-        authMode={authMode}
-        authToggleLoading={authToggleLoading}
-        backupImportLoading={backupImportLoading}
-        isManagedAuthMode={isManagedAuthMode}
-        user={user}
-        appVersion={appVersion}
-        buildLabel={buildLabel}
-        verifyBackupFile={verifyBackupFile}
-        confirmToggleAuthEnabled={confirmToggleAuthEnabled}
-      />{" "}
-      <SettingsConfirmModals
-        authToggleConfirm={authToggleConfirm}
-        setAuthToggleConfirm={setAuthToggleConfirm}
-        authDisableFinalConfirmOpen={authDisableFinalConfirmOpen}
-        setAuthDisableFinalConfirmOpen={setAuthDisableFinalConfirmOpen}
-        setAuthEnabled={setAuthEnabled}
-        backupImportConfirmation={backupImportConfirmation}
-        setBackupImportConfirmation={setBackupImportConfirmation}
-        backupImportSuccess={backupImportSuccess}
-        setBackupImportSuccess={setBackupImportSuccess}
-        backupImportError={backupImportError}
-        setBackupImportError={setBackupImportError}
-        setBackupImportLoading={setBackupImportLoading}
-      />{" "}
+        <div className="mt-10">
+          <SettingsMainGrid
+            exportBackup={exportBackup}
+            theme={theme}
+            toggleTheme={toggleTheme}
+            imageCompression={imageCompression}
+            toggleImageCompression={toggleImageCompression}
+            updateChannel={updateChannel}
+            updateInfo={updateInfo}
+            updateLoading={updateLoading}
+            updateError={updateError}
+            onUpdateChannelChange={(next) => {
+              try {
+                window.localStorage?.setItem?.(UPDATE_CHANNEL_KEY, next);
+              } catch {
+                // Ignore unavailable storage in private/embedded contexts.
+              }
+              setUpdateChannel(next);
+              void checkForUpdates(next);
+            }}
+            onCheckForUpdates={() => void checkForUpdates(updateChannel)}
+          />
+        </div>{" "}
+        <AdvancedSettings
+          authEnabled={authEnabled}
+          authMode={authMode}
+          authToggleLoading={authToggleLoading}
+          backupImportLoading={backupImportLoading}
+          legacyDbImportLoading={legacyDbImportLoading}
+          isManagedAuthMode={isManagedAuthMode}
+          user={user}
+          appVersion={appVersion}
+          buildLabel={buildLabel}
+          verifyBackupFile={verifyBackupFile}
+          verifyLegacyDbFile={verifyLegacyDbFile}
+          confirmToggleAuthEnabled={confirmToggleAuthEnabled}
+          setImportError={setImportError}
+          setImportSuccess={setImportSuccess}
+        />{" "}
+        <SettingsConfirmModals
+          legacyDbImportConfirmation={legacyDbImportConfirmation}
+          setLegacyDbImportConfirmation={setLegacyDbImportConfirmation}
+          importError={importError}
+          setImportError={setImportError}
+          importSuccess={importSuccess}
+          setImportSuccess={setImportSuccess}
+          authToggleConfirm={authToggleConfirm}
+          setAuthToggleConfirm={setAuthToggleConfirm}
+          authDisableFinalConfirmOpen={authDisableFinalConfirmOpen}
+          setAuthDisableFinalConfirmOpen={setAuthDisableFinalConfirmOpen}
+          setAuthEnabled={setAuthEnabled}
+          backupImportConfirmation={backupImportConfirmation}
+          setBackupImportConfirmation={setBackupImportConfirmation}
+          backupImportSuccess={backupImportSuccess}
+          setBackupImportSuccess={setBackupImportSuccess}
+          backupImportError={backupImportError}
+          setBackupImportError={setBackupImportError}
+          setBackupImportLoading={setBackupImportLoading}
+        />{" "}
       </div>
     </Layout>
   );
