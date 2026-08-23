@@ -8,6 +8,7 @@ import { opsBatchSchema, type OpError } from "../agent/opSchemas";
 import { buildStructuralSummary, summarizeElements } from "../agent/summary";
 import { applySceneUpdateTx, isVersionConflict } from "../routes/dashboard/sceneUpdate";
 import type { AuditLogData } from "../utils/audit";
+import { decodeSnapshotField } from "../snapshots/snapshotCodec";
 
 export type RegisterAiRoutesDeps = {
   prisma: PrismaClient;
@@ -71,7 +72,12 @@ export const applyOpsBatch = async (
       where: { drawingId, version: { in: versions } },
     });
     const map = new Map<number, any[]>();
-    for (const snap of snaps) map.set(snap.version, deps.parseJsonField(snap.elements, []));
+    for (const snap of snaps) {
+      map.set(
+        snap.version,
+        deps.parseJsonField(decodeSnapshotField(snap.elements), []),
+      );
+    }
     return map;
   });
   if (prepareFailed(prepared)) {

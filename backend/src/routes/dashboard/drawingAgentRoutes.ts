@@ -9,6 +9,7 @@ import {
 import { sanitizeDrawingData } from "../../security";
 import { applyOps, type ApplyOpsSuccess } from "../../agent/applyOps";
 import { prepareFailed, prepareOpsContext } from "../../agent/prepareOps";
+import { decodeSnapshotField } from "../../snapshots/snapshotCodec";
 import { opsBatchSchema, type OpError } from "../../agent/opSchemas";
 import { buildStructuralSummary, summarizeElements } from "../../agent/summary";
 import { applySceneUpdateTx, isVersionConflict } from "./sceneUpdate";
@@ -87,7 +88,12 @@ export const registerDrawingAgentRoutes = (
           where: { drawingId: id, version: { in: versions } },
         });
         const map = new Map<number, any[]>();
-        for (const snap of snaps) map.set(snap.version, parseJsonField(snap.elements, []));
+        for (const snap of snaps) {
+          map.set(
+            snap.version,
+            parseJsonField(decodeSnapshotField(snap.elements), []),
+          );
+        }
         return map;
       });
       if (prepareFailed(prepared)) {

@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { applySceneUpdateTx, isVersionConflict } from "./sceneUpdate";
+import {
+  decodeSnapshotField,
+  isEncodedSnapshotField,
+} from "../../snapshots/snapshotCodec";
 
 const drawing = (version: number) => ({
   id: "drawing-1",
@@ -32,6 +36,43 @@ const buildPrisma = (updateCounts: number[]) => {
 };
 
 describe("applySceneUpdateTx", () => {
+  it("compresses the snapshot without changing its contents", async () => {
+    const largeElements = JSON.stringify(
+      Array.from({ length: 300 }, (_, index) => ({
+        id: `element-${index}`,
+        type: "rectangle",
+        x: index,
+        y: index,
+      })),
+    );
+    const { snapshotCreate } = buildPrisma([1]);
+    const fakePrisma: any = {
+      $transaction: async (callback: (client: any) => unknown) =>
+        callback({
+          drawing: {
+            findUnique: async () => ({ ...drawing(7), elements: largeElements }),
+            updateMany: async () => ({ count: 1 }),
+            findFirst: async () => drawing(8),
+          },
+          drawingSnapshot: { create: snapshotCreate },
+        }),
+    };
+
+    await applySceneUpdateTx({
+      prisma: fakePrisma,
+      drawingId: "drawing-1",
+      parseJsonField: (raw, fallback) =>
+        raw ? (JSON.parse(raw) as typeof fallback) : fallback,
+      versionGuard: 7,
+      snapshotCompressionEnabled: true,
+      mutate: () => ({ data: { elements: largeElements } }),
+    });
+
+    const stored = snapshotCreate.mock.calls[0][0].data.elements;
+    expect(isEncodedSnapshotField(stored)).toBe(true);
+    expect(decodeSnapshotField(stored)).toBe(largeElements);
+  });
+
   it("retries a version race for clients that omit an explicit version", async () => {
     const { prisma, updateMany } = buildPrisma([0, 1]);
 

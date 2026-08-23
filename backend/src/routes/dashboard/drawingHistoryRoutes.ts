@@ -1,5 +1,9 @@
 import express from "express";
 import { canEditDrawing, canViewDrawing, getDrawingAccess } from "../../authz/sharing";
+import {
+  decodeSnapshotField,
+  encodeSnapshotField,
+} from "../../snapshots/snapshotCodec";
 import type { DrawingRouteContext } from "./drawingRouteContext";
 
 export const registerDrawingHistoryRoutes = (
@@ -79,9 +83,9 @@ export const registerDrawingHistoryRoutes = (
 
       return res.json({
         ...snapshot,
-        elements: parseJsonField(snapshot.elements, []),
-        appState: parseJsonField(snapshot.appState, {}),
-        files: parseJsonField(snapshot.files, {}),
+        elements: parseJsonField(decodeSnapshotField(snapshot.elements), []),
+        appState: parseJsonField(decodeSnapshotField(snapshot.appState), {}),
+        files: parseJsonField(decodeSnapshotField(snapshot.files), {}),
       });
     }),
   );
@@ -113,14 +117,20 @@ export const registerDrawingHistoryRoutes = (
       if (!snapshot)
         return res.status(404).json({ error: "Snapshot not found" });
 
+      // Decode before creating the reversible backup. A corrupt compressed
+      // snapshot must not mutate history and then fail during the restore.
+      const restoredElements = decodeSnapshotField(snapshot.elements);
+      const restoredAppState = decodeSnapshotField(snapshot.appState);
+      const restoredFiles = decodeSnapshotField(snapshot.files);
+
       // Snapshot current state before restoring (so restore is reversible)
       await prisma.drawingSnapshot.create({
         data: {
           drawingId: id,
           version: drawing.version,
-          elements: drawing.elements,
-          appState: drawing.appState,
-          files: drawing.files,
+          elements: encodeSnapshotField(drawing.elements),
+          appState: encodeSnapshotField(drawing.appState),
+          files: encodeSnapshotField(drawing.files),
         },
       });
 
@@ -128,9 +138,9 @@ export const registerDrawingHistoryRoutes = (
       const updated = await prisma.drawing.update({
         where: { id },
         data: {
-          elements: snapshot.elements,
-          appState: snapshot.appState,
-          files: snapshot.files,
+          elements: restoredElements,
+          appState: restoredAppState,
+          files: restoredFiles,
           version: { increment: 1 },
         },
       });

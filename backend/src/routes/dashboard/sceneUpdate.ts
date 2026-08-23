@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from "../../generated/client";
+import { encodeSnapshotField } from "../../snapshots/snapshotCodec";
 
 // A file entry is "blank" when it exists but carries no content (empty
 // dataURL). Sanitizer tombstones and transient client state can produce
@@ -59,6 +60,7 @@ type ApplySceneUpdateArgs = {
   drawingId: string;
   parseJsonField: <T>(raw: string | null | undefined, fallback: T) => T;
   versionGuard: number | "optimistic";
+  snapshotCompressionEnabled?: boolean;
   maxRetries?: number;
   mutate: (current: DrawingRow) => SceneMutation | Promise<SceneMutation>;
 };
@@ -76,6 +78,7 @@ export const applySceneUpdateTx = async (
     drawingId,
     parseJsonField,
     versionGuard,
+    snapshotCompressionEnabled = true,
     mutate,
     maxRetries = 0,
   } = args;
@@ -101,9 +104,18 @@ export const applySceneUpdateTx = async (
           data: {
             drawingId,
             version: current.version,
-            elements: current.elements,
-            appState: current.appState,
-            files: current.files,
+            elements: encodeSnapshotField(
+              current.elements,
+              snapshotCompressionEnabled,
+            ),
+            appState: encodeSnapshotField(
+              current.appState,
+              snapshotCompressionEnabled,
+            ),
+            files: encodeSnapshotField(
+              current.files,
+              snapshotCompressionEnabled,
+            ),
           },
         });
 
