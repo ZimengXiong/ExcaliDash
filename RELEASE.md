@@ -1,4 +1,4 @@
-# ExcaliDash 0.6.0-beta.1
+# ExcaliDash 0.6.0
 
 Release date: 2026-08-23
 
