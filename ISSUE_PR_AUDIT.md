@@ -1,6 +1,6 @@
 # Open issue and pull request audit
 
-Reviewed on August 23, 2026, against `dev-issue-fixes`, oldest first. No issue, pull request, review, label, or other public GitHub state was changed.
+Reviewed on August 23, 2026, against the release-candidate `dev` branch, oldest first. No issue, pull request, review, label, or other public GitHub state was changed.
 
 Status meanings:
 
