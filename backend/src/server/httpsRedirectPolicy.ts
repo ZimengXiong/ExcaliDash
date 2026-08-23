@@ -82,6 +82,10 @@ export const getHttpsRedirectUrl = (
   policy: HttpsRedirectPolicy
 ): string | null => {
   if (!policy.shouldEnforceHttps) return null;
+
+  const requestPath = (req.originalUrl || req.url || "/").split("?", 1)[0];
+  if (requestPath === "/health") return null;
+
   if (req.secure || getForwardedProto(req) === "https") return null;
 
   const rawHost = readHeader(req, "host")?.toLowerCase() ?? "";

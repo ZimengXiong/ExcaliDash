@@ -86,4 +86,29 @@ describe("https redirect policy", () => {
 
     expect(getHttpsRedirectUrl(req, policy)).toBeNull();
   });
+
+  it.each(["/health", "/health?probe=readiness"])(
+    "does not redirect the health probe at %s",
+    (path) => {
+      const policy = createHttpsRedirectPolicy(["https://secure.example.com"]);
+      const req = createRequest({
+        host: "127.0.0.1:8000",
+        path,
+      });
+
+      expect(getHttpsRedirectUrl(req, policy)).toBeNull();
+    }
+  );
+
+  it("continues to redirect paths that only start with the health path", () => {
+    const policy = createHttpsRedirectPolicy(["https://secure.example.com"]);
+    const req = createRequest({
+      host: "127.0.0.1:8000",
+      path: "/healthcheck",
+    });
+
+    expect(getHttpsRedirectUrl(req, policy)).toBe(
+      "https://secure.example.com/healthcheck"
+    );
+  });
 });
