@@ -14,7 +14,7 @@ export const EXPIRY_OPTIONS_FOR_EDIT = EXPIRY_OPTIONS.filter(
 
 export const DEFAULT_EDIT_EXPIRY_OPTION = "7d";
 
-export const toIsoFromDatetimeLocal = (value: string): string | undefined => {
+const toIsoFromDatetimeLocal = (value: string): string | undefined => {
   const trimmed = (value || "").trim();
   if (!trimmed) return undefined;
   const date = new Date(trimmed);

@@ -14,7 +14,7 @@ export interface PresenceUser {
   isActive: boolean;
 }
 
-export type AccessCacheEntry = {
+type AccessCacheEntry = {
   access: "view" | "edit" | "owner";
   checkedAtMs: number;
 };
@@ -75,7 +75,12 @@ export const revalidateRoomSockets = async (params: {
     // Force a fresh check by dropping any cached grant for this drawing.
     socket.data.access?.delete(drawingId);
     const principal = socket.data.principal ?? null;
-    const access = await getDrawingAccess({ prisma, principal, drawingId });
+    let access: Awaited<ReturnType<typeof getDrawingAccess>> = "none";
+    try {
+      access = await getDrawingAccess({ prisma, principal, drawingId });
+    } catch (error) {
+      console.error("Failed to revalidate drawing socket access:", error);
+    }
     if (!canViewDrawing(access)) {
       const changed = removeSocketFromRooms(roomUsers, [roomId], socket.id);
       for (const changedRoomId of changed) {

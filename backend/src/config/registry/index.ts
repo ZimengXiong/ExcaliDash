@@ -7,7 +7,7 @@ import { storageEnv, backupEnv } from "./storage";
 import { updateCheckEnv, linkSharingEnv } from "./misc";
 import { frontendEnv } from "./frontend";
 
-export type { EnvKind, EnvVarSpec } from "./types";
+export type { EnvVarSpec } from "./types";
 
 export const ENV_REGISTRY: readonly EnvVarSpec[] = [
   ...serverEnv,

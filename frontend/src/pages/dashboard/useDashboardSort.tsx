@@ -6,13 +6,13 @@ import { usePreference, usePreferences } from "../../context/PreferencesContext"
 const DEFAULT_SORT_FIELD: DrawingSortField = "updatedAt";
 const DEFAULT_SORT_DIRECTION: SortDirection = "desc";
 
-export const isSortField = (value: unknown): value is DrawingSortField =>
+const isSortField = (value: unknown): value is DrawingSortField =>
   value === "name" || value === "createdAt" || value === "updatedAt";
 
-export const isSortDirection = (value: unknown): value is SortDirection =>
+const isSortDirection = (value: unknown): value is SortDirection =>
   value === "asc" || value === "desc";
 
-export const sortOptions: {
+const sortOptions: {
   field: DrawingSortField;
   label: string;
   icon: React.ReactNode;

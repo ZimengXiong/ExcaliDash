@@ -12,7 +12,7 @@
  */
 
 /** Minimal shape of the S3 config the doctor renders (no secrets). */
-export interface StorageDoctorS3 {
+interface StorageDoctorS3 {
   bucket: string | null;
   region: string;
   endpoint: string | null;
@@ -30,7 +30,7 @@ export interface StorageDoctorConfig {
 }
 
 /** Result of the best-effort bucket-reachability probe. */
-export interface BucketProbeResult {
+interface BucketProbeResult {
   ok: boolean;
   /** Failure detail; present only when `ok` is false. */
   error?: string;
@@ -142,7 +142,7 @@ export const buildStorageSummary = (deps: BuildStorageSummaryDeps): string[] => 
 /**
  * Wrap content lines in a titled ASCII box for the startup log.
  */
-export const renderStorageBox = (title: string, lines: string[]): string => {
+const renderStorageBox = (title: string, lines: string[]): string => {
   const width = Math.max(title.length, ...lines.map((l) => l.length)) + 2;
   const top = `+${"-".repeat(width)}+`;
   const pad = (text: string) => `| ${text.padEnd(width - 1)}|`;

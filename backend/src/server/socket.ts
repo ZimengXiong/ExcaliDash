@@ -309,8 +309,10 @@ export const registerSocketHandlers = ({
             checkedAtMs: Date.now(),
           });
         }
-      } catch {
-        joinedAccess = await getCachedOrFreshAccess(drawingId);
+      } catch (error) {
+        state.access.delete(drawingId);
+        console.error("Failed to revalidate socket edit access:", error);
+        return;
       }
       if (!joinedAccess) {
         dropDrawingAccess(drawingId);

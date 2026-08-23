@@ -37,9 +37,6 @@ export const excalidashManifestSchemaV1 = z.object({
       id: z.string().min(1),
       name: z.string(),
       filePath: z.string().min(1),
-      // Rendering engine of the row. Absent in pre-tldraw backups, which are all
-      // excalidraw and are treated as such on import.
-      engine: z.enum(["excalidraw", "tldraw"]).optional(),
       collectionId: z.string().nullable(),
       version: z.number().int().optional(),
       createdAt: z.string().optional(),
@@ -79,7 +76,7 @@ export type RegisterImportExportDeps = {
 
 const getZipEntries = (zip: JSZip) => Object.values(zip.files).filter((entry) => !entry.dir);
 
-export const normalizeArchivePath = (filePath: string): string =>
+const normalizeArchivePath = (filePath: string): string =>
   path.posix.normalize(filePath.replace(/\\/g, "/"));
 
 export const assertSafeArchivePath = (filePath: string) => {

@@ -1,4 +1,4 @@
-export type EnvKind = "string" | "number" | "boolean" | "enum" | "csv";
+type EnvKind = "string" | "number" | "boolean" | "enum" | "csv";
 
 export interface EnvVarSpec {
   name: string;
@@ -12,7 +12,6 @@ export interface EnvVarSpec {
     | "Backups"
     | "Update check"
     | "Link sharing"
-    | "AI"
     | "Frontend (build-time)";
   kind: EnvKind;
   /** Human-readable default shown in docs; omit if none. */

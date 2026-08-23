@@ -34,7 +34,7 @@ let s3Config: S3Config | null = null;
  * Shared S3 object-key prefix. Reading the env var in one place avoids
  * upload and cleanup code paths drifting onto different prefixes.
  */
-export const FILE_KEY_PREFIX = config.s3.keyPrefix;
+const FILE_KEY_PREFIX = config.s3.keyPrefix;
 
 /**
  * Build the canonical S3 object key for a given drawing's image file.

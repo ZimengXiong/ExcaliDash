@@ -34,7 +34,7 @@ export const generateApiKey = (): {
   };
 };
 
-export const hashApiKey = (token: string): string =>
+const hashApiKey = (token: string): string =>
   crypto
     .scryptSync(token, API_KEY_SCRYPT_PEPPER, API_KEY_SCRYPT_KEYLEN, {
       N: API_KEY_SCRYPT_N,
@@ -71,7 +71,7 @@ export const parseApiKeyScopes = (raw: string | null | undefined): string[] =>
     .map((scope) => scope.trim())
     .filter((scope) => scope.length > 0);
 
-export const hasBearerApiKey = (authorizationHeader: unknown): boolean => {
+const hasBearerApiKey = (authorizationHeader: unknown): boolean => {
   const header = Array.isArray(authorizationHeader)
     ? authorizationHeader[0]
     : authorizationHeader;

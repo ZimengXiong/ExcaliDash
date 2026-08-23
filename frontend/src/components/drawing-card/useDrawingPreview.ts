@@ -103,7 +103,7 @@ export const useDrawingPreview = (
           onPreviewGenerated?.(drawing.id, stored);
           return;
         }
-      } catch (e) {
+      } catch {
         if (cancelled) return;
         // Ignore and fall through to client-side generation below.
       }

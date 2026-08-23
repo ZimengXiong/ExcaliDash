@@ -3,7 +3,7 @@ import { Prisma, PrismaClient } from "../../generated/client";
 // A file entry is "blank" when it exists but carries no content (empty
 // dataURL). Sanitizer tombstones and transient client state can produce
 // these; they must never overwrite an existing entry that still has content.
-export const isBlankFileEntry = (entry: unknown): boolean => {
+const isBlankFileEntry = (entry: unknown): boolean => {
   if (!entry || typeof entry !== "object") return true;
   const dataURL = (entry as { dataURL?: unknown }).dataURL;
   if (typeof dataURL === "string") return dataURL.length === 0;
@@ -15,7 +15,7 @@ export const isBlankFileEntry = (entry: unknown): boolean => {
 // save from a client with a partial/stale view of the files object cannot
 // delete another client's images. Same-id updates overwrite, except a blank
 // incoming entry never clobbers existing content.
-export const mergeFilesUnion = (
+const mergeFilesUnion = (
   existing: Record<string, unknown>,
   incoming: Record<string, unknown>,
 ): Record<string, unknown> => {
@@ -35,17 +35,17 @@ export const mergeFilesUnion = (
 
 // Thrown (and recognized by identity or message) when the version-guarded
 // write loses to a concurrent save. Callers translate it to HTTP 409.
-export const versionConflictError = new Error("VERSION_CONFLICT");
+const versionConflictError = new Error("VERSION_CONFLICT");
 
 export const isVersionConflict = (error: unknown): boolean =>
   error === versionConflictError ||
   (error instanceof Error && error.message === versionConflictError.message);
 
-export type DrawingRow = NonNullable<
+type DrawingRow = NonNullable<
   Awaited<ReturnType<PrismaClient["drawing"]["findUnique"]>>
 >;
 
-export type SceneMutation = {
+type SceneMutation = {
   // Prisma update fields to write (elements/appState/preview/name/collection…),
   // WITHOUT `version` (owned here) and WITHOUT `files` (union-merged here).
   data: Prisma.DrawingUpdateInput;
@@ -54,40 +54,19 @@ export type SceneMutation = {
   incomingFiles?: Record<string, unknown>;
 };
 
-export type ApplySceneUpdateArgs = {
+type ApplySceneUpdateArgs = {
   prisma: PrismaClient;
   drawingId: string;
   parseJsonField: <T>(raw: string | null | undefined, fallback: T) => T;
-  // Version-guard policy for the write:
-  //  - number: client-supplied optimistic concurrency. Require the current
-  //    version to equal it; conflict is terminal (no retry).
-  //  - "optimistic": guard on the version read inside the tx and retry on
-  //    conflict (server-owned batches such as the agent ops applier).
-  //  - "none": guard on id only (last-write-wins).
-  versionGuard: number | "optimistic" | "none";
-  // Retries only apply to the "optimistic" guard.
+  versionGuard: number | "optimistic";
   maxRetries?: number;
-  // Produces the next scene from the authoritative current row. Runs inside
-  // the transaction so it always sees committed state.
   mutate: (current: DrawingRow) => SceneMutation | Promise<SceneMutation>;
 };
 
-export type ApplySceneUpdateResult = {
+type ApplySceneUpdateResult = {
   drawing: DrawingRow;
-  // The pre-batch version whose full state was just written to DrawingSnapshot
-  // (the revert target for undo).
-  revertVersion: number;
 };
 
-/**
- * The shared scene-update transaction used by both PUT /drawings/:id and the
- * agent ops applier. It (a) re-reads authoritative current state inside the
- * tx, (b) writes a DrawingSnapshot of the pre-update state, (c) union-merges
- * files, (d) updateMany guarded by version for optimistic concurrency, and
- * (e) bumps version. Extracted verbatim from the PUT handler so sanitization,
- * versioning, and snapshots stay identical across a normal save and an
- * agent-applied batch.
- */
 export const applySceneUpdateTx = async (
   args: ApplySceneUpdateArgs,
 ): Promise<ApplySceneUpdateResult> => {
@@ -145,7 +124,7 @@ export const applySceneUpdateTx = async (
         const where: Prisma.DrawingWhereInput = { id: drawingId };
         if (typeof versionGuard === "number") {
           where.version = versionGuard;
-        } else if (versionGuard === "optimistic") {
+        } else {
           where.version = current.version;
         }
 
@@ -158,7 +137,7 @@ export const applySceneUpdateTx = async (
         if (!updated) {
           throw versionConflictError;
         }
-        return { drawing: updated, revertVersion: current.version };
+        return { drawing: updated };
       });
     } catch (error) {
       if (isVersionConflict(error) && attempt < attempts - 1) {

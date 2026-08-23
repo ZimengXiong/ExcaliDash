@@ -56,8 +56,6 @@ export interface UserPreferences {
   dashboardSortDirection?: SortDirection;
   language?: string;
   gridStep?: number;
-  // Preferred engine for new drawings. Undefined or null means "ask on create".
-
 }
 
 export interface ApiKeyMetadata {
@@ -83,7 +81,7 @@ export const API_KEY_SCOPES = [
   "collections:write",
 ] as const;
 
-export const fetchCsrfToken = async (): Promise<void> => {
+const fetchCsrfToken = async (): Promise<void> => {
   const response = await axios.get<{ token: string; header: string }>(
     `${API_URL}/csrf-token`,
     { withCredentials: true },
@@ -92,7 +90,7 @@ export const fetchCsrfToken = async (): Promise<void> => {
   csrfHeaderName = response.data.header || "x-csrf-token";
 };
 
-export const clearCsrfToken = (): void => {
+const clearCsrfToken = (): void => {
   csrfToken = null;
 };
 
@@ -228,7 +226,7 @@ const clearStoredAuth = () => {
   localStorage.removeItem(USER_KEY);
 };
 
-export const ensureCsrfToken = async (): Promise<void> => {
+const ensureCsrfToken = async (): Promise<void> => {
   if (csrfToken) return;
   csrfTokenPromise ||= fetchCsrfToken().finally(() => {
     csrfTokenPromise = null;

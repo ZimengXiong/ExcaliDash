@@ -179,4 +179,47 @@ describe("revalidateRoomSockets (B15: kick revoked collaborators)", () => {
       expect.objectContaining({ access: "owner" }),
     );
   });
+
+  it("fails closed per socket and continues after an access-store error", async () => {
+    const roomUsers = new Map<string, PresenceUser[]>([
+      [
+        "drawing_d1",
+        [presenceUser("s-error"), presenceUser("s-owner", "owner-user")],
+      ],
+    ]);
+    const failed = makeSocket("s-error", {
+      kind: "user",
+      userId: "grantee",
+    });
+    const owner = makeSocket("s-owner", {
+      kind: "user",
+      userId: "owner-user",
+    });
+    const prisma = fakePrisma({ ownerUserId: "owner-user" });
+    vi.mocked(prisma.drawing.findUnique)
+      .mockRejectedValueOnce(new Error("database unavailable"))
+      .mockResolvedValueOnce({
+        userId: "owner-user",
+        collectionId: null,
+      } as any);
+
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    await revalidateRoomSockets({
+      prisma,
+      drawingId: "d1",
+      roomUsers,
+      sockets: [failed.socket, owner.socket],
+      emitPresence: vi.fn(),
+    });
+
+    expect(failed.disconnect).toHaveBeenCalledWith(true);
+    expect(owner.disconnect).not.toHaveBeenCalled();
+    expect(owner.socket.data.access.get("d1")).toEqual(
+      expect.objectContaining({ access: "owner" }),
+    );
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
 });

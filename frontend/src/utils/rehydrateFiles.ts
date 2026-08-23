@@ -55,7 +55,7 @@ const fetchAsDataUrl = async (
   mimeType: unknown,
 ): Promise<string | null> => {
   try {
-    const response = await fetch(url, { credentials: "include" });
+    const response = await fetch(url, { credentials: "same-origin" });
     if (!response.ok) return null;
     const blob = await response.blob();
     const dataUrl = await blobToDataUrl(blob);

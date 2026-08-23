@@ -322,7 +322,9 @@ export const registerDrawingCreateUpdateRoutes = (
             prisma,
             drawingId: id,
             parseJsonField,
-            versionGuard: payload.version !== undefined ? payload.version : "none",
+            versionGuard:
+              payload.version !== undefined ? payload.version : "optimistic",
+            maxRetries: payload.version === undefined ? 2 : 0,
             mutate: () => ({ data, incomingFiles: processedFilesForUpdate }),
           });
           updatedDrawing = result.drawing;

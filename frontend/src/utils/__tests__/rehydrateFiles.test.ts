@@ -68,7 +68,7 @@ describe("rehydrateFilesFromUrls", () => {
     };
     const out = await rehydrateFilesFromUrls(files);
     expect(fetchMock).toHaveBeenCalledWith("/api/files/d1/f1", {
-      credentials: "include",
+      credentials: "same-origin",
     });
     expect(out.a.dataURL.startsWith("data:image/svg+xml;base64,")).toBe(true);
     // original object must not be mutated
@@ -100,6 +100,23 @@ describe("rehydrateFilesFromUrls", () => {
       a: { dataURL: "https://bucket.example.com/d1/f1.png" },
     });
     expect(out.a.dataURL).toBe("https://bucket.example.com/d1/f1.png");
+  });
+
+  it("does not opt cross-origin object storage into credentialed CORS", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      blob: async () => blobFor("image/png"),
+    });
+    await rehydrateFilesFromUrls({
+      a: {
+        dataURL: "https://bucket.example.com/d1/f1.png",
+        mimeType: "image/png",
+      },
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://bucket.example.com/d1/f1.png",
+      { credentials: "same-origin" },
+    );
   });
 
   it("only fetches referenced files, leaving inline ones untouched", async () => {

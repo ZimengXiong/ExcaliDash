@@ -3,8 +3,8 @@ import { useI18n } from '@excalidraw/excalidraw';
 
 /** Excalidraw's built-in default number of cells between bold grid lines. */
 export const DEFAULT_GRID_STEP = 5;
-export const MIN_GRID_STEP = 1;
-export const MAX_GRID_STEP = 100;
+const MIN_GRID_STEP = 1;
+const MAX_GRID_STEP = 100;
 
 export const clampGridStep = (value: number): number => {
   if (!Number.isFinite(value)) return DEFAULT_GRID_STEP;
