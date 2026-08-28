@@ -78,13 +78,19 @@ echo "Configuring Prisma for provider: ${DATABASE_PROVIDER}"
 sed -i '/datasource db {/,/}/ s/provider = env("[^"]*")/provider = "'"${DATABASE_PROVIDER}"'"/' /app/prisma/schema.prisma
 sed -i '/datasource db {/,/}/ s/provider = "[^"]*"/provider = "'"${DATABASE_PROVIDER}"'"/' /app/prisma/schema.prisma
 
-# Generate Prisma Client at runtime (run as root since schema is owned by root)
-echo "Generating Prisma Client..."
-npx prisma generate --schema=/app/prisma/schema.prisma
+# Install the Prisma Client that was pre-generated for this provider at build time.
+# Regenerating here would fetch engines from binaries.prisma.sh, so the container
+# would refuse to start in an air-gapped environment.
+PRISMA_CLIENT_DIR="/app/prisma_client/${DATABASE_PROVIDER}"
+if [ ! -d "${PRISMA_CLIENT_DIR}" ]; then
+    echo "ERROR: no Prisma Client bundled for provider '${DATABASE_PROVIDER}' at ${PRISMA_CLIENT_DIR}"
+    exit 1
+fi
 
-# Copy generated client to the expected location for the application
+echo "Installing pre-generated Prisma Client for provider: ${DATABASE_PROVIDER}"
+rm -rf /app/dist/generated
 mkdir -p /app/dist/generated
-cp -r /app/src/generated/* /app/dist/generated/
+cp -R "${PRISMA_CLIENT_DIR}/." /app/dist/generated/
 
 # 2. Fix permissions unconditionally (Running as root)
 echo "Fixing filesystem permissions..."
