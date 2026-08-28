@@ -16,15 +16,26 @@ RUN npm ci && npm cache clean --force
 # Copy prisma schema
 COPY prisma ./prisma/
 
-# Set default provider for build-time Prisma generation (runtime can override via DATABASE_PROVIDER)
-RUN sed -i '/datasource db {/,/}/ s/provider = env("[^"]*")/provider = "sqlite"/; /datasource db {/,/}/ s/provider = "[^"]*"/provider = "sqlite"/' prisma/schema.prisma
-
-# Generate Prisma Client at build time (for TypeScript compilation)
-# Runtime will regenerate if DATABASE_PROVIDER differs
-RUN npx prisma generate
+# Pre-generate a Prisma Client for every supported provider. Generating here rather
+# than in the entrypoint keeps the runtime offline: `prisma generate` downloads any
+# engine listed in binaryTargets that npm install did not already fetch, which makes
+# the container unstartable in air-gapped environments.
+RUN cp prisma/schema.prisma /tmp/schema.prisma.orig && \
+    for provider in sqlite postgresql; do \
+        cp /tmp/schema.prisma.orig prisma/schema.prisma && \
+        sed -i '/datasource db {/,/}/ s/provider = env("[^"]*")/provider = "'"$provider"'"/; /datasource db {/,/}/ s/provider = "[^"]*"/provider = "'"$provider"'"/' prisma/schema.prisma && \
+        npx prisma generate && \
+        mv src/generated /app/prisma_client_"$provider"; \
+    done && \
+    cp /tmp/schema.prisma.orig prisma/schema.prisma && \
+    rm /tmp/schema.prisma.orig
 
 # Copy source code
 COPY src ./src
+
+# TypeScript needs a generated client to compile against; both providers emit the
+# same types, so either one works here.
+RUN rm -rf src/generated && cp -R /app/prisma_client_sqlite src/generated
 
 # Build TypeScript
 RUN npx tsc
@@ -55,8 +66,10 @@ COPY prisma ./prisma_template/
 # Copy built application from builder
 COPY --from=builder /app/dist ./dist
 
-# Copy the generated Prisma Client from builder (will be regenerated at runtime if provider changes)
-COPY --from=builder /app/src/generated ./dist/generated
+# Copy the Prisma Clients pre-generated for each supported provider. The entrypoint
+# installs the one matching DATABASE_PROVIDER, so no generation happens at startup.
+COPY --from=builder /app/prisma_client_sqlite ./prisma_client/sqlite
+COPY --from=builder /app/prisma_client_postgresql ./prisma_client/postgresql
 
 # Create necessary directories (ownership will be set in entrypoint)
 RUN mkdir -p /app/uploads /app/prisma
