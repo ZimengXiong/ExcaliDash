@@ -43,6 +43,12 @@ export const useDrawingPreview = (
     drawing.preview ?? null,
   );
   const [fullData, setFullData] = useState<HydratedDrawingData | null>(null);
+  // Parent renders create new callbacks as sibling previews finish. Updating
+  // the notification target must not cancel and restart every pending request.
+  const onPreviewGeneratedRef = useRef(onPreviewGenerated);
+  useEffect(() => {
+    onPreviewGeneratedRef.current = onPreviewGenerated;
+  }, [onPreviewGenerated]);
 
   const fullDataRef = useRef(fullData);
   fullDataRef.current = fullData;
@@ -100,12 +106,13 @@ export const useDrawingPreview = (
         if (cancelled) return;
         if (stored) {
           setPreviewSvg(stored);
-          onPreviewGenerated?.(drawing.id, stored);
+          onPreviewGeneratedRef.current?.(drawing.id, stored);
           return;
         }
       } catch {
-        if (cancelled) return;
-        // Ignore and fall through to client-side generation below.
+        // An unavailable preview service does not mean the preview is absent.
+        // In particular, don't amplify rate limiting with full-drawing fetches.
+        return;
       }
       try {
         const data = await ensureFullData();
@@ -132,7 +139,7 @@ export const useDrawingPreview = (
         if (cancelled) return;
         const previewHtml = svg.outerHTML;
         setPreviewSvg(previewHtml);
-        onPreviewGenerated?.(drawing.id, previewHtml);
+        onPreviewGeneratedRef.current?.(drawing.id, previewHtml);
       } catch (e) {
         if (!cancelled) {
           console.error("Failed to generate preview", e);
@@ -143,7 +150,7 @@ export const useDrawingPreview = (
     return () => {
       cancelled = true;
     };
-  }, [drawing.id, drawing.preview, ensureFullData, onPreviewGenerated]);
+  }, [drawing.id, drawing.preview, ensureFullData]);
 
   const buildExportDrawing = useCallback(async (): Promise<Drawing> => {
     const data = await ensureFullData();
