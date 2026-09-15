@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../../api";
 import { useDrawingPreview } from "./useDrawingPreview";
@@ -56,6 +56,45 @@ describe("useDrawingPreview", () => {
     expect(getDrawingPreviewMock).not.toHaveBeenCalled();
     expect(getDrawingMock).not.toHaveBeenCalled();
   });
+
+  it("keeps an in-flight preview when the parent rerenders with a new callback", async () => {
+    let resolvePreview!: (preview: string) => void;
+    getDrawingPreviewMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolvePreview = resolve;
+      }),
+    );
+    const firstCallback = vi.fn();
+    const latestCallback = vi.fn();
+    const { result, rerender } = renderHook(
+      ({ callback }) => useDrawingPreview(makeSummary(), callback),
+      { initialProps: { callback: firstCallback } },
+    );
+
+    rerender({ callback: latestCallback });
+    await act(async () => resolvePreview("<svg>stored</svg>"));
+
+    expect(result.current.previewSvg).toBe("<svg>stored</svg>");
+    expect(getDrawingPreviewMock).toHaveBeenCalledTimes(1);
+    expect(firstCallback).not.toHaveBeenCalled();
+    expect(latestCallback).toHaveBeenCalledWith("d1", "<svg>stored</svg>");
+    expect(getDrawingMock).not.toHaveBeenCalled();
+  });
+
+  it.each([429, 503])(
+    "does not fetch the full drawing when previews fail with %s",
+    async (status) => {
+      getDrawingPreviewMock.mockRejectedValue({ response: { status } });
+      renderHook(() => useDrawingPreview(makeSummary()));
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(getDrawingPreviewMock).toHaveBeenCalledTimes(1);
+      expect(getDrawingMock).not.toHaveBeenCalled();
+    },
+  );
 
   it("falls back to full-data fetch when there is no stored preview", async () => {
     getDrawingPreviewMock.mockResolvedValue(null);
