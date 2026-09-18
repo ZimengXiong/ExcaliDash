@@ -22,6 +22,7 @@ import { useEditorBroadcast } from "./editor/useEditorBroadcast";
 import { useEditorFileUploads } from "./editor/useEditorFileUploads";
 import { useEditorSceneApi } from "./editor/useEditorSceneApi";
 import { useEditorGridStep } from "./editor/useEditorGridStep";
+import { useKeyboardLayoutFix } from "./editor/useKeyboardLayoutFix";
 import { DEFAULT_GRID_STEP } from "../components/GridStepSelector";
 
 export const Editor: React.FC = () => {
@@ -156,6 +157,7 @@ const ExcalidrawEditor: React.FC = () => {
   });
   useLibraryImportFromUrl({ excalidrawAPIRef: excalidrawAPI, isReady, user });
   useEditorGridStep({ excalidrawAPI, isReady, gridStep });
+  useKeyboardLayoutFix();
   const persistenceRefs = React.useMemo(
     () => ({
       currentDrawingVersion: currentDrawingVersionRef,
