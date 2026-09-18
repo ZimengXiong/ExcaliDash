@@ -1,8 +1,22 @@
 export const displayFontFamily = "var(--excalidash-display-font, Excalifont)";
 
+const quoteCssString = (value: string): string =>
+  `'${value
+    .replace(/\0/g, "\uFFFD")
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/\r/g, "\\d ")
+    .replace(/\n/g, "\\a ")
+    .replace(/\f/g, "\\c ")}'`;
+
 const quoteFontFamily = (family: string): string => {
-  if (/^['"].*['"]$/.test(family)) return family;
-  return `'${family.replace(/'/g, "\\'")}'`;
+  const firstCharacter = family.at(0);
+  const hasMatchingQuotes =
+    family.length >= 2 &&
+    (firstCharacter === "'" || firstCharacter === '"') &&
+    family.at(-1) === firstCharacter;
+
+  return quoteCssString(hasMatchingQuotes ? family.slice(1, -1) : family);
 };
 
 export const configureDisplayFont = (): void => {
@@ -19,6 +33,6 @@ export const configureDisplayFont = (): void => {
 
   const style = document.createElement("style");
   style.setAttribute("data-excalidash-custom-font", "true");
-  style.textContent = `@font-face { font-family: ${quoteFontFamily(family)}; src: url('${fontUrl.replace(/'/g, "%27")}') format('woff2'); font-weight: normal; font-style: normal; font-display: swap; }`;
+  style.textContent = `@font-face { font-family: ${quoteFontFamily(family)}; src: url(${quoteCssString(fontUrl)}) format('woff2'); font-weight: normal; font-style: normal; font-display: swap; }`;
   document.head.appendChild(style);
 };
