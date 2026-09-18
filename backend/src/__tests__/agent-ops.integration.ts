@@ -2,7 +2,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import express from "express";
 import request from "supertest";
 import type { PrismaClient } from "../generated/client";
-import { getTestPrisma, setupTestDb, initTestDb, cleanupTestDb } from "./testUtils";
+import {
+  getTestPrisma,
+  setupTestDb,
+  initTestDb,
+  cleanupTestDb,
+} from "./testUtils";
 import { registerDrawingAgentRoutes } from "../routes/dashboard/drawingAgentRoutes";
 import { applySceneUpdateTx } from "../routes/dashboard/sceneUpdate";
 import type { DrawingRouteContext } from "../routes/dashboard/drawingRouteContext";
@@ -18,17 +23,14 @@ const parseJsonField = <T>(raw: string | null | undefined, fallback: T): T => {
 
 type Emitted = { room: string; event: string; payload: any };
 
-const buildApp = (
-  prisma: PrismaClient,
-  userId: string,
-  emitted: Emitted[],
-) => {
+const buildApp = (prisma: PrismaClient, userId: string, emitted: Emitted[]) => {
   const app = express();
   app.use(express.json({ limit: "10mb" }));
 
   const io = {
     to: (room: string) => ({
-      emit: (event: string, payload: any) => emitted.push({ room, event, payload }),
+      emit: (event: string, payload: any) =>
+        emitted.push({ room, event, payload }),
     }),
   };
 
@@ -39,9 +41,8 @@ const buildApp = (
       req.principal = { kind: "user", userId };
       next();
     },
-    asyncHandler:
-      (fn: any) => (req: any, res: any, next: any) =>
-        Promise.resolve(fn(req, res, next)).catch(next),
+    asyncHandler: (fn: any) => (req: any, res: any, next: any) =>
+      Promise.resolve(fn(req, res, next)).catch(next),
     parseJsonField,
     invalidateDrawingsCache: () => {},
     logAuditEvent: async () => {},
@@ -98,7 +99,11 @@ describe("Agent ops engine", () => {
     const drawing = await createDrawing(prisma, userId);
     const res = await request(app)
       .post(`/drawings/${drawing.id}/ops`)
-      .send({ ops: [{ op: "add_shape", shape: "rectangle", x: 10, y: 20, label: "Hi" }] });
+      .send({
+        ops: [
+          { op: "add_shape", shape: "rectangle", x: 10, y: 20, label: "Hi" },
+        ],
+      });
 
     expect(res.status).toBe(200);
     expect(res.body.version).toBe(drawing.version + 1);
@@ -106,7 +111,9 @@ describe("Agent ops engine", () => {
     expect(res.body.results[0].createdIds).toHaveLength(2); // shape + bound label
     expect(res.body.summary).toContain("rectangle");
 
-    const stored = await prisma.drawing.findUnique({ where: { id: drawing.id } });
+    const stored = await prisma.drawing.findUnique({
+      where: { id: drawing.id },
+    });
     const elements = JSON.parse(stored!.elements);
     expect(elements).toHaveLength(2);
     const rect = elements.find((e: any) => e.type === "rectangle");
@@ -121,7 +128,11 @@ describe("Agent ops engine", () => {
       .send({
         ops: [
           { op: "add_shape", shape: "ellipse", x: 0, y: 0 },
-          { op: "set_style", id: "does-not-exist", style: { strokeColor: "#f00" } },
+          {
+            op: "set_style",
+            id: "does-not-exist",
+            style: { strokeColor: "#f00" },
+          },
         ],
       });
 
@@ -133,16 +144,28 @@ describe("Agent ops engine", () => {
     });
 
     // Nothing written: version unchanged, no snapshot, no elements.
-    const stored = await prisma.drawing.findUnique({ where: { id: drawing.id } });
+    const stored = await prisma.drawing.findUnique({
+      where: { id: drawing.id },
+    });
     expect(stored!.version).toBe(drawing.version);
     expect(JSON.parse(stored!.elements)).toHaveLength(0);
-    const snaps = await prisma.drawingSnapshot.count({ where: { drawingId: drawing.id } });
+    const snaps = await prisma.drawingSnapshot.count({
+      where: { drawingId: drawing.id },
+    });
     expect(snaps).toBe(0);
   });
 
   it("rejects unknown style keys with INVALID_STYLE_KEY", async () => {
     const seed = [
-      { id: "rect-1", type: "rectangle", x: 0, y: 0, width: 10, height: 10, isDeleted: false },
+      {
+        id: "rect-1",
+        type: "rectangle",
+        x: 0,
+        y: 0,
+        width: 10,
+        height: 10,
+        isDeleted: false,
+      },
     ];
     const drawing = await createDrawing(prisma, userId, seed);
     const res = await request(app)
@@ -162,8 +185,22 @@ describe("Agent ops engine", () => {
           {
             op: "import_elements",
             elements: [
-              { id: "duplicate", type: "rectangle", x: 0, y: 0, width: 10, height: 10 },
-              { id: "duplicate", type: "ellipse", x: 20, y: 0, width: 10, height: 10 },
+              {
+                id: "duplicate",
+                type: "rectangle",
+                x: 0,
+                y: 0,
+                width: 10,
+                height: 10,
+              },
+              {
+                id: "duplicate",
+                type: "ellipse",
+                x: 20,
+                y: 0,
+                width: 10,
+                height: 10,
+              },
             ],
           },
         ],
@@ -174,30 +211,61 @@ describe("Agent ops engine", () => {
       opIndex: 0,
       code: "INVALID_OP",
     });
-    const stored = await prisma.drawing.findUnique({ where: { id: drawing.id } });
+    const stored = await prisma.drawing.findUnique({
+      where: { id: drawing.id },
+    });
     expect(stored?.version).toBe(drawing.version);
     expect(JSON.parse(stored?.elements ?? "[]")).toEqual([]);
   });
 
   it("sanitizes set_text (control chars stripped) through the applier", async () => {
     const seed = [
-      { id: "t-1", type: "text", x: 0, y: 0, width: 10, height: 10, text: "", isDeleted: false },
+      {
+        id: "t-1",
+        type: "text",
+        x: 0,
+        y: 0,
+        width: 10,
+        height: 10,
+        text: "",
+        isDeleted: false,
+      },
     ];
     const drawing = await createDrawing(prisma, userId, seed);
     const res = await request(app)
       .post(`/drawings/${drawing.id}/ops`)
-      .send({ ops: [{ op: "set_text", id: "t-1", text: "clean\x00\x07text" }] });
+      .send({
+        ops: [{ op: "set_text", id: "t-1", text: "clean\x00\x07text" }],
+      });
 
     expect(res.status).toBe(200);
-    const stored = await prisma.drawing.findUnique({ where: { id: drawing.id } });
+    const stored = await prisma.drawing.findUnique({
+      where: { id: drawing.id },
+    });
     const el = JSON.parse(stored!.elements).find((e: any) => e.id === "t-1");
     expect(el.text).toBe("cleantext");
   });
 
   it("broadcasts element-update with origin agent-ops and the changed elements", async () => {
     const seed = [
-      { id: "a", type: "rectangle", x: 0, y: 0, width: 20, height: 20, isDeleted: false },
-      { id: "b", type: "rectangle", x: 100, y: 0, width: 20, height: 20, isDeleted: false },
+      {
+        id: "a",
+        type: "rectangle",
+        x: 0,
+        y: 0,
+        width: 20,
+        height: 20,
+        isDeleted: false,
+      },
+      {
+        id: "b",
+        type: "rectangle",
+        x: 100,
+        y: 0,
+        width: 20,
+        height: 20,
+        isDeleted: false,
+      },
     ];
     const drawing = await createDrawing(prisma, userId, seed);
     const res = await request(app)
@@ -225,7 +293,15 @@ describe("Agent ops engine", () => {
 
   it("delete soft-deletes and broadcasts a tombstone", async () => {
     const seed = [
-      { id: "d1", type: "rectangle", x: 0, y: 0, width: 20, height: 20, isDeleted: false },
+      {
+        id: "d1",
+        type: "rectangle",
+        x: 0,
+        y: 0,
+        width: 20,
+        height: 20,
+        isDeleted: false,
+      },
     ];
     const drawing = await createDrawing(prisma, userId, seed);
     const res = await request(app)
@@ -233,7 +309,9 @@ describe("Agent ops engine", () => {
       .send({ ops: [{ op: "delete", id: "d1" }] });
 
     expect(res.status).toBe(200);
-    const stored = await prisma.drawing.findUnique({ where: { id: drawing.id } });
+    const stored = await prisma.drawing.findUnique({
+      where: { id: drawing.id },
+    });
     const el = JSON.parse(stored!.elements).find((e: any) => e.id === "d1");
     expect(el.isDeleted).toBe(true);
     const tomb = emitted[0].payload.elements.find((e: any) => e.id === "d1");
@@ -242,9 +320,34 @@ describe("Agent ops engine", () => {
 
   it("GET /summary returns text/plain z-order lines for live elements", async () => {
     const seed = [
-      { id: "s1", type: "rectangle", x: 5, y: 6, width: 10, height: 10, isDeleted: false },
-      { id: "s2", type: "text", x: 0, y: 0, width: 10, height: 10, text: "hello", isDeleted: false },
-      { id: "s3", type: "rectangle", x: 0, y: 0, width: 1, height: 1, isDeleted: true },
+      {
+        id: "s1",
+        type: "rectangle",
+        x: 5,
+        y: 6,
+        width: 10,
+        height: 10,
+        isDeleted: false,
+      },
+      {
+        id: "s2",
+        type: "text",
+        x: 0,
+        y: 0,
+        width: 10,
+        height: 10,
+        text: "hello",
+        isDeleted: false,
+      },
+      {
+        id: "s3",
+        type: "rectangle",
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+        isDeleted: true,
+      },
     ];
     const drawing = await createDrawing(prisma, userId, seed);
     const res = await request(app).get(`/drawings/${drawing.id}/summary`);
@@ -267,7 +370,17 @@ describe("Agent ops engine", () => {
         boundElements: [{ id: "lbl", type: "text" }],
         isDeleted: false,
       },
-      { id: "lbl", type: "text", x: 5, y: 5, width: 10, height: 10, text: "cap", containerId: "c1", isDeleted: false },
+      {
+        id: "lbl",
+        type: "text",
+        x: 5,
+        y: 5,
+        width: 10,
+        height: 10,
+        text: "cap",
+        containerId: "c1",
+        isDeleted: false,
+      },
     ];
     const drawing = await createDrawing(prisma, userId, seed);
     const res = await request(app).get(`/drawings/${drawing.id}/elements/c1`);
@@ -279,7 +392,15 @@ describe("Agent ops engine", () => {
 
   it("reverts to a snapshot version, undoing an applied batch", async () => {
     const seed = [
-      { id: "keep", type: "rectangle", x: 0, y: 0, width: 10, height: 10, isDeleted: false },
+      {
+        id: "keep",
+        type: "rectangle",
+        x: 0,
+        y: 0,
+        width: 10,
+        height: 10,
+        isDeleted: false,
+      },
     ];
     const drawing = await createDrawing(prisma, userId, seed);
     // Batch 1 adds a shape; its response carries the revert target.
@@ -294,7 +415,9 @@ describe("Agent ops engine", () => {
       .send({ ops: [{ op: "revert_to_snapshot", version: revertVersion }] });
     expect(revert.status).toBe(200);
 
-    const stored = await prisma.drawing.findUnique({ where: { id: drawing.id } });
+    const stored = await prisma.drawing.findUnique({
+      where: { id: drawing.id },
+    });
     const live = JSON.parse(stored!.elements).filter((e: any) => !e.isDeleted);
     expect(live).toHaveLength(1);
     expect(live[0].id).toBe("keep");
@@ -327,7 +450,14 @@ describe("applySceneUpdateTx version-conflict retry", () => {
           version += 1;
           return { count: 1 };
         },
-        findFirst: async () => ({ id: "d", version, name: "d", elements: "[]", appState: "{}", files: "{}" }),
+        findFirst: async () => ({
+          id: "d",
+          version,
+          name: "d",
+          elements: "[]",
+          appState: "{}",
+          files: "{}",
+        }),
       },
       drawingSnapshot: { create: async () => ({}) },
     };

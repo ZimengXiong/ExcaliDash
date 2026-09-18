@@ -20,11 +20,13 @@ export const RoleSelect: React.FC<{
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const options = [...ROLE_OPTIONS, ...extraOptions];
-  const current = options.find((option) => option.value === value) ?? options[0];
+  const current =
+    options.find((option) => option.value === value) ?? options[0];
 
   useEffect(() => {
     const handler = (event: MouseEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(event.target as Node))
+        setOpen(false);
     };
     if (open) document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -43,7 +45,10 @@ export const RoleSelect: React.FC<{
         {current.label}
         <ChevronDown
           size={14}
-          className={clsx("transition-transform duration-200", open && "rotate-180")}
+          className={clsx(
+            "transition-transform duration-200",
+            open && "rotate-180",
+          )}
         />
       </button>
 
@@ -65,7 +70,9 @@ export const RoleSelect: React.FC<{
               )}
             >
               {option.label}
-              {option.value === value && !option.danger && <Check size={13} strokeWidth={3} />}
+              {option.value === value && !option.danger && (
+                <Check size={13} strokeWidth={3} />
+              )}
             </button>
           ))}
         </div>

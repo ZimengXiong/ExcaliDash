@@ -17,8 +17,7 @@ const API_KEY_SCOPE_LABELS: Record<string, string> = {
   "collections:write": "Write collections",
 };
 
-const createButtonClass =
-  "ui-button-primary";
+const createButtonClass = "ui-button-primary";
 
 const getApiErrorMessage = (err: unknown, fallback: string) => {
   if (api.isAxiosError(err)) {
@@ -42,13 +41,16 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
   const [apiKeys, setApiKeys] = useState<api.ApiKeyMetadata[]>([]);
   const [apiKeysLoading, setApiKeysLoading] = useState(false);
   const [apiKeyName, setApiKeyName] = useState("");
-  const [selectedScopes, setSelectedScopes] = useState<string[]>([...api.API_KEY_SCOPES]);
+  const [selectedScopes, setSelectedScopes] = useState<string[]>([
+    ...api.API_KEY_SCOPES,
+  ]);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
   const [generatedToken, setGeneratedToken] = useState("");
   const [generatedTokenName, setGeneratedTokenName] = useState("");
   const [copiedToken, setCopiedToken] = useState(false);
-  const [apiKeyToRevoke, setApiKeyToRevoke] = useState<api.ApiKeyMetadata | null>(null);
+  const [apiKeyToRevoke, setApiKeyToRevoke] =
+    useState<api.ApiKeyMetadata | null>(null);
   const [showAllKeys, setShowAllKeys] = useState(false);
 
   useEffect(() => {
@@ -78,7 +80,8 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
     if (disabled || apiKeysLoading) return;
     const trimmedName = apiKeyName.trim();
     if (!trimmedName) return setError("API key name is required");
-    if (selectedScopes.length === 0) return setError("Select at least one API key scope");
+    if (selectedScopes.length === 0)
+      return setError("Select at least one API key scope");
 
     setActionLoading(true);
     setError("");
@@ -91,7 +94,9 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
       setGeneratedToken(response.token);
       setGeneratedTokenName(response.apiKey.name);
       setCopiedToken(false);
-      onSuccess("API key created. Copy the token now; it will not be shown again.");
+      onSuccess(
+        "API key created. Copy the token now; it will not be shown again.",
+      );
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, "Failed to create API key"));
     } finally {
@@ -127,7 +132,9 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
     const next = checked
       ? [...selectedScopes, scope]
       : selectedScopes.filter((value) => value !== scope);
-    setSelectedScopes(api.API_KEY_SCOPES.filter((value) => next.includes(value)));
+    setSelectedScopes(
+      api.API_KEY_SCOPES.filter((value) => next.includes(value)),
+    );
     setError(next.length === 0 ? "Select at least one API key scope" : "");
   };
 
@@ -139,7 +146,9 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
       await api.revokeApiKey(id);
       const revokedAt = new Date().toISOString();
       setApiKeys((prev) =>
-        prev.map((apiKey) => (apiKey.id === id ? { ...apiKey, revokedAt } : apiKey)),
+        prev.map((apiKey) =>
+          apiKey.id === id ? { ...apiKey, revokedAt } : apiKey,
+        ),
       );
       onSuccess("API key revoked");
     } catch (err: unknown) {
@@ -165,19 +174,25 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
             API key management is unavailable until you reset your password.
           </p>
           <p className="text-xs text-amber-800 dark:text-amber-200/80 font-medium mt-0.5">
-            Change your password below, then return here to create and manage API keys.
+            Change your password below, then return here to create and manage
+            API keys.
           </p>
         </div>
       ) : (
         <>
           {error && (
             <div className="mb-3 p-3.5 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl">
-              <p className="text-red-800 dark:text-red-200 font-medium">{error}</p>
+              <p className="text-red-800 dark:text-red-200 font-medium">
+                {error}
+              </p>
             </div>
           )}
           <SettingsCard>
             {generatedToken && (
-              <div className="bg-amber-50 px-4 py-3.5 dark:bg-amber-900/20 sm:px-5" aria-live="polite">
+              <div
+                className="bg-amber-50 px-4 py-3.5 dark:bg-amber-900/20 sm:px-5"
+                aria-live="polite"
+              >
                 <p className="text-amber-900 dark:text-amber-200 font-bold">
                   Copy this token now. You will not be able to see it again.
                 </p>
@@ -238,7 +253,12 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
                 />
                 <button
                   onClick={() => void handleCreateApiKey()}
-                  disabled={apiKeysLoading || actionLoading || !apiKeyName.trim() || selectedScopes.length === 0}
+                  disabled={
+                    apiKeysLoading ||
+                    actionLoading ||
+                    !apiKeyName.trim() ||
+                    selectedScopes.length === 0
+                  }
                   className={createButtonClass}
                 >
                   {actionLoading ? "Creating..." : "Create API Key"}
@@ -257,7 +277,9 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
                       <input
                         type="checkbox"
                         checked={selectedScopes.includes(scope)}
-                        onChange={(event) => handleApiKeyScopeChange(scope, event.target.checked)}
+                        onChange={(event) =>
+                          handleApiKeyScopeChange(scope, event.target.checked)
+                        }
                         className="h-3.5 w-3.5 accent-emerald-600"
                       />
                       <span>{API_KEY_SCOPE_LABELS[scope]}</span>
@@ -277,76 +299,91 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
               </p>
             ) : (
               <>
-              {apiKeys.slice(0, showAllKeys ? apiKeys.length : 3).map((apiKey) => {
-                const revoked = Boolean(apiKey.revokedAt);
-                return (
-                  <div key={apiKey.id} className="px-4 py-3.5 sm:px-5">
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                      <div className="min-w-0 flex-1 basis-40">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-sm font-bold text-slate-900 dark:text-white break-words sm:text-base">
-                            {apiKey.name}
-                          </h3>
-                          <span
-                            className={
-                              revoked
-                                ? "rounded-full border-2 border-black bg-rose-400 px-2 py-0.5 text-[11px] font-bold text-black dark:border-neutral-700 dark:bg-rose-400 dark:text-black"
-                                : "rounded-full border-2 border-black bg-emerald-400 px-2 py-0.5 text-[11px] font-bold text-black dark:border-neutral-700 dark:bg-emerald-400 dark:text-black"
-                            }
-                          >
-                            {revoked ? "Revoked" : "Active"}
-                          </span>
-                          <InfoPopover label={`Details for API key ${apiKey.name}`}>
-                              <p>
-                                <span className="font-bold text-slate-900 dark:text-white">Prefix</span>
-                                <span className="ml-2 text-slate-500 dark:text-neutral-400">{apiKey.prefix}</span>
-                              </p>
-                              <p>
-                                <span className="font-bold text-slate-900 dark:text-white">Scopes</span>
-                                <span className="ml-2 text-slate-500 dark:text-neutral-400">
-                                  {apiKey.scopes.length > 0 ? apiKey.scopes.join(", ") : "None"}
-                                </span>
-                              </p>
-                              <p className="text-slate-500 dark:text-neutral-400">
-                                Created {formatApiKeyDate(apiKey.createdAt)}
-                              </p>
-                              <p className="text-slate-500 dark:text-neutral-400">
-                                Last used {formatApiKeyDate(apiKey.lastUsedAt)}
-                              </p>
-                              {revoked ? (
-                                <p className="text-slate-500 dark:text-neutral-400">
-                                  Revoked {formatApiKeyDate(apiKey.revokedAt)}
+                {apiKeys
+                  .slice(0, showAllKeys ? apiKeys.length : 3)
+                  .map((apiKey) => {
+                    const revoked = Boolean(apiKey.revokedAt);
+                    return (
+                      <div key={apiKey.id} className="px-4 py-3.5 sm:px-5">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                          <div className="min-w-0 flex-1 basis-40">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-sm font-bold text-slate-900 dark:text-white break-words sm:text-base">
+                                {apiKey.name}
+                              </h3>
+                              <span
+                                className={
+                                  revoked
+                                    ? "rounded-full border-2 border-black bg-rose-400 px-2 py-0.5 text-[11px] font-bold text-black dark:border-neutral-700 dark:bg-rose-400 dark:text-black"
+                                    : "rounded-full border-2 border-black bg-emerald-400 px-2 py-0.5 text-[11px] font-bold text-black dark:border-neutral-700 dark:bg-emerald-400 dark:text-black"
+                                }
+                              >
+                                {revoked ? "Revoked" : "Active"}
+                              </span>
+                              <InfoPopover
+                                label={`Details for API key ${apiKey.name}`}
+                              >
+                                <p>
+                                  <span className="font-bold text-slate-900 dark:text-white">
+                                    Prefix
+                                  </span>
+                                  <span className="ml-2 text-slate-500 dark:text-neutral-400">
+                                    {apiKey.prefix}
+                                  </span>
                                 </p>
-                              ) : null}
-                          </InfoPopover>
+                                <p>
+                                  <span className="font-bold text-slate-900 dark:text-white">
+                                    Scopes
+                                  </span>
+                                  <span className="ml-2 text-slate-500 dark:text-neutral-400">
+                                    {apiKey.scopes.length > 0
+                                      ? apiKey.scopes.join(", ")
+                                      : "None"}
+                                  </span>
+                                </p>
+                                <p className="text-slate-500 dark:text-neutral-400">
+                                  Created {formatApiKeyDate(apiKey.createdAt)}
+                                </p>
+                                <p className="text-slate-500 dark:text-neutral-400">
+                                  Last used{" "}
+                                  {formatApiKeyDate(apiKey.lastUsedAt)}
+                                </p>
+                                {revoked ? (
+                                  <p className="text-slate-500 dark:text-neutral-400">
+                                    Revoked {formatApiKeyDate(apiKey.revokedAt)}
+                                  </p>
+                                ) : null}
+                              </InfoPopover>
+                            </div>
+                          </div>
+                          {!revoked ? (
+                            <button
+                              onClick={() => setApiKeyToRevoke(apiKey)}
+                              disabled={actionLoading}
+                              className="ui-button-secondary ml-auto text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                              aria-label={`Revoke API key ${apiKey.name}`}
+                            >
+                              <Trash2 size={14} />
+                              Revoke
+                            </button>
+                          ) : null}
                         </div>
                       </div>
-                      {!revoked ? (
-                        <button
-                          onClick={() => setApiKeyToRevoke(apiKey)}
-                          disabled={actionLoading}
-                          className="ui-button-secondary ml-auto text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
-                          aria-label={`Revoke API key ${apiKey.name}`}
-                        >
-                          <Trash2 size={14} />
-                          Revoke
-                        </button>
-                      ) : null}
-                    </div>
+                    );
+                  })}
+                {apiKeys.length > 3 ? (
+                  <div className="px-4 py-3 text-center sm:px-5">
+                    <button
+                      type="button"
+                      className="ui-button-secondary"
+                      onClick={() => setShowAllKeys((value) => !value)}
+                    >
+                      {showAllKeys
+                        ? "Show less"
+                        : `Show ${apiKeys.length - 3} more`}
+                    </button>
                   </div>
-                );
-              })}
-              {apiKeys.length > 3 ? (
-                <div className="px-4 py-3 text-center sm:px-5">
-                  <button
-                    type="button"
-                    className="ui-button-secondary"
-                    onClick={() => setShowAllKeys((value) => !value)}
-                  >
-                    {showAllKeys ? "Show less" : `Show ${apiKeys.length - 3} more`}
-                  </button>
-                </div>
-              ) : null}
+                ) : null}
               </>
             )}
           </SettingsCard>
@@ -355,9 +392,15 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
       <ConfirmModal
         isOpen={Boolean(apiKeyToRevoke)}
         title="Revoke API Key"
-        message={apiKeyToRevoke ? `Revoke API key "${apiKeyToRevoke.name}"? Existing integrations using this key will stop working.` : ""}
+        message={
+          apiKeyToRevoke
+            ? `Revoke API key "${apiKeyToRevoke.name}"? Existing integrations using this key will stop working.`
+            : ""
+        }
         confirmText="Revoke"
-        onConfirm={() => apiKeyToRevoke && void handleRevokeApiKey(apiKeyToRevoke.id)}
+        onConfirm={() =>
+          apiKeyToRevoke && void handleRevokeApiKey(apiKeyToRevoke.id)
+        }
         onCancel={() => setApiKeyToRevoke(null)}
       />
     </section>

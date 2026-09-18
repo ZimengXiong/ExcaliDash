@@ -1,5 +1,9 @@
 import express from "express";
-import { canEditDrawing, canViewDrawing, getDrawingAccess } from "../../authz/sharing";
+import {
+  canEditDrawing,
+  canViewDrawing,
+  getDrawingAccess,
+} from "../../authz/sharing";
 import {
   decodeSnapshotField,
   encodeSnapshotField,

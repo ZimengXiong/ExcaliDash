@@ -55,11 +55,13 @@ describe("ai/toolDefs", () => {
     const applierOps = opSchema.options.map(
       (option: any) => option.shape.op.value as string,
     );
-    const offered = (APPLY_OPS_TOOL.inputSchema as any).properties.ops.items.oneOf.map(
-      (o: any) => o.title as string,
-    );
+    const offered = (
+      APPLY_OPS_TOOL.inputSchema as any
+    ).properties.ops.items.oneOf.map((o: any) => o.title as string);
     expect(applierOps.length).toBeGreaterThan(offered.length);
-    expect([...offered, ...WITHHELD_FROM_MODEL].sort()).toEqual([...applierOps].sort());
+    expect([...offered, ...WITHHELD_FROM_MODEL].sort()).toEqual(
+      [...applierOps].sort(),
+    );
   });
 
   it("describes the layout op with the shapes the applier accepts", () => {

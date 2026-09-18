@@ -4,7 +4,7 @@ Browser-based end-to-end tests for ExcaliDash using Playwright.
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 20
 - npm
 - Docker (optional, for containerized testing)
 
@@ -14,7 +14,7 @@ Browser-based end-to-end tests for ExcaliDash using Playwright.
 
 ```bash
 # Install dependencies
-npm install
+npm ci
 npx playwright install chromium
 
 # Run tests (will start servers automatically)
@@ -33,7 +33,7 @@ If you already have the backend and frontend running:
 
 ```bash
 # Backend at http://localhost:8000
-# Frontend at http://localhost:5173
+# Frontend at http://localhost:6767
 NO_SERVER=true npm test
 ```
 
@@ -44,8 +44,8 @@ Run tests in an isolated Docker environment:
 ```bash
 npm run docker:test
 
-# Or using docker-compose directly
-docker-compose -f docker-compose.e2e.yml up --build --abort-on-container-exit
+# Or using Docker Compose directly
+docker compose -f docker-compose.e2e.yml up --build --abort-on-container-exit
 ```
 
 ## Test Suites
@@ -70,13 +70,13 @@ Tests for malicious content blocking:
 
 Environment variables:
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `BASE_URL` | `http://localhost:5173` | Frontend URL |
-| `API_URL` | `http://localhost:8000` | Backend API URL |
-| `HEADED` | `false` | Run with visible browser |
-| `NO_SERVER` | `false` | Skip starting servers |
-| `CI` | `false` | CI mode (headless, retries) |
+| Variable    | Default                 | Description                 |
+| ----------- | ----------------------- | --------------------------- |
+| `BASE_URL`  | `http://localhost:6767` | Frontend URL                |
+| `API_URL`   | `http://localhost:8000` | Backend API URL             |
+| `HEADED`    | `false`                 | Run with visible browser    |
+| `NO_SERVER` | `false`                 | Skip starting servers       |
+| `CI`        | `false`                 | CI mode (headless, retries) |
 
 ## File Structure
 
@@ -89,7 +89,6 @@ e2e/
 ├── playwright.config.ts      # Playwright configuration
 ├── docker-compose.e2e.yml    # Docker setup
 ├── Dockerfile.playwright     # Playwright container
-├── run-e2e.sh               # Convenience script
 └── README.md                # This file
 ```
 
@@ -101,7 +100,7 @@ import { test, expect } from "@playwright/test";
 test("my test", async ({ page, request }) => {
   await page.goto("/");
   await expect(page.locator("h1")).toBeVisible();
-  
+
   const response = await request.get("http://localhost:8000/drawings");
   expect(response.ok()).toBe(true);
 });
@@ -125,6 +124,7 @@ npm run report
 The tests are integrated into GitHub Actions. See `.github/workflows/test.yml`.
 
 For CI environments, tests run in headless mode with:
+
 - Automatic retries on failure
 - Screenshot/video on failure
 - HTML report generation

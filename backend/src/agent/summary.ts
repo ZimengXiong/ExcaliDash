@@ -16,17 +16,23 @@ const clampText = (text: unknown, max = 60): string => {
 // without the full element payload.
 const styleDigest = (el: ExcalidrawElement): string => {
   const parts: string[] = [];
-  if (el.strokeColor && el.strokeColor !== "#1e1e1e") parts.push(`stroke=${el.strokeColor}`);
-  if (el.backgroundColor && el.backgroundColor !== "transparent") parts.push(`bg=${el.backgroundColor}`);
-  if (typeof el.strokeWidth === "number" && el.strokeWidth !== 2) parts.push(`w=${el.strokeWidth}`);
-  if (typeof el.opacity === "number" && el.opacity !== 100) parts.push(`op=${el.opacity}`);
+  if (el.strokeColor && el.strokeColor !== "#1e1e1e")
+    parts.push(`stroke=${el.strokeColor}`);
+  if (el.backgroundColor && el.backgroundColor !== "transparent")
+    parts.push(`bg=${el.backgroundColor}`);
+  if (typeof el.strokeWidth === "number" && el.strokeWidth !== 2)
+    parts.push(`w=${el.strokeWidth}`);
+  if (typeof el.opacity === "number" && el.opacity !== 100)
+    parts.push(`op=${el.opacity}`);
   return parts.length ? `[${parts.join(" ")}]` : "";
 };
 
 const bindingSuffix = (el: ExcalidrawElement): string => {
   const parts: string[] = [];
   if (el.startBinding?.elementId || el.endBinding?.elementId) {
-    parts.push(`${el.startBinding?.elementId ?? "?"}->${el.endBinding?.elementId ?? "?"}`);
+    parts.push(
+      `${el.startBinding?.elementId ?? "?"}->${el.endBinding?.elementId ?? "?"}`,
+    );
   }
   if (typeof el.containerId === "string" && el.containerId.length > 0) {
     parts.push(`in:${el.containerId}`);

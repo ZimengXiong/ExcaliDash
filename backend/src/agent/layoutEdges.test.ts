@@ -12,7 +12,12 @@ const boxesOf = (result: LayoutResult): Map<string, Rect> =>
   new Map(
     result.nodes.map((node) => [
       node.key,
-      { x0: node.x, y0: node.y, x1: node.x + node.width, y1: node.y + node.height },
+      {
+        x0: node.x,
+        y0: node.y,
+        x1: node.x + node.width,
+        y1: node.y + node.height,
+      },
     ]),
   );
 
@@ -28,7 +33,12 @@ const segmentEntersBox = (
     const t = i / steps;
     const x = a[0] + (b[0] - a[0]) * t;
     const y = a[1] + (b[1] - a[1]) * t;
-    if (x > box.x0 + inset && x < box.x1 - inset && y > box.y0 + inset && y < box.y1 - inset) {
+    if (
+      x > box.x0 + inset &&
+      x < box.x1 - inset &&
+      y > box.y0 + inset &&
+      y < box.y1 - inset
+    ) {
       return true;
     }
   }
@@ -40,7 +50,9 @@ const arrowsThroughUnrelatedNodes = (result: LayoutResult): string[] => {
   const boxes = boxesOf(result);
   const hits: string[] = [];
   for (const edge of result.edges) {
-    const points = edge.points.map(([px, py]) => [edge.x + px, edge.y + py] as const);
+    const points = edge.points.map(
+      ([px, py]) => [edge.x + px, edge.y + py] as const,
+    );
     for (let i = 0; i + 1 < points.length; i += 1) {
       for (const [key, box] of boxes) {
         if (key === edge.from || key === edge.to) continue;
@@ -59,7 +71,8 @@ const labelsOverNodes = (result: LayoutResult): string[] => {
   const hits: string[] = [];
   for (const edge of result.edges) {
     if (!edge.label) continue;
-    const width = edge.label.text.length * EDGE_LABEL_FONT_SIZE * CHAR_WIDTH_RATIO;
+    const width =
+      edge.label.text.length * EDGE_LABEL_FONT_SIZE * CHAR_WIDTH_RATIO;
     const height = EDGE_LABEL_FONT_SIZE * 1.25;
     const label: Rect = {
       x0: edge.label.x - width / 2,
@@ -69,7 +82,12 @@ const labelsOverNodes = (result: LayoutResult): string[] => {
     };
     for (const [key, box] of boxes) {
       if (key === edge.from || key === edge.to) continue;
-      if (label.x0 < box.x1 && box.x0 < label.x1 && label.y0 < box.y1 && box.y0 < label.y1) {
+      if (
+        label.x0 < box.x1 &&
+        box.x0 < label.x1 &&
+        label.y0 < box.y1 &&
+        box.y0 < label.y1
+      ) {
         hits.push(`${edge.from}->${edge.to} label over ${key}`);
       }
     }
@@ -102,7 +120,10 @@ describe("edge routing", () => {
       ),
     );
     for (const edge of result.edges) {
-      expect(edge.points, `${edge.from}->${edge.to} should be straight`).toHaveLength(2);
+      expect(
+        edge.points,
+        `${edge.from}->${edge.to} should be straight`,
+      ).toHaveLength(2);
     }
   });
 
@@ -188,7 +209,8 @@ describe("edge routing", () => {
 
   it("keeps arrows off unrelated boxes across a corpus of layered graphs", () => {
     let seed = 99;
-    const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+    const rnd = () =>
+      (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
     let checked = 0;
     let withHits = 0;
     for (let g = 0; g < 120; g += 1) {
@@ -202,7 +224,10 @@ describe("edge routing", () => {
       }
       if (edges.length === 0) continue;
       checked += 1;
-      if (arrowsThroughUnrelatedNodes(layoutGraphSync(graph(keys, edges))).length > 0) {
+      if (
+        arrowsThroughUnrelatedNodes(layoutGraphSync(graph(keys, edges)))
+          .length > 0
+      ) {
         withHits += 1;
       }
     }
@@ -220,7 +245,10 @@ describe("edge routing", () => {
       const dx = b.x - a.x;
       const dy = b.y - a.y;
       const lengthSq = dx * dx + dy * dy || 1;
-      const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq));
+      const t = Math.max(
+        0,
+        Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq),
+      );
       return Math.hypot(p.x - (a.x + dx * t), p.y - (a.y + dy * t));
     };
     const closest = (a: Point[], b: Point[]): number => {
@@ -231,7 +259,10 @@ describe("edge routing", () => {
       ] as const) {
         for (const point of one) {
           for (let i = 0; i + 1 < other.length; i += 1) {
-            min = Math.min(min, distanceToSegment(point, other[i], other[i + 1]));
+            min = Math.min(
+              min,
+              distanceToSegment(point, other[i], other[i + 1]),
+            );
           }
         }
       }
@@ -239,7 +270,8 @@ describe("edge routing", () => {
     };
 
     let seed = 1234;
-    const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+    const rnd = () =>
+      (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
     let bent = 0;
     let tightest = Infinity;
     for (let g = 0; g < 120; g += 1) {
@@ -248,7 +280,10 @@ describe("edge routing", () => {
       const edges: [string, string, string?][] = [];
       const count = size + Math.floor(rnd() * size * 2);
       for (let i = 0; i < count; i += 1) {
-        edges.push([`n${Math.floor(rnd() * size)}`, `n${Math.floor(rnd() * size)}`]);
+        edges.push([
+          `n${Math.floor(rnd() * size)}`,
+          `n${Math.floor(rnd() * size)}`,
+        ]);
       }
       const first = "n0";
       const last = `n${size - 1}`;
@@ -265,7 +300,11 @@ describe("edge routing", () => {
         .map((e) => e.points.map(([px, py]) => ({ x: e.x + px, y: e.y + py })));
       if (lanes.length < 3 || !lanes.some((lane) => lane.length > 2)) continue;
       bent += 1;
-      tightest = Math.min(tightest, closest(lanes[0], lanes[1]), closest(lanes[1], lanes[2]));
+      tightest = Math.min(
+        tightest,
+        closest(lanes[0], lanes[1]),
+        closest(lanes[1], lanes[2]),
+      );
     }
 
     expect(bent).toBeGreaterThan(10);

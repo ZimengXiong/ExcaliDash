@@ -23,7 +23,10 @@ type OpenAiMessage =
     }
   | { role: "tool"; tool_call_id: string; content: string };
 
-const toMessages = (system: string, turns: ConversationTurn[]): OpenAiMessage[] => {
+const toMessages = (
+  system: string,
+  turns: ConversationTurn[],
+): OpenAiMessage[] => {
   const messages: OpenAiMessage[] = [{ role: "system", content: system }];
   for (const turn of turns) {
     if (turn.role === "user") {
@@ -116,7 +119,9 @@ export const openaiAdapter: AiProviderAdapter = {
     for (const call of message?.tool_calls ?? []) {
       let input: unknown = {};
       try {
-        input = call.function.arguments ? JSON.parse(call.function.arguments) : {};
+        input = call.function.arguments
+          ? JSON.parse(call.function.arguments)
+          : {};
       } catch {
         input = {};
       }

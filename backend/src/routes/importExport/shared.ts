@@ -30,7 +30,7 @@ export const excalidashManifestSchemaV1 = z.object({
       folder: z.string().min(1),
       createdAt: z.string().optional(),
       updatedAt: z.string().optional(),
-    })
+    }),
   ),
   drawings: z.array(
     z.object({
@@ -41,7 +41,7 @@ export const excalidashManifestSchemaV1 = z.object({
       version: z.number().int().optional(),
       createdAt: z.string().optional(),
       updatedAt: z.string().optional(),
-    })
+    }),
   ),
 });
 
@@ -50,7 +50,11 @@ export type RegisterImportExportDeps = {
   prisma: PrismaClient;
   requireAuth: express.RequestHandler;
   asyncHandler: <T = void>(
-    fn: (req: express.Request, res: express.Response, next: express.NextFunction) => Promise<T>
+    fn: (
+      req: express.Request,
+      res: express.Response,
+      next: express.NextFunction,
+    ) => Promise<T>,
   ) => express.RequestHandler;
   upload: any;
   uploadDir: string;
@@ -61,7 +65,7 @@ export type RegisterImportExportDeps = {
   validateImportedDrawing: (data: unknown) => boolean;
   ensureTrashCollection: (
     db: Prisma.TransactionClient | PrismaClient,
-    userId: string
+    userId: string,
   ) => Promise<void>;
   invalidateDrawingsCache: () => void;
   removeFileIfExists: (filePath?: string) => Promise<void>;
@@ -74,7 +78,8 @@ export type RegisterImportExportDeps = {
   MAX_IMPORT_TOTAL_EXTRACTED_BYTES: number;
 };
 
-const getZipEntries = (zip: JSZip) => Object.values(zip.files).filter((entry) => !entry.dir);
+const getZipEntries = (zip: JSZip) =>
+  Object.values(zip.files).filter((entry) => !entry.dir);
 
 const normalizeArchivePath = (filePath: string): string =>
   path.posix.normalize(filePath.replace(/\\/g, "/"));
@@ -108,7 +113,10 @@ export const getSafeZipEntry = (zip: JSZip, filePath: string) => {
   return zip.file(normalizedPath);
 };
 
-export const sanitizePathSegment = (input: string, fallback: string): string => {
+export const sanitizePathSegment = (
+  input: string,
+  fallback: string,
+): string => {
   const value = typeof input === "string" ? input.trim() : "";
   const cleaned = value
     .replace(/[<>:"/\\|?*\x00-\x1F]/g, "_")
@@ -117,7 +125,8 @@ export const sanitizePathSegment = (input: string, fallback: string): string => 
     .trim();
   const withoutLeadingDots = cleaned.replace(/^\.+/, "").trim();
   if (withoutLeadingDots.length === 0) return fallback;
-  if (withoutLeadingDots === "." || withoutLeadingDots === "..") return fallback;
+  if (withoutLeadingDots === "." || withoutLeadingDots === "..")
+    return fallback;
   return withoutLeadingDots;
 };
 
@@ -147,22 +156,27 @@ export const normalizeNonEmptyId = (value: unknown): string | null => {
   return trimmed.length > 0 ? trimmed : null;
 };
 
-export const getUserTrashCollectionId = (userId: string): string => `trash:${userId}`;
+export const getUserTrashCollectionId = (userId: string): string =>
+  `trash:${userId}`;
 
 export const isTrashCollectionId = (
   collectionId: string | null | undefined,
-  userId: string
+  userId: string,
 ): boolean =>
   Boolean(collectionId) &&
-  (collectionId === "trash" || collectionId === getUserTrashCollectionId(userId));
+  (collectionId === "trash" ||
+    collectionId === getUserTrashCollectionId(userId));
 
 export const toPublicTrashCollectionId = (
   collectionId: string | null | undefined,
-  userId: string
+  userId: string,
 ): string | null =>
-  isTrashCollectionId(collectionId, userId) ? "trash" : collectionId ?? null;
+  isTrashCollectionId(collectionId, userId) ? "trash" : (collectionId ?? null);
 
-export const findSqliteTable = (tables: string[], candidates: string[]): string | null => {
+export const findSqliteTable = (
+  tables: string[],
+  candidates: string[],
+): string | null => {
   const byLower = new Map(tables.map((t) => [t.toLowerCase(), t]));
   for (const candidate of candidates) {
     const found = byLower.get(candidate.toLowerCase());
@@ -185,7 +199,10 @@ export const parseOptionalJson = <T>(raw: unknown, fallback: T): T => {
   return fallback;
 };
 
-const isPathInsideDirectory = (candidatePath: string, rootDir: string): boolean => {
+const isPathInsideDirectory = (
+  candidatePath: string,
+  rootDir: string,
+): boolean => {
   const relativePath = path.relative(rootDir, candidatePath);
   return (
     relativePath === "" ||
@@ -198,7 +215,7 @@ const isSafeMulterTempFilename = (value: string): boolean =>
 
 export const resolveSafeUploadedFilePath = async (
   fileMeta: { filename?: unknown },
-  uploadRoot: string
+  uploadRoot: string,
 ): Promise<string> => {
   const absoluteUploadRoot = path.resolve(uploadRoot);
   let canonicalUploadRoot = absoluteUploadRoot;
@@ -209,7 +226,8 @@ export const resolveSafeUploadedFilePath = async (
     throw new ImportValidationError("Invalid upload path");
   }
 
-  const filename = typeof fileMeta.filename === "string" ? fileMeta.filename : "";
+  const filename =
+    typeof fileMeta.filename === "string" ? fileMeta.filename : "";
   if (!isSafeMulterTempFilename(filename)) {
     throw new ImportValidationError("Invalid upload path");
   }
@@ -238,10 +256,14 @@ export const openReadonlySqliteDb = (filePath: string): any => {
 };
 
 export const getCurrentLatestPrismaMigrationName = async (
-  backendRoot: string
+  backendRoot: string,
 ): Promise<string | null> => {
-  const readMigrationDirs = async (migrationsDir: string): Promise<string[]> => {
-    const entries = await fsPromises.readdir(migrationsDir, { withFileTypes: true });
+  const readMigrationDirs = async (
+    migrationsDir: string,
+  ): Promise<string[]> => {
+    const entries = await fsPromises.readdir(migrationsDir, {
+      withFileTypes: true,
+    });
     return entries
       .filter((e) => e.isDirectory())
       .map((e) => e.name)
@@ -250,7 +272,10 @@ export const getCurrentLatestPrismaMigrationName = async (
   };
 
   try {
-    const providerMigrationsDir = path.resolve(backendRoot, "prisma/migrations/sqlite");
+    const providerMigrationsDir = path.resolve(
+      backendRoot,
+      "prisma/migrations/sqlite",
+    );
 
     let dirs: string[] = [];
     try {
@@ -260,7 +285,9 @@ export const getCurrentLatestPrismaMigrationName = async (
     }
 
     if (dirs.length === 0) {
-      dirs = await readMigrationDirs(path.resolve(backendRoot, "prisma/migrations"));
+      dirs = await readMigrationDirs(
+        path.resolve(backendRoot, "prisma/migrations"),
+      );
     }
 
     if (dirs.length === 0) return null;

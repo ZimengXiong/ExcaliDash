@@ -38,10 +38,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
         >
           <RefreshCw size={16} /> Refresh
         </button>
-        <button
-          onClick={onToggleCreateUser}
-          className="ui-button-primary px-4"
-        >
+        <button onClick={onToggleCreateUser} className="ui-button-primary px-4">
           <UserPlus size={16} /> New user
         </button>
       </div>

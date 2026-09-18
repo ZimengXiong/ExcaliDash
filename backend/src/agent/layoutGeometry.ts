@@ -18,7 +18,8 @@ export const ARROW_CLEARANCE = 8;
 // look like a defect, so the corner is cut off instead.
 const MITER_LIMIT = 3.5;
 
-export const distance = (a: Point, b: Point): number => Math.hypot(b.x - a.x, b.y - a.y);
+export const distance = (a: Point, b: Point): number =>
+  Math.hypot(b.x - a.x, b.y - a.y);
 
 /** Drop repeated points and points sitting on the line through their neighbours. */
 export const simplify = (points: Point[]): Point[] => {
@@ -34,7 +35,9 @@ export const simplify = (points: Point[]): Point[] => {
     const b = out[i];
     const c = out[i + 1];
     // Twice the triangle area; zero means the three are collinear.
-    const area = Math.abs((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y));
+    const area = Math.abs(
+      (b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y),
+    );
     if (area / (distance(a, c) || 1) > 0.05) kept.push(b);
   }
   kept.push(out[out.length - 1]);
@@ -59,7 +62,10 @@ export const offsetPolyline = (points: Point[], delta: number): Point[] => {
   }
 
   const out: Point[] = [
-    { x: points[0].x + normals[0].x * delta, y: points[0].y + normals[0].y * delta },
+    {
+      x: points[0].x + normals[0].x * delta,
+      y: points[0].y + normals[0].y * delta,
+    },
   ];
   for (let i = 1; i < points.length - 1; i += 1) {
     const a = normals[i - 1];
@@ -85,7 +91,11 @@ export const offsetPolyline = (points: Point[], delta: number): Point[] => {
   return out;
 };
 
-export const inflatedContains = (box: Box, point: Point, pad: number): boolean =>
+export const inflatedContains = (
+  box: Box,
+  point: Point,
+  pad: number,
+): boolean =>
   point.x >= box.x - pad &&
   point.x <= box.x + box.width + pad &&
   point.y >= box.y - pad &&
@@ -113,11 +123,17 @@ const exitPoint = (a: Point, b: Point, box: Box, pad: number): Point => {
 const clipHead = (points: Point[], box: Box): Point[] => {
   if (!inflatedContains(box, points[0], ARROW_CLEARANCE)) return points;
   let i = 0;
-  while (i + 1 < points.length && inflatedContains(box, points[i + 1], ARROW_CLEARANCE)) {
+  while (
+    i + 1 < points.length &&
+    inflatedContains(box, points[i + 1], ARROW_CLEARANCE)
+  ) {
     i += 1;
   }
   if (i + 1 >= points.length) return points; // wholly inside: nothing usable to trim
-  return [exitPoint(points[i], points[i + 1], box, ARROW_CLEARANCE), ...points.slice(i + 1)];
+  return [
+    exitPoint(points[i], points[i + 1], box, ARROW_CLEARANCE),
+    ...points.slice(i + 1),
+  ];
 };
 
 export const clipRoute = (points: Point[], from: Box, to: Box): Point[] => {
@@ -129,7 +145,8 @@ export const clipRoute = (points: Point[], from: Box, to: Box): Point[] => {
 /** The point half way along the route, measured by arc length. */
 export const midpointOf = (points: Point[]): Point => {
   let total = 0;
-  for (let i = 0; i + 1 < points.length; i += 1) total += distance(points[i], points[i + 1]);
+  for (let i = 0; i + 1 < points.length; i += 1)
+    total += distance(points[i], points[i + 1]);
   let walked = 0;
   for (let i = 0; i + 1 < points.length; i += 1) {
     const step = distance(points[i], points[i + 1]);
@@ -146,9 +163,13 @@ export const midpointOf = (points: Point[]): Point => {
 };
 
 /** The point at `fraction` along the route, and the normal there. */
-export const alongRoute = (points: Point[], fraction: number): { at: Point; normal: Point } => {
+export const alongRoute = (
+  points: Point[],
+  fraction: number,
+): { at: Point; normal: Point } => {
   let total = 0;
-  for (let i = 0; i + 1 < points.length; i += 1) total += distance(points[i], points[i + 1]);
+  for (let i = 0; i + 1 < points.length; i += 1)
+    total += distance(points[i], points[i + 1]);
   const target = total * fraction;
   let walked = 0;
   for (let i = 0; i + 1 < points.length; i += 1) {
@@ -175,7 +196,12 @@ export const alongRoute = (points: Point[], fraction: number): { at: Point; norm
  * segment instead is simpler to read but costs enough to show up as event-loop
  * delay once a graph has a couple of hundred edges and boxes.
  */
-export const segmentHitsBox = (a: Point, b: Point, box: Box, inset: number): boolean => {
+export const segmentHitsBox = (
+  a: Point,
+  b: Point,
+  box: Box,
+  inset: number,
+): boolean => {
   const minX = box.x + inset;
   const maxX = box.x + box.width - inset;
   const minY = box.y + inset;

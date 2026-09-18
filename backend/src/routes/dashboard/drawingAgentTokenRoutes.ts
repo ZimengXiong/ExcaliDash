@@ -56,14 +56,19 @@ export const registerDrawingAgentTokenRoutes = (
   app: express.Express,
   context: DrawingRouteContext,
 ) => {
-  const { prisma, requireAuth, asyncHandler, sanitizeText, logAuditEvent, config } =
-    context;
+  const {
+    prisma,
+    requireAuth,
+    asyncHandler,
+    sanitizeText,
+    logAuditEvent,
+    config,
+  } = context;
 
   const tokenMutationLimiter = rateLimit({
     windowMs: 60000,
     max: 30,
-    keyGenerator: (req) =>
-      req.user?.id ?? ipKeyGenerator(req.ip ?? "0.0.0.0"),
+    keyGenerator: (req) => req.user?.id ?? ipKeyGenerator(req.ip ?? "0.0.0.0"),
     message: {
       error: "Rate limit exceeded",
       message: "Too many agent token changes, please slow down",
@@ -97,11 +102,9 @@ export const registerDrawingAgentTokenRoutes = (
       drawingId,
     });
     if (!isOwnerAccess(access)) {
-      res
-        .status(canViewDrawing(access) ? 403 : 404)
-        .json({
-          error: canViewDrawing(access) ? "Forbidden" : "Drawing not found",
-        });
+      res.status(canViewDrawing(access) ? 403 : 404).json({
+        error: canViewDrawing(access) ? "Forbidden" : "Drawing not found",
+      });
       return null;
     }
     return req.principal.userId;

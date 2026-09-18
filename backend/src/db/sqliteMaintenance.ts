@@ -33,13 +33,20 @@ const INCREMENTAL_PAGE_BUDGET = 20_000;
 
 let activeMaintenance: Promise<SqliteReclaimResult | null> | null = null;
 
-const readPragmaNumber = async (client: SqliteClient, name: string): Promise<number> => {
-  const rows = await client.$queryRawUnsafe<Array<Record<string, unknown>>>(`PRAGMA ${name}`);
+const readPragmaNumber = async (
+  client: SqliteClient,
+  name: string,
+): Promise<number> => {
+  const rows = await client.$queryRawUnsafe<Array<Record<string, unknown>>>(
+    `PRAGMA ${name}`,
+  );
   const value = rows[0] ? Object.values(rows[0])[0] : 0;
   return Number(value ?? 0);
 };
 
-const readMetrics = async (client: SqliteClient): Promise<SqliteSpaceMetrics> => {
+const readMetrics = async (
+  client: SqliteClient,
+): Promise<SqliteSpaceMetrics> => {
   const [pageCount, freePageCount, pageSize] = await Promise.all([
     readPragmaNumber(client, "page_count"),
     readPragmaNumber(client, "freelist_count"),
@@ -65,7 +72,10 @@ const parseSqlitePath = (databaseUrl: string): string | null => {
   }
 };
 
-const hasRewriteHeadroom = async (databasePath: string, fileBytes: number): Promise<boolean> => {
+const hasRewriteHeadroom = async (
+  databasePath: string,
+  fileBytes: number,
+): Promise<boolean> => {
   try {
     const stats = await fs.promises.statfs(path.dirname(databasePath));
     const availableBytes = Number(stats.bavail) * Number(stats.bsize);
@@ -76,7 +86,10 @@ const hasRewriteHeadroom = async (databasePath: string, fileBytes: number): Prom
     );
     return false;
   } catch (error) {
-    console.warn("[Cleanup] Skipping SQLite VACUUM because disk headroom could not be read", error);
+    console.warn(
+      "[Cleanup] Skipping SQLite VACUUM because disk headroom could not be read",
+      error,
+    );
     return false;
   }
 };
@@ -94,7 +107,8 @@ export async function enableIncrementalAutoVacuum(
   if (mode !== AUTO_VACUUM_NONE) return;
 
   const metrics = await readMetrics(client);
-  if (!metrics.pageSize || metrics.fileBytes > AUTO_VACUUM_CONVERT_BELOW_BYTES) return;
+  if (!metrics.pageSize || metrics.fileBytes > AUTO_VACUUM_CONVERT_BELOW_BYTES)
+    return;
 
   await client.$queryRawUnsafe("PRAGMA auto_vacuum = INCREMENTAL");
   await client.$executeRawUnsafe("VACUUM");
@@ -122,11 +136,16 @@ const reclaim = async (
     const freeRatio = before.freePageCount / before.pageCount;
     const worthRewrite =
       before.freeBytes >= FULL_VACUUM_ALWAYS_ABOVE_BYTES ||
-      (before.freeBytes >= FULL_VACUUM_MIN_FREE_BYTES && freeRatio >= FULL_VACUUM_MIN_FREE_RATIO);
+      (before.freeBytes >= FULL_VACUUM_MIN_FREE_BYTES &&
+        freeRatio >= FULL_VACUUM_MIN_FREE_RATIO);
     if (!worthRewrite) return null;
 
     const databasePath = parseSqlitePath(databaseUrl);
-    if (!databasePath || !(await hasRewriteHeadroom(databasePath, before.fileBytes))) return null;
+    if (
+      !databasePath ||
+      !(await hasRewriteHeadroom(databasePath, before.fileBytes))
+    )
+      return null;
     await client.$queryRawUnsafe("PRAGMA auto_vacuum = INCREMENTAL");
     await client.$executeRawUnsafe("VACUUM");
     mode = "full";

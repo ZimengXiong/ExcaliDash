@@ -149,7 +149,12 @@ const applyConnect = (scene: Scene, op: Extract<Op, { op: "connect" }>) => {
 
   const createdIds = [arrow.id];
   if (op.label !== undefined) {
-    const label = createTextElement(a.cx, a.cy, sanitizeElementText(op.label), arrow.id);
+    const label = createTextElement(
+      a.cx,
+      a.cy,
+      sanitizeElementText(op.label),
+      arrow.id,
+    );
     addBoundElement(arrow, { id: label.id, type: "text" });
     scene.add(label);
     createdIds.push(label.id);
@@ -204,8 +209,8 @@ const detachedLabelOf = (scene: Scene, el: ExcalidrawElement) => {
 const applyMove = (scene: Scene, op: Extract<Op, { op: "move" }>) => {
   const el = scene.getLive(op.id);
   if (!el) return { error: notFound(op.id) };
-  const dx = op.x !== undefined ? op.x - (el.x ?? 0) : op.dx ?? 0;
-  const dy = op.y !== undefined ? op.y - (el.y ?? 0) : op.dy ?? 0;
+  const dx = op.x !== undefined ? op.x - (el.x ?? 0) : (op.dx ?? 0);
+  const dy = op.y !== undefined ? op.y - (el.y ?? 0) : (op.dy ?? 0);
 
   el.x = (el.x ?? 0) + dx;
   el.y = (el.y ?? 0) + dy;
@@ -244,7 +249,10 @@ const applyDelete = (scene: Scene, op: Extract<Op, { op: "delete" }>) => {
       other.endBinding = null;
       touched = true;
     }
-    if (Array.isArray(other.boundElements) && other.boundElements.some((b: any) => b?.id === el.id)) {
+    if (
+      Array.isArray(other.boundElements) &&
+      other.boundElements.some((b: any) => b?.id === el.id)
+    ) {
       removeBoundElement(other, el.id);
       touched = true;
     }

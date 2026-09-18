@@ -84,7 +84,8 @@ describe("importLegacyFiles", () => {
     });
 
     apiPost.mockImplementation(async (url: string) => {
-      if (url === "/collections") return { data: { id: "col-new", name: "New Collection" } };
+      if (url === "/collections")
+        return { data: { id: "col-new", name: "New Collection" } };
       if (url === "/drawings") return { data: { success: true } };
       throw new Error(`Unexpected POST ${url}`);
     });
@@ -125,8 +126,12 @@ describe("importLegacyFiles", () => {
 
     expect(apiGet).toHaveBeenCalledWith("/collections");
 
-    expect(apiPost.mock.calls.filter((c) => c[0] === "/collections")).toHaveLength(1);
-    expect(apiPost.mock.calls.filter((c) => c[0] === "/drawings")).toHaveLength(3);
+    expect(
+      apiPost.mock.calls.filter((c) => c[0] === "/collections"),
+    ).toHaveLength(1);
+    expect(apiPost.mock.calls.filter((c) => c[0] === "/drawings")).toHaveLength(
+      3,
+    );
 
     const drawCalls = apiPost.mock.calls.filter((c) => c[0] === "/drawings");
     expect(drawCalls[0][1].collectionId).toBe("col-existing");
@@ -144,8 +149,20 @@ describe("importLegacyFiles", () => {
 
     const legacyExport = {
       drawings: [
-        { name: "One", elements: [], appState: {}, files: {}, collectionName: "A" },
-        { name: "Two", elements: [], appState: {}, files: {}, collectionName: "B" },
+        {
+          name: "One",
+          elements: [],
+          appState: {},
+          files: {},
+          collectionName: "A",
+        },
+        {
+          name: "Two",
+          elements: [],
+          appState: {},
+          files: {},
+          collectionName: "B",
+        },
       ],
     };
 
@@ -156,7 +173,9 @@ describe("importLegacyFiles", () => {
     expect(result.success).toBe(2);
 
     expect(apiGet).not.toHaveBeenCalled();
-    expect(apiPost.mock.calls.filter((c) => c[0] === "/collections")).toHaveLength(0);
+    expect(
+      apiPost.mock.calls.filter((c) => c[0] === "/collections"),
+    ).toHaveLength(0);
 
     const drawCalls = apiPost.mock.calls.filter((c) => c[0] === "/drawings");
     expect(drawCalls).toHaveLength(2);
@@ -195,23 +214,27 @@ describe("importLegacyFiles", () => {
     apiGet.mockResolvedValueOnce({ data: [] });
     apiPost.mockImplementation(async (url: string, body?: any) => {
       if (url === "/collections") {
-        return { data: { id: "col-created", name: body?.name || "My Collection" } };
+        return {
+          data: { id: "col-created", name: body?.name || "My Collection" },
+        };
       }
       if (url === "/drawings") return { data: { success: true } };
       throw new Error(`Unexpected POST ${url}`);
     });
 
-    const zipFile = ({
+    const zipFile = {
       name: "excalidraw-drawings-2026-02-17.zip",
       arrayBuffer: async () => new ArrayBuffer(0),
-    } as unknown) as File;
+    } as unknown as File;
 
     const result = await importLegacyFiles([zipFile], null);
     expect(result.failed).toBe(0);
     expect(result.success).toBe(2);
 
     // One collection created for "My Collection"; "Unorganized" stays unorganized (null).
-    expect(apiPost.mock.calls.filter((c) => c[0] === "/collections")).toHaveLength(1);
+    expect(
+      apiPost.mock.calls.filter((c) => c[0] === "/collections"),
+    ).toHaveLength(1);
 
     const drawCalls = apiPost.mock.calls.filter((c) => c[0] === "/drawings");
     expect(drawCalls).toHaveLength(2);

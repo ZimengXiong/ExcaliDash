@@ -199,7 +199,12 @@ export const useEditorPersistence = ({
                 elementsToSave,
                 filesToSave,
               );
-              await persistScene(1, reconciled.elements, reconciled.files, true);
+              await persistScene(
+                1,
+                reconciled.elements,
+                reconciled.files,
+                true,
+              );
               return;
             }
             throw new DrawingSaveConflictError();

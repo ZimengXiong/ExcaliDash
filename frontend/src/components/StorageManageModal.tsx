@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   X,
   RefreshCw,
@@ -9,15 +9,15 @@ import {
   CheckCircle,
   AlertTriangle,
   HardDrive,
-} from 'lucide-react';
-import clsx from 'clsx';
+} from "lucide-react";
+import clsx from "clsx";
 import {
   getFilesDiff,
   trimDrawing,
   deleteOrphanFiles,
   type FilesDiffResult,
   type FileDiffEntry,
-} from '../api';
+} from "../api";
 
 interface StorageManageModalProps {
   isOpen: boolean;
@@ -27,20 +27,47 @@ interface StorageManageModalProps {
 }
 
 function formatSize(bytes: number | null): string {
-  if (bytes === null || bytes === undefined) return '\u2014';
+  if (bytes === null || bytes === undefined) return "\u2014";
   if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(1)} MB`;
   if (bytes >= 1_000) return `${(bytes / 1_000).toFixed(1)} KB`;
   return `${bytes} B`;
 }
 
-function StatusIcon({ active, present }: { active?: boolean; present: boolean }) {
+function StatusIcon({
+  active,
+  present,
+}: {
+  active?: boolean;
+  present: boolean;
+}) {
   if (active) {
-    return <span className="text-emerald-600 dark:text-emerald-400 font-bold" title="Active">{'\u2713'}</span>;
+    return (
+      <span
+        className="text-emerald-600 dark:text-emerald-400 font-bold"
+        title="Active"
+      >
+        {"\u2713"}
+      </span>
+    );
   }
   if (present) {
-    return <span className="text-amber-500 dark:text-amber-400 font-bold" title="History-only">{'\u25D0'}</span>;
+    return (
+      <span
+        className="text-amber-500 dark:text-amber-400 font-bold"
+        title="History-only"
+      >
+        {"\u25D0"}
+      </span>
+    );
   }
-  return <span className="text-neutral-400 dark:text-neutral-500 font-bold" title="Missing">{'\u2717'}</span>;
+  return (
+    <span
+      className="text-neutral-400 dark:text-neutral-500 font-bold"
+      title="Missing"
+    >
+      {"\u2717"}
+    </span>
+  );
 }
 
 export const StorageManageModal: React.FC<StorageManageModalProps> = ({
@@ -53,8 +80,10 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [confirmAction, setConfirmAction] = useState<'trim' | 'delete-orphans' | null>(null);
-  const [confirmInput, setConfirmInput] = useState('');
+  const [confirmAction, setConfirmAction] = useState<
+    "trim" | "delete-orphans" | null
+  >(null);
+  const [confirmInput, setConfirmInput] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [lastResult, setLastResult] = useState<string | null>(null);
 
@@ -73,7 +102,8 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
       }
       setSelectedIds(preSelected);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to load file diff';
+      const message =
+        err instanceof Error ? err.message : "Failed to load file diff";
       setError(message);
     } finally {
       setLoading(false);
@@ -85,7 +115,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
       loadDiff();
       setLastResult(null);
       setConfirmAction(null);
-      setConfirmInput('');
+      setConfirmInput("");
     }
   }, [isOpen, loadDiff]);
 
@@ -108,16 +138,16 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
       const result = await trimDrawing(drawingId, confirmInput);
       const t = result.trimmed;
       setLastResult(
-        `Trim complete: ${t.elementsRemoved} elements removed, ${t.filesRemoved} files removed, ${t.s3ObjectsDeleted} S3 objects deleted.`
+        `Trim complete: ${t.elementsRemoved} elements removed, ${t.filesRemoved} files removed, ${t.s3ObjectsDeleted} S3 objects deleted.`,
       );
       setConfirmAction(null);
-      setConfirmInput('');
+      setConfirmInput("");
       await loadDiff();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Trim failed';
+      const message = err instanceof Error ? err.message : "Trim failed";
       setError(message);
       setConfirmAction(null);
-      setConfirmInput('');
+      setConfirmInput("");
     } finally {
       setActionLoading(false);
     }
@@ -130,16 +160,16 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
       const ids = Array.from(selectedIds);
       const result = await deleteOrphanFiles(drawingId, confirmInput, ids);
       setLastResult(
-        `Deleted ${result.deleted} orphan file(s).${result.errors > 0 ? ` ${result.errors} error(s).` : ''}`
+        `Deleted ${result.deleted} orphan file(s).${result.errors > 0 ? ` ${result.errors} error(s).` : ""}`,
       );
       setConfirmAction(null);
-      setConfirmInput('');
+      setConfirmInput("");
       await loadDiff();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Delete failed';
+      const message = err instanceof Error ? err.message : "Delete failed";
       setError(message);
       setConfirmAction(null);
-      setConfirmInput('');
+      setConfirmInput("");
     } finally {
       setActionLoading(false);
     }
@@ -198,8 +228,8 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
           <div>
             <button
               onClick={() => {
-                setConfirmAction('trim');
-                setConfirmInput('');
+                setConfirmAction("trim");
+                setConfirmInput("");
               }}
               className="ui-button-danger px-4 py-2.5"
             >
@@ -224,7 +254,10 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                 disabled={loading}
                 className="ui-button-secondary px-3 py-1.5"
               >
-                <RefreshCw size={14} className={clsx(loading && 'animate-spin')} />
+                <RefreshCw
+                  size={14}
+                  className={clsx(loading && "animate-spin")}
+                />
                 Refresh
               </button>
             </div>
@@ -237,9 +270,18 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
               <>
                 {/* Summary */}
                 <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-3">
-                  Canvas refs: <span className="font-semibold text-neutral-700 dark:text-neutral-300">{diffData.summary.totalCanvasRefs}</span>
-                  {' \u00B7 '}SQLite: <span className="font-semibold text-neutral-700 dark:text-neutral-300">{diffData.summary.totalSqliteFiles}</span>
-                  {' \u00B7 '}S3: <span className="font-semibold text-neutral-700 dark:text-neutral-300">{diffData.summary.totalS3Files}</span>
+                  Canvas refs:{" "}
+                  <span className="font-semibold text-neutral-700 dark:text-neutral-300">
+                    {diffData.summary.totalCanvasRefs}
+                  </span>
+                  {" \u00B7 "}SQLite:{" "}
+                  <span className="font-semibold text-neutral-700 dark:text-neutral-300">
+                    {diffData.summary.totalSqliteFiles}
+                  </span>
+                  {" \u00B7 "}S3:{" "}
+                  <span className="font-semibold text-neutral-700 dark:text-neutral-300">
+                    {diffData.summary.totalS3Files}
+                  </span>
                 </p>
 
                 {/* Table */}
@@ -251,17 +293,30 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                           <th className="w-10 px-3 py-2 text-center">
                             <span className="sr-only">Select</span>
                           </th>
-                          <th className="px-3 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-300">File ID</th>
-                          <th className="px-3 py-2 text-center font-semibold text-neutral-700 dark:text-neutral-300">Canvas</th>
-                          <th className="px-3 py-2 text-center font-semibold text-neutral-700 dark:text-neutral-300">SQLite</th>
-                          <th className="px-3 py-2 text-center font-semibold text-neutral-700 dark:text-neutral-300">S3</th>
-                          <th className="px-3 py-2 text-right font-semibold text-neutral-700 dark:text-neutral-300">Size</th>
+                          <th className="px-3 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-300">
+                            File ID
+                          </th>
+                          <th className="px-3 py-2 text-center font-semibold text-neutral-700 dark:text-neutral-300">
+                            Canvas
+                          </th>
+                          <th className="px-3 py-2 text-center font-semibold text-neutral-700 dark:text-neutral-300">
+                            SQLite
+                          </th>
+                          <th className="px-3 py-2 text-center font-semibold text-neutral-700 dark:text-neutral-300">
+                            S3
+                          </th>
+                          <th className="px-3 py-2 text-right font-semibold text-neutral-700 dark:text-neutral-300">
+                            Size
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
                         {diffData.files.length === 0 ? (
                           <tr>
-                            <td colSpan={6} className="px-3 py-6 text-center text-neutral-400">
+                            <td
+                              colSpan={6}
+                              className="px-3 py-6 text-center text-neutral-400"
+                            >
                               No files found.
                             </td>
                           </tr>
@@ -280,11 +335,17 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                                   className="accent-rose-600 w-4 h-4 disabled:opacity-30"
                                 />
                               </td>
-                              <td className="max-w-[200px] truncate px-3 py-2 text-xs font-semibold tracking-tight text-neutral-900 dark:text-neutral-100" title={file.fileId}>
+                              <td
+                                className="max-w-[200px] truncate px-3 py-2 text-xs font-semibold tracking-tight text-neutral-900 dark:text-neutral-100"
+                                title={file.fileId}
+                              >
                                 {file.fileId}
                               </td>
                               <td className="px-3 py-2 text-center">
-                                <StatusIcon active={file.inCanvasActive} present={file.inCanvas} />
+                                <StatusIcon
+                                  active={file.inCanvasActive}
+                                  present={file.inCanvas}
+                                />
                               </td>
                               <td className="px-3 py-2 text-center">
                                 <StatusIcon present={file.inSqlite} />
@@ -305,17 +366,32 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
 
                 {/* Legend */}
                 <div className="flex gap-4 mt-2 text-xs text-neutral-500 dark:text-neutral-400">
-                  <span><span className="text-emerald-600 dark:text-emerald-400 font-bold">{'\u2713'}</span> active</span>
-                  <span><span className="text-amber-500 dark:text-amber-400 font-bold">{'\u25D0'}</span> history-only</span>
-                  <span><span className="text-neutral-400 dark:text-neutral-500 font-bold">{'\u2717'}</span> missing</span>
+                  <span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                      {"\u2713"}
+                    </span>{" "}
+                    active
+                  </span>
+                  <span>
+                    <span className="text-amber-500 dark:text-amber-400 font-bold">
+                      {"\u25D0"}
+                    </span>{" "}
+                    history-only
+                  </span>
+                  <span>
+                    <span className="text-neutral-400 dark:text-neutral-500 font-bold">
+                      {"\u2717"}
+                    </span>{" "}
+                    missing
+                  </span>
                 </div>
 
                 {/* Delete orphans button */}
                 <div className="mt-4">
                   <button
                     onClick={() => {
-                      setConfirmAction('delete-orphans');
-                      setConfirmInput('');
+                      setConfirmAction("delete-orphans");
+                      setConfirmInput("");
                     }}
                     disabled={selectedIds.size === 0}
                     className="ui-button-danger px-4 py-2.5"
@@ -344,10 +420,16 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                   <AlertTriangle size={24} strokeWidth={2.5} />
                 </div>
                 <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
-                  {confirmAction === 'trim' ? 'Trim History' : 'Delete Orphan Files'}
+                  {confirmAction === "trim"
+                    ? "Trim History"
+                    : "Delete Orphan Files"}
                 </h3>
                 <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                  Type <span className="font-bold text-neutral-750 dark:text-neutral-200">{drawingName}</span> to confirm:
+                  Type{" "}
+                  <span className="font-bold text-neutral-750 dark:text-neutral-200">
+                    {drawingName}
+                  </span>{" "}
+                  to confirm:
                 </p>
               </div>
 
@@ -364,7 +446,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                 <button
                   onClick={() => {
                     setConfirmAction(null);
-                    setConfirmInput('');
+                    setConfirmInput("");
                   }}
                   disabled={actionLoading}
                   className="ui-button-secondary flex-1 px-4 py-2.5"
@@ -372,11 +454,15 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                   Cancel
                 </button>
                 <button
-                  onClick={confirmAction === 'trim' ? handleTrim : handleDeleteOrphans}
+                  onClick={
+                    confirmAction === "trim" ? handleTrim : handleDeleteOrphans
+                  }
                   disabled={!confirmMatch || actionLoading}
                   className="ui-button-danger flex-1 px-4 py-2.5"
                 >
-                  {actionLoading && <Loader2 size={16} className="animate-spin" />}
+                  {actionLoading && (
+                    <Loader2 size={16} className="animate-spin" />
+                  )}
                   Confirm
                 </button>
               </div>
@@ -385,6 +471,6 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
         )}
       </div>
     </div>,
-    document.body
+    document.body,
   );
 };

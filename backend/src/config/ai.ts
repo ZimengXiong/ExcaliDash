@@ -1,6 +1,7 @@
 import { readCsv, readNumber, readOptionalString, readRaw } from "./env";
 
-export type AiProvider = "disabled" | "anthropic" | "openai" | "custom" | "chatgpt";
+export type AiProvider =
+  "disabled" | "anthropic" | "openai" | "custom" | "chatgpt";
 
 export interface AiChatGptConfig {
   /**
@@ -85,13 +86,15 @@ const resolveChatGptConfig = (): AiChatGptConfig => {
   return {
     clientVersion: readOptionalString("AI_CHATGPT_CLIENT_VERSION") ?? "0.142.5",
     clientId:
-      readOptionalString("AI_CHATGPT_CLIENT_ID") ?? "app_EMoamEEZ73f0CkXaXp7hrann",
+      readOptionalString("AI_CHATGPT_CLIENT_ID") ??
+      "app_EMoamEEZ73f0CkXaXp7hrann",
     issuer: validateHttpUrl(
       readOptionalString("AI_CHATGPT_ISSUER") ?? "https://auth.openai.com",
       "AI_CHATGPT_ISSUER",
     )!,
     scope:
-      readOptionalString("AI_CHATGPT_SCOPE") ?? "openid profile email offline_access",
+      readOptionalString("AI_CHATGPT_SCOPE") ??
+      "openid profile email offline_access",
     redirectUri:
       readOptionalString("AI_CHATGPT_REDIRECT_URI") ??
       "http://localhost:1455/auth/callback",

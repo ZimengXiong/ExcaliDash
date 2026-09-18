@@ -20,7 +20,9 @@ vi.mock("../context/AuthContext", () => ({
 }));
 
 vi.mock("../components/Layout", () => ({
-  Layout: ({ children }: { children: React.ReactNode }) => <main>{children}</main>,
+  Layout: ({ children }: { children: React.ReactNode }) => (
+    <main>{children}</main>
+  ),
 }));
 
 vi.mock("../api", () => ({

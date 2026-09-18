@@ -84,7 +84,10 @@ describe("auth middleware drawing-scoped agent tokens", () => {
   });
 
   it("rejects agent routes for a different drawing", async () => {
-    const { res, next } = await runRequireAuth("POST", "/drawings/drawing-2/ops");
+    const { res, next } = await runRequireAuth(
+      "POST",
+      "/drawings/drawing-2/ops",
+    );
     expect(res.status).toHaveBeenCalledWith(403);
     expect(next).not.toHaveBeenCalled();
   });
@@ -111,9 +114,13 @@ describe("auth middleware drawing-scoped agent tokens", () => {
   });
 
   it("rejects a scoped key missing the agent:ops scope", async () => {
-    const { res, next } = await runRequireAuth("POST", "/drawings/drawing-1/ops", {
-      scopes: ["drawings:write"],
-    });
+    const { res, next } = await runRequireAuth(
+      "POST",
+      "/drawings/drawing-1/ops",
+      {
+        scopes: ["drawings:write"],
+      },
+    );
     expect(res.status).toHaveBeenCalledWith(403);
     expect(next).not.toHaveBeenCalled();
   });

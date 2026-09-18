@@ -26,7 +26,11 @@ export const PasswordInput: React.FC<PasswordInputProps> = ({
         aria-pressed={visible}
         onClick={() => setVisible((current) => !current)}
       >
-        {visible ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+        {visible ? (
+          <EyeOff size={18} aria-hidden="true" />
+        ) : (
+          <Eye size={18} aria-hidden="true" />
+        )}
       </button>
     </div>
   );

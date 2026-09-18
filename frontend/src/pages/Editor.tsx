@@ -48,7 +48,10 @@ const ExcalidrawEditor: React.FC = () => {
   const [isSavingOnLeave, setIsSavingOnLeave] = useState(false);
   const { autoHideEnabled, setAutoHideEnabled } = useEditorAutoHide(id);
   const [isShareOpen, setIsShareOpen] = useState(false);
-  const [langCode, setLangCode] = usePreference("language", getInitialLangCode());
+  const [langCode, setLangCode] = usePreference(
+    "language",
+    getInitialLangCode(),
+  );
   const [gridStep, setGridStep] = usePreference("gridStep", DEFAULT_GRID_STEP);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const historyButtonRef = useRef<HTMLButtonElement>(null);

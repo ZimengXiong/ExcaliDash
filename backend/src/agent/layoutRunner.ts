@@ -106,7 +106,11 @@ type Job = {
   reject: (reason: Error) => void;
 };
 
-type WorkerMessage = { id: number; ok: boolean; message?: string } & SolverResult;
+type WorkerMessage = {
+  id: number;
+  ok: boolean;
+  message?: string;
+} & SolverResult;
 
 let worker: Worker | null = null;
 let workerUnavailable = false;
@@ -116,7 +120,12 @@ let timer: NodeJS.Timeout | null = null;
 const queue: Job[] = [];
 
 /** Counters for whoever is watching: silent degradation is the thing to avoid. */
-export const layoutStats = { timeouts: 0, workerFailures: 0, inlineSolves: 0, rejected: 0 };
+export const layoutStats = {
+  timeouts: 0,
+  workerFailures: 0,
+  inlineSolves: 0,
+  rejected: 0,
+};
 
 const clearTimer = (): void => {
   if (timer) clearTimeout(timer);

@@ -14,14 +14,19 @@ export const deleteS3KeysInBatches = async ({
 
   for (let i = 0; i < keys.length; i += S3_DELETE_CONCURRENCY) {
     const batch = keys.slice(i, i + S3_DELETE_CONCURRENCY);
-    const results = await Promise.allSettled(batch.map((key) => deleteObject(key)));
+    const results = await Promise.allSettled(
+      batch.map((key) => deleteObject(key)),
+    );
 
     for (let j = 0; j < results.length; j++) {
       const result = results[j];
       if (result.status === "fulfilled") {
         deleted++;
       } else {
-        console.error(`${logPrefix} Failed to delete S3 object: ${batch[j]}`, result.reason);
+        console.error(
+          `${logPrefix} Failed to delete S3 object: ${batch[j]}`,
+          result.reason,
+        );
         errors++;
       }
     }

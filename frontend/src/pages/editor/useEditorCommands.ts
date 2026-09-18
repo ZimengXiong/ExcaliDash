@@ -96,13 +96,11 @@ export const useEditorCommands = ({
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
         if (!canEdit) return;
-        if (
-          !(
-            refs.excalidrawAPI.current &&
-            refs.saveData.current &&
-            refs.savePreview.current
-          )
-        ) {
+        if (!(
+          refs.excalidrawAPI.current &&
+          refs.saveData.current &&
+          refs.savePreview.current
+        )) {
           return;
         }
         if (!drawingId) return;
@@ -209,13 +207,11 @@ export const useEditorCommands = ({
     setIsSavingOnLeave(true);
     let shouldNavigate = false;
     try {
-      if (
-        !(
-          refs.excalidrawAPI.current &&
-          refs.saveData.current &&
-          refs.savePreview.current
-        )
-      ) {
+      if (!(
+        refs.excalidrawAPI.current &&
+        refs.saveData.current &&
+        refs.savePreview.current
+      )) {
         shouldNavigate = true;
       } else if (!canEdit || !refs.hasSceneChangesSinceLoad.current) {
         shouldNavigate = true;

@@ -7,8 +7,7 @@ export type MailMessage = {
 };
 
 export type MailResult =
-  | { delivered: true; id: string | null }
-  | { delivered: false; reason: string };
+  { delivered: true; id: string | null } | { delivered: false; reason: string };
 
 export interface Mailer {
   readonly enabled: boolean;

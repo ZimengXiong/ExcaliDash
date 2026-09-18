@@ -55,7 +55,8 @@ const expectConsistentMetrics = (
 };
 
 afterEach(() => {
-  for (const dir of tempDirs.splice(0)) fs.rmSync(dir, { recursive: true, force: true });
+  for (const dir of tempDirs.splice(0))
+    fs.rmSync(dir, { recursive: true, force: true });
 });
 
 describe("SQLite free-space maintenance", () => {
@@ -73,7 +74,9 @@ describe("SQLite free-space maintenance", () => {
 
       expect(result?.mode).toBe("full");
       expect(result?.before.freeBytes).toBeGreaterThan(64 * MB);
-      expect(result?.after.freePageCount).toBeLessThan(result!.before.freePageCount);
+      expect(result?.after.freePageCount).toBeLessThan(
+        result!.before.freePageCount,
+      );
       expect(result?.reclaimedBytes).toBe(sizeBefore - sizeAfter);
       expectConsistentMetrics(result!.before, sizeBefore);
       expectConsistentMetrics(result!.after, sizeAfter);
@@ -107,7 +110,9 @@ describe("SQLite free-space maintenance", () => {
 
       expect(firstResult).toBe(secondResult);
       expect(firstResult?.mode).toBe("incremental");
-      expect(firstResult?.after.pageCount).toBeLessThanOrEqual(firstResult!.before.pageCount);
+      expect(firstResult?.after.pageCount).toBeLessThanOrEqual(
+        firstResult!.before.pageCount,
+      );
       expect(firstResult?.reclaimedBytes).toBe(
         firstResult!.before.fileBytes - firstResult!.after.fileBytes,
       );

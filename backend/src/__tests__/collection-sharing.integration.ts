@@ -356,7 +356,9 @@ describe("Collection Sharing - Backend Integration", () => {
       .set("Authorization", `Bearer ${viewerToken}`)
       .set(viewerCsrfHeaderName, viewerCsrfToken)
       .send({
-        elements: [{ id: "v1", type: "rectangle", x: 0, y: 0, width: 10, height: 10 }],
+        elements: [
+          { id: "v1", type: "rectangle", x: 0, y: 0, width: 10, height: 10 },
+        ],
         appState: {},
         files: {},
       });

@@ -17,19 +17,22 @@ const graph = (
 describe("solver input mapping", () => {
   // graphlib stores nodes in a plain object, so these keys used to resolve
   // against Object.prototype and come back as NaN.
-  it.each(["__proto__", "constructor", "toString", "hasOwnProperty", "valueOf"])(
-    "places a node keyed %s",
-    (key) => {
-      const result = layoutGraphSync(graph([key, "other"], [[key, "other"]]));
-      expect(result.nodes).toHaveLength(2);
-      for (const node of result.nodes) {
-        expect(finite(node.x) && finite(node.y)).toBe(true);
-      }
-      // The two boxes must actually be laid out, not stacked at the origin.
-      const [a, b] = result.nodes;
-      expect(a.x !== b.x || a.y !== b.y).toBe(true);
-    },
-  );
+  it.each([
+    "__proto__",
+    "constructor",
+    "toString",
+    "hasOwnProperty",
+    "valueOf",
+  ])("places a node keyed %s", (key) => {
+    const result = layoutGraphSync(graph([key, "other"], [[key, "other"]]));
+    expect(result.nodes).toHaveLength(2);
+    for (const node of result.nodes) {
+      expect(finite(node.x) && finite(node.y)).toBe(true);
+    }
+    // The two boxes must actually be laid out, not stacked at the origin.
+    const [a, b] = result.nodes;
+    expect(a.x !== b.x || a.y !== b.y).toBe(true);
+  });
 
   it("places nodes keyed with arbitrary unicode", () => {
     const keys = ["🎯 ziel", "ünïcode", "日本語", "a b"];
@@ -129,7 +132,8 @@ describe("solver determinism", () => {
   // solvable alone, and some of them were not solvable in sequence.
   it("solves a seeded corpus of cyclic multigraphs without throwing", () => {
     let seed = 0x12345678;
-    const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+    const rnd = () =>
+      (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
     for (let g = 0; g < 200; g += 1) {
       const size = 3 + Math.floor(rnd() * 6);
       const keys = Array.from({ length: size }, (_, i) => `n${i}`);
@@ -143,7 +147,9 @@ describe("solver determinism", () => {
         ]);
       }
       const direction = (["TB", "LR", "BT", "RL"] as const)[g % 4];
-      expect(() => layoutGraphSync(graph(keys, edges, direction))).not.toThrow();
+      expect(() =>
+        layoutGraphSync(graph(keys, edges, direction)),
+      ).not.toThrow();
     }
   });
 });

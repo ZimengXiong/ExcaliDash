@@ -37,7 +37,9 @@ vi.mock("./dashboard/useDashboardData", () => ({
 }));
 
 vi.mock("../components/Layout", () => ({
-  Layout: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Layout: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
 }));
 
 vi.mock("../components/DrawingCard", () => ({
@@ -98,7 +100,9 @@ describe("Dashboard - Collection Sharing Viewer Restrictions", () => {
     fireEvent.click(screen.getByRole("button", { name: /new drawing/i }));
 
     expect(mockCreateDrawing).not.toHaveBeenCalled();
-    expect(screen.getByText("Viewers can't create new drawings")).toBeInTheDocument();
+    expect(
+      screen.getByText("Viewers can't create new drawings"),
+    ).toBeInTheDocument();
   });
 
   it("blocks Import for view-only shared collections", () => {
@@ -115,6 +119,8 @@ describe("Dashboard - Collection Sharing Viewer Restrictions", () => {
     fireEvent.click(screen.getByRole("button", { name: /import/i }));
 
     expect(mockUploadFiles).not.toHaveBeenCalled();
-    expect(screen.getByText("Viewers can't import drawings")).toBeInTheDocument();
+    expect(
+      screen.getByText("Viewers can't import drawings"),
+    ).toBeInTheDocument();
   });
 });

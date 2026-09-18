@@ -2,11 +2,7 @@ import { api, API_URL } from "./client";
 import { ensureCsrfToken, getCsrfHeader } from "./auth";
 
 export type AiProvider =
-  | "anthropic"
-  | "openai"
-  | "custom"
-  | "chatgpt"
-  | "disabled";
+  "anthropic" | "openai" | "custom" | "chatgpt" | "disabled";
 
 /** Availability probe mirroring the backend `GET /ai/status` payload. */
 export type AiStatus = {
@@ -89,7 +85,9 @@ const dispatchSse = (
         opsBatchId: data?.opsBatchId,
         version: data?.version,
         revertVersion: data?.revertVersion,
-        summaryDelta: Array.isArray(data?.summaryDelta) ? data.summaryDelta : [],
+        summaryDelta: Array.isArray(data?.summaryDelta)
+          ? data.summaryDelta
+          : [],
       });
       return false;
     case "error":

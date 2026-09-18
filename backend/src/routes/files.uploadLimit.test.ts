@@ -21,8 +21,9 @@ beforeAll(async () => {
     prisma: {} as any,
     requireAuth: ((_req: any, _res: any, next: any) => next()) as any,
     optionalAuth: ((_req: any, _res: any, next: any) => next()) as any,
-    asyncHandler: (<T>(fn: any) => (req: any, res: any, next: any) =>
-      Promise.resolve(fn(req, res, next)).catch(next)) as any,
+    asyncHandler: (<T>(fn: any) =>
+      (req: any, res: any, next: any) =>
+        Promise.resolve(fn(req, res, next)).catch(next)) as any,
   });
 });
 

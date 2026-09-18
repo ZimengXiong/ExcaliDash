@@ -167,7 +167,10 @@ test.describe("UI review screenshots", () => {
       await page.screenshot({
         path: path.join(outputDir, "09-version-history.png"),
       });
-      await historyDialog.getByText(/^Version \d+$/).first().click();
+      await historyDialog
+        .getByText(/^Version \d+$/)
+        .first()
+        .click();
       await expect(
         historyDialog.getByRole("button", { name: "Restore" }),
       ).toBeVisible();

@@ -5,7 +5,10 @@ import * as api from "../../api";
 import { PasswordRequirements } from "../../components/PasswordRequirements";
 import { PasswordInput } from "../../components/PasswordInput";
 import { PasswordMatch } from "../../components/PasswordMatch";
-import { getPasswordPolicy, validatePassword } from "../../utils/passwordPolicy";
+import {
+  getPasswordPolicy,
+  validatePassword,
+} from "../../utils/passwordPolicy";
 import {
   SettingsCard,
   SettingsRow,
@@ -14,8 +17,7 @@ import {
   settingsSelectClass,
 } from "../settings/SettingsRow";
 
-const roseButtonClass =
-  "ui-button-danger";
+const roseButtonClass = "ui-button-danger";
 
 type Props = {
   mustResetPassword: boolean;
@@ -70,7 +72,10 @@ export const PasswordCard: React.FC<Props> = ({
     onError("");
     onSuccess("");
     try {
-      await api.api.post("/auth/change-password", { currentPassword, newPassword });
+      await api.api.post("/auth/change-password", {
+        currentPassword,
+        newPassword,
+      });
       onSuccess("Password changed successfully");
       resetForm();
       setTimeout(() => {
@@ -80,7 +85,8 @@ export const PasswordCard: React.FC<Props> = ({
     } catch (err: unknown) {
       let message = "Failed to change password";
       if (api.isAxiosError(err)) {
-        message = err.response?.data?.message ?? err.response?.data?.error ?? message;
+        message =
+          err.response?.data?.message ?? err.response?.data?.error ?? message;
       }
       onError(message);
     } finally {
@@ -172,7 +178,12 @@ export const PasswordCard: React.FC<Props> = ({
             <div className="flex gap-2 pt-1">
               <button
                 onClick={() => void handleChangePassword()}
-                disabled={loading || !currentPassword || !newPassword || !confirmPassword}
+                disabled={
+                  loading ||
+                  !currentPassword ||
+                  !newPassword ||
+                  !confirmPassword
+                }
                 className={roseButtonClass}
               >
                 {loading ? "Changing..." : "Change Password"}

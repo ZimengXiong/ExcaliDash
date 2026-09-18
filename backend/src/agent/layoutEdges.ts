@@ -101,7 +101,10 @@ const selfLoopEdge = (
 
 /** A straight line between two boxes, border to border. */
 const straightRoute = (from: LayoutedNode, to: LayoutedNode): Point[] => {
-  const fromCentre = { x: from.x + from.width / 2, y: from.y + from.height / 2 };
+  const fromCentre = {
+    x: from.x + from.width / 2,
+    y: from.y + from.height / 2,
+  };
   const toCentre = { x: to.x + to.width / 2, y: to.y + to.height / 2 };
   return [
     edgePoint(boxOf(from), toCentre.x, toCentre.y),
@@ -130,7 +133,8 @@ const directRouteIsClear = (
   const label = edge.label
     ? (() => {
         const at = midpointOf(route);
-        const width = edge.label.length * EDGE_LABEL_FONT_SIZE * CHAR_WIDTH_RATIO + 12;
+        const width =
+          edge.label.length * EDGE_LABEL_FONT_SIZE * CHAR_WIDTH_RATIO + 12;
         const height = EDGE_LABEL_FONT_SIZE * 1.6;
         return { x: at.x - width / 2, y: at.y - height / 2, width, height };
       })()
@@ -249,7 +253,12 @@ export const assembleEdges = (
         // same point. They are staggered along their own lane instead.
         // Opposing edges run in opposite directions, so the same fraction along
         // each lands in the same place. Measure from a fixed end of the pair.
-        let fraction = total === 2 ? (nth === 0 ? 0.3 : 0.7) : 0.3 + (0.4 * nth) / Math.max(1, total - 1);
+        let fraction =
+          total === 2
+            ? nth === 0
+              ? 0.3
+              : 0.7
+            : 0.3 + (0.4 * nth) / Math.max(1, total - 1);
         let side = nth % 2 === 0 ? 1 : -1;
         if (edge.from > edge.to) {
           fraction = 1 - fraction;

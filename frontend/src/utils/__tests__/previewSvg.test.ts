@@ -33,7 +33,7 @@ describe("normalizePreviewSvg", () => {
     const raw = [
       '<svg viewBox="0 0 500 700" width="1000" height="1400">',
       '<image width="100%" height="100%" href="data:image/png;base64,AAAA"></image>',
-      '<defs></defs>',
+      "<defs></defs>",
       '<rect x="0" y="0" width="500" height="700" fill="#ffffff"></rect>',
       "</svg>",
     ].join("");

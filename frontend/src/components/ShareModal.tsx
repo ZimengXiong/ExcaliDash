@@ -24,11 +24,7 @@ type Props = {
   onClose: () => void;
 };
 
-export const ShareModal: React.FC<Props> = ({
-  drawingId,
-  isOpen,
-  onClose,
-}) => {
+export const ShareModal: React.FC<Props> = ({ drawingId, isOpen, onClose }) => {
   const { user } = useAuth();
   const currentUserId = user?.id || null;
   const [isLoading, setIsLoading] = useState(false);
@@ -329,9 +325,7 @@ export const ShareModal: React.FC<Props> = ({
             disabled={!activeLink}
             className={clsx(
               "w-full py-2.5",
-              isCopied
-                ? "ui-button-success"
-                : "ui-button-secondary",
+              isCopied ? "ui-button-success" : "ui-button-secondary",
               !activeLink && "cursor-not-allowed opacity-40 shadow-none",
             )}
           >
@@ -345,7 +339,11 @@ export const ShareModal: React.FC<Props> = ({
         </div>
 
         {isLoading && (
-          <div className="absolute inset-0 bg-white/20 dark:bg-black/10 backdrop-blur-[1px] flex items-center justify-center z-[300] pointer-events-none rounded-[14px]" role="status" aria-label="Updating sharing settings">
+          <div
+            className="absolute inset-0 bg-white/20 dark:bg-black/10 backdrop-blur-[1px] flex items-center justify-center z-[300] pointer-events-none rounded-[14px]"
+            role="status"
+            aria-label="Updating sharing settings"
+          >
             <div className="ui-popover p-4">
               <RefreshCw
                 size={24}

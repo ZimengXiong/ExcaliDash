@@ -83,7 +83,9 @@ export const createTextElement = (
   const lines = text.length === 0 ? 1 : text.split("\n").length;
   const width = Math.max(
     10,
-    text.split("\n").reduce((m, l) => Math.max(m, l.length), 0) * fontSize * 0.6,
+    text.split("\n").reduce((m, l) => Math.max(m, l.length), 0) *
+      fontSize *
+      0.6,
   );
   const height = Math.ceil(fontSize * lineHeight * lines);
   const el = baseElement("text", x, y, width, height);
@@ -143,7 +145,9 @@ export const removeBoundElement = (el: ExcalidrawElement, id: string): void => {
   el.boundElements = el.boundElements.filter((b: any) => b?.id !== id);
 };
 
-export const centerOf = (el: ExcalidrawElement): { cx: number; cy: number } => ({
+export const centerOf = (
+  el: ExcalidrawElement,
+): { cx: number; cy: number } => ({
   cx: (el.x ?? 0) + (el.width ?? 0) / 2,
   cy: (el.y ?? 0) + (el.height ?? 0) / 2,
 });

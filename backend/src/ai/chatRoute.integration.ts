@@ -1,4 +1,12 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import express from "express";
 import request from "supertest";
 import type { PrismaClient } from "../generated/client";
@@ -41,24 +49,35 @@ const parseJsonField = <T>(raw: string | null | undefined, fallback: T): T => {
 
 type Emitted = { room: string; event: string; payload: any };
 
-const buildApp = (prisma: PrismaClient, userId: string, emitted: Emitted[], credentialType = "jwt") => {
+const buildApp = (
+  prisma: PrismaClient,
+  userId: string,
+  emitted: Emitted[],
+  credentialType = "jwt",
+) => {
   const app = express();
   app.use(express.json());
   const io = {
     to: (room: string) => ({
-      emit: (event: string, payload: any) => emitted.push({ room, event, payload }),
+      emit: (event: string, payload: any) =>
+        emitted.push({ room, event, payload }),
     }),
   };
   registerAiRoutes(app, {
     prisma,
     requireAuth: (req: any, _res: any, next: any) => {
-      req.user = { id: userId, email: "u@t", name: "U", role: "USER", authCredentialType: credentialType };
+      req.user = {
+        id: userId,
+        email: "u@t",
+        name: "U",
+        role: "USER",
+        authCredentialType: credentialType,
+      };
       req.principal = { kind: "user", userId };
       next();
     },
-    asyncHandler:
-      (fn: any) => (req: any, res: any, next: any) =>
-        Promise.resolve(fn(req, res, next)).catch(next),
+    asyncHandler: (fn: any) => (req: any, res: any, next: any) =>
+      Promise.resolve(fn(req, res, next)).catch(next),
     parseJsonField,
     invalidateDrawingsCache: () => {},
     logAuditEvent: async () => {},
@@ -82,8 +101,15 @@ const createDrawing = async (prisma: PrismaClient, userId: string) =>
 const enableAi = async (prisma: PrismaClient) => {
   await prisma.systemConfig.upsert({
     where: { id: "default" },
-    update: { aiProvider: "anthropic", aiApiKeyEncrypted: encryptSecret("sk-test") },
-    create: { id: "default", aiProvider: "anthropic", aiApiKeyEncrypted: encryptSecret("sk-test") },
+    update: {
+      aiProvider: "anthropic",
+      aiApiKeyEncrypted: encryptSecret("sk-test"),
+    },
+    create: {
+      id: "default",
+      aiProvider: "anthropic",
+      aiApiKeyEncrypted: encryptSecret("sk-test"),
+    },
   });
 };
 
@@ -128,7 +154,10 @@ describe("ai/chatRoute", () => {
     const drawing = await createDrawing(prisma, userId);
     const res = await request(app)
       .post("/ai/chat")
-      .send({ drawingId: drawing.id, messages: [{ role: "user", content: "hi" }] });
+      .send({
+        drawingId: drawing.id,
+        messages: [{ role: "user", content: "hi" }],
+      });
     expect(res.status).toBe(503);
   });
 
@@ -147,7 +176,10 @@ describe("ai/chatRoute", () => {
     const app = buildApp(prisma, userId, []);
     const res = await request(app)
       .post("/ai/chat")
-      .send({ drawingId: drawing.id, messages: [{ role: "user", content: "hi" }] });
+      .send({
+        drawingId: drawing.id,
+        messages: [{ role: "user", content: "hi" }],
+      });
 
     expect(res.status).toBe(200);
     expect(res.text).toContain("Still connected.");
@@ -160,7 +192,10 @@ describe("ai/chatRoute", () => {
     const app = buildApp(prisma, userId, [], "apiKey");
     const res = await request(app)
       .post("/ai/chat")
-      .send({ drawingId: drawing.id, messages: [{ role: "user", content: "hi" }] });
+      .send({
+        drawingId: drawing.id,
+        messages: [{ role: "user", content: "hi" }],
+      });
     expect(res.status).toBe(403);
   });
 
@@ -173,7 +208,10 @@ describe("ai/chatRoute", () => {
       .post("/ai/chat")
       .send({
         drawingId: drawing.id,
-        messages: Array.from({ length: 41 }, () => ({ role: "user", content: "x" })),
+        messages: Array.from({ length: 41 }, () => ({
+          role: "user",
+          content: "x",
+        })),
       });
     expect(tooMany.status).toBe(400);
 
@@ -205,7 +243,18 @@ describe("ai/chatRoute", () => {
           {
             id: "t1",
             name: "apply_ops",
-            input: { ops: [{ op: "add_shape", shape: "rectangle", x: 10, y: 20, w: 100, h: 50 }] },
+            input: {
+              ops: [
+                {
+                  op: "add_shape",
+                  shape: "rectangle",
+                  x: 10,
+                  y: 20,
+                  w: 100,
+                  h: 50,
+                },
+              ],
+            },
           },
         ],
       },
@@ -215,7 +264,10 @@ describe("ai/chatRoute", () => {
     const app = buildApp(prisma, userId, emitted);
     const res = await request(app)
       .post("/ai/chat")
-      .send({ drawingId: drawing.id, messages: [{ role: "user", content: "add a box" }] });
+      .send({
+        drawingId: drawing.id,
+        messages: [{ role: "user", content: "add a box" }],
+      });
 
     expect(res.status).toBe(200);
     expect(scripted.calls).toBe(2);
@@ -225,13 +277,20 @@ describe("ai/chatRoute", () => {
     expect(res.text).toContain("event: done");
 
     // Ops persisted: version bumped and an element exists.
-    const updated = await prisma.drawing.findUnique({ where: { id: drawing.id } });
+    const updated = await prisma.drawing.findUnique({
+      where: { id: drawing.id },
+    });
     expect(updated!.version).toBeGreaterThan(drawing.version);
     const elements = parseJsonField<any[]>(updated!.elements, []);
     expect(elements.some((el) => el.type === "rectangle")).toBe(true);
 
     // Broadcast to the drawing room.
-    expect(emitted.some((e) => e.event === "element-update" && e.room === `drawing_${drawing.id}`)).toBe(true);
+    expect(
+      emitted.some(
+        (e) =>
+          e.event === "element-update" && e.room === `drawing_${drawing.id}`,
+      ),
+    ).toBe(true);
   });
 
   it("emits an error event when the model emits an invalid op batch", async () => {
@@ -241,7 +300,11 @@ describe("ai/chatRoute", () => {
       {
         text: "",
         toolCalls: [
-          { id: "t1", name: "apply_ops", input: { ops: [{ op: "set_style", id: "missing", style: {} }] } },
+          {
+            id: "t1",
+            name: "apply_ops",
+            input: { ops: [{ op: "set_style", id: "missing", style: {} }] },
+          },
         ],
       },
       { text: "Sorry, that element does not exist.", toolCalls: [] },
@@ -249,7 +312,10 @@ describe("ai/chatRoute", () => {
     const app = buildApp(prisma, userId, []);
     const res = await request(app)
       .post("/ai/chat")
-      .send({ drawingId: drawing.id, messages: [{ role: "user", content: "style it" }] });
+      .send({
+        drawingId: drawing.id,
+        messages: [{ role: "user", content: "style it" }],
+      });
     expect(res.status).toBe(200);
     expect(res.text).toContain("event: error");
     expect(res.text).toContain("ELEMENT_NOT_FOUND");
@@ -259,7 +325,11 @@ describe("ai/chatRoute", () => {
     await enableAi(prisma);
     const drawing = await createDrawing(prisma, userId);
     const replacement = await prisma.user.create({
-      data: { email: `replacement-${Date.now()}@t`, name: "Replacement", passwordHash: "x" },
+      data: {
+        email: `replacement-${Date.now()}@t`,
+        name: "Replacement",
+        passwordHash: "x",
+      },
     });
     scripted.queue = [
       {
@@ -275,7 +345,9 @@ describe("ai/chatRoute", () => {
             {
               id: "t1",
               name: "apply_ops",
-              input: { ops: [{ op: "add_shape", shape: "rectangle", x: 1, y: 1 }] },
+              input: {
+                ops: [{ op: "add_shape", shape: "rectangle", x: 1, y: 1 }],
+              },
             },
           ],
         },
@@ -284,11 +356,16 @@ describe("ai/chatRoute", () => {
     const app = buildApp(prisma, userId, []);
     const res = await request(app)
       .post("/ai/chat")
-      .send({ drawingId: drawing.id, messages: [{ role: "user", content: "draw" }] });
+      .send({
+        drawingId: drawing.id,
+        messages: [{ role: "user", content: "draw" }],
+      });
 
     expect(res.status).toBe(200);
     expect(res.text).toContain("ACCESS_REVOKED");
-    const stored = await prisma.drawing.findUnique({ where: { id: drawing.id } });
+    const stored = await prisma.drawing.findUnique({
+      where: { id: drawing.id },
+    });
     expect(stored?.version).toBe(drawing.version);
     expect(JSON.parse(stored?.elements ?? "[]")).toEqual([]);
   });
@@ -303,7 +380,10 @@ describe("ai/chatRoute", () => {
     const app = buildApp(prisma, userId, []);
     const res = await request(app)
       .post("/ai/chat")
-      .send({ drawingId: drawing.id, messages: [{ role: "user", content: "loop" }] });
+      .send({
+        drawingId: drawing.id,
+        messages: [{ role: "user", content: "loop" }],
+      });
 
     expect(res.status).toBe(200);
     expect(res.text).toContain("TOOL_ITERATION_LIMIT");

@@ -15,11 +15,14 @@ export const useAdminCollections = (navigate: NavigateFunction) => {
     }
   }, []);
 
-  const handleSelectCollection = useCallback((id: string | null | undefined) => {
-    if (id === undefined) navigate("/");
-    else if (id === null) navigate("/collections?id=unorganized");
-    else navigate(`/collections?id=${id}`);
-  }, [navigate]);
+  const handleSelectCollection = useCallback(
+    (id: string | null | undefined) => {
+      if (id === undefined) navigate("/");
+      else if (id === null) navigate("/collections?id=unorganized");
+      else navigate(`/collections?id=${id}`);
+    },
+    [navigate],
+  );
 
   const handleCreateCollection = useCallback(async (name: string) => {
     await api.createCollection(name);

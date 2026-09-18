@@ -27,7 +27,7 @@ test.describe("Drawing Version History", () => {
 
     // No history initially
     const historyBefore = await request.get(
-      `${API_URL}/drawings/${drawing.id}/history`
+      `${API_URL}/drawings/${drawing.id}/history`,
     );
     expect(historyBefore.ok()).toBe(true);
     const beforeData = await historyBefore.json();
@@ -43,7 +43,7 @@ test.describe("Drawing Version History", () => {
 
     // Now there should be a snapshot
     const historyAfter = await request.get(
-      `${API_URL}/drawings/${drawing.id}/history`
+      `${API_URL}/drawings/${drawing.id}/history`,
     );
     expect(historyAfter.ok()).toBe(true);
     const afterData = await historyAfter.json();
@@ -61,7 +61,7 @@ test.describe("Drawing Version History", () => {
     createdDrawingIds.push(drawing.id);
 
     const historyBefore = await request.get(
-      `${API_URL}/drawings/${drawing.id}/history`
+      `${API_URL}/drawings/${drawing.id}/history`,
     );
     const beforeData = await historyBefore.json();
     const initialCount = beforeData.totalCount;
@@ -70,7 +70,7 @@ test.describe("Drawing Version History", () => {
     await updateDrawing(request, drawing.id, { name: "Renamed" } as any);
 
     const historyAfter = await request.get(
-      `${API_URL}/drawings/${drawing.id}/history`
+      `${API_URL}/drawings/${drawing.id}/history`,
     );
     const afterData = await historyAfter.json();
     expect(afterData.totalCount).toBe(initialCount);
@@ -80,7 +80,14 @@ test.describe("Drawing Version History", () => {
     const drawing = await createDrawing(request, {
       name: "Preview Test",
       elements: [
-        { id: "original", type: "ellipse", x: 10, y: 20, width: 50, height: 50 },
+        {
+          id: "original",
+          type: "ellipse",
+          x: 10,
+          y: 20,
+          width: 50,
+          height: 50,
+        },
       ] as any,
     });
     createdDrawingIds.push(drawing.id);
@@ -88,14 +95,21 @@ test.describe("Drawing Version History", () => {
     // Update to create a snapshot
     await updateDrawing(request, drawing.id, {
       elements: [
-        { id: "updated", type: "rectangle", x: 0, y: 0, width: 100, height: 100 },
+        {
+          id: "updated",
+          type: "rectangle",
+          x: 0,
+          y: 0,
+          width: 100,
+          height: 100,
+        },
       ] as any,
       version: drawing.version,
     });
 
     // Get history
     const historyResp = await request.get(
-      `${API_URL}/drawings/${drawing.id}/history`
+      `${API_URL}/drawings/${drawing.id}/history`,
     );
     const history = await historyResp.json();
     expect(history.snapshots.length).toBeGreaterThan(0);
@@ -104,7 +118,7 @@ test.describe("Drawing Version History", () => {
 
     // Get full snapshot
     const snapshotResp = await request.get(
-      `${API_URL}/drawings/${drawing.id}/history/${snapshotId}`
+      `${API_URL}/drawings/${drawing.id}/history/${snapshotId}`,
     );
     expect(snapshotResp.ok()).toBe(true);
     const snapshot = await snapshotResp.json();
@@ -138,7 +152,7 @@ test.describe("Drawing Version History", () => {
 
     // Get snapshot (should be v1 state)
     const historyResp = await request.get(
-      `${API_URL}/drawings/${drawing.id}/history`
+      `${API_URL}/drawings/${drawing.id}/history`,
     );
     const history = await historyResp.json();
     const snapshotId = history.snapshots[0].id;
@@ -150,7 +164,7 @@ test.describe("Drawing Version History", () => {
     const headers = await getCsrfHeaders(request);
     const restoreResp = await request.post(
       `${API_URL}/drawings/${drawing.id}/history/${snapshotId}/restore`,
-      { headers }
+      { headers },
     );
     expect(restoreResp.ok()).toBe(true);
 
@@ -160,7 +174,7 @@ test.describe("Drawing Version History", () => {
 
     // Verify a backup snapshot was created (count should increase by 1)
     const historyAfter = await request.get(
-      `${API_URL}/drawings/${drawing.id}/history`
+      `${API_URL}/drawings/${drawing.id}/history`,
     );
     const afterData = await historyAfter.json();
     expect(afterData.totalCount).toBe(countBefore + 1);
@@ -171,7 +185,7 @@ test.describe("Drawing Version History", () => {
     createdDrawingIds.push(drawing.id);
 
     const resp = await request.get(
-      `${API_URL}/drawings/${drawing.id}/history/nonexistent-id`
+      `${API_URL}/drawings/${drawing.id}/history/nonexistent-id`,
     );
     expect(resp.status()).toBe(404);
   });
@@ -186,13 +200,15 @@ test.describe("Drawing Version History", () => {
 
     // Create a snapshot
     await updateDrawing(request, drawing.id, {
-      elements: [{ id: "el", type: "rectangle", x: 0, y: 0, width: 10, height: 10 }] as any,
+      elements: [
+        { id: "el", type: "rectangle", x: 0, y: 0, width: 10, height: 10 },
+      ] as any,
       version: drawing.version,
     });
 
     // Verify snapshot exists
     const historyResp = await request.get(
-      `${API_URL}/drawings/${drawing.id}/history`
+      `${API_URL}/drawings/${drawing.id}/history`,
     );
     const history = await historyResp.json();
     expect(history.totalCount).toBeGreaterThan(0);
@@ -202,7 +218,7 @@ test.describe("Drawing Version History", () => {
 
     // History endpoint should return 404 (drawing gone)
     const afterResp = await request.get(
-      `${API_URL}/drawings/${drawing.id}/history`
+      `${API_URL}/drawings/${drawing.id}/history`,
     );
     expect(afterResp.status()).toBe(404);
   });

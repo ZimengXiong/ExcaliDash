@@ -51,7 +51,10 @@ describe("useEditorFileUploads", () => {
     uploadDrawingFile.mockImplementation(async (drawingId, fileId) => ({
       url: `/api/files/${drawingId}/${fileId}`,
     }));
-    const { result, uploadedRefs } = setup({ a: dataFile("a"), b: dataFile("b") });
+    const { result, uploadedRefs } = setup({
+      a: dataFile("a"),
+      b: dataFile("b"),
+    });
 
     await result.current.scanNow();
 

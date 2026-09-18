@@ -6,7 +6,7 @@ import { DashboardRouteDeps } from "./types";
 
 export const registerDashboardRoutes = (
   app: express.Express,
-  deps: DashboardRouteDeps
+  deps: DashboardRouteDeps,
 ) => {
   registerDrawingRoutes(app, deps);
   registerCollectionRoutes(app, deps);

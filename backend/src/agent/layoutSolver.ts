@@ -1,5 +1,9 @@
 import dagre from "@dagrejs/dagre";
-import type { LayoutEdgeInput, LayoutGraphInput, LayoutedNode } from "./layoutTypes";
+import type {
+  LayoutEdgeInput,
+  LayoutGraphInput,
+  LayoutedNode,
+} from "./layoutTypes";
 import { CHAR_WIDTH_RATIO, EDGE_LABEL_FONT_SIZE } from "./layoutText";
 import { PARALLEL_EDGE_SPREAD } from "./layoutEdges";
 
@@ -30,7 +34,12 @@ export class LayoutSolveError extends Error {}
 
 export type SolverJob = {
   nodes: { key: string; width: number; height: number }[];
-  edges: { from: string; to: string; name: string; label?: Record<string, unknown> }[];
+  edges: {
+    from: string;
+    to: string;
+    name: string;
+    label?: Record<string, unknown>;
+  }[];
   graphOptions: Record<string, unknown>;
 };
 
@@ -73,7 +82,9 @@ const GRAPH_OPTIONS = {
 };
 
 const labelBox = (label: string): { width: number; height: number } => ({
-  width: Math.round(label.length * EDGE_LABEL_FONT_SIZE * CHAR_WIDTH_RATIO + 16),
+  width: Math.round(
+    label.length * EDGE_LABEL_FONT_SIZE * CHAR_WIDTH_RATIO + 16,
+  ),
   height: 24,
 });
 
@@ -121,7 +132,8 @@ export const buildSolverPlan = (
 
   // Ranks run vertically for TB/BT, so a fan spreads across the width; for LR/RL
   // it spreads across the height.
-  const acrossWidth = (input.direction ?? "TB") === "TB" || input.direction === "BT";
+  const acrossWidth =
+    (input.direction ?? "TB") === "TB" || input.direction === "BT";
 
   const edges: SolverJob["edges"] = [];
   const nameByEdgeIndex = new Map<number, string>();
@@ -176,7 +188,10 @@ export const buildSolverPlan = (
 const usable = (point: Point | undefined): point is Point =>
   !!point && Number.isFinite(point.x) && Number.isFinite(point.y);
 
-export const readSolved = (plan: SolverPlan, solved: SolverResult): SolvedGraph => {
+export const readSolved = (
+  plan: SolverPlan,
+  solved: SolverResult,
+): SolvedGraph => {
   const positions = new Map<string, Point>();
   for (const [id, key] of plan.keyById) {
     const pos = solved.positions[id];

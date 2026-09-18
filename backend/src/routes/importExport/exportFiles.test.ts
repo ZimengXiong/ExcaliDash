@@ -23,13 +23,15 @@ describe("embedDrawingFilesForExport", () => {
           created: 123,
         },
       },
-      [{
-        fileId: "image",
-        mimeType: "image/png",
-        storage: "s3",
-        s3Key: "drawings/user/drawing/image.png",
-        data: null,
-      }],
+      [
+        {
+          fileId: "image",
+          mimeType: "image/png",
+          storage: "s3",
+          s3Key: "drawings/user/drawing/image.png",
+          data: null,
+        },
+      ],
     );
 
     expect(s3Mocks.downloadBuffer).toHaveBeenCalledWith(
@@ -46,13 +48,15 @@ describe("embedDrawingFilesForExport", () => {
   it("also re-embeds database-backed files", async () => {
     const result = await embedDrawingFilesForExport(
       { image: { id: "image", dataURL: "/api/files/drawing/image" } },
-      [{
-        fileId: "image",
-        mimeType: "image/webp",
-        storage: "db",
-        s3Key: null,
-        data: Buffer.from([1, 2, 3]),
-      }],
+      [
+        {
+          fileId: "image",
+          mimeType: "image/webp",
+          storage: "db",
+          s3Key: null,
+          data: Buffer.from([1, 2, 3]),
+        },
+      ],
     );
 
     expect(result.image).toMatchObject({
@@ -62,22 +66,28 @@ describe("embedDrawingFilesForExport", () => {
   });
 
   it("fails instead of producing a silently broken backup when bytes are missing", async () => {
-    await expect(embedDrawingFilesForExport(
-      { image: { id: "image", dataURL: "/api/files/drawing/image" } },
-      [{
-        fileId: "image",
-        mimeType: "image/png",
-        storage: "s3",
-        s3Key: null,
-        data: null,
-      }],
-    )).rejects.toThrow("missing its S3 key");
+    await expect(
+      embedDrawingFilesForExport(
+        { image: { id: "image", dataURL: "/api/files/drawing/image" } },
+        [
+          {
+            fileId: "image",
+            mimeType: "image/png",
+            storage: "s3",
+            s3Key: null,
+            data: null,
+          },
+        ],
+      ),
+    ).rejects.toThrow("missing its S3 key");
   });
 
   it("rejects an unresolved reference with no stored file record", async () => {
-    await expect(embedDrawingFilesForExport(
-      { image: { id: "image", dataURL: "/api/files/drawing/image" } },
-      [],
-    )).rejects.toThrow("Could not bundle 1 drawing image");
+    await expect(
+      embedDrawingFilesForExport(
+        { image: { id: "image", dataURL: "/api/files/drawing/image" } },
+        [],
+      ),
+    ).rejects.toThrow("Could not bundle 1 drawing image");
   });
 });

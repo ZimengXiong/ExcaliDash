@@ -6,10 +6,15 @@ const quoteFontFamily = (family: string): string => {
 };
 
 export const configureDisplayFont = (): void => {
-  const family = (import.meta.env.VITE_EXCALIDASH_UI_FONT_FAMILY || "Excalifont").trim();
+  const family = (
+    import.meta.env.VITE_EXCALIDASH_UI_FONT_FAMILY || "Excalifont"
+  ).trim();
   const fontUrl = (import.meta.env.VITE_EXCALIDASH_UI_FONT_URL || "").trim();
 
-  document.documentElement.style.setProperty("--excalidash-display-font", family);
+  document.documentElement.style.setProperty(
+    "--excalidash-display-font",
+    family,
+  );
   if (!fontUrl) return;
 
   const style = document.createElement("style");

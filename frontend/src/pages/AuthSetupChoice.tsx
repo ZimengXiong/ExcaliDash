@@ -1,12 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Shield, ShieldOff } from 'lucide-react';
-import { Logo } from '../components/Logo';
-import { useAuth } from '../context/AuthContext';
-import * as api from '../api';
-import { AuthStatusErrorPanel } from '../components/AuthStatusErrorPanel';
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { AlertTriangle, Shield, ShieldOff } from "lucide-react";
+import { Logo } from "../components/Logo";
+import { useAuth } from "../context/AuthContext";
+import * as api from "../api";
+import { AuthStatusErrorPanel } from "../components/AuthStatusErrorPanel";
 
-type Step = 'choice' | 'confirm-disable';
+type Step = "choice" | "confirm-disable";
 
 export const AuthSetupChoice: React.FC = () => {
   const navigate = useNavigate();
@@ -21,9 +21,9 @@ export const AuthSetupChoice: React.FC = () => {
     authOnboardingMode,
   } = useAuth();
 
-  const [step, setStep] = useState<Step>('choice');
+  const [step, setStep] = useState<Step>("choice");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (authStatusError) return;
@@ -31,21 +31,21 @@ export const AuthSetupChoice: React.FC = () => {
     if (authOnboardingRequired) return;
 
     if (!authEnabled) {
-      navigate('/', { replace: true });
+      navigate("/", { replace: true });
       return;
     }
 
     if (bootstrapRequired) {
-      navigate('/register', { replace: true });
+      navigate("/register", { replace: true });
       return;
     }
 
     if (isAuthenticated) {
-      navigate('/', { replace: true });
+      navigate("/", { replace: true });
       return;
     }
 
-    navigate('/login', { replace: true });
+    navigate("/login", { replace: true });
   }, [
     authEnabled,
     authLoading,
@@ -56,25 +56,31 @@ export const AuthSetupChoice: React.FC = () => {
     navigate,
   ]);
 
-  const isMigrationMode = authOnboardingMode === 'migration';
+  const isMigrationMode = authOnboardingMode === "migration";
 
   const applyChoice = async (enableAuth: boolean) => {
     setSubmitting(true);
-    setError('');
+    setError("");
     try {
       const response = await api.authOnboardingChoice(enableAuth);
-      localStorage.setItem('excalidash-auth-enabled', String(response.authEnabled));
+      localStorage.setItem(
+        "excalidash-auth-enabled",
+        String(response.authEnabled),
+      );
 
       if (response.authEnabled) {
-        window.location.href = response.bootstrapRequired ? '/register' : '/login';
+        window.location.href = response.bootstrapRequired
+          ? "/register"
+          : "/login";
         return;
       }
 
-      window.location.href = '/';
+      window.location.href = "/";
     } catch (err: unknown) {
-      let message = 'Failed to apply authentication choice';
+      let message = "Failed to apply authentication choice";
       if (api.isAxiosError(err)) {
-        message = err.response?.data?.message || err.response?.data?.error || message;
+        message =
+          err.response?.data?.message || err.response?.data?.error || message;
       }
       setError(message);
       setSubmitting(false);
@@ -83,7 +89,13 @@ export const AuthSetupChoice: React.FC = () => {
 
   if (authLoading || authEnabled === null || !authOnboardingRequired) {
     if (authStatusError) {
-      return <AuthStatusErrorPanel message={authStatusError} onRetry={retryAuthStatus} fullScreen />;
+      return (
+        <AuthStatusErrorPanel
+          message={authStatusError}
+          onRetry={retryAuthStatus}
+          fullScreen
+        />
+      );
     }
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
@@ -98,14 +110,16 @@ export const AuthSetupChoice: React.FC = () => {
         <div className="text-center mb-8">
           <Logo className="mx-auto h-12 w-auto" />
           <h1 className="mt-6 text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">
-            {step === 'choice' ? 'Choose Authentication Mode' : 'Keep Authentication Disabled?'}
+            {step === "choice"
+              ? "Choose Authentication Mode"
+              : "Keep Authentication Disabled?"}
           </h1>
           <p className="mt-3 text-sm text-slate-600 dark:text-neutral-300">
-            {step === 'choice'
+            {step === "choice"
               ? isMigrationMode
-                ? 'Existing data detected.'
-                : 'Secure this workspace.'
-              : 'Only use this on a trusted network.'}
+                ? "Existing data detected."
+                : "Secure this workspace."
+              : "Only use this on a trusted network."}
           </p>
         </div>
 
@@ -116,10 +130,12 @@ export const AuthSetupChoice: React.FC = () => {
             </div>
           )}
 
-          {step === 'choice' ? (
+          {step === "choice" ? (
             <>
               <div className="mb-6 rounded-lg border border-indigo-200 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-950/20 p-4 text-sm text-slate-700 dark:text-neutral-200">
-                <div className="font-semibold text-indigo-900 dark:text-indigo-200 mb-1">Secure ExcaliDash</div>
+                <div className="font-semibold text-indigo-900 dark:text-indigo-200 mb-1">
+                  Secure ExcaliDash
+                </div>
                 <div>Create an admin account and restrict access.</div>
               </div>
 
@@ -139,7 +155,7 @@ export const AuthSetupChoice: React.FC = () => {
                 <button
                   type="button"
                   disabled={submitting}
-                  onClick={() => setStep('confirm-disable')}
+                  onClick={() => setStep("confirm-disable")}
                   className="ui-button-secondary px-4 py-3"
                 >
                   <ShieldOff size={18} />
@@ -152,9 +168,7 @@ export const AuthSetupChoice: React.FC = () => {
               <div className="mb-6 rounded-lg border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-900/20 p-4 text-sm text-rose-850 dark:text-rose-200">
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400" />
-                  <div>
-                    Anyone on this network can access every drawing.
-                  </div>
+                  <div>Anyone on this network can access every drawing.</div>
                 </div>
               </div>
 
@@ -162,7 +176,7 @@ export const AuthSetupChoice: React.FC = () => {
                 <button
                   type="button"
                   disabled={submitting}
-                  onClick={() => setStep('choice')}
+                  onClick={() => setStep("choice")}
                   className="ui-button-secondary px-4 py-3"
                 >
                   Go Back

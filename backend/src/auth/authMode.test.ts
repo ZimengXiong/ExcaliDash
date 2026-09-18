@@ -32,8 +32,12 @@ describe("authMode service", () => {
 
   it("caches authEnabled reads within TTL", async () => {
     const prisma = createPrismaMock();
-    const findUnique = prisma.systemConfig.findUnique as unknown as ReturnType<typeof vi.fn>;
-    const upsert = prisma.systemConfig.upsert as unknown as ReturnType<typeof vi.fn>;
+    const findUnique = prisma.systemConfig.findUnique as unknown as ReturnType<
+      typeof vi.fn
+    >;
+    const upsert = prisma.systemConfig.upsert as unknown as ReturnType<
+      typeof vi.fn
+    >;
     findUnique
       .mockResolvedValueOnce({ authEnabled: true })
       .mockResolvedValueOnce({ authEnabled: false });
@@ -54,8 +58,12 @@ describe("authMode service", () => {
 
   it("clears auth cache when requested", async () => {
     const prisma = createPrismaMock();
-    const findUnique = prisma.systemConfig.findUnique as unknown as ReturnType<typeof vi.fn>;
-    const upsert = prisma.systemConfig.upsert as unknown as ReturnType<typeof vi.fn>;
+    const findUnique = prisma.systemConfig.findUnique as unknown as ReturnType<
+      typeof vi.fn
+    >;
+    const upsert = prisma.systemConfig.upsert as unknown as ReturnType<
+      typeof vi.fn
+    >;
     findUnique.mockResolvedValue({ authEnabled: true });
 
     const service = createAuthModeService(prisma);
@@ -69,8 +77,12 @@ describe("authMode service", () => {
 
   it("falls back to upsert when system config row is missing", async () => {
     const prisma = createPrismaMock();
-    const findUnique = prisma.systemConfig.findUnique as unknown as ReturnType<typeof vi.fn>;
-    const upsert = prisma.systemConfig.upsert as unknown as ReturnType<typeof vi.fn>;
+    const findUnique = prisma.systemConfig.findUnique as unknown as ReturnType<
+      typeof vi.fn
+    >;
+    const upsert = prisma.systemConfig.upsert as unknown as ReturnType<
+      typeof vi.fn
+    >;
     findUnique.mockResolvedValue(null);
     upsert.mockResolvedValue({ authEnabled: false });
 
@@ -86,7 +98,9 @@ describe("authMode service", () => {
 
   it("creates/bootstrap user via upsert", async () => {
     const prisma = createPrismaMock();
-    const userUpsert = prisma.user.upsert as unknown as ReturnType<typeof vi.fn>;
+    const userUpsert = prisma.user.upsert as unknown as ReturnType<
+      typeof vi.fn
+    >;
     userUpsert.mockResolvedValue({
       id: BOOTSTRAP_USER_ID,
       email: "bootstrap@excalidash.local",
@@ -109,7 +123,7 @@ describe("authMode service", () => {
           email: "bootstrap@excalidash.local",
           role: "ADMIN",
         }),
-      })
+      }),
     );
   });
 
@@ -119,8 +133,12 @@ describe("authMode service", () => {
     // write lock, or SQLite serialises readers behind the writer and times
     // out under load.
     const prisma = createPrismaMock();
-    const findUnique = prisma.systemConfig.findUnique as unknown as ReturnType<typeof vi.fn>;
-    const upsert = prisma.systemConfig.upsert as unknown as ReturnType<typeof vi.fn>;
+    const findUnique = prisma.systemConfig.findUnique as unknown as ReturnType<
+      typeof vi.fn
+    >;
+    const upsert = prisma.systemConfig.upsert as unknown as ReturnType<
+      typeof vi.fn
+    >;
     findUnique.mockResolvedValue({
       id: DEFAULT_SYSTEM_CONFIG_ID,
       authEnabled: true,
@@ -130,7 +148,10 @@ describe("authMode service", () => {
     const service = createAuthModeService(prisma);
     const result = await service.ensureSystemConfig();
 
-    expect(result).toMatchObject({ id: DEFAULT_SYSTEM_CONFIG_ID, authEnabled: true });
+    expect(result).toMatchObject({
+      id: DEFAULT_SYSTEM_CONFIG_ID,
+      authEnabled: true,
+    });
     expect(findUnique).toHaveBeenCalledTimes(1);
     expect(upsert).not.toHaveBeenCalled();
   });
@@ -143,14 +164,18 @@ describe("authMode service", () => {
     });
 
     afterEach(() => {
-      (config as { authMode: typeof config.authMode }).authMode = originalAuthMode;
+      (config as { authMode: typeof config.authMode }).authMode =
+        originalAuthMode;
     });
 
     it("forces authEnabled false without reading the database", async () => {
       (config as { authMode: typeof config.authMode }).authMode = "disabled";
       const prisma = createPrismaMock();
-      const findUnique = prisma.systemConfig.findUnique as unknown as ReturnType<typeof vi.fn>;
-      const upsert = prisma.systemConfig.upsert as unknown as ReturnType<typeof vi.fn>;
+      const findUnique = prisma.systemConfig
+        .findUnique as unknown as ReturnType<typeof vi.fn>;
+      const upsert = prisma.systemConfig.upsert as unknown as ReturnType<
+        typeof vi.fn
+      >;
 
       const service = createAuthModeService(prisma);
 
@@ -162,7 +187,8 @@ describe("authMode service", () => {
     it("still forces auth on for the OIDC-backed modes", async () => {
       (config as { authMode: typeof config.authMode }).authMode = "hybrid";
       const prisma = createPrismaMock();
-      const findUnique = prisma.systemConfig.findUnique as unknown as ReturnType<typeof vi.fn>;
+      const findUnique = prisma.systemConfig
+        .findUnique as unknown as ReturnType<typeof vi.fn>;
 
       const service = createAuthModeService(prisma);
 
@@ -180,7 +206,9 @@ describe("authMode service", () => {
 
   it("ensures system config defaults", async () => {
     const prisma = createPrismaMock();
-    const upsert = prisma.systemConfig.upsert as unknown as ReturnType<typeof vi.fn>;
+    const upsert = prisma.systemConfig.upsert as unknown as ReturnType<
+      typeof vi.fn
+    >;
     upsert.mockResolvedValue({ authEnabled: false });
 
     const service = createAuthModeService(prisma);
@@ -194,7 +222,7 @@ describe("authMode service", () => {
           authEnabled: false,
           registrationEnabled: false,
         }),
-      })
+      }),
     );
   });
 });

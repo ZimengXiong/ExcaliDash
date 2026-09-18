@@ -26,9 +26,9 @@ describe("filesNeedRehydration", () => {
   });
 
   it("returns true for a same-origin /api/files reference", () => {
-    expect(
-      filesNeedRehydration({ a: { dataURL: "/api/files/d1/f1" } }),
-    ).toBe(true);
+    expect(filesNeedRehydration({ a: { dataURL: "/api/files/d1/f1" } })).toBe(
+      true,
+    );
   });
 
   it("returns true for an absolute (public S3) http url", () => {
@@ -153,30 +153,37 @@ describe("rehydrateFilesForExport", () => {
       blob: async () => blobFor("image/png", [4, 5, 6]),
     });
 
-    const result = await rehydrateFilesForExport({
-      image: {
-        id: "image",
-        mimeType: "image/png",
-        dataURL: "https://cdn.example.com/private/image.png",
+    const result = await rehydrateFilesForExport(
+      {
+        image: {
+          id: "image",
+          mimeType: "image/png",
+          dataURL: "https://cdn.example.com/private/image.png",
+        },
       },
-    }, "drawing id");
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/files/drawing%20id/image",
-      { credentials: "same-origin" },
+      "drawing id",
     );
+
+    expect(fetchMock).toHaveBeenCalledWith("/api/files/drawing%20id/image", {
+      credentials: "same-origin",
+    });
     expect(result.image.dataURL).toMatch(/^data:image\/png;base64,/);
   });
 
   it("rejects a download instead of emitting an unresolved image reference", async () => {
     fetchMock.mockResolvedValue({ ok: false });
 
-    await expect(rehydrateFilesForExport({
-      missing: {
-        id: "missing",
-        dataURL: "/api/files/drawing/missing",
-      },
-    }, "drawing")).rejects.toThrow("Could not bundle 1 drawing image");
+    await expect(
+      rehydrateFilesForExport(
+        {
+          missing: {
+            id: "missing",
+            dataURL: "/api/files/drawing/missing",
+          },
+        },
+        "drawing",
+      ),
+    ).rejects.toThrow("Could not bundle 1 drawing image");
   });
 });
 

@@ -32,8 +32,8 @@ beforeEach(() => {
   HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
     drawImage: vi.fn(),
   })) as unknown as HTMLCanvasElement["getContext"];
-  HTMLCanvasElement.prototype.toDataURL = vi.fn((type: string, quality?: number) =>
-    toDataURLImpl(type, quality),
+  HTMLCanvasElement.prototype.toDataURL = vi.fn(
+    (type: string, quality?: number) => toDataURLImpl(type, quality),
   ) as unknown as HTMLCanvasElement["toDataURL"];
 });
 
@@ -72,7 +72,9 @@ describe("compressExcalidrawFiles memoization", () => {
   it("does not re-encode an image whose compression yielded no improvement", async () => {
     // Encoded output is larger than the input → no improvement, unchanged.
     toDataURLImpl = () => `data:image/webp;base64,${"C".repeat(500_000)}`;
-    const files = { a: { id: "a", dataURL: LARGE_INPUT, mimeType: "image/png" } };
+    const files = {
+      a: { id: "a", dataURL: LARGE_INPUT, mimeType: "image/png" },
+    };
 
     const first = await compressExcalidrawFiles(files);
     expect(first.changed).toBe(false);
@@ -87,7 +89,9 @@ describe("compressExcalidrawFiles memoization", () => {
 
   it("does not re-encode a successfully compressed output on the next pass", async () => {
     toDataURLImpl = () => `data:image/webp;base64,${"D".repeat(1000)}`;
-    const files = { a: { id: "a", dataURL: LARGE_INPUT, mimeType: "image/png" } };
+    const files = {
+      a: { id: "a", dataURL: LARGE_INPUT, mimeType: "image/png" },
+    };
 
     const first = await compressExcalidrawFiles(files);
     expect(first.changed).toBe(true);
@@ -107,7 +111,9 @@ describe("compressExcalidrawFiles memoization", () => {
     toDataURLImpl = () => {
       throw new Error("encode failed");
     };
-    const files = { a: { id: "a", dataURL: LARGE_INPUT, mimeType: "image/png" } };
+    const files = {
+      a: { id: "a", dataURL: LARGE_INPUT, mimeType: "image/png" },
+    };
 
     const first = await compressExcalidrawFiles(files);
     expect(first.changed).toBe(false);

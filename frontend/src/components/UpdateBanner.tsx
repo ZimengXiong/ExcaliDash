@@ -63,9 +63,12 @@ const writeChannel = (channel: api.UpdateChannel) => {
   safeSetItem(CHANNEL_KEY, channel);
 };
 
-const lastCheckStorageKey = (channel: api.UpdateChannel) => `${LAST_CHECK_KEY}:${channel}`;
-const updateInfoStorageKey = (channel: api.UpdateChannel) => `${UPDATE_INFO_KEY}:${channel}`;
-const closedVersionStorageKey = (channel: api.UpdateChannel) => `${CLOSED_VERSION_KEY}:${channel}`;
+const lastCheckStorageKey = (channel: api.UpdateChannel) =>
+  `${LAST_CHECK_KEY}:${channel}`;
+const updateInfoStorageKey = (channel: api.UpdateChannel) =>
+  `${UPDATE_INFO_KEY}:${channel}`;
+const closedVersionStorageKey = (channel: api.UpdateChannel) =>
+  `${CLOSED_VERSION_KEY}:${channel}`;
 
 const shouldCheckNow = (channel: api.UpdateChannel): boolean => {
   const raw = safeGetItem(lastCheckStorageKey(channel));
@@ -93,14 +96,18 @@ const writeCachedInfo = (channel: api.UpdateChannel, info: api.UpdateInfo) => {
 };
 
 export const UpdateBanner: React.FC = () => {
-  const [channel, setChannel] = useState<api.UpdateChannel>(() => readChannel());
-  const [info, setInfo] = useState<api.UpdateInfo | null>(() => readCachedInfo(readChannel()));
+  const [channel, setChannel] = useState<api.UpdateChannel>(() =>
+    readChannel(),
+  );
+  const [info, setInfo] = useState<api.UpdateInfo | null>(() =>
+    readCachedInfo(readChannel()),
+  );
   const [loading, setLoading] = useState(false);
   const [ignoredVersion, setIgnoredVersion] = useState<string | null>(() =>
-    safeGetItem(DISMISSED_VERSION_KEY)
+    safeGetItem(DISMISSED_VERSION_KEY),
   );
   const [closedVersion, setClosedVersion] = useState<string | null>(() =>
-    safeGetSessionItem(closedVersionStorageKey(readChannel()))
+    safeGetSessionItem(closedVersionStorageKey(readChannel())),
   );
 
   const load = async (force: boolean) => {
@@ -164,7 +171,9 @@ export const UpdateBanner: React.FC = () => {
             ariaLabel="Update channel"
             value={channel}
             onChange={(value) => {
-              const next = (value === "prerelease" ? "prerelease" : "stable") as api.UpdateChannel;
+              const next = (
+                value === "prerelease" ? "prerelease" : "stable"
+              ) as api.UpdateChannel;
               writeChannel(next);
               setChannel(next);
             }}

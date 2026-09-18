@@ -34,7 +34,8 @@ const buildApp = (options?: {
       };
       next();
     }) as any,
-    accountActionRateLimiter: ((_req: any, _res: any, next: any) => next()) as any,
+    accountActionRateLimiter: ((_req: any, _res: any, next: any) =>
+      next()) as any,
     ensureAuthEnabled: vi.fn().mockResolvedValue(true),
     ensureSystemConfig: vi.fn().mockResolvedValue({
       id: "default",
@@ -43,15 +44,22 @@ const buildApp = (options?: {
       authLoginRateLimitWindowMs: 900000,
       authLoginRateLimitMax: 20,
     }),
-    parseLoginRateLimitConfig: vi.fn().mockReturnValue({ enabled: true, windowMs: 900000, max: 20 }),
-    applyLoginRateLimitConfig: vi.fn().mockReturnValue({ enabled: true, windowMs: 900000, max: 20 }),
+    parseLoginRateLimitConfig: vi
+      .fn()
+      .mockReturnValue({ enabled: true, windowMs: 900000, max: 20 }),
+    applyLoginRateLimitConfig: vi
+      .fn()
+      .mockReturnValue({ enabled: true, windowMs: 900000, max: 20 }),
     resetLoginAttemptKey: vi.fn(),
-    requireAdmin: ((req: any, _res: any) => Boolean(req.user && req.user.role === "ADMIN")) as any,
+    requireAdmin: ((req: any, _res: any) =>
+      Boolean(req.user && req.user.role === "ADMIN")) as any,
     findUserByIdentifier: vi.fn(),
     countActiveAdmins: vi.fn().mockResolvedValue(1),
     sanitizeText: (input: unknown) => String(input ?? "").trim(),
     generateTempPassword: vi.fn().mockReturnValue("TempPass123!"),
-    generateTokens: vi.fn().mockReturnValue({ accessToken: "a", refreshToken: "r" }),
+    generateTokens: vi
+      .fn()
+      .mockReturnValue({ accessToken: "a", refreshToken: "r" }),
     getRefreshTokenExpiresAt: vi.fn().mockReturnValue(new Date()),
     config: {
       authMode: options?.authMode ?? "oidc_enforced",
@@ -81,14 +89,19 @@ describe("admin OIDC access controls", () => {
   it("rejects local registration toggle in oidc_enforced mode", async () => {
     const { app } = buildApp({ authMode: "oidc_enforced", oidcEnabled: true });
 
-    const response = await request(app).post("/registration/toggle").send({ enabled: true });
+    const response = await request(app)
+      .post("/registration/toggle")
+      .send({ enabled: true });
 
     expect(response.status).toBe(409);
     expect(response.body?.message).toContain("Local self-sign-up");
   });
 
   it("updates the persisted OIDC JIT provisioning override", async () => {
-    const { app, prisma } = buildApp({ authMode: "oidc_enforced", oidcEnabled: true });
+    const { app, prisma } = buildApp({
+      authMode: "oidc_enforced",
+      oidcEnabled: true,
+    });
     prisma.systemConfig.upsert.mockResolvedValue({
       id: "default",
       oidcJitProvisioningEnabled: false,
@@ -102,13 +115,16 @@ describe("admin OIDC access controls", () => {
     expect(prisma.systemConfig.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         update: { oidcJitProvisioningEnabled: false },
-      })
+      }),
     );
     expect(response.body?.oidcJitProvisioningEnabled).toBe(false);
   });
 
   it("creates an invited OIDC-only user without a local password", async () => {
-    const { app, prisma } = buildApp({ authMode: "oidc_enforced", oidcEnabled: true });
+    const { app, prisma } = buildApp({
+      authMode: "oidc_enforced",
+      oidcEnabled: true,
+    });
     prisma.user.findUnique.mockResolvedValue(null);
     prisma.user.findFirst.mockResolvedValue(null);
     prisma.user.create.mockImplementation(async ({ data }: any) => ({
@@ -139,7 +155,7 @@ describe("admin OIDC access controls", () => {
           passwordHash: "",
           mustResetPassword: false,
         }),
-      })
+      }),
     );
   });
 
@@ -153,7 +169,9 @@ describe("admin OIDC access controls", () => {
     });
 
     expect(response.status).toBe(409);
-    expect(response.body?.message).toContain("OIDC-only invited users require OIDC");
+    expect(response.body?.message).toContain(
+      "OIDC-only invited users require OIDC",
+    );
   });
 });
 

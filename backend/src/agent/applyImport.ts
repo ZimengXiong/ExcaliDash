@@ -1,8 +1,4 @@
-import {
-  ExcalidrawElement,
-  genId,
-  touchElement,
-} from "./elementFactory";
+import { ExcalidrawElement, genId, touchElement } from "./elementFactory";
 import type { Op } from "./opSchemas";
 
 /** The subset of the working scene the import applier needs. */
@@ -43,7 +39,8 @@ export const applyImport = (
     el.isDeleted = false;
     touchElement(el);
     el.version = 1;
-    if (typeof el.containerId === "string") el.containerId = remapId(el.containerId);
+    if (typeof el.containerId === "string")
+      el.containerId = remapId(el.containerId);
     if (typeof el.frameId === "string") el.frameId = remapId(el.frameId);
     if (Array.isArray(el.boundElements)) {
       el.boundElements = el.boundElements.map((b: any) =>
@@ -51,10 +48,16 @@ export const applyImport = (
       );
     }
     if (el.startBinding?.elementId) {
-      el.startBinding = { ...el.startBinding, elementId: remapId(el.startBinding.elementId) };
+      el.startBinding = {
+        ...el.startBinding,
+        elementId: remapId(el.startBinding.elementId),
+      };
     }
     if (el.endBinding?.elementId) {
-      el.endBinding = { ...el.endBinding, elementId: remapId(el.endBinding.elementId) };
+      el.endBinding = {
+        ...el.endBinding,
+        elementId: remapId(el.endBinding.elementId),
+      };
     }
     scene.add(el);
     createdIds.push(el.id);

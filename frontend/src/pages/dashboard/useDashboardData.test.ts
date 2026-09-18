@@ -14,7 +14,7 @@ type Deferred<T> = {
   reject: (reason?: unknown) => void;
 };
 
-const deferred = <T,>(): Deferred<T> => {
+const deferred = <T>(): Deferred<T> => {
   let resolve!: (value: T) => void;
   let reject!: (reason?: unknown) => void;
   const promise = new Promise<T>((res, rej) => {
@@ -66,7 +66,7 @@ describe("useDashboardData", () => {
         sortDirection: "desc",
         pageSize: 24,
         onRefreshSuccess,
-      })
+      }),
     );
 
     await waitFor(() => {
@@ -80,8 +80,12 @@ describe("useDashboardData", () => {
       sortDirection: "desc",
     });
     expect(getCollectionsMock).toHaveBeenCalledTimes(1);
-    expect(result.current.drawings.map((drawing) => drawing.id)).toEqual(["d1"]);
-    expect(result.current.collections.map((collection) => collection.id)).toEqual(["c1"]);
+    expect(result.current.drawings.map((drawing) => drawing.id)).toEqual([
+      "d1",
+    ]);
+    expect(
+      result.current.collections.map((collection) => collection.id),
+    ).toEqual(["c1"]);
     expect(result.current.totalCount).toBe(1);
     expect(onRefreshSuccess).toHaveBeenCalledTimes(1);
   });
@@ -109,7 +113,7 @@ describe("useDashboardData", () => {
         sortField: "updatedAt",
         sortDirection: "desc",
         pageSize: 24,
-      })
+      }),
     );
 
     await waitFor(() => {
@@ -126,7 +130,11 @@ describe("useDashboardData", () => {
       sortField: "updatedAt",
       sortDirection: "desc",
     });
-    expect(result.current.drawings.map((drawing) => drawing.id)).toEqual(["d1", "d2", "d3"]);
+    expect(result.current.drawings.map((drawing) => drawing.id)).toEqual([
+      "d1",
+      "d2",
+      "d3",
+    ]);
     expect(result.current.hasMore).toBe(false);
   });
 
@@ -147,11 +155,19 @@ describe("useDashboardData", () => {
     const secondCollections = deferred<ReturnType<typeof makeCollection>[]>();
 
     getDrawingsMock
-      .mockReturnValueOnce(firstDrawings.promise as ReturnType<typeof api.getDrawings>)
-      .mockReturnValueOnce(secondDrawings.promise as ReturnType<typeof api.getDrawings>);
+      .mockReturnValueOnce(
+        firstDrawings.promise as ReturnType<typeof api.getDrawings>,
+      )
+      .mockReturnValueOnce(
+        secondDrawings.promise as ReturnType<typeof api.getDrawings>,
+      );
     getCollectionsMock
-      .mockReturnValueOnce(firstCollections.promise as ReturnType<typeof api.getCollections>)
-      .mockReturnValueOnce(secondCollections.promise as ReturnType<typeof api.getCollections>);
+      .mockReturnValueOnce(
+        firstCollections.promise as ReturnType<typeof api.getCollections>,
+      )
+      .mockReturnValueOnce(
+        secondCollections.promise as ReturnType<typeof api.getCollections>,
+      );
 
     const { result, rerender } = renderHook(
       (search: string) =>
@@ -162,7 +178,7 @@ describe("useDashboardData", () => {
           sortDirection: "desc",
           pageSize: 24,
         }),
-      { initialProps: "first" }
+      { initialProps: "first" },
     );
 
     rerender("second");
@@ -179,7 +195,9 @@ describe("useDashboardData", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.drawings.map((drawing) => drawing.id)).toEqual(["new"]);
+      expect(result.current.drawings.map((drawing) => drawing.id)).toEqual([
+        "new",
+      ]);
     });
 
     await act(async () => {
@@ -193,10 +211,12 @@ describe("useDashboardData", () => {
       await Promise.resolve();
     });
 
-    expect(result.current.drawings.map((drawing) => drawing.id)).toEqual(["new"]);
-    expect(result.current.collections.map((collection) => collection.id)).toEqual([
-      "new-collection",
+    expect(result.current.drawings.map((drawing) => drawing.id)).toEqual([
+      "new",
     ]);
+    expect(
+      result.current.collections.map((collection) => collection.id),
+    ).toEqual(["new-collection"]);
   });
 
   it("drops deleted shared collections after refresh", async () => {
@@ -207,7 +227,10 @@ describe("useDashboardData", () => {
       offset: 0,
     });
     getCollectionsMock
-      .mockResolvedValueOnce([makeCollection("shared-a"), makeCollection("shared-b")])
+      .mockResolvedValueOnce([
+        makeCollection("shared-a"),
+        makeCollection("shared-b"),
+      ])
       .mockResolvedValueOnce([makeCollection("shared-a")]);
 
     const { result } = renderHook(() =>
@@ -223,17 +246,16 @@ describe("useDashboardData", () => {
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
     });
-    expect(result.current.collections.map((collection) => collection.id)).toEqual([
-      "shared-a",
-      "shared-b",
-    ]);
+    expect(
+      result.current.collections.map((collection) => collection.id),
+    ).toEqual(["shared-a", "shared-b"]);
 
     await act(async () => {
       await result.current.refreshData();
     });
 
-    expect(result.current.collections.map((collection) => collection.id)).toEqual([
-      "shared-a",
-    ]);
+    expect(
+      result.current.collections.map((collection) => collection.id),
+    ).toEqual(["shared-a"]);
   });
 });

@@ -27,7 +27,7 @@ describe("useEditorIdentity", () => {
       useEditorIdentity({
         id: "u-1",
         name: "Jane Doe",
-      })
+      }),
     );
 
     expect(result.current).toEqual({

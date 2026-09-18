@@ -140,7 +140,9 @@ describe("useEditorSceneLoader", () => {
       elements: [
         { id: "img", type: "image", fileId: "f1", version: 1, status: "saved" },
       ],
-      files: { f1: { id: "f1", dataURL: "/api/files/dA/f1", mimeType: "image/png" } },
+      files: {
+        f1: { id: "f1", dataURL: "/api/files/dA/f1", mimeType: "image/png" },
+      },
       appState: {},
       version: 2,
       accessLevel: "owner",

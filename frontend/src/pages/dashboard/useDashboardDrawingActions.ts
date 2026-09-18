@@ -70,7 +70,10 @@ export const useDashboardDrawingActions = ({
     try {
       const targetCollectionId =
         selectedCollectionId === undefined ? null : selectedCollectionId;
-      const { id } = await api.createDrawing("Untitled Drawing", targetCollectionId);
+      const { id } = await api.createDrawing(
+        "Untitled Drawing",
+        targetCollectionId,
+      );
       navigate(`/editor/${id}`);
     } catch (err) {
       console.error(err);
@@ -345,13 +348,16 @@ export const useDashboardDrawingActions = ({
     if (preview) event.dataTransfer.setDragImage(preview, 80, 50);
   };
 
-  const handlePreviewGenerated = useCallback((id: string, preview: string) => {
-    setDrawings((current) =>
-      current.map((drawing) =>
-        drawing.id === id ? { ...drawing, preview } : drawing,
-      ),
-    );
-  }, [setDrawings]);
+  const handlePreviewGenerated = useCallback(
+    (id: string, preview: string) => {
+      setDrawings((current) =>
+        current.map((drawing) =>
+          drawing.id === id ? { ...drawing, preview } : drawing,
+        ),
+      );
+    },
+    [setDrawings],
+  );
 
   return {
     drawingToDelete,

@@ -57,7 +57,7 @@ describe("Auth Enabled Toggle Authorization", () => {
     regularUserToken = jwt.sign(
       { userId: user.id, email: user.email, type: "access" },
       config.jwtSecret,
-      signOptions
+      signOptions,
     );
 
     const admin = await prisma.user.create({
@@ -77,13 +77,11 @@ describe("Auth Enabled Toggle Authorization", () => {
     adminUserToken = jwt.sign(
       { userId: admin.id, email: admin.email, type: "access" },
       config.jwtSecret,
-      signOptions
+      signOptions,
     );
 
     agent = request.agent(app);
-    const csrfRes = await agent
-      .get("/csrf-token")
-      .set("User-Agent", userAgent);
+    const csrfRes = await agent.get("/csrf-token").set("User-Agent", userAgent);
     csrfHeaderName = csrfRes.body.header;
     csrfToken = csrfRes.body.token;
   });

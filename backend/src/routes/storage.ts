@@ -207,16 +207,17 @@ export const registerStorageRoutes = (
 
       const elements: any[] = parseJsonField(drawing.elements, []);
       const files: Record<string, any> = parseJsonField(drawing.files, {});
-      const storedRecords: StoredFileRecord[] = await prisma.drawingFile.findMany({
-        where: { drawingId: id },
-        select: {
-          fileId: true,
-          storage: true,
-          s3Key: true,
-          mimeType: true,
-          sizeBytes: true,
-        },
-      });
+      const storedRecords: StoredFileRecord[] =
+        await prisma.drawingFile.findMany({
+          where: { drawingId: id },
+          select: {
+            fileId: true,
+            storage: true,
+            s3Key: true,
+            mimeType: true,
+            sizeBytes: true,
+          },
+        });
       const s3Objects: S3ObjectRecord[] = isS3Enabled()
         ? await listS3Objects(drawingS3Prefix(userId, id))
         : [];

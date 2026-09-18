@@ -23,13 +23,11 @@ export const InfoPopover: React.FC<InfoPopoverProps> = ({
       >
         <Info size={15} />
       </button>
-      {open
-        ? (
-          <div className="order-last mt-2 w-full basis-full rounded-xl border-2 border-slate-100 bg-slate-50 p-3 text-xs dark:border-neutral-800 dark:bg-neutral-800/60">
-            {children}
-          </div>
-        )
-        : null}
+      {open ? (
+        <div className="order-last mt-2 w-full basis-full rounded-xl border-2 border-slate-100 bg-slate-50 p-3 text-xs dark:border-neutral-800 dark:bg-neutral-800/60">
+          {children}
+        </div>
+      ) : null}
     </>
   );
 };

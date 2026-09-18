@@ -19,13 +19,14 @@ const inferProvider = (env = process.env) => {
   if (validProviders.has(configured)) return configured;
   if (configured) {
     throw new Error(
-      `DATABASE_PROVIDER must be 'sqlite' or 'postgresql', got '${configured}'`
+      `DATABASE_PROVIDER must be 'sqlite' or 'postgresql', got '${configured}'`,
     );
   }
 
   const databaseUrl = String(env.DATABASE_URL || "").trim();
   if (/^postgres(?:ql)?:\/\//i.test(databaseUrl)) return "postgresql";
-  if (databaseUrl.startsWith("file:") || databaseUrl.length === 0) return "sqlite";
+  if (databaseUrl.startsWith("file:") || databaseUrl.length === 0)
+    return "sqlite";
 
   return "sqlite";
 };
@@ -47,7 +48,10 @@ const normalizeDatabaseUrl = (rawUrl) => {
 
   const absolutePath = path.isAbsolute(filePath)
     ? filePath
-    : path.resolve(hasLeadingPrismaDir ? backendRoot : prismaDir, normalizedRelative);
+    : path.resolve(
+        hasLeadingPrismaDir ? backendRoot : prismaDir,
+        normalizedRelative,
+      );
 
   return `file:${absolutePath}`;
 };
@@ -56,7 +60,9 @@ const rewriteSchemaProvider = (schema, provider) => {
   const datasourceProviderPattern =
     /(datasource\s+db\s*{[\s\S]*?provider\s*=\s*)(?:env\("[^"]*"\)|"[^"]*")/;
   if (!datasourceProviderPattern.test(schema)) {
-    throw new Error("Could not find datasource provider in prisma/schema.prisma");
+    throw new Error(
+      "Could not find datasource provider in prisma/schema.prisma",
+    );
   }
   return schema.replace(datasourceProviderPattern, `$1"${provider}"`);
 };
@@ -84,17 +90,23 @@ const getWorkspaceTempRoots = () => {
   return roots;
 };
 
-const createProviderWorkspaceInRoot = (provider, providerMigrationsDir, tempRoot) => {
+const createProviderWorkspaceInRoot = (
+  provider,
+  providerMigrationsDir,
+  tempRoot,
+) => {
   fs.mkdirSync(tempRoot, { recursive: true });
 
-  const workspaceDir = fs.mkdtempSync(path.join(tempRoot, "excalidash-prisma-"));
+  const workspaceDir = fs.mkdtempSync(
+    path.join(tempRoot, "excalidash-prisma-"),
+  );
   const workspaceMigrationsDir = path.join(workspaceDir, "migrations");
   const workspaceSchema = path.join(workspaceDir, "schema.prisma");
 
   try {
     fs.writeFileSync(
       workspaceSchema,
-      rewriteSchemaProvider(fs.readFileSync(schemaFile, "utf8"), provider)
+      rewriteSchemaProvider(fs.readFileSync(schemaFile, "utf8"), provider),
     );
     copyDirectoryContents(providerMigrationsDir, workspaceMigrationsDir);
   } catch (error) {
@@ -120,7 +132,11 @@ const createProviderWorkspace = (provider) => {
   let lastError;
   for (const tempRoot of getWorkspaceTempRoots()) {
     try {
-      return createProviderWorkspaceInRoot(provider, providerMigrationsDir, tempRoot);
+      return createProviderWorkspaceInRoot(
+        provider,
+        providerMigrationsDir,
+        tempRoot,
+      );
     } catch (error) {
       lastError = error;
     }
@@ -163,7 +179,7 @@ const runPrisma = (args, options = {}) => {
         env,
         stdio: options.stdio || "inherit",
         encoding: options.encoding,
-      }
+      },
     );
 
     if (options.persistProviderMigrations) {
@@ -190,7 +206,9 @@ if (require.main === module) {
   if (persistRequested) args.splice(persistIndex, 1);
 
   if (args.length === 0) {
-    console.error("Usage: provider-prisma.cjs [--persist-provider-migrations] <prisma args...>");
+    console.error(
+      "Usage: provider-prisma.cjs [--persist-provider-migrations] <prisma args...>",
+    );
     process.exit(1);
   }
 

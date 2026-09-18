@@ -15,12 +15,9 @@ export interface ExportData {
  */
 export const exportDrawingToFile = async (
   drawing: Drawing,
-  filename?: string
+  filename?: string,
 ): Promise<void> => {
-  const files = await rehydrateFilesForExport(
-    drawing.files || {},
-    drawing.id,
-  );
+  const files = await rehydrateFilesForExport(drawing.files || {}, drawing.id);
   const exportData: ExportData = {
     type: "excalidraw",
     version: 2,
@@ -28,8 +25,12 @@ export const exportDrawingToFile = async (
     elements: drawing.elements || [],
     appState: {
       gridSize: drawing.appState?.gridSize ?? null,
-      ...(drawing.appState?.gridStep != null && { gridStep: drawing.appState.gridStep }),
-      ...(drawing.appState?.gridModeEnabled != null && { gridModeEnabled: drawing.appState.gridModeEnabled }),
+      ...(drawing.appState?.gridStep != null && {
+        gridStep: drawing.appState.gridStep,
+      }),
+      ...(drawing.appState?.gridModeEnabled != null && {
+        gridModeEnabled: drawing.appState.gridModeEnabled,
+      }),
       viewBackgroundColor: drawing.appState?.viewBackgroundColor ?? "#ffffff",
     },
     files,
@@ -57,7 +58,7 @@ export const exportFromEditor = async (
   name: string,
   elements: readonly any[],
   appState: any,
-  files: Record<string, any>
+  files: Record<string, any>,
 ): Promise<void> => {
   const embeddedFiles = await rehydrateFilesForExport(files, drawingId);
   const exportData: ExportData = {
@@ -68,7 +69,9 @@ export const exportFromEditor = async (
     appState: {
       gridSize: appState?.gridSize ?? null,
       ...(appState?.gridStep != null && { gridStep: appState.gridStep }),
-      ...(appState?.gridModeEnabled != null && { gridModeEnabled: appState.gridModeEnabled }),
+      ...(appState?.gridModeEnabled != null && {
+        gridModeEnabled: appState.gridModeEnabled,
+      }),
       viewBackgroundColor: appState?.viewBackgroundColor ?? "#ffffff",
     },
     files: embeddedFiles,

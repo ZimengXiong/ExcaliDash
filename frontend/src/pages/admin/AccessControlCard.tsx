@@ -1,11 +1,11 @@
-import React from 'react';
-import { UserPlus } from 'lucide-react';
-import { PlayfulSwitch } from '../../components/PlayfulSwitch';
+import React from "react";
+import { UserPlus } from "lucide-react";
+import { PlayfulSwitch } from "../../components/PlayfulSwitch";
 import {
   SettingsCard,
   SettingsRow,
   SettingsSectionHeader,
-} from '../settings/SettingsRow';
+} from "../settings/SettingsRow";
 
 type AccessControlCardProps = {
   registrationEnabled: boolean | null;
@@ -20,13 +20,13 @@ type AccessControlCardProps = {
 
 const getRegistrationDescription = (
   registrationEnabled: boolean | null,
-  localRegistrationAllowed: boolean
+  localRegistrationAllowed: boolean,
 ) => {
-  if (registrationEnabled === null) return 'Loading…';
-  if (!localRegistrationAllowed) return 'Managed by OIDC-only mode';
+  if (registrationEnabled === null) return "Loading…";
+  if (!localRegistrationAllowed) return "Managed by OIDC-only mode";
   return registrationEnabled
-    ? 'Anyone can create a local account'
-    : 'New local accounts are blocked';
+    ? "Anyone can create a local account"
+    : "New local accounts are blocked";
 };
 
 export const AccessControlCard: React.FC<AccessControlCardProps> = ({
@@ -50,11 +50,16 @@ export const AccessControlCard: React.FC<AccessControlCardProps> = ({
     <SettingsCard>
       <SettingsRow
         title="Local sign-up"
-        description={getRegistrationDescription(registrationEnabled, localRegistrationAllowed)}
+        description={getRegistrationDescription(
+          registrationEnabled,
+          localRegistrationAllowed,
+        )}
       >
         <PlayfulSwitch
           checked={Boolean(registrationEnabled)}
-          disabled={loading || registrationEnabled === null || !localRegistrationAllowed}
+          disabled={
+            loading || registrationEnabled === null || !localRegistrationAllowed
+          }
           onChange={() => void onToggleRegistration()}
           ariaLabel="Toggle local sign-up"
         />
@@ -62,18 +67,18 @@ export const AccessControlCard: React.FC<AccessControlCardProps> = ({
 
       {oidcEnabled ? (
         <SettingsRow
-          title={`${oidcProviderName || 'OIDC'} auto-provisioning`}
+          title={`${oidcProviderName || "OIDC"} auto-provisioning`}
           description={
             oidcJitProvisioningEnabled
-              ? 'OIDC users get an account on first sign-in'
-              : 'Only pre-created users can sign in via OIDC'
+              ? "OIDC users get an account on first sign-in"
+              : "Only pre-created users can sign in via OIDC"
           }
         >
           <PlayfulSwitch
             checked={Boolean(oidcJitProvisioningEnabled)}
             disabled={loading || oidcJitProvisioningEnabled === null}
             onChange={() => void onToggleOidcJitProvisioning()}
-            ariaLabel={`Toggle ${oidcProviderName || 'OIDC'} auto-provisioning`}
+            ariaLabel={`Toggle ${oidcProviderName || "OIDC"} auto-provisioning`}
           />
         </SettingsRow>
       ) : null}

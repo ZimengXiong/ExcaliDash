@@ -51,26 +51,32 @@ export const hashApiKey = (token: string): string =>
     })
     .toString("hex");
 
-export const isApiKeyToken = (token: string): boolean => token.startsWith(API_KEY_PREFIX);
+export const isApiKeyToken = (token: string): boolean =>
+  token.startsWith(API_KEY_PREFIX);
 
 export const extractApiKeyId = (token: string): string | null => {
   if (!isApiKeyToken(token)) return null;
   const withoutPrefix = token.slice(API_KEY_PREFIX.length);
-  const separatorIndex = withoutPrefix[16] === "_" ? 16 : withoutPrefix.indexOf("_");
+  const separatorIndex =
+    withoutPrefix[16] === "_" ? 16 : withoutPrefix.indexOf("_");
   if (separatorIndex <= 0) return null;
   const keyId = withoutPrefix.slice(0, separatorIndex);
   return /^[A-Za-z0-9_-]{8,64}$/.test(keyId) ? keyId : null;
 };
 
-export const apiKeyHashMatches = (token: string, storedHash: string): boolean => {
+export const apiKeyHashMatches = (
+  token: string,
+  storedHash: string,
+): boolean => {
   const computed = Buffer.from(hashApiKey(token), "hex");
   const stored = Buffer.from(storedHash, "hex");
   if (computed.length !== stored.length) return false;
   return crypto.timingSafeEqual(computed, stored);
 };
 
-export const serializeApiKeyScopes = (scopes: readonly string[] = DEFAULT_API_KEY_SCOPES): string =>
-  scopes.join(",");
+export const serializeApiKeyScopes = (
+  scopes: readonly string[] = DEFAULT_API_KEY_SCOPES,
+): string => scopes.join(",");
 
 export const parseApiKeyScopes = (raw: string | null | undefined): string[] =>
   (raw || "")
@@ -84,7 +90,9 @@ export const hasBearerApiKey = (authorizationHeader: unknown): boolean => {
     : authorizationHeader;
   if (typeof header !== "string") return false;
   const [scheme, token] = header.split(" ");
-  return scheme === "Bearer" && typeof token === "string" && isApiKeyToken(token);
+  return (
+    scheme === "Bearer" && typeof token === "string" && isApiKeyToken(token)
+  );
 };
 
 export const isNonBrowserApiKeyBearerRequest = (req: {

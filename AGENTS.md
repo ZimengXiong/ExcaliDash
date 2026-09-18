@@ -65,7 +65,7 @@ services:
     image: zimengxiong/excalidash-frontend:0.4.18-dev
 ```
 
-Switch to a one-off custom dev tag (published by `make dev-release NAME=...`):
+Switch to a one-off custom dev tag (published by `./scripts/publish-docker-dev.sh issue38`):
 
 ```yaml
 services:
@@ -83,11 +83,11 @@ services:
 - API client: `frontend/src/api/index.ts`
 - Realtime/editor behavior: `frontend/src/pages/Editor.tsx`
 - Deployment flow: `docker-compose*.yml`, `backend/Dockerfile`, `frontend/Dockerfile`, entrypoint scripts
-- Build/dev commands: `make build`, `npm test`, `make test-all`, `make test-e2e`
+- Repository commands: `npm run build`, `npm test`, `npm run check`, `npm run test:e2e`
 - Development contributor flow:
-  - `make install` → `make dev`
-  - stop with `make dev-stop`
-  - `make dev-backend` / `make dev-frontend` if you only need one side
+  - `npm run install:all` from the repository root
+  - run `npm run dev` separately in `backend/` and `frontend/`
+  - stop either service with `Ctrl-C`
 
 ## Helper workflow
 
@@ -147,7 +147,7 @@ Understand runtime first, then touch code with local tests if requested.
 - `e2e/`: Playwright tests and compose-based test runner.
 - `docker-compose.yml`: local compose setup for source builds.
 - `docker-compose.prod.yml`: production-style compose using published images.
-- `Makefile`: repo-wide orchestration commands.
+- `package.json`: repository-wide checks, tests, and builds.
 - `README.md`: user-facing installation and operational docs.
 - `VERSION`: version string used in builds.
   - Local OIDC helper: `docker-compose.oidc.yml` + `oidc/keycloak/realm-excalidash.json` (Keycloak container + realm seed; no users/passwords committed)
@@ -163,12 +163,10 @@ Dependencies:
 
 Install:
 
-- `npm i` in each package: `make install` (or `cd backend && npm install`, `cd frontend && npm install`, `cd e2e && npm install`)
+- `npm run install:all` from the repository root (uses each package lockfile)
 
-Start backend + frontend in tmux:
+Start backend + frontend in separate terminals:
 
-- `make dev` (starts `backend` and `frontend` in a split tmux session; requires `tmux`)
-- `make dev-stop` to stop
 - Backend dev env:
   - `cd backend`
   - `cp .env.example .env`
@@ -178,7 +176,7 @@ Start backend + frontend in tmux:
 - Frontend dev env:
   - `cd frontend`
   - `cp .env.example .env`
-  - `npm install`
+  - `npm ci`
   - `npm run dev`
 
 Docker quickstart:
@@ -192,7 +190,7 @@ Docker quickstart:
 
 E2E quickstart:
 
-- `cd e2e && npm install`
+- `cd e2e && npm ci`
 - `npx playwright install chromium`
 - `npm test`
 - If using existing services: `NO_SERVER=true npm test`
@@ -314,11 +312,11 @@ Frontend architecture notes:
 - `frontend/vite.config.ts` sets Vite proxy to backend in local dev and compile-time app metadata.
 - Production serving and backend proxy are handled by `frontend/Dockerfile`, `frontend/nginx.conf.template`, `frontend/docker-entrypoint.sh`.
 
-## Makefile command map
+## Command map
 
-- Install: `make install`, `make dev`, `make dev-backend`, `make dev-frontend`
-- Build/test/lint: `make build`, `make lint`, `make test`, `make test-all`, `make test-e2e`, `make test-e2e-docker`
-- Docker: `make docker-build`, `make docker-run`, `make docker-run-detached`, `make docker-ps`, `make docker-logs`, `make docker-down`
+- Install: `npm run install:all`
+- Build/test/lint: `npm run build`, `npm test`, `npm run check`, `npm run test:e2e`
+- Docker: `docker compose build`, `docker compose up -d`, `docker compose ps`, `docker compose logs -f`, `docker compose down`
 - Admin/ops helpers: backend scripts under `backend/package.json` (`admin:recover`, `dev:simulate-auth-onboarding:*`) and `backend/scripts/*`
 
 ## Decision matrix for agent response style
@@ -335,6 +333,6 @@ Frontend architecture notes:
 - Confirm env file presence and variables
 - Check compose/backend logs before code changes
 - Reproduce with minimal path:
-  - `make dev`
+  - run `npm run dev` in both `backend/` and `frontend/`
   - open frontend `http://localhost:6767`
 - For startup crashes: inspect missing environment validation errors from `backend/src/config.ts` and entrypoint migration/secrets log lines.

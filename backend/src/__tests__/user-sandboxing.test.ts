@@ -9,10 +9,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import bcrypt from "bcrypt";
-import {
-  getTestPrisma,
-  setupTestDb,
-} from "./testUtils";
+import { getTestPrisma, setupTestDb } from "./testUtils";
 import { PrismaClient } from "../generated/client";
 
 let prisma: PrismaClient;

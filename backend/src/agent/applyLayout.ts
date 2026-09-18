@@ -62,7 +62,10 @@ export const validateLayoutOp = (
   const keys = new Set<string>();
   for (const node of op.nodes) {
     if (keys.has(node.key)) {
-      return { code: "INVALID_OP", message: `Duplicate node key "${node.key}"` };
+      return {
+        code: "INVALID_OP",
+        message: `Duplicate node key "${node.key}"`,
+      };
     }
     keys.add(node.key);
     if (node.style) {
@@ -72,7 +75,11 @@ export const validateLayoutOp = (
   }
 
   for (const edge of op.edges ?? []) {
-    const missing = !keys.has(edge.from) ? edge.from : !keys.has(edge.to) ? edge.to : null;
+    const missing = !keys.has(edge.from)
+      ? edge.from
+      : !keys.has(edge.to)
+        ? edge.to
+        : null;
     if (missing) {
       return {
         code: "INVALID_OP",
@@ -204,7 +211,10 @@ export const applyLayout = (
         // move and delete would leave it stranded next to an arrow that is no
         // longer there. Record it on the arrow instead: those two ops follow
         // this, and it costs nothing in the editor.
-        arrow.customData = { ...(arrow.customData ?? {}), layoutLabelId: label.id };
+        arrow.customData = {
+          ...(arrow.customData ?? {}),
+          layoutLabelId: label.id,
+        };
         scene.markChanged(arrow);
       }
       scene.add(label);

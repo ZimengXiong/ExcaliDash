@@ -41,8 +41,7 @@ export const registerDrawingAgentRoutes = (
   const opsRateLimiter = rateLimit({
     windowMs: agentOps.rateLimitWindowMs,
     max: agentOps.rateLimitMaxRequests,
-    keyGenerator: (req) =>
-      req.user?.id ?? ipKeyGenerator(req.ip ?? "0.0.0.0"),
+    keyGenerator: (req) => req.user?.id ?? ipKeyGenerator(req.ip ?? "0.0.0.0"),
     message: {
       error: "Rate limit exceeded",
       message: "Too many agent op batches, please slow down",
@@ -59,7 +58,8 @@ export const registerDrawingAgentRoutes = (
     opsRateLimiter,
     asyncHandler(async (req, res) => {
       const { id } = req.params;
-      if (!req.principal) return res.status(401).json({ error: "Unauthorized" });
+      if (!req.principal)
+        return res.status(401).json({ error: "Unauthorized" });
 
       const access = await getDrawingAccess({
         prisma,
@@ -67,9 +67,9 @@ export const registerDrawingAgentRoutes = (
         drawingId: id,
       });
       if (!canEditDrawing(access)) {
-        return res
-          .status(canViewDrawing(access) ? 403 : 404)
-          .json({ error: canViewDrawing(access) ? "Forbidden" : "Drawing not found" });
+        return res.status(canViewDrawing(access) ? 403 : 404).json({
+          error: canViewDrawing(access) ? "Forbidden" : "Drawing not found",
+        });
       }
 
       const parsed = opsBatchSchema.safeParse(req.body);
@@ -208,7 +208,8 @@ export const registerDrawingAgentRoutes = (
     requireAuth,
     asyncHandler(async (req, res) => {
       const { id } = req.params;
-      if (!req.principal) return res.status(401).json({ error: "Unauthorized" });
+      if (!req.principal)
+        return res.status(401).json({ error: "Unauthorized" });
 
       const access = await getDrawingAccess({
         prisma,
@@ -236,7 +237,8 @@ export const registerDrawingAgentRoutes = (
     requireAuth,
     asyncHandler(async (req, res) => {
       const { id, elementId } = req.params;
-      if (!req.principal) return res.status(401).json({ error: "Unauthorized" });
+      if (!req.principal)
+        return res.status(401).json({ error: "Unauthorized" });
 
       const access = await getDrawingAccess({
         prisma,
@@ -250,7 +252,9 @@ export const registerDrawingAgentRoutes = (
       const drawing = await prisma.drawing.findUnique({ where: { id } });
       if (!drawing) return res.status(404).json({ error: "Drawing not found" });
       const elements = parseJsonField<any[]>(drawing.elements, []);
-      const element = elements.find((el) => el?.id === elementId && !el?.isDeleted);
+      const element = elements.find(
+        (el) => el?.id === elementId && !el?.isDeleted,
+      );
       if (!element) {
         return res.status(404).json({ error: "Element not found" });
       }

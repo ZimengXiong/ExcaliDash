@@ -17,7 +17,7 @@ type BuildDrawingsCacheKey = (keyParts: {
 
 type EnsureTrashCollection = (
   db: Prisma.TransactionClient | PrismaClient,
-  userId: string
+  userId: string,
 ) => Promise<void>;
 
 type LogAuditEvent = (params: {
@@ -34,20 +34,31 @@ export type DashboardRouteDeps = {
   requireAuth: express.RequestHandler;
   optionalAuth: express.RequestHandler;
   asyncHandler: <T = void>(
-    fn: (req: express.Request, res: express.Response, next: express.NextFunction) => Promise<T>
+    fn: (
+      req: express.Request,
+      res: express.Response,
+      next: express.NextFunction,
+    ) => Promise<T>,
   ) => express.RequestHandler;
   parseJsonField: <T>(rawValue: string | null | undefined, fallback: T) => T;
   sanitizeText: (input: unknown, maxLength?: number) => string;
   validateImportedDrawing: (data: unknown) => boolean;
   drawingCreateSchema: z.ZodTypeAny;
   drawingUpdateSchema: z.ZodTypeAny;
-  respondWithValidationErrors: (res: express.Response, issues: z.ZodIssue[]) => void;
+  respondWithValidationErrors: (
+    res: express.Response,
+    issues: z.ZodIssue[],
+  ) => void;
   collectionNameSchema: z.ZodTypeAny;
   ensureTrashCollection: EnsureTrashCollection;
   invalidateDrawingsCache: (userId?: string) => void;
   buildDrawingsCacheKey: BuildDrawingsCacheKey;
   getCachedDrawingsBody: (key: string) => Buffer | null;
-  cacheDrawingsResponse: (key: string, payload: unknown, userId?: string) => Buffer;
+  cacheDrawingsResponse: (
+    key: string,
+    payload: unknown,
+    userId?: string,
+  ) => Buffer;
   MAX_PAGE_SIZE: number;
   config: {
     nodeEnv: string;

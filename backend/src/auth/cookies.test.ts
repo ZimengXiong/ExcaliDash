@@ -35,16 +35,20 @@ describe("auth cookies", () => {
     expect(res.cookie).toHaveBeenCalledTimes(2);
 
     const accessCall = (res.cookie as any).mock.calls.find(
-      (call: unknown[]) => call[0] === ACCESS_TOKEN_COOKIE_NAME
+      (call: unknown[]) => call[0] === ACCESS_TOKEN_COOKIE_NAME,
     );
     const refreshCall = (res.cookie as any).mock.calls.find(
-      (call: unknown[]) => call[0] === REFRESH_TOKEN_COOKIE_NAME
+      (call: unknown[]) => call[0] === REFRESH_TOKEN_COOKIE_NAME,
     );
 
     expect(accessCall).toBeTruthy();
     expect(refreshCall).toBeTruthy();
-    expect(accessCall[2].maxAge).toBe(ms(config.jwtAccessExpiresIn as StringValue));
-    expect(refreshCall[2].maxAge).toBe(ms(config.jwtRefreshExpiresIn as StringValue));
+    expect(accessCall[2].maxAge).toBe(
+      ms(config.jwtAccessExpiresIn as StringValue),
+    );
+    expect(refreshCall[2].maxAge).toBe(
+      ms(config.jwtRefreshExpiresIn as StringValue),
+    );
     expect(accessCall[2].maxAge).not.toBe(refreshCall[2].maxAge);
   });
 });

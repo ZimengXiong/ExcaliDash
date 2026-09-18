@@ -18,12 +18,16 @@ const TOOLS: AgentTool[] = [
 
 describe("normalizeCodexModel", () => {
   it("passes through known Codex slugs", () => {
-    expect(normalizeCodexModel("gpt-5.1-codex", "gpt-5.1")).toBe("gpt-5.1-codex");
+    expect(normalizeCodexModel("gpt-5.1-codex", "gpt-5.1")).toBe(
+      "gpt-5.1-codex",
+    );
     expect(normalizeCodexModel("gpt-5.2", "gpt-5.1")).toBe("gpt-5.2");
   });
 
   it("strips a provider prefix", () => {
-    expect(normalizeCodexModel("openai/gpt-5.2-codex", "gpt-5.1")).toBe("gpt-5.2-codex");
+    expect(normalizeCodexModel("openai/gpt-5.2-codex", "gpt-5.1")).toBe(
+      "gpt-5.2-codex",
+    );
   });
 
   it("maps unknown / API-only names to the fallback", () => {
@@ -34,7 +38,9 @@ describe("normalizeCodexModel", () => {
 
   it("pattern-matches codex/gpt-5 families", () => {
     expect(normalizeCodexModel("gpt-5-codex", "gpt-5.1")).toBe("gpt-5.1-codex");
-    expect(normalizeCodexModel("my-codex-max-model", "gpt-5.1")).toBe("gpt-5.1-codex-max");
+    expect(normalizeCodexModel("my-codex-max-model", "gpt-5.1")).toBe(
+      "gpt-5.1-codex-max",
+    );
   });
 });
 
@@ -109,7 +115,10 @@ describe("CodexStreamAccumulator", () => {
       type: "response.completed",
       response: {
         output: [
-          { type: "message", content: [{ type: "output_text", text: "Hello" }] },
+          {
+            type: "message",
+            content: [{ type: "output_text", text: "Hello" }],
+          },
           {
             type: "function_call",
             name: "apply_ops",
@@ -132,11 +141,18 @@ describe("CodexStreamAccumulator", () => {
     acc.push({ type: "response.output_text.delta", delta: "partial" });
     acc.push({
       type: "response.output_item.done",
-      item: { type: "function_call", name: "apply_ops", arguments: "{}", call_id: "c1" },
+      item: {
+        type: "function_call",
+        name: "apply_ops",
+        arguments: "{}",
+        call_id: "c1",
+      },
     });
     const result = acc.result();
     expect(result.text).toBe("partial");
-    expect(result.toolCalls).toEqual([{ id: "c1", name: "apply_ops", input: {} }]);
+    expect(result.toolCalls).toEqual([
+      { id: "c1", name: "apply_ops", input: {} },
+    ]);
   });
 
   it("surfaces a failure event as an error", () => {

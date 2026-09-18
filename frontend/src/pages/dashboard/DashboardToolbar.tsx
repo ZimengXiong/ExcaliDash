@@ -214,7 +214,10 @@ export const DashboardToolbar: React.FC<DashboardToolbarProps> = ({
                   <div className="px-2.5 py-1.5 text-xs font-semibold text-slate-400 dark:text-neutral-500">
                     Move {selectedCount} items to...
                   </div>
-                  <button onClick={() => onBulkMove(null)} className="ui-menu-item">
+                  <button
+                    onClick={() => onBulkMove(null)}
+                    className="ui-menu-item"
+                  >
                     <Inbox size={14} /> Unorganized
                   </button>
                   {collections
@@ -270,7 +273,10 @@ export const DashboardToolbar: React.FC<DashboardToolbarProps> = ({
           disabled={isTrashView || isSharedView}
           onCreate={onCreateDrawing}
           canCreate={() => {
-            if (isSharedCollection && currentCollection?.sharedRole !== "edit") {
+            if (
+              isSharedCollection &&
+              currentCollection?.sharedRole !== "edit"
+            ) {
               onViewerActionError("Viewers can't create new drawings");
               return false;
             }

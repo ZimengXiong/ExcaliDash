@@ -150,12 +150,7 @@ export const useDrawingPreview = (
     return () => {
       cancelled = true;
     };
-  }, [
-    drawing.id,
-    drawing.preview,
-    ensureFullData,
-    loadPreview,
-  ]);
+  }, [drawing.id, drawing.preview, ensureFullData, loadPreview]);
 
   const buildExportDrawing = useCallback(async (): Promise<Drawing> => {
     const data = await ensureFullData();

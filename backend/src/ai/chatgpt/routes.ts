@@ -30,7 +30,11 @@ export type RegisterChatGptRoutesDeps = {
   prisma: PrismaClient;
   requireAuth: express.RequestHandler;
   asyncHandler: (
-    fn: (req: express.Request, res: express.Response, next: express.NextFunction) => unknown,
+    fn: (
+      req: express.Request,
+      res: express.Response,
+      next: express.NextFunction,
+    ) => unknown,
   ) => express.RequestHandler;
   logAuditEvent: (event: AuditLogData) => Promise<void>;
   loadAiSettings: () => Promise<ResolvedAiSettings>;
@@ -45,14 +49,25 @@ const requireSessionUser = (
     return null;
   }
   if (req.user.authCredentialType === "apiKey") {
-    res.status(403).json({ error: "Forbidden", message: "Session auth required" });
+    res
+      .status(403)
+      .json({ error: "Forbidden", message: "Session auth required" });
     return null;
   }
   return { id: req.user.id };
 };
 
-export const registerChatGptRoutes = (deps: RegisterChatGptRoutesDeps): void => {
-  const { app, prisma, requireAuth, asyncHandler, logAuditEvent, loadAiSettings } = deps;
+export const registerChatGptRoutes = (
+  deps: RegisterChatGptRoutesDeps,
+): void => {
+  const {
+    app,
+    prisma,
+    requireAuth,
+    asyncHandler,
+    logAuditEvent,
+    loadAiSettings,
+  } = deps;
 
   // GET /ai/chatgpt/status — per-user connection state + provider availability.
   app.get(
@@ -118,11 +133,13 @@ export const registerChatGptRoutes = (deps: RegisterChatGptRoutesDeps): void => 
       const parsedInput = parseAuthorizationInput(rawInput);
       const code = parsedInput.code;
       const state =
-        parsedInput.state ?? (typeof body.state === "string" ? body.state : undefined);
+        parsedInput.state ??
+        (typeof body.state === "string" ? body.state : undefined);
       if (!code || !state) {
         return res.status(400).json({
           error: "Bad request",
-          message: "A code and state are required (paste the full redirect URL)",
+          message:
+            "A code and state are required (paste the full redirect URL)",
         });
       }
 
@@ -130,7 +147,8 @@ export const registerChatGptRoutes = (deps: RegisterChatGptRoutesDeps): void => 
       if (!pending || pending.userId !== user.id) {
         return res.status(400).json({
           error: "Bad request",
-          message: "Authorization state is invalid or expired; start the connection again",
+          message:
+            "Authorization state is invalid or expired; start the connection again",
         });
       }
 

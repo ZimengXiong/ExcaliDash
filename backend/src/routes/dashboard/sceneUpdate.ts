@@ -89,12 +89,17 @@ export const applySceneUpdateTx = async (
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
       return await prisma.$transaction(async (tx) => {
-        const current = await tx.drawing.findUnique({ where: { id: drawingId } });
+        const current = await tx.drawing.findUnique({
+          where: { id: drawingId },
+        });
         if (!current) {
           throw versionConflictError;
         }
 
-        if (typeof versionGuard === "number" && current.version !== versionGuard) {
+        if (
+          typeof versionGuard === "number" &&
+          current.version !== versionGuard
+        ) {
           throw versionConflictError;
         }
 
@@ -141,12 +146,17 @@ export const applySceneUpdateTx = async (
           where.version = current.version;
         }
 
-        const updateResult = await tx.drawing.updateMany({ where, data: writeData });
+        const updateResult = await tx.drawing.updateMany({
+          where,
+          data: writeData,
+        });
         if (updateResult.count === 0) {
           throw versionConflictError;
         }
 
-        const updated = await tx.drawing.findFirst({ where: { id: drawingId } });
+        const updated = await tx.drawing.findFirst({
+          where: { id: drawingId },
+        });
         if (!updated) {
           throw versionConflictError;
         }

@@ -16,14 +16,14 @@ describe("provider Prisma helpers", () => {
       providerPrisma.inferProvider({
         DATABASE_PROVIDER: "sqlite",
         DATABASE_URL: "postgresql://user:pass@localhost:5432/excalidash",
-      })
+      }),
     ).toBe("sqlite");
 
     expect(
       providerPrisma.inferProvider({
         DATABASE_PROVIDER: "postgresql",
         DATABASE_URL: "file:./dev.db",
-      })
+      }),
     ).toBe("postgresql");
   });
 
@@ -31,14 +31,16 @@ describe("provider Prisma helpers", () => {
     expect(
       providerPrisma.inferProvider({
         DATABASE_URL: "postgresql://user:pass@localhost:5432/excalidash",
-      })
+      }),
     ).toBe("postgresql");
     expect(
       providerPrisma.inferProvider({
         DATABASE_URL: "postgres://user:pass@localhost:5432/excalidash",
-      })
+      }),
     ).toBe("postgresql");
-    expect(providerPrisma.inferProvider({ DATABASE_URL: "file:./dev.db" })).toBe("sqlite");
+    expect(
+      providerPrisma.inferProvider({ DATABASE_URL: "file:./dev.db" }),
+    ).toBe("sqlite");
     expect(providerPrisma.inferProvider({})).toBe("sqlite");
   });
 
@@ -47,7 +49,7 @@ describe("provider Prisma helpers", () => {
       providerPrisma.inferProvider({
         DATABASE_PROVIDER: "mysql",
         DATABASE_URL: "mysql://localhost/excalidash",
-      })
+      }),
     ).toThrow(/DATABASE_PROVIDER must be 'sqlite' or 'postgresql'/);
   });
 
@@ -55,10 +57,10 @@ describe("provider Prisma helpers", () => {
     const backendRoot = path.resolve(__dirname, "../..");
 
     expect(providerPrisma.normalizeDatabaseUrl("file:./dev.db")).toBe(
-      `file:${path.join(backendRoot, "prisma/dev.db")}`
+      `file:${path.join(backendRoot, "prisma/dev.db")}`,
     );
     expect(providerPrisma.normalizeDatabaseUrl("file:./prisma/dev.db")).toBe(
-      `file:${path.join(backendRoot, "prisma/dev.db")}`
+      `file:${path.join(backendRoot, "prisma/dev.db")}`,
     );
   });
 
@@ -74,9 +76,14 @@ datasource db {
 }
 `;
 
-    const rewritten = providerPrisma.rewriteSchemaProvider(schema, "postgresql");
+    const rewritten = providerPrisma.rewriteSchemaProvider(
+      schema,
+      "postgresql",
+    );
 
-    expect(rewritten).toContain('generator client {\n  provider = "prisma-client-js"');
+    expect(rewritten).toContain(
+      'generator client {\n  provider = "prisma-client-js"',
+    );
     expect(rewritten).toContain('datasource db {\n  provider = "postgresql"');
     expect(rewritten).not.toContain('provider = env("DATABASE_PROVIDER")');
   });
@@ -84,21 +91,29 @@ datasource db {
 
 describe("current Prisma migration discovery", () => {
   it("returns the latest concrete sqlite migration when provider folders are present", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "excalidash-migrations-"));
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), "excalidash-migrations-"),
+    );
     try {
       const migrationsRoot = path.join(root, "prisma/migrations");
       fs.mkdirSync(path.join(migrationsRoot, "sqlite/20240101000000_initial"), {
         recursive: true,
       });
-      fs.mkdirSync(path.join(migrationsRoot, "sqlite/20240201000000_add_drawings"), {
-        recursive: true,
-      });
-      fs.mkdirSync(path.join(migrationsRoot, "postgresql/20240301000000_pg_only"), {
-        recursive: true,
-      });
+      fs.mkdirSync(
+        path.join(migrationsRoot, "sqlite/20240201000000_add_drawings"),
+        {
+          recursive: true,
+        },
+      );
+      fs.mkdirSync(
+        path.join(migrationsRoot, "postgresql/20240301000000_pg_only"),
+        {
+          recursive: true,
+        },
+      );
 
       await expect(getCurrentLatestPrismaMigrationName(root)).resolves.toBe(
-        "20240201000000_add_drawings"
+        "20240201000000_add_drawings",
       );
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
@@ -106,17 +121,21 @@ describe("current Prisma migration discovery", () => {
   });
 
   it("ignores provider directory names when falling back to flat migrations", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "excalidash-flat-migrations-"));
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), "excalidash-flat-migrations-"),
+    );
     try {
       const migrationsRoot = path.join(root, "prisma/migrations");
-      fs.mkdirSync(path.join(migrationsRoot, "postgresql"), { recursive: true });
+      fs.mkdirSync(path.join(migrationsRoot, "postgresql"), {
+        recursive: true,
+      });
       fs.mkdirSync(path.join(migrationsRoot, "sqlite"), { recursive: true });
       fs.mkdirSync(path.join(migrationsRoot, "20240401000000_flat_migration"), {
         recursive: true,
       });
 
       await expect(getCurrentLatestPrismaMigrationName(root)).resolves.toBe(
-        "20240401000000_flat_migration"
+        "20240401000000_flat_migration",
       );
     } finally {
       fs.rmSync(root, { recursive: true, force: true });

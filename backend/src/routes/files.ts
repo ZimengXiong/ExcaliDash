@@ -33,13 +33,17 @@ export type FileRouteDeps = {
   requireAuth: express.RequestHandler;
   optionalAuth: express.RequestHandler;
   asyncHandler: <T = void>(
-    fn: (req: express.Request, res: express.Response, next: express.NextFunction) => Promise<T>
+    fn: (
+      req: express.Request,
+      res: express.Response,
+      next: express.NextFunction,
+    ) => Promise<T>,
   ) => express.RequestHandler;
 };
 
 export const registerFileRoutes = (
   app: express.Express,
-  deps: FileRouteDeps
+  deps: FileRouteDeps,
 ): void => {
   const { prisma, requireAuth, optionalAuth, asyncHandler } = deps;
 
@@ -86,7 +90,7 @@ export const registerFileRoutes = (
     requireAuth,
     asyncHandler(async (_req, res) => {
       return res.json({ s3Enabled: isS3Enabled() });
-    })
+    }),
   );
 
   // ------------------------------------------------------------------
@@ -205,7 +209,7 @@ export const registerFileRoutes = (
         },
       });
       return res.status(200).json({ url: responseUrl, fileId });
-    })
+    }),
   );
 
   // ------------------------------------------------------------------
@@ -280,10 +284,10 @@ export const registerFileRoutes = (
           contentDisposition: isScriptableType
             ? "attachment"
             : `inline; filename="${fileId}"`,
-        }
+        },
       );
 
       return res.redirect(302, downloadUrl);
-    })
+    }),
   );
 };

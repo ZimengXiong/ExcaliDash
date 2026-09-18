@@ -62,7 +62,10 @@ describe("useDashboardDrawingActions - hide shared", () => {
   };
 
   it("optimistically removes the drawing and calls the API with hidden=true", async () => {
-    setSharedDrawingHiddenMock.mockResolvedValue({ success: true, hidden: true });
+    setSharedDrawingHiddenMock.mockResolvedValue({
+      success: true,
+      hidden: true,
+    });
     const { result, getDrawings, getTotal } = setup([
       makeDrawing("a"),
       makeDrawing("b"),

@@ -1,22 +1,25 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { Logo } from '../components/Logo';
-import * as api from '../api';
-import { USER_KEY } from '../utils/impersonation';
-import { getPasswordPolicy, validatePassword } from '../utils/passwordPolicy';
-import { PasswordRequirements } from '../components/PasswordRequirements';
-import { PasswordInput } from '../components/PasswordInput';
-import { PasswordMatch } from '../components/PasswordMatch';
-import { AuthStatusErrorPanel } from '../components/AuthStatusErrorPanel';
-import { clearOidcAutoLoginSuppression, isOidcAutoLoginSuppressed } from '../utils/oidcLogout';
+import React, { useEffect, useState } from "react";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { Logo } from "../components/Logo";
+import * as api from "../api";
+import { USER_KEY } from "../utils/impersonation";
+import { getPasswordPolicy, validatePassword } from "../utils/passwordPolicy";
+import { PasswordRequirements } from "../components/PasswordRequirements";
+import { PasswordInput } from "../components/PasswordInput";
+import { PasswordMatch } from "../components/PasswordMatch";
+import { AuthStatusErrorPanel } from "../components/AuthStatusErrorPanel";
+import {
+  clearOidcAutoLoginSuppression,
+  isOidcAutoLoginSuppressed,
+} from "../utils/oidcLogout";
 
 export const Login: React.FC = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmNewPassword, setConfirmNewPassword] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const {
     login,
@@ -36,31 +39,31 @@ export const Login: React.FC = () => {
   } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const queryMustReset = searchParams.get('mustReset') === '1';
-  const oidcErrorCode = searchParams.get('oidcError');
-  const oidcErrorMessage = searchParams.get('oidcErrorMessage');
-  const oidcReturnTo = searchParams.get('returnTo') || '/';
+  const queryMustReset = searchParams.get("mustReset") === "1";
+  const oidcErrorCode = searchParams.get("oidcError");
+  const oidcErrorMessage = searchParams.get("oidcErrorMessage");
+  const oidcReturnTo = searchParams.get("returnTo") || "/";
   const mustReset = Boolean(user?.mustResetPassword) || queryMustReset;
   const passwordPolicy = getPasswordPolicy();
 
   useEffect(() => {
     if (!oidcErrorCode) return;
-    setError(oidcErrorMessage || 'OIDC sign-in failed');
+    setError(oidcErrorMessage || "OIDC sign-in failed");
   }, [oidcErrorCode, oidcErrorMessage]);
 
   useEffect(() => {
     if (authStatusError) return;
     if (authLoading || authEnabled === null) return;
     if (authOnboardingRequired) {
-      navigate('/auth-setup', { replace: true });
+      navigate("/auth-setup", { replace: true });
       return;
     }
     if (!authEnabled) {
-      navigate('/', { replace: true });
+      navigate("/", { replace: true });
       return;
     }
     if (bootstrapRequired) {
-      navigate('/register', { replace: true });
+      navigate("/register", { replace: true });
       return;
     }
     if (oidcEnforced && !mustReset) {
@@ -71,7 +74,7 @@ export const Login: React.FC = () => {
     }
     if (isAuthenticated) {
       if (mustReset) return;
-      navigate('/', { replace: true });
+      navigate("/", { replace: true });
     }
   }, [
     authEnabled,
@@ -88,25 +91,33 @@ export const Login: React.FC = () => {
   ]);
 
   if (authStatusError) {
-    return <AuthStatusErrorPanel message={authStatusError} onRetry={retryAuthStatus} fullScreen />;
+    return (
+      <AuthStatusErrorPanel
+        message={authStatusError}
+        onRetry={retryAuthStatus}
+        fullScreen
+      />
+    );
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setLoading(true);
 
     try {
       await login(email, password);
       const stored = localStorage.getItem(USER_KEY);
-      const storedUser = stored ? (JSON.parse(stored) as { mustResetPassword?: boolean } | null) : null;
+      const storedUser = stored
+        ? (JSON.parse(stored) as { mustResetPassword?: boolean } | null)
+        : null;
       if (storedUser?.mustResetPassword) {
-        setPassword('');
+        setPassword("");
         return;
       }
-      navigate('/');
+      navigate("/");
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to login';
+      const message = err instanceof Error ? err.message : "Failed to login";
       setError(message);
     } finally {
       setLoading(false);
@@ -115,10 +126,10 @@ export const Login: React.FC = () => {
 
   const handleMustReset = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
     if (!newPassword || !confirmNewPassword) {
-      setError('Please enter and confirm a new password');
+      setError("Please enter and confirm a new password");
       return;
     }
     const passwordError = validatePassword(newPassword, passwordPolicy);
@@ -127,23 +138,30 @@ export const Login: React.FC = () => {
       return;
     }
     if (newPassword !== confirmNewPassword) {
-      setError('New passwords do not match');
+      setError("New passwords do not match");
       return;
     }
 
     setLoading(true);
     try {
       const response = await api.api.post<{
-        user: { id: string; email: string; name: string; role?: string; mustResetPassword?: boolean };
-      }>('/auth/must-reset-password', { newPassword });
+        user: {
+          id: string;
+          email: string;
+          name: string;
+          role?: string;
+          mustResetPassword?: boolean;
+        };
+      }>("/auth/must-reset-password", { newPassword });
 
       localStorage.setItem(USER_KEY, JSON.stringify(response.data.user));
 
-      window.location.href = '/';
+      window.location.href = "/";
     } catch (err: unknown) {
-      let message = 'Failed to reset password';
+      let message = "Failed to reset password";
       if (api.isAxiosError(err)) {
-        message = err.response?.data?.message || err.response?.data?.error || message;
+        message =
+          err.response?.data?.message || err.response?.data?.error || message;
       }
       setError(message);
     } finally {
@@ -158,18 +176,15 @@ export const Login: React.FC = () => {
           <Logo className="mx-auto h-12 w-auto" />
           <h2 className="auth-heading">
             {mustReset
-              ? 'Reset your password'
+              ? "Reset your password"
               : oidcEnforced
-                ? `Sign in with ${oidcProvider || 'OIDC'}`
-                : 'Sign in to your account'}
+                ? `Sign in with ${oidcProvider || "OIDC"}`
+                : "Sign in to your account"}
           </h2>
           {!mustReset && !oidcEnforced && registrationEnabled ? (
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              Or{' '}
-              <Link
-                to="/register"
-                className="ui-link"
-              >
+              Or{" "}
+              <Link to="/register" className="ui-link">
                 create a new account
               </Link>
             </p>
@@ -179,7 +194,10 @@ export const Login: React.FC = () => {
             </p>
           ) : null}
         </div>
-        <form className="auth-panel" onSubmit={mustReset ? handleMustReset : handleSubmit}>
+        <form
+          className="auth-panel"
+          onSubmit={mustReset ? handleMustReset : handleSubmit}
+        >
           {error && (
             <div className="ui-alert-error">
               <div>{error}</div>
@@ -195,88 +213,88 @@ export const Login: React.FC = () => {
                 }}
                 className="ui-button-primary w-full"
               >
-                Continue with {oidcProvider || 'OIDC'}
+                Continue with {oidcProvider || "OIDC"}
               </button>
             </div>
           ) : (
             <>
               <div className="space-y-3">
                 {!mustReset ? (
-                <>
-                  <div>
-                    <label htmlFor="email" className="sr-only">
-                      Email address
-                    </label>
-                    <input
-                      id="email"
-                      name="email"
-                      type="email"
-                      autoComplete="email"
-                      required
-                      className="ui-input block w-full"
-                      placeholder="Email address"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="password" className="sr-only">
-                      Password
-                    </label>
-                    <PasswordInput
-                      id="password"
-                      name="password"
-                      autoComplete="current-password"
-                      required
-                      className="ui-input block w-full"
-                      placeholder="Password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
-                  </div>
-                </>
+                  <>
+                    <div>
+                      <label htmlFor="email" className="sr-only">
+                        Email address
+                      </label>
+                      <input
+                        id="email"
+                        name="email"
+                        type="email"
+                        autoComplete="email"
+                        required
+                        className="ui-input block w-full"
+                        placeholder="Email address"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="password" className="sr-only">
+                        Password
+                      </label>
+                      <PasswordInput
+                        id="password"
+                        name="password"
+                        autoComplete="current-password"
+                        required
+                        className="ui-input block w-full"
+                        placeholder="Password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                      />
+                    </div>
+                  </>
                 ) : (
-                <>
-                  <div>
-                    <label htmlFor="newPassword" className="sr-only">
-                      New password
-                    </label>
-                    <PasswordInput
-                      id="newPassword"
-                      name="newPassword"
-                      autoComplete="new-password"
-                      required
-                      minLength={passwordPolicy.minLength}
-                      maxLength={passwordPolicy.maxLength}
-                      pattern={passwordPolicy.patternHtml}
-                      className="ui-input block w-full"
-                      placeholder="New password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="confirmNewPassword" className="sr-only">
-                      Confirm new password
-                    </label>
-                    <PasswordInput
-                      id="confirmNewPassword"
-                      name="confirmNewPassword"
-                      autoComplete="new-password"
-                      required
-                      minLength={passwordPolicy.minLength}
-                      maxLength={passwordPolicy.maxLength}
-                      className="ui-input block w-full"
-                      placeholder="Confirm new password"
-                      value={confirmNewPassword}
-                      onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    />
-                    <PasswordMatch
-                      password={newPassword}
-                      confirmPassword={confirmNewPassword}
-                    />
-                  </div>
-                </>
+                  <>
+                    <div>
+                      <label htmlFor="newPassword" className="sr-only">
+                        New password
+                      </label>
+                      <PasswordInput
+                        id="newPassword"
+                        name="newPassword"
+                        autoComplete="new-password"
+                        required
+                        minLength={passwordPolicy.minLength}
+                        maxLength={passwordPolicy.maxLength}
+                        pattern={passwordPolicy.patternHtml}
+                        className="ui-input block w-full"
+                        placeholder="New password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="confirmNewPassword" className="sr-only">
+                        Confirm new password
+                      </label>
+                      <PasswordInput
+                        id="confirmNewPassword"
+                        name="confirmNewPassword"
+                        autoComplete="new-password"
+                        required
+                        minLength={passwordPolicy.minLength}
+                        maxLength={passwordPolicy.maxLength}
+                        className="ui-input block w-full"
+                        placeholder="Confirm new password"
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      />
+                      <PasswordMatch
+                        password={newPassword}
+                        confirmPassword={confirmNewPassword}
+                      />
+                    </div>
+                  </>
                 )}
               </div>
               {mustReset && (
@@ -291,10 +309,7 @@ export const Login: React.FC = () => {
 
           {!mustReset && !oidcEnforced && (
             <div className="flex justify-end">
-              <Link
-                to="/reset-password"
-                className="ui-link text-sm"
-              >
+              <Link to="/reset-password" className="ui-link text-sm">
                 Forgot your password?
               </Link>
             </div>
@@ -308,8 +323,12 @@ export const Login: React.FC = () => {
                 className="ui-button-primary w-full"
               >
                 {mustReset
-                  ? (loading ? 'Updating...' : 'Set new password')
-                  : (loading ? 'Signing in...' : 'Sign in')}
+                  ? loading
+                    ? "Updating..."
+                    : "Set new password"
+                  : loading
+                    ? "Signing in..."
+                    : "Sign in"}
               </button>
             </div>
           )}
@@ -320,11 +339,11 @@ export const Login: React.FC = () => {
                 type="button"
                 onClick={() => {
                   clearOidcAutoLoginSuppression();
-                  api.startOidcSignIn('/');
+                  api.startOidcSignIn("/");
                 }}
                 className="ui-button-secondary w-full"
               >
-                Continue with {oidcProvider || 'OIDC'}
+                Continue with {oidcProvider || "OIDC"}
               </button>
             </div>
           )}
@@ -334,8 +353,8 @@ export const Login: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  setNewPassword('');
-                  setConfirmNewPassword('');
+                  setNewPassword("");
+                  setConfirmNewPassword("");
                   logout();
                 }}
                 className="ui-link text-sm"

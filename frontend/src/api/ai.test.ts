@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  streamAgentChat,
-  revertOpsBatch,
-  type AgentChatHandlers,
-} from "./ai";
+import { streamAgentChat, revertOpsBatch, type AgentChatHandlers } from "./ai";
 import { api } from "./client";
 
 vi.mock("./client", () => ({
@@ -13,7 +9,9 @@ vi.mock("./client", () => ({
 
 vi.mock("./auth", () => ({
   ensureCsrfToken: vi.fn().mockResolvedValue(undefined),
-  getCsrfHeader: vi.fn().mockReturnValue({ name: "x-csrf-token", token: "tok" }),
+  getCsrfHeader: vi
+    .fn()
+    .mockReturnValue({ name: "x-csrf-token", token: "tok" }),
 }));
 
 const sseBody = (frames: string[]): ReadableStream<Uint8Array> => {
@@ -44,9 +42,15 @@ const collectHandlers = () => {
       done = true;
     },
   };
-  return { handlers, tokens, ops, errors, get done() {
-    return done;
-  } };
+  return {
+    handlers,
+    tokens,
+    ops,
+    errors,
+    get done() {
+      return done;
+    },
+  };
 };
 
 describe("streamAgentChat", () => {
@@ -77,7 +81,12 @@ describe("streamAgentChat", () => {
 
     expect(c.tokens).toEqual(["Hello"]);
     expect(c.ops).toEqual([
-      { opsBatchId: "b1", version: 5, revertVersion: 4, summaryDelta: ["rect r1"] },
+      {
+        opsBatchId: "b1",
+        version: 5,
+        revertVersion: 4,
+        summaryDelta: ["rect r1"],
+      },
     ]);
     expect(c.done).toBe(true);
     // CSRF header + credentials are attached.
@@ -87,15 +96,17 @@ describe("streamAgentChat", () => {
   });
 
   it("stops parsing after the done event", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        sseBody([
-          "event: done\ndata: {}\n\n",
-          'event: token\ndata: {"text":"late"}\n\n',
-        ]),
-        { status: 200 },
-      ),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          sseBody([
+            "event: done\ndata: {}\n\n",
+            'event: token\ndata: {"text":"late"}\n\n',
+          ]),
+          { status: 200 },
+        ),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const c = collectHandlers();
@@ -124,15 +135,17 @@ describe("streamAgentChat", () => {
   });
 
   it("surfaces error frames with op-level details", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(
-        sseBody([
-          'event: error\ndata: {"code":"OPS_VALIDATION_FAILED","errors":[{"opIndex":0,"code":"ELEMENT_NOT_FOUND","message":"missing"}]}\n\n',
-          "event: done\ndata: {}\n\n",
-        ]),
-        { status: 200 },
-      ),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          sseBody([
+            'event: error\ndata: {"code":"OPS_VALIDATION_FAILED","errors":[{"opIndex":0,"code":"ELEMENT_NOT_FOUND","message":"missing"}]}\n\n',
+            "event: done\ndata: {}\n\n",
+          ]),
+          { status: 200 },
+        ),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const c = collectHandlers();

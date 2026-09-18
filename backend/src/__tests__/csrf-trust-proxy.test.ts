@@ -29,7 +29,6 @@ describe("Issue #38: CSRF with trust proxy settings", () => {
   });
 
   it("demonstrates the trust proxy issue with multiple proxies", async () => {
-
     const app1 = express();
     app1.set("trust proxy", 1);
     app1.use(express.json());

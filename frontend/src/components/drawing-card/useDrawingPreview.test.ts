@@ -10,7 +10,9 @@ vi.mock("../../api", () => ({
   getDrawing: vi.fn(),
 }));
 
-const makeSummary = (overrides: Partial<DrawingSummary> = {}): DrawingSummary => ({
+const makeSummary = (
+  overrides: Partial<DrawingSummary> = {},
+): DrawingSummary => ({
   id: "d1",
   name: "Test",
   collectionId: null,

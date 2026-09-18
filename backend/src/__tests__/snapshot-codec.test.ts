@@ -48,7 +48,11 @@ describe("snapshot codec", () => {
 
   it("round-trips non-ASCII text", () => {
     const scene = JSON.stringify([
-      { id: "element-1", type: "text", text: "Kundenanfragen — größer, ähnlich, ß" },
+      {
+        id: "element-1",
+        type: "text",
+        text: "Kundenanfragen — größer, ähnlich, ß",
+      },
     ]);
     expect(decodeSnapshotField(encodeSnapshotField(scene))).toBe(scene);
   });

@@ -100,7 +100,7 @@ export const generatePresignedDownloadUrl = async (
   overrides?: {
     contentType?: string;
     contentDisposition?: string;
-  }
+  },
 ): Promise<string> => {
   if (!s3Client || !s3Config) {
     throw new Error("S3 is not configured");
@@ -152,7 +152,7 @@ export const getPublicUrl = (key: string): string => {
  * failure so the caller can render a non-fatal warning.
  */
 export const checkBucketReachable = async (
-  timeoutMs = 3000
+  timeoutMs = 3000,
 ): Promise<{ ok: true } | { ok: false; error: string }> => {
   if (!s3Client || !s3Config) {
     return { ok: false, error: "S3 is not configured" };
@@ -166,12 +166,11 @@ export const checkBucketReachable = async (
     });
     return { ok: true };
   } catch (error) {
-    const message =
-      controller.signal.aborted
-        ? `timed out after ${timeoutMs}ms`
-        : error instanceof Error
-          ? error.message
-          : String(error);
+    const message = controller.signal.aborted
+      ? `timed out after ${timeoutMs}ms`
+      : error instanceof Error
+        ? error.message
+        : String(error);
     return { ok: false, error: message };
   } finally {
     clearTimeout(timer);
@@ -185,7 +184,7 @@ export const checkBucketReachable = async (
 export const uploadBuffer = async (
   key: string,
   body: Buffer,
-  mimeType: string
+  mimeType: string,
 ): Promise<void> => {
   if (!s3Client || !s3Config) {
     throw new Error("S3 is not configured");
@@ -208,10 +207,12 @@ export const downloadBuffer = async (key: string): Promise<Buffer> => {
     throw new Error("S3 is not configured");
   }
 
-  const response = await s3Client.send(new GetObjectCommand({
-    Bucket: s3Config.bucket,
-    Key: key,
-  }));
+  const response = await s3Client.send(
+    new GetObjectCommand({
+      Bucket: s3Config.bucket,
+      Key: key,
+    }),
+  );
   if (!response.Body) {
     throw new Error(`S3 object has no body: ${key}`);
   }
@@ -223,7 +224,7 @@ export const downloadBuffer = async (key: string): Promise<Buffer> => {
  * List all objects under a given prefix. Handles pagination automatically.
  */
 export const listS3Objects = async (
-  prefix: string
+  prefix: string,
 ): Promise<Array<{ key: string; size: number }>> => {
   if (!s3Client || !s3Config) {
     throw new Error("S3 is not configured");

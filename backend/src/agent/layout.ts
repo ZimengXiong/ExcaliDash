@@ -1,4 +1,8 @@
-import type { LayoutGraphInput, LayoutResult, LayoutedNode } from "./layoutTypes";
+import type {
+  LayoutGraphInput,
+  LayoutResult,
+  LayoutedNode,
+} from "./layoutTypes";
 import type { SolverJob, SolverPlan, SolverResult } from "./layoutSolver";
 import { buildSolverPlan, readSolved, solveSync } from "./layoutSolver";
 import { assembleEdges } from "./layoutEdges";

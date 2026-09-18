@@ -61,8 +61,12 @@ describe("import fidelity (B13)", () => {
 
   it("preserves a string custom fontFamily and a large numeric one", () => {
     const { elements, appState } = sanitizeDrawingData(importedDrawing());
-    const stringFont = elements.find((e: any) => e.id === "text-string-font") as any;
-    const numericFont = elements.find((e: any) => e.id === "text-numeric-font") as any;
+    const stringFont = elements.find(
+      (e: any) => e.id === "text-string-font",
+    ) as any;
+    const numericFont = elements.find(
+      (e: any) => e.id === "text-numeric-font",
+    ) as any;
     expect(stringFont.fontFamily).toBe("Comic Shanns");
     expect(numericFont.fontFamily).toBe(137);
     // a custom font id beyond the built-in range must not be rejected in appState
@@ -71,7 +75,9 @@ describe("import fidelity (B13)", () => {
 
   it("does not strip or entity-encode literal angle brackets in element text", () => {
     const { elements } = sanitizeDrawingData(importedDrawing());
-    const textEl = elements.find((e: any) => e.id === "text-string-font") as any;
+    const textEl = elements.find(
+      (e: any) => e.id === "text-string-font",
+    ) as any;
     expect(textEl.text).toBe("value is <value> and 3 < 4 & ok");
   });
 
@@ -80,9 +86,13 @@ describe("import fidelity (B13)", () => {
   });
 
   it("sanitizeElementText keeps markup-like text verbatim but strips control chars", () => {
-    expect(sanitizeElementText("literal <value> & 3 < 4")).toBe("literal <value> & 3 < 4");
+    expect(sanitizeElementText("literal <value> & 3 < 4")).toBe(
+      "literal <value> & 3 < 4",
+    );
     expect(sanitizeElementText("a\x00b\x07c")).toBe("abc");
-    expect(sanitizeElementText("keep\ttabs\nand newlines")).toBe("keep\ttabs\nand newlines");
+    expect(sanitizeElementText("keep\ttabs\nand newlines")).toBe(
+      "keep\ttabs\nand newlines",
+    );
     expect(sanitizeElementText(123 as unknown)).toBe("");
     expect(sanitizeElementText("abcdef", 3)).toBe("abc");
   });

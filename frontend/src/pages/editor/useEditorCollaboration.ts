@@ -3,7 +3,10 @@ import type { MutableRefObject, RefObject } from "react";
 import { io, type Socket } from "socket.io-client";
 import { toast } from "sonner";
 import type { UserIdentity } from "../../utils/identity";
-import { filesNeedRehydration, rehydrateFilesFromUrls } from "../../utils/rehydrateFiles";
+import {
+  filesNeedRehydration,
+  rehydrateFilesFromUrls,
+} from "../../utils/rehydrateFiles";
 import { buildRemoteSceneUpdate } from "./shared";
 import { useAgentBatchApplier } from "./useAgentBatchApplier";
 import { attachCanvasZoomForwarding } from "./canvasZoomForwarding";
@@ -296,10 +299,16 @@ export const useEditorCollaboration = ({
           // references; re-inline them before Excalidraw renders the image.
           // Already-inline data: URLs stay on the synchronous path.
           const stage = (incoming: Record<string, any>) => {
-            pendingRemoteFilesRef.current = { ...pendingRemoteFilesRef.current, ...incoming };
+            pendingRemoteFilesRef.current = {
+              ...pendingRemoteFilesRef.current,
+              ...incoming,
+            };
           };
           if (filesNeedRehydration(files)) {
-            void rehydrateFilesFromUrls(files).then((hydrated) => { stage(hydrated); scheduleRemoteFlush(); });
+            void rehydrateFilesFromUrls(files).then((hydrated) => {
+              stage(hydrated);
+              scheduleRemoteFlush();
+            });
           } else {
             stage(files);
           }
@@ -312,7 +321,9 @@ export const useEditorCollaboration = ({
     );
     socket.on("drawing-server-update", (payload: { drawingId?: string }) => {
       if (!payload?.drawingId || payload.drawingId !== drawingId) return;
-      toast.info("Drawing storage changed on the server. Reloading the editor.");
+      toast.info(
+        "Drawing storage changed on the server. Reloading the editor.",
+      );
       window.location.reload();
     });
     const handleActivity = (isActive: boolean) => {

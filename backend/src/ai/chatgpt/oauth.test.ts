@@ -72,11 +72,16 @@ describe("chatgpt/oauth parseAuthorizationInput", () => {
   });
 
   it("parses code#state shorthand", () => {
-    expect(parseAuthorizationInput("abc#xyz")).toEqual({ code: "abc", state: "xyz" });
+    expect(parseAuthorizationInput("abc#xyz")).toEqual({
+      code: "abc",
+      state: "xyz",
+    });
   });
 
   it("treats a bare token as the code", () => {
-    expect(parseAuthorizationInput("just-a-code")).toEqual({ code: "just-a-code" });
+    expect(parseAuthorizationInput("just-a-code")).toEqual({
+      code: "just-a-code",
+    });
   });
 
   it("returns empty for blank input", () => {

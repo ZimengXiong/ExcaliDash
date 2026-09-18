@@ -49,7 +49,10 @@ function buildApp() {
       findFirst: vi.fn().mockResolvedValue(null),
     },
     collection: { findFirst: vi.fn() },
-    collectionShare: { findFirst: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
+    collectionShare: {
+      findFirst: vi.fn(),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
   } as any;
 
   const cache = createDrawingsCacheStore(10_000);
@@ -65,9 +68,8 @@ function buildApp() {
     prisma,
     requireAuth: (_req: any, _res: any, next: any) => next(),
     optionalAuth: (_req: any, _res: any, next: any) => next(),
-    asyncHandler:
-      (fn: any) => (req: any, res: any, next: any) =>
-        Promise.resolve(fn(req, res, next)).catch(next),
+    asyncHandler: (fn: any) => (req: any, res: any, next: any) =>
+      Promise.resolve(fn(req, res, next)).catch(next),
     parseJsonField: (val: string, fallback: any) => {
       try {
         return JSON.parse(val);
@@ -181,7 +183,9 @@ describe("GET /drawings/:id/preview", () => {
       updatedAt: new Date("2026-05-02T00:00:00Z"),
     });
 
-    const first = await request(app).get(`/drawings/${MOCK_DRAWING_ID}/preview`);
+    const first = await request(app).get(
+      `/drawings/${MOCK_DRAWING_ID}/preview`,
+    );
     const etag = first.headers.etag as string;
 
     const second = await request(app)

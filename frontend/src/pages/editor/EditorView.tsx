@@ -12,9 +12,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { Toaster } from "sonner";
-import {
-  LanguageSelector,
-} from "../../components/LanguageSelector";
+import { LanguageSelector } from "../../components/LanguageSelector";
 import { GridStepSelector } from "../../components/GridStepSelector";
 import { ShareModal } from "../../components/ShareModal";
 import { UserAvatar as ProfileAvatar } from "../../components/UserAvatar";
@@ -47,7 +45,11 @@ type EditorViewProps = {
   peers: Peer[];
   theme: string;
   onBackClick: () => void;
-  onCanvasChange: (elements: readonly any[], appState: any, files?: Record<string, any>) => void;
+  onCanvasChange: (
+    elements: readonly any[],
+    appState: any,
+    files?: Record<string, any>,
+  ) => void;
   onCanvasDropCapture: (event: React.DragEvent<HTMLDivElement>) => void;
   onExportClick: () => void;
   onLibraryChange: (items: readonly any[]) => void;
@@ -81,7 +83,10 @@ const CollaboratorAvatar = ({
     <ProfileAvatar
       name={user.name}
       size="toolbar"
-      className={clsx("transition-all duration-300", inactive && "opacity-30 grayscale")}
+      className={clsx(
+        "transition-all duration-300",
+        inactive && "opacity-30 grayscale",
+      )}
     />
     <div className="pointer-events-none absolute right-0 top-full z-50 mt-2 whitespace-nowrap rounded-lg bg-slate-900 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
       {label}
@@ -222,7 +227,11 @@ export const EditorView: React.FC<EditorViewProps> = ({
           className="ui-toolbar-button"
           title={autoHideEnabled ? "Disable auto-hide" : "Enable auto-hide"}
         >
-          {autoHideEnabled ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+          {autoHideEnabled ? (
+            <ChevronUp size={20} />
+          ) : (
+            <ChevronDown size={20} />
+          )}
         </button>
         <div className="h-6 w-px bg-gray-300 dark:bg-gray-700" />
         <button
@@ -272,10 +281,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
               {loadError}
             </p>
           </div>
-          <button
-            onClick={onNavigateHome}
-            className="ui-button-secondary px-4"
-          >
+          <button onClick={onNavigateHome} className="ui-button-secondary px-4">
             Back to dashboard
           </button>
         </div>

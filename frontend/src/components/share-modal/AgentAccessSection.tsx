@@ -164,7 +164,10 @@ export const AgentAccessSection: React.FC<Props> = ({ drawingId, isOpen }) => {
       ) : (
         <ul className="mt-3 divide-y divide-slate-100 dark:divide-neutral-800">
           {tokens.slice(0, showAllTokens ? tokens.length : 3).map((token) => (
-            <li key={token.id} className="flex flex-wrap items-center gap-2.5 py-2.5">
+            <li
+              key={token.id}
+              className="flex flex-wrap items-center gap-2.5 py-2.5"
+            >
               <div className="min-w-0 flex-1">
                 <p className="truncate text-xs font-semibold text-slate-700 dark:text-neutral-200">
                   {token.name}
@@ -172,9 +175,15 @@ export const AgentAccessSection: React.FC<Props> = ({ drawingId, isOpen }) => {
               </div>
               <InfoPopover label={`Details for ${token.name}`}>
                 <div className="space-y-1.5 text-slate-500 dark:text-neutral-400">
-                  <p><span className="font-bold text-slate-900 dark:text-white">Prefix</span> {token.prefix}…</p>
                   <p>
-                    {token.expiresAt && Date.parse(token.expiresAt) <= Date.now()
+                    <span className="font-bold text-slate-900 dark:text-white">
+                      Prefix
+                    </span>{" "}
+                    {token.prefix}…
+                  </p>
+                  <p>
+                    {token.expiresAt &&
+                    Date.parse(token.expiresAt) <= Date.now()
                       ? "Expired"
                       : token.expiresAt
                         ? `Expires ${new Date(token.expiresAt).toLocaleDateString()}`

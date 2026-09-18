@@ -93,7 +93,10 @@ describe("layoutGraph", () => {
 
   it("binds a single edge label to the arrow", () => {
     const { edges } = layoutGraph({
-      nodes: [{ key: "a", label: "A" }, { key: "b", label: "B" }],
+      nodes: [
+        { key: "a", label: "A" },
+        { key: "b", label: "B" },
+      ],
       edges: [{ from: "a", to: "b", label: "calls" }],
     });
     expect(edges[0].label?.bound).toBe(true);
@@ -101,7 +104,10 @@ describe("layoutGraph", () => {
 
   it("separates labels of edges running between the same pair", () => {
     const { edges } = layoutGraph({
-      nodes: [{ key: "a", label: "A" }, { key: "b", label: "B" }],
+      nodes: [
+        { key: "a", label: "A" },
+        { key: "b", label: "B" },
+      ],
       edges: [
         { from: "a", to: "b", label: "request" },
         { from: "b", to: "a", label: "response" },
@@ -119,7 +125,10 @@ describe("layoutGraph", () => {
 
   it("routes parallel edges as separate lanes", () => {
     const { edges } = layoutGraph({
-      nodes: [{ key: "a", label: "A" }, { key: "b", label: "B" }],
+      nodes: [
+        { key: "a", label: "A" },
+        { key: "b", label: "B" },
+      ],
       edges: [
         { from: "a", to: "b" },
         { from: "a", to: "b" },
@@ -132,7 +141,9 @@ describe("layoutGraph", () => {
     );
     for (const point of absolute[0]) {
       for (const other of absolute[1]) {
-        expect(Math.hypot(point[0] - other[0], point[1] - other[1])).toBeGreaterThan(8);
+        expect(
+          Math.hypot(point[0] - other[0], point[1] - other[1]),
+        ).toBeGreaterThan(8);
       }
     }
   });
@@ -182,8 +193,10 @@ describe("layoutGraph", () => {
 });
 
 describe("layout op", () => {
-  const run = (op: Record<string, unknown>, elements: ExcalidrawElement[] = []) =>
-    applyOps({ ops: [op as never], elements });
+  const run = (
+    op: Record<string, unknown>,
+    elements: ExcalidrawElement[] = [],
+  ) => applyOps({ ops: [op as never], elements });
 
   it("creates shapes, labels and bound arrows in one op", () => {
     const out = run({
@@ -264,7 +277,10 @@ describe("layout op", () => {
   it("renders arrows behind the shapes they connect", () => {
     const out = run({
       op: "layout",
-      nodes: [{ key: "a", label: "A" }, { key: "b", label: "B" }],
+      nodes: [
+        { key: "a", label: "A" },
+        { key: "b", label: "B" },
+      ],
       edges: [{ from: "a", to: "b" }],
     });
     expect(out.ok).toBe(true);
@@ -289,7 +305,10 @@ describe("layout op", () => {
   it("rejects duplicate node keys", () => {
     const out = run({
       op: "layout",
-      nodes: [{ key: "a", label: "A" }, { key: "a", label: "Also A" }],
+      nodes: [
+        { key: "a", label: "A" },
+        { key: "a", label: "Also A" },
+      ],
     });
     expect(out.ok).toBe(false);
     if (out.ok) return;

@@ -10,9 +10,7 @@ import {
 const TEST_EMAIL = "agent-e2e@example.test";
 const TEST_PASSWORD = "Agent-E2E-Password-123!";
 
-const login = async (
-  request: import("@playwright/test").APIRequestContext,
-) => {
+const login = async (request: import("@playwright/test").APIRequestContext) => {
   const response = await request.post(`${API_URL}/auth/login`, {
     headers: {
       "Content-Type": "application/json",
@@ -130,7 +128,9 @@ test.describe("Drawing agent API", () => {
     request,
   }) => {
     const allowed = await createDrawing(request, { name: "Agent token scope" });
-    const unrelated = await createDrawing(request, { name: "Unrelated drawing" });
+    const unrelated = await createDrawing(request, {
+      name: "Unrelated drawing",
+    });
     drawingIds.push(allowed.id, unrelated.id);
     const issued = await createAgentToken(request, allowed.id);
     const agent = await playwrightRequest.newContext({
@@ -142,14 +142,14 @@ test.describe("Drawing agent API", () => {
         (await agent.get(`${API_URL}/drawings/${allowed.id}/summary`)).status(),
       ).toBe(200);
       expect(
-        (await agent.get(`${API_URL}/drawings/${unrelated.id}/summary`)).status(),
+        (
+          await agent.get(`${API_URL}/drawings/${unrelated.id}/summary`)
+        ).status(),
       ).toBe(403);
       expect((await agent.get(`${API_URL}/drawings`)).status()).toBe(403);
       expect(
         (
-          await agent.get(
-            `${API_URL}/drawings/${allowed.id}/agent-tokens`,
-          )
+          await agent.get(`${API_URL}/drawings/${allowed.id}/agent-tokens`)
         ).status(),
       ).toBe(403);
     } finally {
@@ -219,29 +219,32 @@ test.describe("Drawing agent API", () => {
       extraHTTPHeaders: { Authorization: `Bearer ${issued.token}` },
     });
     try {
-      const response = await agent.post(`${API_URL}/drawings/${drawing.id}/ops`, {
-        data: {
-          ops: [
-            {
-              op: "add_shape",
-              shape: "rectangle",
-              x: 240,
-              y: 220,
-              w: 260,
-              h: 120,
-              label: "Live agent update",
-              style: { backgroundColor: "#a5d8ff", fillStyle: "solid" },
-            },
-          ],
+      const response = await agent.post(
+        `${API_URL}/drawings/${drawing.id}/ops`,
+        {
+          data: {
+            ops: [
+              {
+                op: "add_shape",
+                shape: "rectangle",
+                x: 240,
+                y: 220,
+                w: 260,
+                h: 120,
+                label: "Live agent update",
+                style: { backgroundColor: "#a5d8ff", fillStyle: "solid" },
+              },
+            ],
+          },
         },
-      });
+      );
       expect(response.ok()).toBe(true);
 
       await expect
-        .poll(
-          async () => !(await canvas.screenshot()).equals(before),
-          { timeout: 10_000, message: "The open canvas did not render the agent batch" },
-        )
+        .poll(async () => !(await canvas.screenshot()).equals(before), {
+          timeout: 10_000,
+          message: "The open canvas did not render the agent batch",
+        })
         .toBe(true);
       expect(page.url()).toContain(`/editor/${drawing.id}`);
     } finally {

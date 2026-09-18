@@ -1,12 +1,9 @@
 import { test, expect, type Page } from "@playwright/test";
-import {
-  createDrawing,
-  deleteDrawing,
-} from "./helpers/api";
+import { createDrawing, deleteDrawing } from "./helpers/api";
 
 /**
  * E2E Tests for Search and Sort functionality
- * 
+ *
  * Tests the search drawings feature mentioned in README:
  * - Search by drawing name
  * - Sort by name, created date, modified date
@@ -20,8 +17,7 @@ test.describe("Search Drawings", () => {
     for (const id of createdDrawingIds) {
       try {
         await deleteDrawing(request, id);
-      } catch {
-      }
+      } catch {}
     }
     createdDrawingIds = [];
   });
@@ -47,17 +43,26 @@ test.describe("Search Drawings", () => {
 
     await expect(page.locator(`#drawing-card-${drawing1.id}`)).toBeVisible();
     await expect(page.locator(`#drawing-card-${drawing2.id}`)).toBeVisible();
-    await expect(page.locator(`#drawing-card-${drawing3.id}`)).not.toBeVisible();
+    await expect(
+      page.locator(`#drawing-card-${drawing3.id}`),
+    ).not.toBeVisible();
 
     await searchInput.fill(`${prefix}_Alpha`);
     await page.waitForTimeout(500);
 
     await expect(page.locator(`#drawing-card-${drawing1.id}`)).toBeVisible();
-    await expect(page.locator(`#drawing-card-${drawing2.id}`)).not.toBeVisible();
+    await expect(
+      page.locator(`#drawing-card-${drawing2.id}`),
+    ).not.toBeVisible();
   });
 
-  test("should show empty state when no drawings match search", async ({ page, request }) => {
-    const drawing = await createDrawing(request, { name: `ExistingDrawing_${Date.now()}` });
+  test("should show empty state when no drawings match search", async ({
+    page,
+    request,
+  }) => {
+    const drawing = await createDrawing(request, {
+      name: `ExistingDrawing_${Date.now()}`,
+    });
     createdDrawingIds.push(drawing.id);
 
     await page.goto("/");
@@ -68,10 +73,15 @@ test.describe("Search Drawings", () => {
     await page.waitForTimeout(500);
 
     await expect(page.getByText("No drawings found")).toBeVisible();
-    await expect(page.getByText('No results for "NonExistentDrawingName12345"')).toBeVisible();
+    await expect(
+      page.getByText('No results for "NonExistentDrawingName12345"'),
+    ).toBeVisible();
   });
 
-  test("should clear search and show all drawings", async ({ page, request }) => {
+  test("should clear search and show all drawings", async ({
+    page,
+    request,
+  }) => {
     const prefix = `ClearSearchTest_${Date.now()}`;
     const [drawing1, drawing2] = await Promise.all([
       createDrawing(request, { name: `${prefix}_One` }),
@@ -86,7 +96,9 @@ test.describe("Search Drawings", () => {
 
     await searchInput.fill(`${prefix}_One`);
     await page.waitForTimeout(500);
-    await expect(page.locator(`#drawing-card-${drawing2.id}`)).not.toBeVisible();
+    await expect(
+      page.locator(`#drawing-card-${drawing2.id}`),
+    ).not.toBeVisible();
 
     await searchInput.fill("");
     await page.waitForTimeout(500);
@@ -98,8 +110,13 @@ test.describe("Search Drawings", () => {
     await expect(page.locator(`#drawing-card-${drawing2.id}`)).toBeVisible();
   });
 
-  test("should use keyboard shortcut Cmd+K to focus search", async ({ page, request }) => {
-    const drawing = await createDrawing(request, { name: `KeyboardTest_${Date.now()}` });
+  test("should use keyboard shortcut Cmd+K to focus search", async ({
+    page,
+    request,
+  }) => {
+    const drawing = await createDrawing(request, {
+      name: `KeyboardTest_${Date.now()}`,
+    });
     createdDrawingIds.push(drawing.id);
 
     await page.goto("/");
@@ -121,7 +138,7 @@ test.describe("Sort Drawings", () => {
 
   const chooseSortField = async (
     page: Page,
-    label: "Name" | "Date Created" | "Date Modified"
+    label: "Name" | "Date Created" | "Date Modified",
   ) => {
     await getSortFieldButton(page).click();
     await page.getByRole("option", { name: label }).click();
@@ -132,8 +149,7 @@ test.describe("Sort Drawings", () => {
     for (const id of createdDrawingIds) {
       try {
         await deleteDrawing(request, id);
-      } catch {
-      }
+      } catch {}
     }
     createdDrawingIds = [];
   });
@@ -164,7 +180,10 @@ test.describe("Sort Drawings", () => {
     await expect(cards.nth(2)).toHaveId(`drawing-card-${drawingC.id}`);
   });
 
-  test("should toggle sort direction on repeated clicks", async ({ page, request }) => {
+  test("should toggle sort direction on repeated clicks", async ({
+    page,
+    request,
+  }) => {
     const prefix = `ToggleSortTest_${Date.now()}`;
 
     const [drawingA, drawingZ] = await Promise.all([

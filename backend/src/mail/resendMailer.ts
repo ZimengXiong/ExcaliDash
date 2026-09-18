@@ -31,7 +31,10 @@ export const createResendMailer = ({
             : {}),
         });
         if (error) {
-          return { delivered: false, reason: `${error.name}: ${error.message}` };
+          return {
+            delivered: false,
+            reason: `${error.name}: ${error.message}`,
+          };
         }
         return { delivered: true, id: data?.id ?? null };
       } catch (cause) {
@@ -53,7 +56,9 @@ export const createMailerFromConfig = (mail: MailConfig): Mailer => {
   if (mail.transport === "smtp") {
     if (!mail.smtp.host) return createDisabledMailer("SMTP_HOST is not set");
     if (Boolean(mail.smtp.user) !== Boolean(mail.smtp.password)) {
-      return createDisabledMailer("SMTP_USER and SMTP_PASSWORD must be set together");
+      return createDisabledMailer(
+        "SMTP_USER and SMTP_PASSWORD must be set together",
+      );
     }
     return createSmtpMailer({
       ...mail.smtp,

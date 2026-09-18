@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import * as api from "../../api";
 
-export type AiProvider = "disabled" | "anthropic" | "openai" | "custom" | "chatgpt";
+export type AiProvider =
+  "disabled" | "anthropic" | "openai" | "custom" | "chatgpt";
 
 type AiSettingsResponse = {
   status: {
@@ -31,7 +32,11 @@ type UseAiSettingsParams = {
   setError: (message: string) => void;
 };
 
-export const useAiSettings = ({ authEnabled, isAdmin, setError }: UseAiSettingsParams) => {
+export const useAiSettings = ({
+  authEnabled,
+  isAdmin,
+  setError,
+}: UseAiSettingsParams) => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [provider, setProvider] = useState<AiProvider>("disabled");
@@ -39,13 +44,17 @@ export const useAiSettings = ({ authEnabled, isAdmin, setError }: UseAiSettingsP
   const [model, setModel] = useState("");
   const [apiKey, setApiKey] = useState(KEY_UNCHANGED);
   const [chatgptEnabled, setChatgptEnabled] = useState(true);
-  const [status, setStatus] = useState<AiSettingsResponse["status"] | null>(null);
+  const [status, setStatus] = useState<AiSettingsResponse["status"] | null>(
+    null,
+  );
   const [envKeyConfigured, setEnvKeyConfigured] = useState(false);
   const [dbKeyConfigured, setDbKeyConfigured] = useState(false);
 
   const applyResponse = useCallback((data: AiSettingsResponse) => {
     setStatus(data.status);
-    setProvider((data.overrides.provider ?? data.status.provider) as AiProvider);
+    setProvider(
+      (data.overrides.provider ?? data.status.provider) as AiProvider,
+    );
     setBaseUrl(data.overrides.baseUrl ?? "");
     setModel(data.overrides.model ?? "");
     setChatgptEnabled(data.overrides.chatgptEnabled ?? true);
@@ -63,7 +72,8 @@ export const useAiSettings = ({ authEnabled, isAdmin, setError }: UseAiSettingsP
     } catch (err: unknown) {
       let message = "Failed to load AI settings";
       if (api.isAxiosError(err)) {
-        message = err.response?.data?.message || err.response?.data?.error || message;
+        message =
+          err.response?.data?.message || err.response?.data?.error || message;
       }
       setError(message);
     } finally {
@@ -84,31 +94,47 @@ export const useAiSettings = ({ authEnabled, isAdmin, setError }: UseAiSettingsP
       };
       // Only send apiKey when the admin typed something (empty = leave as-is).
       if (apiKey !== KEY_UNCHANGED) payload.apiKey = apiKey;
-      const res = await api.api.put<AiSettingsResponse>("/auth/ai/settings", payload);
+      const res = await api.api.put<AiSettingsResponse>(
+        "/auth/ai/settings",
+        payload,
+      );
       applyResponse(res.data);
       toast.success("AI settings saved");
     } catch (err: unknown) {
       let message = "Failed to save AI settings";
       if (api.isAxiosError(err)) {
-        message = err.response?.data?.message || err.response?.data?.error || message;
+        message =
+          err.response?.data?.message || err.response?.data?.error || message;
       }
       setError(message);
     } finally {
       setSaving(false);
     }
-  }, [saving, provider, baseUrl, model, apiKey, chatgptEnabled, applyResponse, setError]);
+  }, [
+    saving,
+    provider,
+    baseUrl,
+    model,
+    apiKey,
+    chatgptEnabled,
+    applyResponse,
+    setError,
+  ]);
 
   const clearDbKey = useCallback(async () => {
     setSaving(true);
     setError("");
     try {
-      const res = await api.api.put<AiSettingsResponse>("/auth/ai/settings", { apiKey: "" });
+      const res = await api.api.put<AiSettingsResponse>("/auth/ai/settings", {
+        apiKey: "",
+      });
       applyResponse(res.data);
       toast.success("Stored AI key cleared");
     } catch (err: unknown) {
       let message = "Failed to clear AI key";
       if (api.isAxiosError(err)) {
-        message = err.response?.data?.message || err.response?.data?.error || message;
+        message =
+          err.response?.data?.message || err.response?.data?.error || message;
       }
       setError(message);
     } finally {

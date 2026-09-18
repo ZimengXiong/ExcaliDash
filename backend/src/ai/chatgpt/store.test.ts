@@ -1,4 +1,12 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import type { PrismaClient } from "../../generated/client";
 import {
   cleanupTestDb,
@@ -14,11 +22,7 @@ vi.mock("./oauth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./oauth")>();
   return { ...actual, refreshTokens: refreshMock };
 });
-import {
-  consumePendingAuth,
-  ensureFreshAuth,
-  savePendingAuth,
-} from "./store";
+import { consumePendingAuth, ensureFreshAuth, savePendingAuth } from "./store";
 
 describe("chatgpt connection store", () => {
   let prisma: PrismaClient;

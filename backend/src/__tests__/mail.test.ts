@@ -22,8 +22,12 @@ describe("mail transport selection", () => {
   it("stays disabled when no transport is configured", async () => {
     const mailer = createMailerFromConfig(baseConfig);
     expect(mailer.enabled).toBe(false);
-    await expect(mailer.send({ to: "a@example.com", subject: "s", html: "h", text: "t" }))
-      .resolves.toEqual({ delivered: false, reason: "No mail transport configured" });
+    await expect(
+      mailer.send({ to: "a@example.com", subject: "s", html: "h", text: "t" }),
+    ).resolves.toEqual({
+      delivered: false,
+      reason: "No mail transport configured",
+    });
   });
 
   it("requires SMTP credentials as a pair", () => {
@@ -45,18 +49,21 @@ describe("mail transport selection", () => {
   });
 
   it("never throws when disabled", async () => {
-    await expect(createDisabledMailer("off").send({
-      to: "a@example.com",
-      subject: "s",
-      html: "h",
-      text: "t",
-    })).resolves.toEqual({ delivered: false, reason: "off" });
+    await expect(
+      createDisabledMailer("off").send({
+        to: "a@example.com",
+        subject: "s",
+        html: "h",
+        text: "t",
+      }),
+    ).resolves.toEqual({ delivered: false, reason: "off" });
   });
 });
 
 describe("password reset email", () => {
   it("includes the reset link in both parts and escapes HTML", () => {
-    const resetUrl = 'https://example.com/reset?token="><script>alert(1)</script>';
+    const resetUrl =
+      'https://example.com/reset?token="><script>alert(1)</script>';
     const message = buildPasswordResetEmail({ resetUrl, expiresInMinutes: 60 });
     expect(message.text).toContain(resetUrl);
     expect(message.html).not.toContain("<script>");

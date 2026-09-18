@@ -36,7 +36,8 @@ export const normalizeCodexModel = (
   if (CODEX_MODELS.has(lower)) return lower;
   if (lower.includes("codex-max")) return "gpt-5.1-codex-max";
   if (lower.includes("codex-mini")) return "gpt-5.1-codex-mini";
-  if (lower.includes("gpt-5.2") && lower.includes("codex")) return "gpt-5.2-codex";
+  if (lower.includes("gpt-5.2") && lower.includes("codex"))
+    return "gpt-5.2-codex";
   if (lower.includes("gpt-5.2")) return "gpt-5.2";
   if (lower.includes("codex")) return "gpt-5.1-codex";
   if (lower.includes("gpt-5")) return "gpt-5.1";
@@ -54,7 +55,9 @@ type ResponsesInputItem =
   | { type: "function_call_output"; call_id: string; output: string };
 
 /** Serializes the neutral conversation into Codex `/responses` input items. */
-export const toResponsesInput = (turns: ConversationTurn[]): ResponsesInputItem[] => {
+export const toResponsesInput = (
+  turns: ConversationTurn[],
+): ResponsesInputItem[] => {
   const items: ResponsesInputItem[] = [];
   for (const turn of turns) {
     if (turn.role === "user") {
@@ -126,7 +129,11 @@ const textFromMessageItem = (item: Record<string, unknown>): string => {
   if (!Array.isArray(content)) return "";
   let text = "";
   for (const part of content) {
-    if (isRecord(part) && part.type === "output_text" && typeof part.text === "string") {
+    if (
+      isRecord(part) &&
+      part.type === "output_text" &&
+      typeof part.text === "string"
+    ) {
       text += part.text;
     }
   }
@@ -170,7 +177,10 @@ export class CodexStreamAccumulator {
   push(event: unknown): void {
     if (!isRecord(event)) return;
     const type = typeof event.type === "string" ? event.type : "";
-    if (type === "response.output_text.delta" && typeof event.delta === "string") {
+    if (
+      type === "response.output_text.delta" &&
+      typeof event.delta === "string"
+    ) {
       this.deltaText += event.delta;
       return;
     }
@@ -204,9 +214,16 @@ export class CodexStreamAccumulator {
   }
 
   private extractError(event: Record<string, unknown>): string {
-    const fromResponse = isRecord(event.response) ? event.response.error : undefined;
-    const err = isRecord(fromResponse) ? fromResponse : isRecord(event.error) ? event.error : event;
-    const message = isRecord(err) && typeof err.message === "string" ? err.message : "";
+    const fromResponse = isRecord(event.response)
+      ? event.response.error
+      : undefined;
+    const err = isRecord(fromResponse)
+      ? fromResponse
+      : isRecord(event.error)
+        ? event.error
+        : event;
+    const message =
+      isRecord(err) && typeof err.message === "string" ? err.message : "";
     return message || "Codex responses request failed";
   }
 

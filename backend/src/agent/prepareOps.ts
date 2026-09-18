@@ -22,7 +22,12 @@ import type { Op, OpError } from "./opSchemas";
 // `errors` is present when the batch itself is at fault, absent for capacity.
 export type PrepareOpsResult =
   | { ok: true; ctx: ApplyOpsContext }
-  | { ok: false; status: number; body: Record<string, unknown>; errors?: OpError[] };
+  | {
+      ok: false;
+      status: number;
+      body: Record<string, unknown>;
+      errors?: OpError[];
+    };
 
 /**
  * Narrowing helper. The project compiles with strict off, and without
@@ -34,7 +39,10 @@ export const prepareFailed = (
 
 type SnapshotLoader = (versions: number[]) => Promise<Map<number, unknown[]>>;
 
-const opErrorResult = (status: number, errors: OpError[]): PrepareOpsResult => ({
+const opErrorResult = (
+  status: number,
+  errors: OpError[],
+): PrepareOpsResult => ({
   ok: false,
   status,
   body: { error: "Ops validation failed", errors },
@@ -54,7 +62,10 @@ const layoutFailure = (error: unknown, index: number): PrepareOpsResult => {
       },
     };
   }
-  if (error instanceof LayoutTimeoutError || error instanceof LayoutSolveError) {
+  if (
+    error instanceof LayoutTimeoutError ||
+    error instanceof LayoutSolveError
+  ) {
     return opErrorResult(422, [
       {
         opIndex: index,
@@ -76,10 +87,9 @@ export const prepareOpsContext = async (
     .filter((op) => op.op === "revert_to_snapshot")
     .map((op) => (op as { version: number }).version);
   if (revertVersions.length > 0) {
-    ctx.snapshotElementsByVersion = (await loadSnapshots(revertVersions)) as Map<
-      number,
-      never[]
-    >;
+    ctx.snapshotElementsByVersion = (await loadSnapshots(
+      revertVersions,
+    )) as Map<number, never[]>;
   }
 
   const layoutOps = ops

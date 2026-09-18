@@ -28,7 +28,8 @@ const buildApp = (options?: {
     prisma,
     requireAuth: ((_req: any, _res: any, next: any) => next()) as any,
     optionalAuth: ((_req: any, _res: any, next: any) => next()) as any,
-    loginAttemptRateLimiter: ((_req: any, _res: any, next: any) => next()) as any,
+    loginAttemptRateLimiter: ((_req: any, _res: any, next: any) =>
+      next()) as any,
     ensureAuthEnabled: vi.fn().mockResolvedValue(true),
     ensureSystemConfig: vi.fn().mockResolvedValue({
       id: "default",
@@ -56,7 +57,9 @@ const buildApp = (options?: {
       bootstrapSetupCodeTtlMs: 900000,
       bootstrapSetupCodeMaxAttempts: 5,
     },
-    generateTokens: vi.fn().mockReturnValue({ accessToken: "access", refreshToken: "refresh" }),
+    generateTokens: vi
+      .fn()
+      .mockReturnValue({ accessToken: "access", refreshToken: "refresh" }),
     getRefreshTokenExpiresAt: vi.fn().mockReturnValue(new Date()),
     isMissingRefreshTokenTableError: vi.fn().mockReturnValue(false),
     bootstrapUserId: "bootstrap-user",
@@ -122,7 +125,8 @@ describe("/auth/status registration policy", () => {
         };
         next();
       }) as any,
-      loginAttemptRateLimiter: ((_req: any, _res: any, next: any) => next()) as any,
+      loginAttemptRateLimiter: ((_req: any, _res: any, next: any) =>
+        next()) as any,
       ensureAuthEnabled: vi.fn().mockResolvedValue(true),
       ensureSystemConfig: vi.fn().mockResolvedValue({
         id: "default",
@@ -134,7 +138,8 @@ describe("/auth/status registration policy", () => {
       findUserByIdentifier: vi.fn(),
       sanitizeText: (input: unknown) => String(input ?? "").trim(),
       requireCsrf: vi.fn().mockReturnValue(true),
-      isJwtPayload: ((decoded: any) => Boolean(decoded && decoded.userId)) as any,
+      isJwtPayload: ((decoded: any) =>
+        Boolean(decoded && decoded.userId)) as any,
       config: {
         authMode: "local",
         jwtSecret: "test-secret",
@@ -150,7 +155,9 @@ describe("/auth/status registration policy", () => {
         bootstrapSetupCodeTtlMs: 900000,
         bootstrapSetupCodeMaxAttempts: 5,
       },
-      generateTokens: vi.fn().mockReturnValue({ accessToken: "access", refreshToken: "refresh" }),
+      generateTokens: vi
+        .fn()
+        .mockReturnValue({ accessToken: "access", refreshToken: "refresh" }),
       getRefreshTokenExpiresAt: vi.fn().mockReturnValue(new Date()),
       isMissingRefreshTokenTableError: vi.fn().mockReturnValue(false),
       bootstrapUserId: "bootstrap-user",

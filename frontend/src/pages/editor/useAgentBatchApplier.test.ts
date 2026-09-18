@@ -46,7 +46,12 @@ const setup = (selfSet: Set<string>) => {
   return { enqueue: result.current, api, args };
 };
 
-const element = (id: string) => ({ id, type: "rectangle", version: 2, versionNonce: 1 });
+const element = (id: string) => ({
+  id,
+  type: "rectangle",
+  version: 2,
+  versionNonce: 1,
+});
 
 describe("useAgentBatchApplier", () => {
   it("replays a self-originated batch with IMMEDIATELY capture and consumes the id", () => {
@@ -54,7 +59,11 @@ describe("useAgentBatchApplier", () => {
     const { enqueue, api } = setup(selfSet);
 
     act(() => {
-      enqueue({ opsBatchId: "b1", elements: [element("r1")], elementOrder: null });
+      enqueue({
+        opsBatchId: "b1",
+        elements: [element("r1")],
+        elementOrder: null,
+      });
       flushRaf();
     });
 
@@ -68,7 +77,11 @@ describe("useAgentBatchApplier", () => {
     const { enqueue, api } = setup(new Set());
 
     act(() => {
-      enqueue({ opsBatchId: "other", elements: [element("r2")], elementOrder: null });
+      enqueue({
+        opsBatchId: "other",
+        elements: [element("r2")],
+        elementOrder: null,
+      });
       flushRaf();
     });
 
@@ -79,8 +92,16 @@ describe("useAgentBatchApplier", () => {
     const { enqueue, api } = setup(new Set(["b1"]));
 
     act(() => {
-      enqueue({ opsBatchId: "b1", elements: [element("r1")], elementOrder: null });
-      enqueue({ opsBatchId: "b2", elements: [element("r2")], elementOrder: null });
+      enqueue({
+        opsBatchId: "b1",
+        elements: [element("r1")],
+        elementOrder: null,
+      });
+      enqueue({
+        opsBatchId: "b2",
+        elements: [element("r2")],
+        elementOrder: null,
+      });
       // Only one rAF scheduled for the pair.
       expect(rafQueue).toHaveLength(1);
       flushRaf();

@@ -31,10 +31,7 @@ describe("DrawingCard preview loading", () => {
       unobserve = vi.fn();
       takeRecords = vi.fn(() => []);
     }
-    vi.stubGlobal(
-      "IntersectionObserver",
-      IntersectionObserverMock,
-    );
+    vi.stubGlobal("IntersectionObserver", IntersectionObserverMock);
   });
 
   it("waits until the card approaches the viewport before fetching its preview", async () => {

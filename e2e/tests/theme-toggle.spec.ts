@@ -21,7 +21,7 @@ const ensureLightTheme = async (page: import("@playwright/test").Page) => {
 
 /**
  * E2E Tests for Theme Toggle functionality
- * 
+ *
  * Tests the dark/light theme feature:
  * - Toggle theme via Settings page
  * - Theme persists across page reloads
@@ -37,7 +37,9 @@ test.describe("Theme Toggle", () => {
     await expect(themeButton).toBeVisible();
 
     const html = page.locator("html");
-    const initialDark = await html.evaluate((el) => el.classList.contains("dark"));
+    const initialDark = await html.evaluate((el) =>
+      el.classList.contains("dark"),
+    );
 
     await themeButton.click();
     await page.waitForTimeout(500);
@@ -45,7 +47,10 @@ test.describe("Theme Toggle", () => {
     const newDark = await html.evaluate((el) => el.classList.contains("dark"));
     expect(newDark).toBe(!initialDark);
 
-    await expect(themeButton).toHaveAttribute("aria-checked", String(!initialDark));
+    await expect(themeButton).toHaveAttribute(
+      "aria-checked",
+      String(!initialDark),
+    );
   });
 
   test("should persist theme across page navigation", async ({ page }) => {

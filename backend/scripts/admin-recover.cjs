@@ -48,8 +48,10 @@ const generatePassword = () => {
 const main = async () => {
   const args = parseArgs(process.argv.slice(2));
 
-  const identifier = typeof args.identifier === "string" ? args.identifier.trim() : "";
-  const providedPassword = typeof args.password === "string" ? args.password : null;
+  const identifier =
+    typeof args.identifier === "string" ? args.identifier.trim() : "";
+  const providedPassword =
+    typeof args.password === "string" ? args.password : null;
   const generate = Boolean(args.generate);
   const setMustReset = Boolean(args["must-reset"]);
   const activate = Boolean(args.activate);
@@ -109,8 +111,12 @@ const main = async () => {
     const shouldPromote = promote || activeAdminCount === 0;
 
     if (user.role !== "ADMIN" && !shouldPromote) {
-      console.error("Target user is not an ADMIN. Refusing to reset password for non-admin user.");
-      console.error("Tip: pass --promote to promote this user to ADMIN, or use it only when there are 0 active admins.");
+      console.error(
+        "Target user is not an ADMIN. Refusing to reset password for non-admin user.",
+      );
+      console.error(
+        "Tip: pass --promote to promote this user to ADMIN, or use it only when there are 0 active admins.",
+      );
       process.exitCode = 1;
       return;
     }
@@ -160,8 +166,12 @@ const main = async () => {
     console.log(`- role: ${updated.role}`);
     if (disableLoginRateLimit) {
       console.log("");
-      console.log("Login rate limiting: DISABLED (SystemConfig.authLoginRateLimitEnabled=false).");
-      console.log("Remember to re-enable it from the Admin dashboard after you regain access.");
+      console.log(
+        "Login rate limiting: DISABLED (SystemConfig.authLoginRateLimitEnabled=false).",
+      );
+      console.log(
+        "Remember to re-enable it from the Admin dashboard after you regain access.",
+      );
     }
     if (generate || !providedPassword) {
       console.log("");

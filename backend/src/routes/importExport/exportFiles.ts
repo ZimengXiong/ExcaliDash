@@ -27,14 +27,18 @@ export const embedDrawingFilesForExport = async (
     let bytes: Buffer;
     if (record.storage === "db") {
       if (!record.data) {
-        throw new Error(`Stored drawing file is missing database bytes: ${record.fileId}`);
+        throw new Error(
+          `Stored drawing file is missing database bytes: ${record.fileId}`,
+        );
       }
       bytes = Buffer.isBuffer(record.data)
         ? record.data
         : Buffer.from(record.data);
     } else if (record.storage === "s3") {
       if (!record.s3Key) {
-        throw new Error(`Stored drawing file is missing its S3 key: ${record.fileId}`);
+        throw new Error(
+          `Stored drawing file is missing its S3 key: ${record.fileId}`,
+        );
       }
       bytes = await downloadBuffer(record.s3Key);
     } else {
@@ -49,11 +53,14 @@ export const embedDrawingFilesForExport = async (
 
   const unresolved = Object.entries(embedded)
     .filter(([, file]) => {
-      if (!file || typeof file !== "object" || Array.isArray(file)) return false;
+      if (!file || typeof file !== "object" || Array.isArray(file))
+        return false;
       const dataURL = (file as ExcalidrawFile).dataURL;
-      return typeof dataURL === "string" &&
+      return (
+        typeof dataURL === "string" &&
         dataURL.length > 0 &&
-        !dataURL.startsWith("data:");
+        !dataURL.startsWith("data:")
+      );
     })
     .map(([fileId]) => fileId);
   if (unresolved.length > 0) {

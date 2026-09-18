@@ -62,15 +62,24 @@ const parseOptionalJson = <T>(raw: unknown, fallback: T): T => {
 };
 
 export const extractDrawingData = (
-  input: unknown
-): { elements: any[]; appState: Record<string, any>; files: Record<string, any> } | null => {
+  input: unknown,
+): {
+  elements: any[];
+  appState: Record<string, any>;
+  files: Record<string, any>;
+} | null => {
   if (typeof input !== "object" || input === null) return null;
   const raw = input as ExcalidrawLikeData;
   const maybeNested = raw.data;
   const candidate: ExcalidrawLikeData =
-    typeof maybeNested === "object" && maybeNested !== null ? (maybeNested as ExcalidrawLikeData) : raw;
+    typeof maybeNested === "object" && maybeNested !== null
+      ? (maybeNested as ExcalidrawLikeData)
+      : raw;
   const elements = parseOptionalJson<any[]>(candidate.elements, []);
-  const appState = parseOptionalJson<Record<string, any>>(candidate.appState, {});
+  const appState = parseOptionalJson<Record<string, any>>(
+    candidate.appState,
+    {},
+  );
   const files = parseOptionalJson<Record<string, any>>(candidate.files, {});
   if (!Array.isArray(elements)) return null;
   if (typeof appState !== "object" || appState === null) return null;
@@ -81,7 +90,7 @@ export const extractDrawingData = (
 export const makeSvgPreview = async (
   elements: any[],
   appState: Record<string, any>,
-  files: Record<string, any>
+  files: Record<string, any>,
 ) => {
   return exportToSvg({
     elements,
@@ -99,11 +108,14 @@ export const createCollectionResolver = () => {
   let existingCollectionsByLowerName: Map<string, string> | null = null;
   const ensureCollectionsIndex = async () => {
     if (existingCollectionsByLowerName) return;
-    const response = await api.get<{ id: string; name: string }[]>("/collections");
+    const response =
+      await api.get<{ id: string; name: string }[]>("/collections");
     existingCollectionsByLowerName = new Map(
       (response.data || [])
-        .filter((c) => c && typeof c.name === "string" && typeof c.id === "string")
-        .map((c) => [c.name.trim().toLowerCase(), c.id])
+        .filter(
+          (c) => c && typeof c.name === "string" && typeof c.id === "string",
+        )
+        .map((c) => [c.name.trim().toLowerCase(), c.id]),
     );
   };
   const getOrCreateCollectionIdByName = async (name: string) => {
@@ -111,7 +123,10 @@ export const createCollectionResolver = () => {
     const key = name.trim().toLowerCase();
     const existing = existingCollectionsByLowerName!.get(key);
     if (existing) return existing;
-    const created = await api.post<{ id: string; name: string }>("/collections", { name });
+    const created = await api.post<{ id: string; name: string }>(
+      "/collections",
+      { name },
+    );
     existingCollectionsByLowerName!.set(key, created.data.id);
     return created.data.id;
   };
@@ -125,7 +140,7 @@ const basenameWithoutExt = (filePath: string): string => {
 
 export const importLegacyZip = async (
   file: File,
-  targetCollectionId: string | null
+  targetCollectionId: string | null,
 ): Promise<{ success: number; failed: number; errors: string[] }> => {
   const errors: string[] = [];
   let success = 0;
@@ -133,7 +148,9 @@ export const importLegacyZip = async (
   const { default: JSZip } = await import("jszip");
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
   const entries = Object.values(zip.files).filter((e: any) => !e.dir);
-  const hasExcalidashManifest = entries.some((e: any) => e.name === "excalidash.manifest.json");
+  const hasExcalidashManifest = entries.some(
+    (e: any) => e.name === "excalidash.manifest.json",
+  );
   if (hasExcalidashManifest) {
     return {
       success: 0,
@@ -149,7 +166,11 @@ export const importLegacyZip = async (
     return name.endsWith(".excalidraw") || name.endsWith(".json");
   });
   if (drawableEntries.length === 0) {
-    return { success: 0, failed: 1, errors: [`${file.name}: Zip contains no .excalidraw/.json drawings.`] };
+    return {
+      success: 0,
+      failed: 1,
+      errors: [`${file.name}: Zip contains no .excalidraw/.json drawings.`],
+    };
   }
   for (const entry of drawableEntries) {
     const entryName = String((entry as any).name || "");
@@ -163,24 +184,42 @@ export const importLegacyZip = async (
       }
       if (isLegacyExportJson(parsed)) {
         const exportJson = parsed;
-        const drawings = Array.isArray(exportJson.drawings) ? exportJson.drawings : [];
+        const drawings = Array.isArray(exportJson.drawings)
+          ? exportJson.drawings
+          : [];
         for (let i = 0; i < drawings.length; i += 1) {
           const d = drawings[i] as LegacyExportDrawing;
           const extracted = extractDrawingData(d);
           if (!extracted) {
             failed += 1;
-            errors.push(`${file.name}:${entryName}: drawing ${i + 1}: Invalid structure (missing elements/appState)`);
+            errors.push(
+              `${file.name}:${entryName}: drawing ${i + 1}: Invalid structure (missing elements/appState)`,
+            );
             continue;
           }
           let collectionId: string | null = null;
           if (targetCollectionId !== null) collectionId = targetCollectionId;
-          else if (d.collectionId === "trash" || d.collectionName === "Trash") collectionId = "trash";
-          else if (typeof d.collectionName === "string" && d.collectionName.trim()) {
-            collectionId = await collectionResolver.getOrCreateCollectionIdByName(d.collectionName.trim());
+          else if (d.collectionId === "trash" || d.collectionName === "Trash")
+            collectionId = "trash";
+          else if (
+            typeof d.collectionName === "string" &&
+            d.collectionName.trim()
+          ) {
+            collectionId =
+              await collectionResolver.getOrCreateCollectionIdByName(
+                d.collectionName.trim(),
+              );
           }
-          const svg = await makeSvgPreview(extracted.elements, extracted.appState, extracted.files);
+          const svg = await makeSvgPreview(
+            extracted.elements,
+            extracted.appState,
+            extracted.files,
+          );
           const payload = {
-            name: typeof d.name === "string" && d.name.trim().length > 0 ? d.name : `Imported Drawing ${i + 1}`,
+            name:
+              typeof d.name === "string" && d.name.trim().length > 0
+                ? d.name
+                : `Imported Drawing ${i + 1}`,
             elements: extracted.elements,
             appState: extracted.appState,
             files: extracted.files || null,
@@ -189,22 +228,35 @@ export const importLegacyZip = async (
             updatedAt: coerceTimestamp(d.updatedAt),
             preview: svg.outerHTML,
           };
-          await api.post("/drawings", payload, { headers: { "X-Imported-File": "true" } });
+          await api.post("/drawings", payload, {
+            headers: { "X-Imported-File": "true" },
+          });
           success += 1;
         }
         continue;
       }
       const extracted = extractDrawingData(parsed);
-      if (!extracted) throw new Error(`Invalid drawing structure: ${entryName}`);
+      if (!extracted)
+        throw new Error(`Invalid drawing structure: ${entryName}`);
       let collectionId: string | null = null;
       if (targetCollectionId !== null) collectionId = targetCollectionId;
       else {
         const folder = entryName.includes("/") ? entryName.split("/")[0] : "";
-        collectionId = folder && folder !== "Unorganized" ? await collectionResolver.getOrCreateCollectionIdByName(folder) : null;
+        collectionId =
+          folder && folder !== "Unorganized"
+            ? await collectionResolver.getOrCreateCollectionIdByName(folder)
+            : null;
       }
-      const svg = await makeSvgPreview(extracted.elements, extracted.appState, extracted.files);
+      const svg = await makeSvgPreview(
+        extracted.elements,
+        extracted.appState,
+        extracted.files,
+      );
       const payload = {
-        name: basenameWithoutExt(entryName) || basenameWithoutExt(file.name) || "Imported Drawing",
+        name:
+          basenameWithoutExt(entryName) ||
+          basenameWithoutExt(file.name) ||
+          "Imported Drawing",
         elements: extracted.elements,
         appState: extracted.appState,
         files: extracted.files || null,
@@ -213,11 +265,15 @@ export const importLegacyZip = async (
         updatedAt: Date.now(),
         preview: svg.outerHTML,
       };
-      await api.post("/drawings", payload, { headers: { "X-Imported-File": "true" } });
+      await api.post("/drawings", payload, {
+        headers: { "X-Imported-File": "true" },
+      });
       success += 1;
     } catch (err: any) {
       failed += 1;
-      errors.push(`${file.name}:${entryName}: ${err?.message || "Failed to import zip entry"}`);
+      errors.push(
+        `${file.name}:${entryName}: ${err?.message || "Failed to import zip entry"}`,
+      );
     }
   }
   return { success, failed, errors };

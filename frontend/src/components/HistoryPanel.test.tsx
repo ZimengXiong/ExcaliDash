@@ -1,4 +1,10 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import * as api from "../api";
 import { HistoryPanel } from "./HistoryPanel";
@@ -174,7 +180,9 @@ describe("HistoryPanel", () => {
     });
 
     expect(onPreview).not.toHaveBeenCalledWith(snapshot);
-    expect(screen.queryByRole("dialog", { name: "Version history" })).toBeNull();
+    expect(
+      screen.queryByRole("dialog", { name: "Version history" }),
+    ).toBeNull();
   });
 
   it("keeps the newest preview when snapshot responses arrive out of order", async () => {

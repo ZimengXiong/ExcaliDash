@@ -110,7 +110,10 @@ const opSchema = {
           },
         },
         direction: { type: "string", enum: ["TB", "BT", "LR", "RL"] },
-        x: { type: "number", description: "Where to place the graph. Defaults to the origin." },
+        x: {
+          type: "number",
+          description: "Where to place the graph. Defaults to the origin.",
+        },
         y: { type: "number" },
       },
       required: ["op", "nodes"],

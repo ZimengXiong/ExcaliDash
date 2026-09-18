@@ -33,9 +33,9 @@ export const ChatGptConnect: React.FC<ChatGptConnectProps> = ({
   needsReconnect,
   onConnected,
 }) => {
-  const [phase, setPhase] = useState<"idle" | "starting" | "await-paste" | "finishing">(
-    "idle",
-  );
+  const [phase, setPhase] = useState<
+    "idle" | "starting" | "await-paste" | "finishing"
+  >("idle");
   const [redirectUrl, setRedirectUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -68,8 +68,8 @@ export const ChatGptConnect: React.FC<ChatGptConnectProps> = ({
     } catch (err: unknown) {
       const message =
         err && typeof err === "object" && "response" in err
-          ? ((err as { response?: { data?: { message?: string } } }).response?.data
-              ?.message ?? null)
+          ? ((err as { response?: { data?: { message?: string } } }).response
+              ?.data?.message ?? null)
           : null;
       setError(message || "Could not complete the sign-in. Start again.");
       setPhase("idle");
@@ -92,7 +92,9 @@ export const ChatGptConnect: React.FC<ChatGptConnectProps> = ({
 
       {phase === "await-paste" || phase === "finishing" ? (
         <div className="mt-4 space-y-2">
-          <p className="text-xs text-gray-600 dark:text-gray-400">{STR.step2}</p>
+          <p className="text-xs text-gray-600 dark:text-gray-400">
+            {STR.step2}
+          </p>
           <label className="block text-xs font-medium">{STR.pasteLabel}</label>
           <textarea
             value={redirectUrl}

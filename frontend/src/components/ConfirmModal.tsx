@@ -1,6 +1,6 @@
-import React from 'react';
-import { createPortal } from 'react-dom';
-import { AlertTriangle, CheckCircle, X } from 'lucide-react';
+import React from "react";
+import { createPortal } from "react-dom";
+import { AlertTriangle, CheckCircle, X } from "lucide-react";
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -12,7 +12,7 @@ interface ConfirmModalProps {
   onCancel: () => void;
   isDangerous?: boolean;
   showCancel?: boolean;
-  variant?: 'warning' | 'success';
+  variant?: "warning" | "success";
 }
 
 export const ConfirmModal: React.FC<ConfirmModalProps> = ({
@@ -25,13 +25,13 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   onCancel,
   isDangerous = true,
   showCancel = true,
-  variant = 'warning'
+  variant = "warning",
 }) => {
   if (!isOpen) return null;
 
-  const isSuccess = variant === 'success';
+  const isSuccess = variant === "success";
   const IconComponent = isSuccess ? CheckCircle : AlertTriangle;
-  const iconClasses = isSuccess 
+  const iconClasses = isSuccess
     ? "w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-300 border-2 border-emerald-200 dark:border-emerald-900/30"
     : "w-12 h-12 rounded-full bg-rose-100 dark:bg-rose-900/30 flex items-center justify-center text-rose-600 dark:text-rose-300 border-2 border-rose-200 dark:border-rose-900/30";
 
@@ -57,7 +57,9 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           </div>
 
           <div className="space-y-2">
-            <h3 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">{title}</h3>
+            <h3 className="text-xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">
+              {title}
+            </h3>
             <div className="text-sm font-medium text-neutral-500 dark:text-neutral-400 leading-relaxed">
               {message}
             </div>
@@ -75,10 +77,9 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
 
             <button
               onClick={onConfirm}
-              className={`flex-1 px-4 py-2.5 ${isDangerous
-                ? 'ui-button-danger'
-                : 'ui-button-primary'
-                }`}
+              className={`flex-1 px-4 py-2.5 ${
+                isDangerous ? "ui-button-danger" : "ui-button-primary"
+              }`}
             >
               {confirmText}
             </button>
@@ -86,6 +87,6 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
         </div>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 };

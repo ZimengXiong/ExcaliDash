@@ -24,7 +24,7 @@ describe("useEditorChrome", () => {
           autoHideEnabled: false,
           isRenaming: false,
         }),
-      { initialProps: { drawingName: "Roadmap" } }
+      { initialProps: { drawingName: "Roadmap" } },
     );
 
     expect(document.title).toBe("Roadmap - ExcaliDash");
@@ -42,7 +42,7 @@ describe("useEditorChrome", () => {
         drawingName: "Test",
         autoHideEnabled: false,
         isRenaming: false,
-      })
+      }),
     );
 
     act(() => {
@@ -58,7 +58,7 @@ describe("useEditorChrome", () => {
         drawingName: "Test",
         autoHideEnabled: true,
         isRenaming: false,
-      })
+      }),
     );
 
     expect(result.current.isHeaderVisible).toBe(true);
@@ -76,7 +76,7 @@ describe("useEditorChrome", () => {
         drawingName: "Test",
         autoHideEnabled: true,
         isRenaming: false,
-      })
+      }),
     );
 
     act(() => {

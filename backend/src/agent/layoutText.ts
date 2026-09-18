@@ -30,9 +30,14 @@ export const EDGE_LABEL_FONT_SIZE = 14;
  */
 const graphemes = (text: string): string[] => {
   const Segmenter = (
-    Intl as unknown as { Segmenter?: new (l?: string, o?: { granularity: string }) => {
-      segment: (s: string) => Iterable<{ segment: string }>;
-    } }
+    Intl as unknown as {
+      Segmenter?: new (
+        l?: string,
+        o?: { granularity: string },
+      ) => {
+        segment: (s: string) => Iterable<{ segment: string }>;
+      };
+    }
   ).Segmenter;
   if (!Segmenter) return Array.from(text);
   const segmenter = new Segmenter(undefined, { granularity: "grapheme" });
@@ -91,7 +96,10 @@ export const measureNode = (
     return { width: MIN_NODE_WIDTH, height: MIN_NODE_HEIGHT };
   }
   const lines = wrapLabel(text, fontSize);
-  const longest = lines.reduce((max, line) => Math.max(max, visibleLength(line)), 0);
+  const longest = lines.reduce(
+    (max, line) => Math.max(max, visibleLength(line)),
+    0,
+  );
   return {
     text: lines.join("\n"),
     width: Math.max(

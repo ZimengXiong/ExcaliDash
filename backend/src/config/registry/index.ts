@@ -31,7 +31,9 @@ const SPEC_BY_NAME = new Map<string, EnvVarSpec>(
 export const getSpec = (name: string): EnvVarSpec => {
   const spec = SPEC_BY_NAME.get(name);
   if (!spec) {
-    throw new Error(`Unknown environment variable: ${name} is not declared in the registry`);
+    throw new Error(
+      `Unknown environment variable: ${name} is not declared in the registry`,
+    );
   }
   return spec;
 };

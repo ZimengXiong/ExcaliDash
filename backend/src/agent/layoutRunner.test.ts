@@ -78,7 +78,10 @@ describe("layoutGraphAsync", () => {
       ],
       direction: "LR" as const,
     };
-    const [viaWorker, inline] = [await layoutGraphAsync(input), layoutGraphSync(input)];
+    const [viaWorker, inline] = [
+      await layoutGraphAsync(input),
+      layoutGraphSync(input),
+    ];
     expect(viaWorker.nodes).toEqual(inline.nodes);
     expect(viaWorker.edges).toEqual(inline.edges);
     expect(viaWorker.width).toBe(inline.width);
@@ -130,7 +133,9 @@ describe("layoutGraphAsync", () => {
     const results = await Promise.all(attempts);
     const busy = results.filter((r) => r instanceof LayoutBusyError);
     expect(busy.length).toBeGreaterThan(0);
-    expect(results.length - busy.length).toBeLessThanOrEqual(LAYOUT_QUEUE_LIMIT + 1);
+    expect(results.length - busy.length).toBeLessThanOrEqual(
+      LAYOUT_QUEUE_LIMIT + 1,
+    );
   }, 120_000);
 });
 
@@ -142,11 +147,20 @@ describe("layoutGraphAsync", () => {
 // process.chdir() cannot reproduce that: the resolution base is fixed at process
 // start, so this has to be a child process. It runs against the build output,
 // and skips when there is none rather than failing for the wrong reason.
-const BUILT_RUNNER = path.join(__dirname, "..", "..", "dist", "agent", "layoutRunner.js");
+const BUILT_RUNNER = path.join(
+  __dirname,
+  "..",
+  "..",
+  "dist",
+  "agent",
+  "layoutRunner.js",
+);
 
-describe.skipIf(!fs.existsSync(BUILT_RUNNER))("worker module resolution", () => {
-  it("uses the worker when the process was started from another directory", () => {
-    const probe = `
+describe.skipIf(!fs.existsSync(BUILT_RUNNER))(
+  "worker module resolution",
+  () => {
+    it("uses the worker when the process was started from another directory", () => {
+      const probe = `
       const { layoutGraphAsync, stopLayoutWorker } = require(${JSON.stringify(BUILT_RUNNER)});
       const nodes = Array.from({ length: 120 }, (_, i) => ({ key: "n" + i, label: "Node " + i }));
       const edges = [];
@@ -171,14 +185,17 @@ describe.skipIf(!fs.existsSync(BUILT_RUNNER))("worker module resolution", () => 
         })
         .catch((e) => { console.log(JSON.stringify({ error: String(e && e.message) })); process.exit(0); });
     `;
-    const run = spawnSync(process.execPath, ["-e", probe], {
-      cwd: os.tmpdir(),
-      encoding: "utf8",
-      timeout: 60_000,
-    });
-    const output = JSON.parse((run.stdout || "{}").trim().split("\n").pop() as string);
-    expect(output.error).toBeUndefined();
-    // Solving this graph inline blocks for well over a second.
-    expect(output.worst).toBeLessThan(200);
-  }, 90_000);
-});
+      const run = spawnSync(process.execPath, ["-e", probe], {
+        cwd: os.tmpdir(),
+        encoding: "utf8",
+        timeout: 60_000,
+      });
+      const output = JSON.parse(
+        (run.stdout || "{}").trim().split("\n").pop() as string,
+      );
+      expect(output.error).toBeUndefined();
+      // Solving this graph inline blocks for well over a second.
+      expect(output.worst).toBeLessThan(200);
+    }, 90_000);
+  },
+);

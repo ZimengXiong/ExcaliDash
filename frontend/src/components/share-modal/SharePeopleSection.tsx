@@ -80,9 +80,14 @@ export const SharePeopleSection: React.FC<Props> = ({
                   {candidate.email}
                 </div>
               </div>
-              <Plus size={15} className="shrink-0 text-slate-400" strokeWidth={3} />
+              <Plus
+                size={15}
+                className="shrink-0 text-slate-400"
+                strokeWidth={3}
+              />
               <span className="sr-only">
-                Give {candidate.name} {userPermission === "edit" ? "edit" : "view"} access
+                Give {candidate.name}{" "}
+                {userPermission === "edit" ? "edit" : "view"} access
               </span>
             </button>
           ))}

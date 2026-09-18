@@ -146,7 +146,6 @@ export const ShareCollectionModal: React.FC<Props> = ({
       />
 
       <div className="relative w-full max-w-[500px] bg-white dark:bg-neutral-900 rounded-2xl border-2 border-slate-800 dark:border-neutral-700 shadow-[3px_3px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.18)] flex flex-col animate-in fade-in zoom-in-95 duration-200">
-
         {/* Header */}
         <div className="px-6 py-4 flex items-center justify-between border-b-2 border-slate-800 dark:border-neutral-700">
           <h2
@@ -293,10 +292,7 @@ export const ShareCollectionModal: React.FC<Props> = ({
 
         {/* Footer */}
         <div className="px-6 py-4 flex items-center justify-end border-t-2 border-slate-800 dark:border-neutral-700 bg-slate-50 dark:bg-neutral-800/50 rounded-b-[14px]">
-          <button
-            onClick={onClose}
-            className="ui-button-primary px-6 text-xs"
-          >
+          <button onClick={onClose} className="ui-button-primary px-6 text-xs">
             Done
           </button>
         </div>

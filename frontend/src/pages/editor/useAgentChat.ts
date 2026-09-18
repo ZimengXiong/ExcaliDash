@@ -9,10 +9,7 @@ import {
 } from "../../api/ai";
 
 export type BatchStatus =
-  | "applied"
-  | "reverting"
-  | "reverted"
-  | "revert-failed";
+  "applied" | "reverting" | "reverted" | "revert-failed";
 
 export type ChatBatch = {
   opsBatchId: string;
@@ -65,7 +62,10 @@ const toTurns = (messages: ChatMessage[]): ChatTurn[] => {
   return selected;
 };
 
-export const useAgentChat = ({ drawingId, onSelfOpsBatch }: UseAgentChatArgs) => {
+export const useAgentChat = ({
+  drawingId,
+  onSelfOpsBatch,
+}: UseAgentChatArgs) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -194,7 +194,11 @@ export const useAgentChat = ({ drawingId, onSelfOpsBatch }: UseAgentChatArgs) =>
 
   const undoBatch = useCallback(
     async (batch: ChatBatch) => {
-      if (!drawingId || batch.status === "reverting" || batch.status === "reverted") {
+      if (
+        !drawingId ||
+        batch.status === "reverting" ||
+        batch.status === "reverted"
+      ) {
         return;
       }
       setBatchStatus(batch.opsBatchId, "reverting");

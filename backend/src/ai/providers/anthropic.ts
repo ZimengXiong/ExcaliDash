@@ -15,15 +15,24 @@ type AnthropicBlock =
   | { type: "tool_result"; tool_use_id: string; content: string };
 
 const toMessages = (turns: ConversationTurn[]) => {
-  const messages: { role: "user" | "assistant"; content: AnthropicBlock[] }[] = [];
+  const messages: { role: "user" | "assistant"; content: AnthropicBlock[] }[] =
+    [];
   for (const turn of turns) {
     if (turn.role === "user") {
-      messages.push({ role: "user", content: [{ type: "text", text: turn.text }] });
+      messages.push({
+        role: "user",
+        content: [{ type: "text", text: turn.text }],
+      });
     } else if (turn.role === "assistant") {
       const content: AnthropicBlock[] = [];
       if (turn.text) content.push({ type: "text", text: turn.text });
       for (const call of turn.toolCalls) {
-        content.push({ type: "tool_use", id: call.id, name: call.name, input: call.input });
+        content.push({
+          type: "tool_use",
+          id: call.id,
+          name: call.name,
+          input: call.input,
+        });
       }
       messages.push({ role: "assistant", content });
     } else {
@@ -61,16 +70,19 @@ export const anthropicAdapter: AiProviderAdapter = {
 
     let response: Response;
     try {
-      response = await fetch(`${settings.baseUrl.replace(/\/+$/, "")}/messages`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-api-key": settings.apiKey,
-          "anthropic-version": ANTHROPIC_VERSION,
+      response = await fetch(
+        `${settings.baseUrl.replace(/\/+$/, "")}/messages`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-api-key": settings.apiKey,
+            "anthropic-version": ANTHROPIC_VERSION,
+          },
+          body: JSON.stringify(body),
+          signal,
         },
-        body: JSON.stringify(body),
-        signal,
-      });
+      );
     } catch (error) {
       throw new AiProviderError(
         `Failed to reach Anthropic API: ${(error as Error).message}`,

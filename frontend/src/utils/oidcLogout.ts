@@ -1,7 +1,7 @@
-const OIDC_LOGOUT_MARKER = 'excalidash-oidc-explicit-logout';
+const OIDC_LOGOUT_MARKER = "excalidash-oidc-explicit-logout";
 
 export const suppressOidcAutoLogin = (): void => {
-  sessionStorage.setItem(OIDC_LOGOUT_MARKER, '1');
+  sessionStorage.setItem(OIDC_LOGOUT_MARKER, "1");
 };
 
 export const clearOidcAutoLoginSuppression = (): void => {
@@ -9,4 +9,4 @@ export const clearOidcAutoLoginSuppression = (): void => {
 };
 
 export const isOidcAutoLoginSuppressed = (): boolean =>
-  sessionStorage.getItem(OIDC_LOGOUT_MARKER) === '1';
+  sessionStorage.getItem(OIDC_LOGOUT_MARKER) === "1";

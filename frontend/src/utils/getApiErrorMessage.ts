@@ -1,6 +1,9 @@
 import { isAxiosError } from "../api/client";
 
-export const getApiErrorMessage = (error: unknown, fallback: string): string => {
+export const getApiErrorMessage = (
+  error: unknown,
+  fallback: string,
+): string => {
   if (isAxiosError(error)) {
     const data = error.response?.data;
     if (data && typeof data === "object") {

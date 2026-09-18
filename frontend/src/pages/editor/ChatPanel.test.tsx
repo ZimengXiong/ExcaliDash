@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useRef } from "react";
 import * as aiApi from "../../api/ai";
@@ -11,7 +17,9 @@ vi.mock("./useAgentChat", () => ({ useAgentChat: vi.fn() }));
 const getAiStatusMock = vi.mocked(aiApi.getAiStatus);
 const useAgentChatMock = vi.mocked(agentChat.useAgentChat);
 
-const chatValue = (overrides: Partial<ReturnType<typeof agentChat.useAgentChat>> = {}) => ({
+const chatValue = (
+  overrides: Partial<ReturnType<typeof agentChat.useAgentChat>> = {},
+) => ({
   messages: [],
   isStreaming: false,
   sendMessage: vi.fn(),
@@ -48,7 +56,9 @@ describe("ChatPanel", () => {
 
   it("does not probe status when the user lacks edit access", async () => {
     const ref = { current: new Set<string>() };
-    render(<ChatPanel drawingId="d1" canEdit={false} selfAgentBatchIdsRef={ref} />);
+    render(
+      <ChatPanel drawingId="d1" canEdit={false} selfAgentBatchIdsRef={ref} />,
+    );
     await Promise.resolve();
     expect(getAiStatusMock).not.toHaveBeenCalled();
   });
@@ -175,9 +185,12 @@ describe("ChatPanel", () => {
     fireEvent.click(await screen.findByLabelText("Open canvas assistant"));
 
     const card = screen.getByText("Applied to canvas").closest("div")!;
-    const undone = within(card.parentElement as HTMLElement).getByRole("button", {
-      name: "Undone",
-    });
+    const undone = within(card.parentElement as HTMLElement).getByRole(
+      "button",
+      {
+        name: "Undone",
+      },
+    );
     expect(undone).toBeDisabled();
   });
 });

@@ -92,9 +92,15 @@ describe("Import compatibility (legacy exports)", () => {
       select: { id: true, name: true, collectionId: true, userId: true },
     });
 
-    expect(importedDrawings.every((d) => d.userId === BOOTSTRAP_USER_ID)).toBe(true);
+    expect(importedDrawings.every((d) => d.userId === BOOTSTRAP_USER_ID)).toBe(
+      true,
+    );
     expect(importedDrawings.map((d) => d.id)).toEqual(
-      expect.arrayContaining(["legacy-drawing-1", "legacy-drawing-2", "legacy-drawing-trash"])
+      expect.arrayContaining([
+        "legacy-drawing-1",
+        "legacy-drawing-2",
+        "legacy-drawing-trash",
+      ]),
     );
 
     const trash = await prisma.collection.findUnique({
@@ -220,17 +226,23 @@ describe("Import compatibility (legacy exports)", () => {
         .get("/export/excalidash")
         .set("User-Agent", userAgent)
         .buffer(true)
-        .parse((res: any, callback: (err: Error | null, body: Buffer) => void) => {
-          const chunks: Buffer[] = [];
-          res.on("data", (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
-          res.on("end", () => callback(null, Buffer.concat(chunks)));
-          res.on("error", (err: Error) => callback(err, Buffer.alloc(0)));
-        })
-        .end((err: Error | null, res: any) => (err ? reject(err) : resolve(res.body as Buffer)));
+        .parse(
+          (res: any, callback: (err: Error | null, body: Buffer) => void) => {
+            const chunks: Buffer[] = [];
+            res.on("data", (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
+            res.on("end", () => callback(null, Buffer.concat(chunks)));
+            res.on("error", (err: Error) => callback(err, Buffer.alloc(0)));
+          },
+        )
+        .end((err: Error | null, res: any) =>
+          err ? reject(err) : resolve(res.body as Buffer),
+        );
     });
 
   it("leaves excalidraw drawings byte-identical through export + re-import", async () => {
-    const elements = [{ id: "el1", type: "rectangle", x: 0, y: 0, width: 5, height: 5 }];
+    const elements = [
+      { id: "el1", type: "rectangle", x: 0, y: 0, width: 5, height: 5 },
+    ];
     await prisma.drawing.create({
       data: {
         id: "excalidraw-roundtrip-1",
@@ -245,8 +257,12 @@ describe("Import compatibility (legacy exports)", () => {
 
     const buffer = await downloadExport();
     const zip = await JSZip.loadAsync(buffer);
-    const manifest = JSON.parse(await zip.file("excalidash.manifest.json")!.async("string"));
-    const entry = manifest.drawings.find((d: any) => d.id === "excalidraw-roundtrip-1");
+    const manifest = JSON.parse(
+      await zip.file("excalidash.manifest.json")!.async("string"),
+    );
+    const entry = manifest.drawings.find(
+      (d: any) => d.id === "excalidraw-roundtrip-1",
+    );
     expect(entry.filePath).toMatch(/\.excalidraw$/);
 
     const res = await agent
@@ -257,7 +273,9 @@ describe("Import compatibility (legacy exports)", () => {
 
     expect(res.status).toBe(200);
 
-    const row = await prisma.drawing.findUnique({ where: { id: "excalidraw-roundtrip-1" } });
+    const row = await prisma.drawing.findUnique({
+      where: { id: "excalidraw-roundtrip-1" },
+    });
     expect(JSON.parse(row!.elements)).toEqual(elements);
   });
 

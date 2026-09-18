@@ -1,6 +1,6 @@
-import React from 'react';
-import { ConfirmModal } from '../../components/ConfirmModal';
-import type { AdminUser } from './types';
+import React from "react";
+import { ConfirmModal } from "../../components/ConfirmModal";
+import type { AdminUser } from "./types";
 
 type PasswordResult = {
   email: string;
@@ -31,7 +31,7 @@ export const UserActionModals: React.FC<UserActionModalsProps> = ({
       message={
         impersonateTarget
           ? `You will act as ${impersonateTarget.email} until you stop impersonation. Continue?`
-          : ''
+          : ""
       }
       confirmText="Impersonate"
       onConfirm={() => {
@@ -50,7 +50,7 @@ export const UserActionModals: React.FC<UserActionModalsProps> = ({
         resetPasswordResult ? (
           <div className="space-y-3">
             <div className="text-xs">
-              Temporary password for{' '}
+              Temporary password for{" "}
               <span className="font-bold text-slate-900 dark:text-neutral-100">
                 {resetPasswordResult.email}
               </span>
@@ -61,7 +61,7 @@ export const UserActionModals: React.FC<UserActionModalsProps> = ({
             </div>
           </div>
         ) : (
-          ''
+          ""
         )
       }
       confirmText="Copy"

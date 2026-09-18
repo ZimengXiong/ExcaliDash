@@ -1,13 +1,10 @@
 import React from "react";
 
-export const settingsSelectClass =
-  "ui-input";
+export const settingsSelectClass = "ui-input";
 
-export const settingsButtonClass =
-  "ui-button-secondary";
+export const settingsButtonClass = "ui-button-secondary";
 
-export const settingsPrimaryButtonClass =
-  "ui-button-primary";
+export const settingsPrimaryButtonClass = "ui-button-primary";
 
 export const SettingsCard: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -49,9 +46,7 @@ export const SettingsSectionHeader: React.FC<SettingsSectionHeaderProps> = ({
       ) : null}
     </div>
     {children ? (
-      <div className="ml-auto flex shrink-0 items-center gap-2">
-        {children}
-      </div>
+      <div className="ml-auto flex shrink-0 items-center gap-2">{children}</div>
     ) : null}
   </div>
 );

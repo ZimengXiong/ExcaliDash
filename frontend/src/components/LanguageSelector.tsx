@@ -1,18 +1,18 @@
-import React from 'react';
-import { languages, useI18n } from '@excalidraw/excalidraw';
+import React from "react";
+import { languages, useI18n } from "@excalidraw/excalidraw";
 
-const STORAGE_KEY = 'excalidash-lang';
+const STORAGE_KEY = "excalidash-lang";
 
 function detectLanguage(): string {
   const browserLangs = Array.from(navigator.languages ?? [navigator.language]);
   const supported = new Set(languages.map((l) => l.code));
   for (const bl of browserLangs) {
     if (supported.has(bl)) return bl;
-    const prefix = bl.split('-')[0];
+    const prefix = bl.split("-")[0];
     const match = languages.find((l) => l.code.startsWith(prefix));
     if (match) return match.code;
   }
-  return 'en';
+  return "en";
 }
 
 export function getInitialLangCode(): string {
@@ -47,15 +47,15 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   return (
     <div
       style={{
-        padding: '4px 8px',
-        display: 'flex',
-        alignItems: 'center',
+        padding: "4px 8px",
+        display: "flex",
+        alignItems: "center",
         gap: 8,
-        width: '100%',
+        width: "100%",
       }}
     >
       <span style={{ fontSize: 13, flexShrink: 0 }}>
-        {t('labels.language', null, 'Language')}
+        {t("labels.language", null, "Language")}
       </span>
       <select
         value={langCode}
@@ -63,14 +63,14 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
         style={{
           flex: 1,
           fontSize: 13,
-          padding: '2px 4px',
+          padding: "2px 4px",
           borderRadius: 4,
-          border: '1px solid var(--color-surface-mid)',
-          background: 'var(--color-surface-low)',
-          color: 'var(--color-on-surface)',
-          cursor: 'pointer',
+          border: "1px solid var(--color-surface-mid)",
+          background: "var(--color-surface-low)",
+          color: "var(--color-on-surface)",
+          cursor: "pointer",
         }}
-        aria-label={t('labels.language', null, 'Language')}
+        aria-label={t("labels.language", null, "Language")}
       >
         {languages.map((lang) => (
           <option key={lang.code} value={lang.code}>

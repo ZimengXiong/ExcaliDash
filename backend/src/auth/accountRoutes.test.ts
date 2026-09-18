@@ -46,8 +46,10 @@ const buildApp = (options?: {
       };
       next();
     }) as any,
-    loginAttemptRateLimiter: ((_req: any, _res: any, next: any) => next()) as any,
-    accountActionRateLimiter: ((_req: any, _res: any, next: any) => next()) as any,
+    loginAttemptRateLimiter: ((_req: any, _res: any, next: any) =>
+      next()) as any,
+    accountActionRateLimiter: ((_req: any, _res: any, next: any) =>
+      next()) as any,
     ensureAuthEnabled: vi.fn().mockResolvedValue(true),
     sanitizeText: (input: unknown) => String(input ?? "").trim(),
     config: {
@@ -57,7 +59,9 @@ const buildApp = (options?: {
       nodeEnv: options?.nodeEnv ?? "test",
       frontendUrl: "http://localhost:6767",
     },
-    generateTokens: vi.fn().mockReturnValue({ accessToken: "access", refreshToken: "refresh" }),
+    generateTokens: vi
+      .fn()
+      .mockReturnValue({ accessToken: "access", refreshToken: "refresh" }),
     getRefreshTokenExpiresAt: vi.fn().mockReturnValue(new Date()),
     setAuthCookies: vi.fn(),
     requireCsrf: vi.fn().mockReturnValue(true),
@@ -165,19 +169,26 @@ describe("accountRoutes local-password safeguards", () => {
       updatedAt: new Date("2026-05-01T12:00:00.000Z"),
     }));
 
-    const response = await request(app).post("/api-keys").send({
-      name: "Scoped Key",
-      scopes: [" drawings:read ", "drawings:read", "collections:write"],
-    });
+    const response = await request(app)
+      .post("/api-keys")
+      .send({
+        name: "Scoped Key",
+        scopes: [" drawings:read ", "drawings:read", "collections:write"],
+      });
 
     expect(response.status).toBe(201);
-    expect(prisma.apiKey.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        name: "Scoped Key",
-        scopes: "drawings:read,collections:write",
+    expect(prisma.apiKey.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          name: "Scoped Key",
+          scopes: "drawings:read,collections:write",
+        }),
       }),
-    }));
-    expect(response.body.apiKey.scopes).toEqual(["drawings:read", "collections:write"]);
+    );
+    expect(response.body.apiKey.scopes).toEqual([
+      "drawings:read",
+      "collections:write",
+    ]);
     expect(response.body.token).toMatch(/^exd_/);
   });
 
@@ -194,14 +205,19 @@ describe("accountRoutes local-password safeguards", () => {
       updatedAt: new Date("2026-05-01T12:00:00.000Z"),
     }));
 
-    const response = await request(app).post("/api-keys").send({ name: "Default Key" });
+    const response = await request(app)
+      .post("/api-keys")
+      .send({ name: "Default Key" });
 
     expect(response.status).toBe(201);
-    expect(prisma.apiKey.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        scopes: "drawings:read,drawings:write,collections:read,collections:write",
+    expect(prisma.apiKey.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          scopes:
+            "drawings:read,drawings:write,collections:read,collections:write",
+        }),
       }),
-    }));
+    );
   });
 
   it("rejects API key creation with no scopes", async () => {
@@ -220,10 +236,12 @@ describe("accountRoutes local-password safeguards", () => {
   it("rejects API key creation with invalid scopes", async () => {
     const { app, prisma } = buildApp();
 
-    const response = await request(app).post("/api-keys").send({
-      name: "Bad Scope",
-      scopes: ["drawings:read", "admin:write"],
-    });
+    const response = await request(app)
+      .post("/api-keys")
+      .send({
+        name: "Bad Scope",
+        scopes: ["drawings:read", "admin:write"],
+      });
 
     expect(response.status).toBe(400);
     expect(response.body?.message).toContain("valid API key scope");
@@ -240,13 +258,15 @@ describe("password reset delivery", () => {
   };
 
   it("reports whether this process can deliver reset links", async () => {
-    const disabled = await request(buildApp({ nodeEnv: "production" }).app)
-      .get("/password-reset-capability");
+    const disabled = await request(buildApp({ nodeEnv: "production" }).app).get(
+      "/password-reset-capability",
+    );
     expect(disabled.body).toEqual({ enabled: false });
 
     const mailer = { enabled: true, send: vi.fn() };
-    const enabled = await request(buildApp({ nodeEnv: "production", mailer }).app)
-      .get("/password-reset-capability");
+    const enabled = await request(
+      buildApp({ nodeEnv: "production", mailer }).app,
+    ).get("/password-reset-capability");
     expect(enabled.body).toEqual({ enabled: true });
   });
 
@@ -278,12 +298,16 @@ describe("password reset delivery", () => {
   });
 
   it("does not wait for reset email delivery", async () => {
-    let finishDelivery: ((value: { delivered: true; id: string }) => void) | undefined;
+    let finishDelivery:
+      ((value: { delivered: true; id: string }) => void) | undefined;
     const mailer = {
       enabled: true,
-      send: vi.fn().mockImplementation(() => new Promise((resolve) => {
-        finishDelivery = resolve;
-      })),
+      send: vi.fn().mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            finishDelivery = resolve;
+          }),
+      ),
     };
     const { app, prisma } = buildApp({ mailer });
     prisma.user.findUnique.mockResolvedValue(localUser);
@@ -296,7 +320,8 @@ describe("password reset delivery", () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
-      message: "If an account with that email exists, a password reset link has been sent.",
+      message:
+        "If an account with that email exists, a password reset link has been sent.",
     });
     await vi.waitFor(() => expect(mailer.send).toHaveBeenCalledTimes(1));
     expect(finishDelivery).toBeTypeOf("function");
@@ -338,7 +363,9 @@ describe("password reset delivery", () => {
   });
 
   it("keeps the response neutral when a mail transport rejects", async () => {
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
     const mailer = {
       enabled: true,
       send: vi.fn().mockRejectedValue(new Error("transport offline")),
@@ -355,8 +382,10 @@ describe("password reset delivery", () => {
     expect(response.status).toBe(200);
     expect(response.body.message).toMatch(/if an account/i);
     await vi.waitFor(() => expect(mailer.send).toHaveBeenCalledTimes(1));
-    await vi.waitFor(() => expect(consoleError).toHaveBeenCalledWith(
-      "[mail] Password reset processing failed: transport offline",
-    ));
+    await vi.waitFor(() =>
+      expect(consoleError).toHaveBeenCalledWith(
+        "[mail] Password reset processing failed: transport offline",
+      ),
+    );
   });
 });

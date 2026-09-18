@@ -1,19 +1,19 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Check, Copy } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import { Logo } from '../components/Logo';
-import * as api from '../api';
-import { getPasswordPolicy, validatePassword } from '../utils/passwordPolicy';
-import { PasswordRequirements } from '../components/PasswordRequirements';
-import { AuthStatusErrorPanel } from '../components/AuthStatusErrorPanel';
+import React, { useEffect, useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { Check, Copy } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import { Logo } from "../components/Logo";
+import * as api from "../api";
+import { getPasswordPolicy, validatePassword } from "../utils/passwordPolicy";
+import { PasswordRequirements } from "../components/PasswordRequirements";
+import { AuthStatusErrorPanel } from "../components/AuthStatusErrorPanel";
 
 export const Register: React.FC = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [setupCode, setSetupCode] = useState('');
-  const [error, setError] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [setupCode, setSetupCode] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [copiedBootstrapCmd, setCopiedBootstrapCmd] = useState(false);
   const {
@@ -42,14 +42,14 @@ export const Register: React.FC = () => {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(bootstrapLogsCommand);
       } else {
-        const textarea = document.createElement('textarea');
+        const textarea = document.createElement("textarea");
         textarea.value = bootstrapLogsCommand;
-        textarea.setAttribute('readonly', 'true');
-        textarea.style.position = 'fixed';
-        textarea.style.left = '-9999px';
+        textarea.setAttribute("readonly", "true");
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
         document.body.appendChild(textarea);
         textarea.select();
-        document.execCommand('copy');
+        document.execCommand("copy");
         document.body.removeChild(textarea);
       }
       setCopiedBootstrapCmd(true);
@@ -63,23 +63,23 @@ export const Register: React.FC = () => {
     if (authStatusError) return;
     if (authLoading || authEnabled === null) return;
     if (authOnboardingRequired) {
-      navigate('/auth-setup', { replace: true });
+      navigate("/auth-setup", { replace: true });
       return;
     }
     if (oidcEnforced) {
-      api.startOidcSignIn('/');
+      api.startOidcSignIn("/");
       return;
     }
     if (!authEnabled) {
-      navigate('/', { replace: true });
+      navigate("/", { replace: true });
       return;
     }
     if (!bootstrapRequired && !registrationEnabled) {
-      navigate('/login', { replace: true });
+      navigate("/login", { replace: true });
       return;
     }
     if (isAuthenticated) {
-      navigate('/', { replace: true });
+      navigate("/", { replace: true });
     }
   }, [
     authEnabled,
@@ -94,12 +94,18 @@ export const Register: React.FC = () => {
   ]);
 
   if (authStatusError) {
-    return <AuthStatusErrorPanel message={authStatusError} onRetry={retryAuthStatus} fullScreen />;
+    return (
+      <AuthStatusErrorPanel
+        message={authStatusError}
+        onRetry={retryAuthStatus}
+        fullScreen
+      />
+    );
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
     const passwordError = validatePassword(password, passwordPolicy);
     if (passwordError) {
@@ -107,17 +113,22 @@ export const Register: React.FC = () => {
       return;
     }
     if (bootstrapRequired && setupCode.trim().length === 0) {
-      setError('Bootstrap setup code is required');
+      setError("Bootstrap setup code is required");
       return;
     }
 
     setLoading(true);
 
     try {
-      await register(email, password, name, bootstrapRequired ? setupCode : undefined);
-      navigate('/');
+      await register(
+        email,
+        password,
+        name,
+        bootstrapRequired ? setupCode : undefined,
+      );
+      navigate("/");
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to register';
+      const message = err instanceof Error ? err.message : "Failed to register";
       setError(message);
     } finally {
       setLoading(false);
@@ -125,8 +136,8 @@ export const Register: React.FC = () => {
   };
 
   const handleOidcBootstrap = () => {
-    setError('');
-    api.startOidcSignIn('/');
+    setError("");
+    api.startOidcSignIn("/");
   };
 
   return (
@@ -135,18 +146,15 @@ export const Register: React.FC = () => {
         <div className="text-center">
           <Logo className="mx-auto h-12 w-auto" />
           <h2 className="auth-heading">
-            {bootstrapRequired ? 'Set up admin account' : 'Create your account'}
+            {bootstrapRequired ? "Set up admin account" : "Create your account"}
           </h2>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
             {bootstrapRequired ? (
               <span>Create the first admin account.</span>
             ) : (
               <>
-                Or{' '}
-                <Link
-                  to="/login"
-                  className="ui-link"
-                >
+                Or{" "}
+                <Link to="/login" className="ui-link">
                   sign in to your existing account
                 </Link>
               </>
@@ -155,7 +163,9 @@ export const Register: React.FC = () => {
           {bootstrapRequired && (
             <div className="mt-3 rounded-xl border-2 border-amber-200 bg-amber-50 p-3 text-left text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
               <div className="font-semibold">One-time setup code</div>
-              <div className="mt-1 text-amber-800 dark:text-amber-200/90">Copy it from the backend logs:</div>
+              <div className="mt-1 text-amber-800 dark:text-amber-200/90">
+                Copy it from the backend logs:
+              </div>
               <div className="mt-2 rounded bg-amber-100 dark:bg-amber-900/30 p-2">
                 <div className="flex items-start gap-2">
                   <pre className="min-w-0 flex-1 whitespace-pre-wrap break-words text-[11px] leading-snug">
@@ -165,10 +175,18 @@ export const Register: React.FC = () => {
                     type="button"
                     onClick={() => void copyBootstrapCommand()}
                     className="ui-icon-button h-7 w-7 shrink-0"
-                    aria-label={copiedBootstrapCmd ? 'Copied docker command' : 'Copy docker command'}
-                    title={copiedBootstrapCmd ? 'Copied' : 'Copy'}
+                    aria-label={
+                      copiedBootstrapCmd
+                        ? "Copied docker command"
+                        : "Copy docker command"
+                    }
+                    title={copiedBootstrapCmd ? "Copied" : "Copy"}
                   >
-                    {copiedBootstrapCmd ? <Check size={14} /> : <Copy size={14} />}
+                    {copiedBootstrapCmd ? (
+                      <Check size={14} />
+                    ) : (
+                      <Copy size={14} />
+                    )}
                   </button>
                 </div>
               </div>
@@ -190,7 +208,7 @@ export const Register: React.FC = () => {
                 disabled={loading}
                 className="ui-button-secondary w-full"
               >
-                Set up admin with {oidcProvider || 'OIDC'}
+                Set up admin with {oidcProvider || "OIDC"}
               </button>
               <div className="text-center text-xs text-gray-500 dark:text-gray-400">
                 Or use a local account
@@ -249,7 +267,11 @@ export const Register: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
-              <PasswordRequirements password={password} policy={passwordPolicy} className="text-gray-600 dark:text-gray-400" />
+              <PasswordRequirements
+                password={password}
+                policy={passwordPolicy}
+                className="text-gray-600 dark:text-gray-400"
+              />
             </div>
             {bootstrapRequired && (
               <div>
@@ -277,7 +299,7 @@ export const Register: React.FC = () => {
               disabled={loading}
               className="ui-button-primary w-full"
             >
-              {loading ? 'Creating account...' : 'Create account'}
+              {loading ? "Creating account..." : "Create account"}
             </button>
           </div>
         </form>

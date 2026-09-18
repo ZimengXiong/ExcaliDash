@@ -31,8 +31,12 @@ describe("detached edge labels", () => {
         edges: [{ from: "a", to: "a", label: "on error" }],
       },
     ]);
-    const arrow = out.elements.find((el) => el.type === "arrow") as ExcalidrawElement;
-    const node = out.elements.find((el) => el.type === "rectangle") as ExcalidrawElement;
+    const arrow = out.elements.find(
+      (el) => el.type === "arrow",
+    ) as ExcalidrawElement;
+    const node = out.elements.find(
+      (el) => el.type === "rectangle",
+    ) as ExcalidrawElement;
     const labelId = (arrow.customData as { layoutLabelId?: string } | undefined)
       ?.layoutLabelId;
     return { out, arrow, node, labelId };
@@ -48,7 +52,10 @@ describe("detached edge labels", () => {
     const { out, arrow, labelId } = loopScene();
     const before = live(out.elements, labelId as string) as ExcalidrawElement;
     const at = { x: before.x, y: before.y };
-    const moved = apply([{ op: "move", id: arrow.id, dx: 100, dy: 50 }], out.elements);
+    const moved = apply(
+      [{ op: "move", id: arrow.id, dx: 100, dy: 50 }],
+      out.elements,
+    );
     const after = live(moved.elements, labelId as string) as ExcalidrawElement;
     expect(after.x).toBe(at.x + 100);
     expect(after.y).toBe(at.y + 50);
@@ -76,14 +83,17 @@ describe("detached edge labels", () => {
     ]);
     const arrows = out.elements.filter((el) => el.type === "arrow");
     const labelIds = arrows.map(
-      (a) => (a.customData as { layoutLabelId?: string } | undefined)?.layoutLabelId,
+      (a) =>
+        (a.customData as { layoutLabelId?: string } | undefined)?.layoutLabelId,
     );
     expect(labelIds.filter(Boolean)).toHaveLength(2);
 
     const deleted = apply([{ op: "delete", id: arrows[0].id }], out.elements);
     expect(live(deleted.elements, labelIds[0] as string)?.isDeleted).toBe(true);
     // …and only that one.
-    expect(live(deleted.elements, labelIds[1] as string)?.isDeleted).toBeFalsy();
+    expect(
+      live(deleted.elements, labelIds[1] as string)?.isDeleted,
+    ).toBeFalsy();
   });
 });
 
@@ -145,7 +155,9 @@ describe("batch layout budget", () => {
       ops: Array.from({ length: 50 }, () => layoutOp(200)),
     });
     expect(parsed.success).toBe(false);
-    const message = parsed.success ? "" : parsed.error.issues.map((i) => i.message).join(" ");
+    const message = parsed.success
+      ? ""
+      : parsed.error.issues.map((i) => i.message).join(" ");
     expect(message).toContain(String(MAX_BATCH_LAYOUT_NODES));
   });
 
@@ -157,7 +169,9 @@ describe("batch layout budget", () => {
     };
     const parsed = opsBatchSchema.safeParse({ ops: [withEdges, withEdges] });
     expect(parsed.success).toBe(false);
-    const message = parsed.success ? "" : parsed.error.issues.map((i) => i.message).join(" ");
+    const message = parsed.success
+      ? ""
+      : parsed.error.issues.map((i) => i.message).join(" ");
     expect(message).toContain(String(MAX_BATCH_LAYOUT_EDGES));
   });
 });
@@ -167,7 +181,10 @@ describe("label wrapping across unicode", () => {
     lines.filter((line) => {
       const first = line.charCodeAt(0);
       const last = line.charCodeAt(line.length - 1);
-      return (last >= 0xd800 && last <= 0xdbff) || (first >= 0xdc00 && first <= 0xdfff);
+      return (
+        (last >= 0xd800 && last <= 0xdbff) ||
+        (first >= 0xdc00 && first <= 0xdfff)
+      );
     }).length;
 
   // length and slice count UTF-16 code units, so cutting a line at a fixed count

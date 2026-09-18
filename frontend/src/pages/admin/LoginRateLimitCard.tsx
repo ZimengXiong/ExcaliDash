@@ -1,13 +1,13 @@
-import React from 'react';
-import { Timer } from 'lucide-react';
-import { PlayfulSwitch } from '../../components/PlayfulSwitch';
+import React from "react";
+import { Timer } from "lucide-react";
+import { PlayfulSwitch } from "../../components/PlayfulSwitch";
 import {
   SettingsCard,
   SettingsRow,
   SettingsSectionHeader,
   settingsButtonClass,
   settingsSelectClass,
-} from '../settings/SettingsRow';
+} from "../settings/SettingsRow";
 
 type LoginRateLimitCardProps = {
   loading: boolean;
@@ -27,9 +27,13 @@ type LoginRateLimitCardProps = {
   onReset: () => void | Promise<void>;
 };
 
-const getSaveStatusLabel = (saving: boolean, autoSaveQueued: boolean, dirty: boolean) => {
-  if (saving || autoSaveQueued) return 'Saving…';
-  return dirty ? 'Unsaved' : 'Saved';
+const getSaveStatusLabel = (
+  saving: boolean,
+  autoSaveQueued: boolean,
+  dirty: boolean,
+) => {
+  if (saving || autoSaveQueued) return "Saving…";
+  return dirty ? "Unsaved" : "Saved";
 };
 
 export const LoginRateLimitCard: React.FC<LoginRateLimitCardProps> = ({
@@ -57,14 +61,20 @@ export const LoginRateLimitCard: React.FC<LoginRateLimitCardProps> = ({
       subtitle="Throttle repeated login attempts"
     >
       <span className="text-xs font-bold text-slate-400 dark:text-neutral-500">
-        {loading ? 'Loading…' : getSaveStatusLabel(saving, autoSaveQueued, dirty)}
+        {loading
+          ? "Loading…"
+          : getSaveStatusLabel(saving, autoSaveQueued, dirty)}
       </span>
     </SettingsSectionHeader>
 
     <SettingsCard>
       <SettingsRow
         title="Rate limiting"
-        description={enabled ? 'Brute-force protection active' : 'Only disable in trusted environments'}
+        description={
+          enabled
+            ? "Brute-force protection active"
+            : "Only disable in trusted environments"
+        }
       >
         <PlayfulSwitch
           checked={enabled}
@@ -73,10 +83,7 @@ export const LoginRateLimitCard: React.FC<LoginRateLimitCardProps> = ({
         />
       </SettingsRow>
 
-      <SettingsRow
-        title="Attempts"
-        description="Max failed logins per window"
-      >
+      <SettingsRow title="Attempts" description="Max failed logins per window">
         <input
           type="number"
           min={1}
@@ -85,16 +92,22 @@ export const LoginRateLimitCard: React.FC<LoginRateLimitCardProps> = ({
           onChange={(event) => onMaxAttemptsChange(Number(event.target.value))}
           className={`${settingsSelectClass} w-20`}
         />
-        <span className="text-xs font-bold text-slate-400 dark:text-neutral-500">per</span>
+        <span className="text-xs font-bold text-slate-400 dark:text-neutral-500">
+          per
+        </span>
         <input
           type="number"
           min={1}
           aria-label="Window in minutes"
           value={windowMinutes}
-          onChange={(event) => onWindowMinutesChange(Number(event.target.value))}
+          onChange={(event) =>
+            onWindowMinutesChange(Number(event.target.value))
+          }
           className={`${settingsSelectClass} w-20`}
         />
-        <span className="text-xs font-bold text-slate-400 dark:text-neutral-500">min</span>
+        <span className="text-xs font-bold text-slate-400 dark:text-neutral-500">
+          min
+        </span>
       </SettingsRow>
 
       <SettingsRow
@@ -119,7 +132,7 @@ export const LoginRateLimitCard: React.FC<LoginRateLimitCardProps> = ({
           disabled={resetLoading}
           className={settingsButtonClass}
         >
-          {resetLoading ? 'Resetting…' : 'Reset'}
+          {resetLoading ? "Resetting…" : "Reset"}
         </button>
       </SettingsRow>
     </SettingsCard>

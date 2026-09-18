@@ -9,10 +9,7 @@ const MAX_DECOMPRESSED_FIELD_BYTES = 128 * 1024 * 1024;
 export const isEncodedSnapshotField = (value: string): boolean =>
   value.startsWith(PREFIX);
 
-export const encodeSnapshotField = (
-  value: string,
-  enabled = true,
-): string => {
+export const encodeSnapshotField = (value: string, enabled = true): string => {
   if (!enabled || !value || isEncodedSnapshotField(value)) return value;
 
   try {

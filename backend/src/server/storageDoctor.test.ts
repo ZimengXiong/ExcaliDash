@@ -6,7 +6,9 @@ import {
   type StorageDoctorConfig,
 } from "./storageDoctor";
 
-const baseConfig = (overrides: Partial<StorageDoctorConfig> = {}): StorageDoctorConfig => ({
+const baseConfig = (
+  overrides: Partial<StorageDoctorConfig> = {},
+): StorageDoctorConfig => ({
   databaseUrl: "file:/var/lib/excalidash/prisma/dev.db",
   fileUploadMaxMb: 100,
   bodyLimitMb: 50,
@@ -58,9 +60,14 @@ describe("parseDatabaseTarget", () => {
 
 describe("buildStorageSummary", () => {
   it("renders sqlite + database storage when S3 is disabled", () => {
-    const lines = buildStorageSummary({ config: baseConfig(), s3Enabled: false });
+    const lines = buildStorageSummary({
+      config: baseConfig(),
+      s3Enabled: false,
+    });
     const text = lines.join("\n");
-    expect(text).toContain("Database:      sqlite (/var/lib/excalidash/prisma/dev.db)");
+    expect(text).toContain(
+      "Database:      sqlite (/var/lib/excalidash/prisma/dev.db)",
+    );
     expect(text).toContain("File storage:  database (default)");
     expect(text).toContain("FILE_UPLOAD_MAX_MB=100");
     expect(text).toContain("BODY_LIMIT_MB=50");
@@ -73,7 +80,11 @@ describe("buildStorageSummary", () => {
       config: baseConfig({
         databaseUrl: "postgresql://u:p@pg:5432/app",
         backups: { schedule: "0 3 * * *" },
-        s3: s3Config({ endpoint: "https://minio.local", publicUrl: "https://cdn.example.com", forcePathStyle: true }),
+        s3: s3Config({
+          endpoint: "https://minio.local",
+          publicUrl: "https://cdn.example.com",
+          forcePathStyle: true,
+        }),
       }),
       s3Enabled: true,
       probe: { ok: true },
@@ -99,13 +110,19 @@ describe("buildStorageSummary", () => {
     });
     const text = lines.join("\n");
     expect(text).toContain("Reachable:   NO");
-    expect(text).toContain("could not reach bucket 'my-bucket': timed out after 3000ms");
-    expect(text).toContain("Likely a bad credential, endpoint, or missing bucket");
+    expect(text).toContain(
+      "could not reach bucket 'my-bucket': timed out after 3000ms",
+    );
+    expect(text).toContain(
+      "Likely a bad credential, endpoint, or missing bucket",
+    );
   });
 
   it("warns when a custom endpoint has no public URL", () => {
     const lines = buildStorageSummary({
-      config: baseConfig({ s3: s3Config({ endpoint: "https://minio.local", publicUrl: null }) }),
+      config: baseConfig({
+        s3: s3Config({ endpoint: "https://minio.local", publicUrl: null }),
+      }),
       s3Enabled: true,
       probe: { ok: true },
     });

@@ -65,9 +65,11 @@ describe("ChatGptConnect", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /finish connecting/i }));
 
-    await waitFor(() => expect(completeMock).toHaveBeenCalledWith(
-      "http://localhost:1455/auth/callback?code=c&state=s",
-    ));
+    await waitFor(() =>
+      expect(completeMock).toHaveBeenCalledWith(
+        "http://localhost:1455/auth/callback?code=c&state=s",
+      ),
+    );
     expect(onConnected).toHaveBeenCalledWith(connectedStatus);
   });
 

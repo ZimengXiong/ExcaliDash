@@ -80,7 +80,8 @@ const deserializeTimestamps = <T extends HasTimestamps>(
 });
 
 const deserializeDrawingSummary = (drawing: unknown): DrawingSummary => {
-  if (typeof drawing !== "object" || drawing === null) throw new Error("Invalid drawing data");
+  if (typeof drawing !== "object" || drawing === null)
+    throw new Error("Invalid drawing data");
   const parsed = drawing as HasTimestamps & DrawingSummary;
   return deserializeTimestamps({
     ...parsed,
@@ -92,7 +93,8 @@ const deserializeDrawingSummary = (drawing: unknown): DrawingSummary => {
 };
 
 const deserializeDrawing = (drawing: unknown): Drawing => {
-  if (typeof drawing !== "object" || drawing === null) throw new Error("Invalid drawing data");
+  if (typeof drawing !== "object" || drawing === null)
+    throw new Error("Invalid drawing data");
   const parsed = drawing as HasTimestamps & Drawing;
   return deserializeTimestamps({
     ...parsed,
@@ -128,7 +130,8 @@ const buildDrawingParams = (
 ): Record<string, string | number> => {
   const params: Record<string, string | number> = {};
   if (search) params.search = search;
-  if (collectionId !== undefined) params.collectionId = collectionId === null ? "null" : collectionId;
+  if (collectionId !== undefined)
+    params.collectionId = collectionId === null ? "null" : collectionId;
   if (options?.limit !== undefined) params.limit = options.limit;
   if (options?.offset !== undefined) params.offset = options.offset;
   if (options?.sortField) params.sortField = options.sortField;
@@ -156,11 +159,22 @@ export async function getDrawings(
   const params = buildDrawingParams(search, collectionId, options);
   if (options?.includeData) {
     params.includeData = "true";
-    const response = await api.get<PaginatedDrawings<Drawing>>("/drawings", { params });
-    return { ...response.data, drawings: response.data.drawings.map(deserializeDrawing) };
+    const response = await api.get<PaginatedDrawings<Drawing>>("/drawings", {
+      params,
+    });
+    return {
+      ...response.data,
+      drawings: response.data.drawings.map(deserializeDrawing),
+    };
   }
-  const response = await api.get<PaginatedDrawings<DrawingSummary>>("/drawings", { params });
-  return { ...response.data, drawings: response.data.drawings.map(deserializeDrawingSummary) };
+  const response = await api.get<PaginatedDrawings<DrawingSummary>>(
+    "/drawings",
+    { params },
+  );
+  return {
+    ...response.data,
+    drawings: response.data.drawings.map(deserializeDrawingSummary),
+  };
 }
 
 export async function getSharedDrawings(
@@ -168,8 +182,14 @@ export async function getSharedDrawings(
   options?: Omit<DrawingQueryOptions, "includeData">,
 ): Promise<PaginatedDrawings<DrawingSummary>> {
   const params = buildDrawingParams(search, undefined, options);
-  const response = await api.get<PaginatedDrawings<DrawingSummary>>("/drawings/shared", { params });
-  return { ...response.data, drawings: response.data.drawings.map(deserializeDrawingSummary) };
+  const response = await api.get<PaginatedDrawings<DrawingSummary>>(
+    "/drawings/shared",
+    { params },
+  );
+  return {
+    ...response.data,
+    drawings: response.data.drawings.map(deserializeDrawingSummary),
+  };
 }
 
 export const getDrawing = async (id: string) => {
@@ -222,10 +242,14 @@ export type DrawingLinkShareRow = {
 
 export const getDrawingSharing = async (
   drawingId: string,
-): Promise<{ permissions: DrawingPermissionRow[]; linkShares: DrawingLinkShareRow[] }> => {
-  const response = await api.get<{ permissions: DrawingPermissionRow[]; linkShares: DrawingLinkShareRow[] }>(
-    `/drawings/${drawingId}/sharing`,
-  );
+): Promise<{
+  permissions: DrawingPermissionRow[];
+  linkShares: DrawingLinkShareRow[];
+}> => {
+  const response = await api.get<{
+    permissions: DrawingPermissionRow[];
+    linkShares: DrawingLinkShareRow[];
+  }>(`/drawings/${drawingId}/sharing`);
   return response.data;
 };
 
@@ -265,7 +289,11 @@ export const setSharedDrawingHidden = async (
 
 export const createLinkShare = async (
   drawingId: string,
-  params: { permission: "view" | "edit"; expiresAt?: string | null; passphrase?: string },
+  params: {
+    permission: "view" | "edit";
+    expiresAt?: string | null;
+    passphrase?: string;
+  },
 ): Promise<{ share: DrawingLinkShareRow }> => {
   const response = await api.post<{ share: DrawingLinkShareRow }>(
     `/drawings/${drawingId}/link-shares`,
@@ -353,7 +381,11 @@ export const duplicateDrawing = async (id: string) => {
   return deserializeDrawing(response.data);
 };
 
-export type DrawingSnapshotSummary = { id: string; version: number; createdAt: string };
+export type DrawingSnapshotSummary = {
+  id: string;
+  version: number;
+  createdAt: string;
+};
 
 export type DrawingSnapshotFull = DrawingSnapshotSummary & {
   drawingId: string;
@@ -377,7 +409,9 @@ export const getDrawingSnapshot = async (
   drawingId: string,
   snapshotId: string,
 ): Promise<DrawingSnapshotFull> => {
-  const response = await api.get(`/drawings/${drawingId}/history/${snapshotId}`);
+  const response = await api.get(
+    `/drawings/${drawingId}/history/${snapshotId}`,
+  );
   return response.data;
 };
 
@@ -385,6 +419,8 @@ export const restoreDrawingSnapshot = async (
   drawingId: string,
   snapshotId: string,
 ): Promise<Drawing> => {
-  const response = await api.post(`/drawings/${drawingId}/history/${snapshotId}/restore`);
+  const response = await api.post(
+    `/drawings/${drawingId}/history/${snapshotId}/restore`,
+  );
   return deserializeDrawing(response.data);
 };

@@ -1,12 +1,25 @@
 /**
  * Tests for audit logging utility
- * 
+ *
  * These tests verify that audit logging works correctly when enabled
  * and gracefully degrades when disabled or when tables don't exist.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
-import { getTestPrisma, setupTestDb, initTestDb, createTestUser } from "../../__tests__/testUtils";
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  vi,
+} from "vitest";
+import {
+  getTestPrisma,
+  setupTestDb,
+  initTestDb,
+  createTestUser,
+} from "../../__tests__/testUtils";
 import {
   logAuditEvent,
   getAuditLogs,
@@ -102,7 +115,9 @@ describe("Audit Logging", () => {
         const audit = await import("../audit");
         audit.setAuditPrismaProvider(() => prisma);
 
-        await expect(audit.logAuditEvent({ action: "should_not_log_disabled" })).resolves.not.toThrow();
+        await expect(
+          audit.logAuditEvent({ action: "should_not_log_disabled" }),
+        ).resolves.not.toThrow();
         const logs = await prisma.auditLog.findMany({
           where: { action: "should_not_log_disabled" },
         });
@@ -207,14 +222,18 @@ describe("Audit Logging", () => {
       const logs = await getAuditLogs(testUser.id, 1);
 
       expect(logs.length).toBe(1);
-      expect((logs[0] as { details: unknown }).details).toEqual({ key: "value" });
+      expect((logs[0] as { details: unknown }).details).toEqual({
+        key: "value",
+      });
     });
 
     it("should include user information in logs", async () => {
       const logs = await getAuditLogs(testUser.id, 1);
 
       expect(logs.length).toBe(1);
-      const log = logs[0] as { user: { id: string; email: string; name: string } };
+      const log = logs[0] as {
+        user: { id: string; email: string; name: string };
+      };
       expect(log.user).toBeDefined();
       expect(log.user.id).toBe(testUser.id);
       expect(log.user.email).toBe(testUser.email);

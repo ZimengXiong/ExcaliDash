@@ -10,7 +10,8 @@ type LegacyDbOptions = {
   includeTrashDrawing: boolean;
 };
 
-export const createTempDir = () => fs.mkdtempSync(path.join(os.tmpdir(), "excalidash-legacy-"));
+export const createTempDir = () =>
+  fs.mkdtempSync(path.join(os.tmpdir(), "excalidash-legacy-"));
 
 export const openWritableDb = (filePath: string): any => {
   try {
@@ -29,8 +30,10 @@ export const createLegacySqliteDb = (opts: LegacyDbOptions): string => {
   const filePath = path.join(dir, "legacy-export.db");
   const db = openWritableDb(filePath);
 
-  const tableDrawing = opts.tableStyle === "plural-lower" ? "drawings" : "Drawing";
-  const tableCollection = opts.tableStyle === "plural-lower" ? "collections" : "Collection";
+  const tableDrawing =
+    opts.tableStyle === "plural-lower" ? "drawings" : "Drawing";
+  const tableCollection =
+    opts.tableStyle === "plural-lower" ? "collections" : "Collection";
 
   try {
     if (opts.includeCollections) {
@@ -42,7 +45,9 @@ export const createLegacySqliteDb = (opts: LegacyDbOptions): string => {
           updatedAt TEXT
         );
       `);
-      db.prepare(`INSERT INTO "${tableCollection}" (id, name, createdAt, updatedAt) VALUES (?, ?, ?, ?)`).run(
+      db.prepare(
+        `INSERT INTO "${tableCollection}" (id, name, createdAt, updatedAt) VALUES (?, ?, ?, ?)`,
+      ).run(
         "legacy-collection-1",
         "Legacy Collection",
         new Date("2024-01-01T00:00:00.000Z").toISOString(),
@@ -71,7 +76,7 @@ export const createLegacySqliteDb = (opts: LegacyDbOptions): string => {
       `INSERT INTO "${tableDrawing}"
         (id, name, elements, appState, files, preview, version, collectionId, collectionName, createdAt, updatedAt)
         VALUES
-        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
 
     insertDrawing.run(
@@ -135,7 +140,7 @@ export const createLegacySqliteDb = (opts: LegacyDbOptions): string => {
         `INSERT INTO "_prisma_migrations"
           (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
           VALUES
-          (?, ?, ?, ?, ?, ?, ?, ?)`
+          (?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         "m1",
         "checksum",
@@ -154,91 +159,107 @@ export const createLegacySqliteDb = (opts: LegacyDbOptions): string => {
   return filePath;
 };
 
-export const createExcalidashArchiveWithDuplicateDrawingIds = async (): Promise<string> => {
-  const dir = createTempDir();
-  const filePath = path.join(dir, "duplicate-drawing-ids.excalidash");
-  const zip = new JSZip();
+export const createExcalidashArchiveWithDuplicateDrawingIds =
+  async (): Promise<string> => {
+    const dir = createTempDir();
+    const filePath = path.join(dir, "duplicate-drawing-ids.excalidash");
+    const zip = new JSZip();
 
-  const manifest = {
-    format: "excalidash",
-    formatVersion: 1,
-    exportedAt: new Date().toISOString(),
-    unorganizedFolder: "Unorganized",
-    collections: [] as any[],
-    drawings: [
-      {
-        id: "duplicate-drawing-id",
-        name: "Drawing One",
-        filePath: "Unorganized/drawing-1.excalidraw",
-        collectionId: null,
-      },
-      {
-        id: "duplicate-drawing-id",
-        name: "Drawing Two",
-        filePath: "Unorganized/drawing-2.excalidraw",
-        collectionId: null,
-      },
-    ],
-  };
-
-  zip.file("excalidash.manifest.json", JSON.stringify(manifest));
-  zip.file(
-    "Unorganized/drawing-1.excalidraw",
-    JSON.stringify({ type: "excalidraw", version: 2, source: "test", elements: [], appState: {}, files: {} })
-  );
-  zip.file(
-    "Unorganized/drawing-2.excalidraw",
-    JSON.stringify({ type: "excalidraw", version: 2, source: "test", elements: [], appState: {}, files: {} })
-  );
-
-  const buffer = await zip.generateAsync({ type: "nodebuffer" });
-  fs.writeFileSync(filePath, buffer);
-  return filePath;
-};
-
-export const createExcalidashArchiveWithLargeDrawing = async (): Promise<Buffer> => {
-  const zip = new JSZip();
-  const drawingId = "large-backup-drawing";
-  const drawingPath = "Unorganized/large-backup-drawing.excalidraw";
-  const manifest = {
-    format: "excalidash",
-    formatVersion: 1,
-    exportedAt: new Date().toISOString(),
-    unorganizedFolder: "Unorganized",
-    collections: [] as any[],
-    drawings: [
-      {
-        id: drawingId,
-        name: "Large backup drawing",
-        filePath: drawingPath,
-        collectionId: null,
-      },
-    ],
-  };
-  const dataURL = `data:image/png;base64,${"A".repeat(5 * 1024 * 1024)}`;
-
-  zip.file("excalidash.manifest.json", JSON.stringify(manifest));
-  zip.file(
-    drawingPath,
-    JSON.stringify({
-      type: "excalidraw",
-      version: 2,
-      source: "test",
-      elements: [],
-      appState: {},
-      files: {
-        "large-image": {
-          id: "large-image",
-          mimeType: "image/png",
-          dataURL,
-          created: 1,
+    const manifest = {
+      format: "excalidash",
+      formatVersion: 1,
+      exportedAt: new Date().toISOString(),
+      unorganizedFolder: "Unorganized",
+      collections: [] as any[],
+      drawings: [
+        {
+          id: "duplicate-drawing-id",
+          name: "Drawing One",
+          filePath: "Unorganized/drawing-1.excalidraw",
+          collectionId: null,
         },
-      },
-    })
-  );
+        {
+          id: "duplicate-drawing-id",
+          name: "Drawing Two",
+          filePath: "Unorganized/drawing-2.excalidraw",
+          collectionId: null,
+        },
+      ],
+    };
 
-  return zip.generateAsync({ type: "nodebuffer" });
-};
+    zip.file("excalidash.manifest.json", JSON.stringify(manifest));
+    zip.file(
+      "Unorganized/drawing-1.excalidraw",
+      JSON.stringify({
+        type: "excalidraw",
+        version: 2,
+        source: "test",
+        elements: [],
+        appState: {},
+        files: {},
+      }),
+    );
+    zip.file(
+      "Unorganized/drawing-2.excalidraw",
+      JSON.stringify({
+        type: "excalidraw",
+        version: 2,
+        source: "test",
+        elements: [],
+        appState: {},
+        files: {},
+      }),
+    );
+
+    const buffer = await zip.generateAsync({ type: "nodebuffer" });
+    fs.writeFileSync(filePath, buffer);
+    return filePath;
+  };
+
+export const createExcalidashArchiveWithLargeDrawing =
+  async (): Promise<Buffer> => {
+    const zip = new JSZip();
+    const drawingId = "large-backup-drawing";
+    const drawingPath = "Unorganized/large-backup-drawing.excalidraw";
+    const manifest = {
+      format: "excalidash",
+      formatVersion: 1,
+      exportedAt: new Date().toISOString(),
+      unorganizedFolder: "Unorganized",
+      collections: [] as any[],
+      drawings: [
+        {
+          id: drawingId,
+          name: "Large backup drawing",
+          filePath: drawingPath,
+          collectionId: null,
+        },
+      ],
+    };
+    const dataURL = `data:image/png;base64,${"A".repeat(5 * 1024 * 1024)}`;
+
+    zip.file("excalidash.manifest.json", JSON.stringify(manifest));
+    zip.file(
+      drawingPath,
+      JSON.stringify({
+        type: "excalidraw",
+        version: 2,
+        source: "test",
+        elements: [],
+        appState: {},
+        files: {
+          "large-image": {
+            id: "large-image",
+            mimeType: "image/png",
+            dataURL,
+            created: 1,
+          },
+        },
+      }),
+    );
+
+    return zip.generateAsync({ type: "nodebuffer" });
+  };
 
 export const createLegacySqliteDbWithDuplicateDrawingIds = (): string => {
   const dir = createTempDir();
@@ -266,7 +287,7 @@ export const createLegacySqliteDbWithDuplicateDrawingIds = (): string => {
     const insertDrawing = db.prepare(
       `INSERT INTO "Drawing"
         (id, name, elements, appState, files, preview, version, collectionId, collectionName, createdAt, updatedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
 
     insertDrawing.run(

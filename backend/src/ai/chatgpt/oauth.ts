@@ -51,18 +51,23 @@ export class ChatGptOAuthError extends Error {
   /** True when the user must sign in again (dead refresh token, invalid grant). */
   permanent: boolean;
   status: number;
-  constructor(message: string, opts: { permanent?: boolean; status?: number } = {}) {
+  constructor(
+    message: string,
+    opts: { permanent?: boolean; status?: number } = {},
+  ) {
     super(message);
     this.name = "ChatGptOAuthError";
     this.permanent = opts.permanent ?? false;
     this.status = opts.status ?? 502;
   }
-};
+}
 
 const AUTH_CLAIM = "https://api.openai.com/auth";
 
 /** Decodes a JWT payload without verifying (tokens come from OpenAI over TLS). */
-export const decodeJwt = (token: string | null | undefined): Record<string, unknown> | null => {
+export const decodeJwt = (
+  token: string | null | undefined,
+): Record<string, unknown> | null => {
   if (typeof token !== "string") return null;
   const parts = token.split(".");
   if (parts.length !== 3) return null;
@@ -82,7 +87,9 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
 /** Reads the ChatGPT account id from an id (or access) token. */
-export const deriveAccountId = (token: string | null | undefined): string | null => {
+export const deriveAccountId = (
+  token: string | null | undefined,
+): string | null => {
   const auth = decodeJwt(token)?.[AUTH_CLAIM];
   if (isRecord(auth) && typeof auth.chatgpt_account_id === "string") {
     return auth.chatgpt_account_id;
@@ -174,12 +181,14 @@ const toTokens = (
   const idToken = raw.id_token ?? null;
   const accountId = deriveAccountId(idToken) ?? deriveAccountId(accessToken);
   if (!accountId) {
-    throw new ChatGptOAuthError("Could not derive ChatGPT account id from token");
+    throw new ChatGptOAuthError(
+      "Could not derive ChatGPT account id from token",
+    );
   }
   const expiresAt =
     typeof raw.expires_in === "number"
       ? Date.now() + raw.expires_in * 1000
-      : tokenExpiryMs(accessToken) ?? Date.now() + 60 * 60 * 1000;
+      : (tokenExpiryMs(accessToken) ?? Date.now() + 60 * 60 * 1000);
   return {
     accessToken,
     refreshToken,
@@ -241,7 +250,9 @@ export const exchangeAuthorizationCode = async (params: {
 };
 
 /** Exchanges a refresh token for a fresh access token (+ possibly new refresh). */
-export const refreshTokens = async (refreshToken: string): Promise<ChatGptTokens> => {
+export const refreshTokens = async (
+  refreshToken: string,
+): Promise<ChatGptTokens> => {
   const c = cfg();
   const res = await postToken(
     new URLSearchParams({

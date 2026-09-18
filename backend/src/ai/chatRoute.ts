@@ -7,12 +7,20 @@ import {
 } from "../authz/sharing";
 import { config } from "../config";
 import { buildStructuralSummary } from "../agent/summary";
-import { resolveAiSettings, toAiStatus, type AiSystemConfigRow } from "./settings";
+import {
+  resolveAiSettings,
+  toAiStatus,
+  type AiSystemConfigRow,
+} from "./settings";
 import { AGENT_TOOLS } from "./toolDefs";
 import { anthropicAdapter } from "./providers/anthropic";
 import { openaiAdapter } from "./providers/openai";
 import { codexAdapter } from "./providers/codex";
-import { ensureFreshAuth, flagReconnect, type ChatGptAuth } from "./chatgpt/store";
+import {
+  ensureFreshAuth,
+  flagReconnect,
+  type ChatGptAuth,
+} from "./chatgpt/store";
 import { registerChatGptRoutes } from "./chatgpt/routes";
 import { applyOpsBatch, type RegisterAiRoutesDeps } from "./applyOpsBatch";
 import {
@@ -67,9 +75,11 @@ export const registerAiRoutes = (
   const chatRateLimiter = rateLimit({
     windowMs: config.ai.rateLimitWindowMs,
     max: config.ai.rateLimitMax,
-    keyGenerator: (req) =>
-      req.user?.id ?? ipKeyGenerator(req.ip ?? "0.0.0.0"),
-    message: { error: "Rate limit exceeded", message: "Too many AI chat requests" },
+    keyGenerator: (req) => req.user?.id ?? ipKeyGenerator(req.ip ?? "0.0.0.0"),
+    message: {
+      error: "Rate limit exceeded",
+      message: "Too many AI chat requests",
+    },
     standardHeaders: true,
     legacyHeaders: false,
     validate: { trustProxy: false, xForwardedForHeader: false },
@@ -105,16 +115,20 @@ export const registerAiRoutes = (
       }
       // Never expose the chat proxy to agent/API-key bearer principals.
       if (req.user.authCredentialType === "apiKey") {
-        return res.status(403).json({ error: "Forbidden", message: "Session auth required" });
+        return res
+          .status(403)
+          .json({ error: "Forbidden", message: "Session auth required" });
       }
 
       const body = req.body ?? {};
-      const drawingId = typeof body.drawingId === "string" ? body.drawingId : "";
+      const drawingId =
+        typeof body.drawingId === "string" ? body.drawingId : "";
       const rawMessages = Array.isArray(body.messages) ? body.messages : null;
       if (!drawingId || !rawMessages || rawMessages.length === 0) {
-        return res
-          .status(400)
-          .json({ error: "Bad request", message: "drawingId and messages are required" });
+        return res.status(400).json({
+          error: "Bad request",
+          message: "drawingId and messages are required",
+        });
       }
       if (rawMessages.length > MAX_CHAT_MESSAGES) {
         return res.status(400).json({
@@ -150,7 +164,9 @@ export const registerAiRoutes = (
         messages.push({ role, content });
       }
       if (messages.length === 0) {
-        return res.status(400).json({ error: "Bad request", message: "messages are empty" });
+        return res
+          .status(400)
+          .json({ error: "Bad request", message: "messages are empty" });
       }
 
       const access = await getDrawingAccess({
@@ -159,20 +175,23 @@ export const registerAiRoutes = (
         drawingId,
       });
       if (!canEditDrawing(access)) {
-        return res
-          .status(canViewDrawing(access) ? 403 : 404)
-          .json({ error: canViewDrawing(access) ? "Forbidden" : "Drawing not found" });
+        return res.status(canViewDrawing(access) ? 403 : 404).json({
+          error: canViewDrawing(access) ? "Forbidden" : "Drawing not found",
+        });
       }
 
       const settings = await loadAiSettings();
       const adapter = adapterFor(settings.provider);
       if (!settings.available || !adapter) {
-        return res
-          .status(503)
-          .json({ error: "AI unavailable", message: "The AI chat proxy is not configured" });
+        return res.status(503).json({
+          error: "AI unavailable",
+          message: "The AI chat proxy is not configured",
+        });
       }
 
-      const drawing = await prisma.drawing.findUnique({ where: { id: drawingId } });
+      const drawing = await prisma.drawing.findUnique({
+        where: { id: drawingId },
+      });
       if (!drawing) return res.status(404).json({ error: "Drawing not found" });
 
       // For the ChatGPT (subscription) provider, resolve THIS user's tokens and
@@ -226,7 +245,11 @@ export const registerAiRoutes = (
 
       try {
         let completed = false;
-        for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration += 1) {
+        for (
+          let iteration = 0;
+          iteration < MAX_TOOL_ITERATIONS;
+          iteration += 1
+        ) {
           const completion = await adapter.complete({
             settings,
             system: buildSystemPrompt(drawing.name, summary),
@@ -252,7 +275,10 @@ export const registerAiRoutes = (
           for (const call of completion.toolCalls) {
             send("tool_call", { name: call.name, id: call.id });
             if (call.name !== "apply_ops") {
-              toolResults.push({ id: call.id, content: `Unknown tool: ${call.name}` });
+              toolResults.push({
+                id: call.id,
+                content: `Unknown tool: ${call.name}`,
+              });
               continue;
             }
             if (abort.signal.aborted) {
@@ -267,7 +293,8 @@ export const registerAiRoutes = (
             if (!canEditDrawing(currentAccess)) {
               send("error", {
                 code: "ACCESS_REVOKED",
-                message: "Your edit access changed while the assistant was working",
+                message:
+                  "Your edit access changed while the assistant was working",
               });
               res.end();
               return;
@@ -281,7 +308,10 @@ export const registerAiRoutes = (
                 : { ops: call.input },
             );
             if (batch.ok === false) {
-              send("error", { code: "OPS_VALIDATION_FAILED", errors: batch.errors });
+              send("error", {
+                code: "OPS_VALIDATION_FAILED",
+                errors: batch.errors,
+              });
               toolResults.push({
                 id: call.id,
                 content: `Ops rejected: ${JSON.stringify(batch.errors)}`,
@@ -307,7 +337,8 @@ export const registerAiRoutes = (
         } else {
           send("error", {
             code: "TOOL_ITERATION_LIMIT",
-            message: "The assistant stopped after too many consecutive tool calls",
+            message:
+              "The assistant stopped after too many consecutive tool calls",
           });
         }
       } catch (error) {

@@ -126,18 +126,22 @@ export const rehydrateFilesForExport = async (
   const sameOriginFiles = Object.fromEntries(
     Object.entries(files).map(([fileId, file]) => {
       if (!isRehydratableRef(file?.dataURL)) return [fileId, file];
-      return [fileId, {
-        ...file,
-        dataURL: `/api/files/${encodeURIComponent(drawingId)}/${encodeURIComponent(fileId)}`,
-      }];
+      return [
+        fileId,
+        {
+          ...file,
+          dataURL: `/api/files/${encodeURIComponent(drawingId)}/${encodeURIComponent(fileId)}`,
+        },
+      ];
     }),
   );
   const hydrated = await rehydrateFilesFromUrls(sameOriginFiles);
   const unresolved = Object.entries(hydrated)
-    .filter(([, file]) =>
-      typeof file?.dataURL === "string" &&
-      file.dataURL.length > 0 &&
-      !file.dataURL.startsWith("data:"),
+    .filter(
+      ([, file]) =>
+        typeof file?.dataURL === "string" &&
+        file.dataURL.length > 0 &&
+        !file.dataURL.startsWith("data:"),
     )
     .map(([fileId]) => fileId);
 

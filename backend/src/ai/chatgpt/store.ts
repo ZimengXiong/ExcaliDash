@@ -1,10 +1,6 @@
 import type { PrismaClient } from "../../generated/client";
 import { decryptSecret, encryptSecret } from "../crypto";
-import {
-  ChatGptOAuthError,
-  refreshTokens,
-  type ChatGptTokens,
-} from "./oauth";
+import { ChatGptOAuthError, refreshTokens, type ChatGptTokens } from "./oauth";
 
 // Prisma-backed persistence for the per-user ChatGPT connection and the
 // short-lived pending OAuth authorizations. Tokens are encrypted at rest with
@@ -48,7 +44,9 @@ export const consumePendingAuth = async (
 ): Promise<{ userId: string; codeVerifier: string } | null> => {
   const row = await prisma.chatGptAuthState.findUnique({ where: { state } });
   if (!row) return null;
-  await prisma.chatGptAuthState.delete({ where: { state } }).catch(() => undefined);
+  await prisma.chatGptAuthState
+    .delete({ where: { state } })
+    .catch(() => undefined);
   if (row.createdAt.getTime() < Date.now() - PENDING_TTL_MS) return null;
   return { userId: row.userId, codeVerifier: row.codeVerifier };
 };
@@ -120,7 +118,10 @@ export const getConnectionStatus = async (
   };
 };
 
-const markReconnect = async (prisma: PrismaClient, userId: string): Promise<void> => {
+const markReconnect = async (
+  prisma: PrismaClient,
+  userId: string,
+): Promise<void> => {
   await prisma.chatGptConnection
     .update({ where: { userId }, data: { needsReconnect: true } })
     .catch(() => undefined);

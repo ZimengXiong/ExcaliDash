@@ -67,10 +67,7 @@ export const codexAdapter: AiProviderAdapter = {
   async complete(req: CompletionRequest): Promise<CompletionResult> {
     const { settings, system, turns, tools, signal, codexAuth } = req;
     if (!codexAuth) {
-      throw new AiProviderError(
-        "ChatGPT account is not connected",
-        401,
-      );
+      throw new AiProviderError("ChatGPT account is not connected", 401);
     }
     const c = config.ai.chatgpt;
     const model = normalizeCodexModel(settings.model, c.models[0] ?? "gpt-5.1");
@@ -105,11 +102,7 @@ export const codexAdapter: AiProviderAdapter = {
       // 401 => token no longer accepted; the route maps this to a reconnect
       // prompt. 429 => the user's own subscription hit its usage limit.
       const status =
-        response.status === 401
-          ? 401
-          : response.status === 429
-            ? 429
-            : 502;
+        response.status === 401 ? 401 : response.status === 429 ? 429 : 502;
       throw new AiProviderError(
         `ChatGPT Codex backend error ${response.status}: ${detail.slice(0, 500)}`,
         status,

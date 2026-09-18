@@ -1,6 +1,9 @@
 import type { Request } from "express";
 
-type RequestLike = Pick<Request, "headers" | "secure" | "originalUrl" | "url"> & {
+type RequestLike = Pick<
+  Request,
+  "headers" | "secure" | "originalUrl" | "url"
+> & {
   header?: (name: string) => string | undefined;
   get?: (name: string) => string | undefined;
 };
@@ -33,7 +36,8 @@ const parseAllowedOrigin = (origin: string): ParsedAllowedOrigin | null => {
 
 const readHeader = (req: RequestLike, name: string): string | null => {
   const normalizedName = name.toLowerCase();
-  const directHeader = req.header?.(normalizedName) ?? req.get?.(normalizedName);
+  const directHeader =
+    req.header?.(normalizedName) ?? req.get?.(normalizedName);
   if (typeof directHeader === "string") {
     const trimmed = directHeader.trim();
     return trimmed.length > 0 ? trimmed : null;
@@ -54,7 +58,7 @@ const getForwardedProto = (req: RequestLike): string | null => {
 };
 
 export const createHttpsRedirectPolicy = (
-  allowedOrigins: string[]
+  allowedOrigins: string[],
 ): HttpsRedirectPolicy => {
   const parsedOrigins = allowedOrigins
     .map((origin) => parseAllowedOrigin(origin))
@@ -62,7 +66,8 @@ export const createHttpsRedirectPolicy = (
 
   const hostProtocols = new Map<string, Set<"http:" | "https:">>();
   for (const origin of parsedOrigins) {
-    const existing = hostProtocols.get(origin.host) ?? new Set<"http:" | "https:">();
+    const existing =
+      hostProtocols.get(origin.host) ?? new Set<"http:" | "https:">();
     existing.add(origin.protocol);
     hostProtocols.set(origin.host, existing);
   }
@@ -79,7 +84,7 @@ export const createHttpsRedirectPolicy = (
 
 export const getHttpsRedirectUrl = (
   req: RequestLike,
-  policy: HttpsRedirectPolicy
+  policy: HttpsRedirectPolicy,
 ): string | null => {
   if (!policy.shouldEnforceHttps) return null;
 
@@ -90,12 +95,15 @@ export const getHttpsRedirectUrl = (
 
   const rawHost = readHeader(req, "host")?.toLowerCase() ?? "";
   const protocols = rawHost ? policy.hostProtocols.get(rawHost) : undefined;
-  const targetHost =
-    protocols?.has("https:") ? rawHost : protocols ? null : policy.canonicalHttpsHost;
+  const targetHost = protocols?.has("https:")
+    ? rawHost
+    : protocols
+      ? null
+      : policy.canonicalHttpsHost;
   if (!targetHost) return null;
 
   const path = (req.originalUrl || req.url || "/").startsWith("/")
-    ? (req.originalUrl || req.url || "/")
+    ? req.originalUrl || req.url || "/"
     : "/";
   return `https://${targetHost}${path}`;
 };

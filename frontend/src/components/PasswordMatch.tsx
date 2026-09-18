@@ -26,7 +26,11 @@ export const PasswordMatch: React.FC<PasswordMatchProps> = ({
       role="status"
       aria-live="polite"
     >
-      {matches ? <Check size={14} aria-hidden="true" /> : <X size={14} aria-hidden="true" />}
+      {matches ? (
+        <Check size={14} aria-hidden="true" />
+      ) : (
+        <X size={14} aria-hidden="true" />
+      )}
       {matches ? "Passwords match" : "Passwords do not match"}
     </p>
   );

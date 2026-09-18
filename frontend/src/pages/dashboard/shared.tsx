@@ -14,7 +14,7 @@ export type SelectionBounds = {
 
 export const getSelectionBounds = (
   start: Point,
-  current: Point
+  current: Point,
 ): SelectionBounds => {
   const left = Math.min(start.x, current.x);
   const right = Math.max(start.x, current.x);

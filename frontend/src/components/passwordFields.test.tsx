@@ -19,10 +19,9 @@ describe("PasswordInput", () => {
 
     fireEvent.click(toggle);
     expect(input.type).toBe("text");
-    expect(screen.getByRole("button", { name: "Hide password" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(
+      screen.getByRole("button", { name: "Hide password" }),
+    ).toHaveAttribute("aria-pressed", "true");
     expect(onSubmit).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Hide password" }));
@@ -32,10 +31,9 @@ describe("PasswordInput", () => {
   it("keeps the reveal control in the keyboard tab order", () => {
     render(<PasswordInput aria-label="Password" />);
 
-    expect(screen.getByRole("button", { name: "Show password" })).not.toHaveAttribute(
-      "tabindex",
-      "-1",
-    );
+    expect(
+      screen.getByRole("button", { name: "Show password" }),
+    ).not.toHaveAttribute("tabindex", "-1");
   });
 });
 
@@ -52,10 +50,15 @@ describe("PasswordMatch", () => {
     const { rerender } = render(
       <PasswordMatch password="a test password" confirmPassword="a typo" />,
     );
-    expect(screen.getByRole("status")).toHaveTextContent("Passwords do not match");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Passwords do not match",
+    );
 
     rerender(
-      <PasswordMatch password="a test password" confirmPassword="a test password" />,
+      <PasswordMatch
+        password="a test password"
+        confirmPassword="a test password"
+      />,
     );
     expect(screen.getByRole("status")).toHaveTextContent("Passwords match");
   });

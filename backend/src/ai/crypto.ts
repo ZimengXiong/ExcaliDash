@@ -39,7 +39,9 @@ export const encryptSecret = (plaintext: string): string => {
  * tampered input rather than throwing, so a corrupt stored key degrades to
  * "no DB key" instead of crashing the request.
  */
-export const decryptSecret = (stored: string | null | undefined): string | null => {
+export const decryptSecret = (
+  stored: string | null | undefined,
+): string | null => {
   if (!stored) return null;
   const parts = stored.split("$");
   if (parts.length !== 4 || parts[0] !== ENC_PREFIX) return null;

@@ -5,10 +5,14 @@ import {
   validatePasswordAgainstPolicy,
 } from "../config";
 
-const passwordPolicyMessage = () => buildPasswordPolicyMessage(config.passwordPolicy);
+const passwordPolicyMessage = () =>
+  buildPasswordPolicyMessage(config.passwordPolicy);
 
 const passwordSchema = z.string().superRefine((value, ctx) => {
-  const validationMessage = validatePasswordAgainstPolicy(value, config.passwordPolicy);
+  const validationMessage = validatePasswordAgainstPolicy(
+    value,
+    config.passwordPolicy,
+  );
   if (!validationMessage) return;
   ctx.addIssue({
     code: z.ZodIssueCode.custom,
@@ -84,24 +88,26 @@ export const authOnboardingChoiceSchema = z.object({
   enableAuth: z.boolean(),
 });
 
-export const adminCreateUserSchema = z.object({
-  username: z.string().trim().min(3).max(50).optional(),
-  email: z.string().email().toLowerCase().trim(),
-  password: passwordSchema.optional(),
-  oidcOnly: z.boolean().optional(),
-  name: z.string().trim().min(1).max(100),
-  role: z.enum(["ADMIN", "USER"]).optional(),
-  mustResetPassword: z.boolean().optional(),
-  isActive: z.boolean().optional(),
-}).superRefine((data, ctx) => {
-  if (!data.oidcOnly && !data.password) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["password"],
-      message: passwordPolicyMessage(),
-    });
-  }
-});
+export const adminCreateUserSchema = z
+  .object({
+    username: z.string().trim().min(3).max(50).optional(),
+    email: z.string().email().toLowerCase().trim(),
+    password: passwordSchema.optional(),
+    oidcOnly: z.boolean().optional(),
+    name: z.string().trim().min(1).max(100),
+    role: z.enum(["ADMIN", "USER"]).optional(),
+    mustResetPassword: z.boolean().optional(),
+    isActive: z.boolean().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.oidcOnly && !data.password) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["password"],
+        message: passwordPolicyMessage(),
+      });
+    }
+  });
 
 export const adminUpdateUserSchema = z.object({
   username: z.string().trim().min(3).max(50).nullable().optional(),
@@ -122,7 +128,11 @@ export const impersonateSchema = z
 
 export const loginRateLimitUpdateSchema = z.object({
   enabled: z.boolean(),
-  windowMs: z.number().int().min(10_000).max(24 * 60 * 60 * 1000),
+  windowMs: z
+    .number()
+    .int()
+    .min(10_000)
+    .max(24 * 60 * 60 * 1000),
   max: z.number().int().min(1).max(10_000),
 });
 
@@ -162,11 +172,12 @@ export const apiKeyCreateSchema = z.object({
   scopes: z.array(z.string()).optional(),
 });
 
-
-export const userPreferencesSchema = z.object({
-  theme: z.enum(["light", "dark"]).optional(),
-  dashboardSortField: z.enum(["name", "createdAt", "updatedAt"]).optional(),
-  dashboardSortDirection: z.enum(["asc", "desc"]).optional(),
-  language: z.string().trim().min(1).max(35).optional(),
-  gridStep: z.number().int().min(1).max(100).optional(),
-}).strict();
+export const userPreferencesSchema = z
+  .object({
+    theme: z.enum(["light", "dark"]).optional(),
+    dashboardSortField: z.enum(["name", "createdAt", "updatedAt"]).optional(),
+    dashboardSortDirection: z.enum(["asc", "desc"]).optional(),
+    language: z.string().trim().min(1).max(35).optional(),
+    gridStep: z.number().int().min(1).max(100).optional(),
+  })
+  .strict();

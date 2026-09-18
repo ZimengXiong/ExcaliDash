@@ -2,6 +2,10 @@
   "name": "backend",
   "version": "0.6.2",
   "description": "",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "npm@10.9.2",
   "scripts": {
     "build": "prisma generate && tsc",
     "predev": "node scripts/predev-migrate.cjs",
@@ -15,7 +19,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "check:max-lines": "node ../scripts/check-source-line-count.cjs",
+    "lint": "eslint src scripts --config ../eslint.config.js",
     "check:env-boundary": "node ../scripts/check-env-boundary.cjs",
     "gen:env": "ts-node src/config/generateEnvReference.ts"
   },

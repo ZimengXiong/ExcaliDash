@@ -1,13 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
-import {
-  AlertTriangle,
-  Loader2,
-  Send,
-  Sparkles,
-  Undo2,
-  X,
-} from "lucide-react";
+import { AlertTriangle, Loader2, Send, Sparkles, Undo2, X } from "lucide-react";
 import clsx from "clsx";
 import { getAiStatus } from "../../api/ai";
 import {
@@ -245,7 +238,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     >
       <header className="flex h-16 shrink-0 items-center justify-between border-b-2 border-slate-100 px-4 dark:border-neutral-800">
         <span className="flex items-center gap-3 font-bold text-gray-900 dark:text-gray-100">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl border-2 border-black bg-indigo-400 text-black dark:border-neutral-700"><Sparkles size={17} /></span>
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl border-2 border-black bg-indigo-400 text-black dark:border-neutral-700">
+            <Sparkles size={17} />
+          </span>
           {STR.title}
         </span>
         <button
@@ -274,8 +269,12 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           >
             {messages.length === 0 ? (
               <div className="mx-auto mt-10 max-w-[15rem] text-center text-sm text-gray-500 dark:text-gray-400">
-                <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-dashed border-indigo-300 bg-indigo-50 text-indigo-600 dark:border-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-300"><Sparkles size={21} /></span>
-                <p className="font-semibold text-slate-700 dark:text-neutral-200">What should I draw?</p>
+                <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-dashed border-indigo-300 bg-indigo-50 text-indigo-600 dark:border-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-300">
+                  <Sparkles size={21} />
+                </span>
+                <p className="font-semibold text-slate-700 dark:text-neutral-200">
+                  What should I draw?
+                </p>
                 <p className="mt-1 text-xs font-medium">{STR.empty}</p>
               </div>
             ) : (
@@ -304,27 +303,27 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                 aria-label={STR.placeholder}
                 className="ui-input max-h-32 min-h-[2.75rem] flex-1 resize-none px-3 py-2 text-sm"
               />
-          {isStreaming ? (
-            <button
-              type="button"
-              onClick={stop}
-              title={STR.stop}
-              aria-label={STR.stop}
-              className="ui-icon-button h-11 w-11 shrink-0"
-            >
-              <Loader2 size={18} className="animate-spin" />
-            </button>
-          ) : (
-            <button
-              type="submit"
-              disabled={draft.trim().length === 0}
-              title={STR.send}
-              aria-label={STR.send}
-              className="ui-button-primary h-11 w-11 shrink-0 px-0 disabled:opacity-40"
-            >
-              <Send size={18} />
-            </button>
-          )}
+              {isStreaming ? (
+                <button
+                  type="button"
+                  onClick={stop}
+                  title={STR.stop}
+                  aria-label={STR.stop}
+                  className="ui-icon-button h-11 w-11 shrink-0"
+                >
+                  <Loader2 size={18} className="animate-spin" />
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={draft.trim().length === 0}
+                  title={STR.send}
+                  aria-label={STR.send}
+                  className="ui-button-primary h-11 w-11 shrink-0 px-0 disabled:opacity-40"
+                >
+                  <Send size={18} />
+                </button>
+              )}
             </div>
           </form>
         </>

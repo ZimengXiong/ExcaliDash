@@ -17,11 +17,18 @@ export const parseSemver = (input: string): ParsedSemver | null => {
   const major = Number(match.groups.major);
   const minor = Number(match.groups.minor);
   const patch = Number(match.groups.patch);
-  if (!Number.isFinite(major) || !Number.isFinite(minor) || !Number.isFinite(patch)) {
+  if (
+    !Number.isFinite(major) ||
+    !Number.isFinite(minor) ||
+    !Number.isFinite(patch)
+  ) {
     return null;
   }
 
-  const pre = typeof match.groups.pre === "string" && match.groups.pre.length > 0 ? match.groups.pre : "";
+  const pre =
+    typeof match.groups.pre === "string" && match.groups.pre.length > 0
+      ? match.groups.pre
+      : "";
   const prerelease = pre ? pre.split(".") : [];
 
   return { major, minor, patch, prerelease, raw: trimmed };

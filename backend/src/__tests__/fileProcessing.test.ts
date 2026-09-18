@@ -164,7 +164,8 @@ describe("internDrawingFiles — S3 mode", () => {
       "file-1": {
         id: "file-1",
         mimeType: "image/png",
-        dataURL: "https://cdn.example.com/excalidash/user-1/drawing-1/file-1.png",
+        dataURL:
+          "https://cdn.example.com/excalidash/user-1/drawing-1/file-1.png",
       },
     };
 
@@ -306,7 +307,8 @@ describe("internDrawingFiles — S3 mode", () => {
       "file-s3": {
         id: "file-s3",
         mimeType: "image/png",
-        dataURL: "https://cdn.example.com/excalidash/user-1/drawing-1/file-s3.png",
+        dataURL:
+          "https://cdn.example.com/excalidash/user-1/drawing-1/file-s3.png",
       },
       "file-api": {
         id: "file-api",

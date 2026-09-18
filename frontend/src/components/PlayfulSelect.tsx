@@ -46,7 +46,8 @@ export const PlayfulSelect: React.FC<PlayfulSelectProps> = ({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [portalPosition, setPortalPosition] = useState<React.CSSProperties>();
-  const current = options.find((option) => option.value === value) ?? options[0];
+  const current =
+    options.find((option) => option.value === value) ?? options[0];
 
   useEffect(() => {
     if (!open) return;
@@ -111,9 +112,7 @@ export const PlayfulSelect: React.FC<PlayfulSelectProps> = ({
       style={portal ? portalPosition : undefined}
       className={clsx(
         "ui-menu z-[200] w-max animate-in fade-in zoom-in-95 duration-100",
-        portal
-          ? "fixed"
-          : "absolute top-full mt-2 min-w-full",
+        portal ? "fixed" : "absolute top-full mt-2 min-w-full",
         !portal && (align === "right" ? "right-0" : "left-0"),
         menuClassName,
       )}

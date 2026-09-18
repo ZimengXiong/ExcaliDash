@@ -15,9 +15,7 @@ type Props = {
 };
 
 function timeAgo(dateStr: string): string {
-  const seconds = Math.floor(
-    (Date.now() - new Date(dateStr).getTime()) / 1000
-  );
+  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
   if (seconds < 60) return "just now";
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m ago`;
@@ -40,13 +38,18 @@ export const HistoryPanel: React.FC<Props> = ({
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
-  const [previewData, setPreviewData] = useState<api.DrawingSnapshotFull | null>(null);
+  const [previewData, setPreviewData] =
+    useState<api.DrawingSnapshotFull | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [confirmRestore, setConfirmRestore] = useState<string | null>(null);
   const previewRequestSequence = useRef(0);
   const isOpenRef = useRef(isOpen);
   isOpenRef.current = isOpen;
-  const [position, setPosition] = useState<{ left?: number; right?: number; top: number }>({
+  const [position, setPosition] = useState<{
+    left?: number;
+    right?: number;
+    top: number;
+  }>({
     right: 12,
     top: 76,
   });
@@ -246,7 +249,10 @@ export const HistoryPanel: React.FC<Props> = ({
                     </div>
                   </div>
 
-                  <div className="shrink-0 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  <div
+                    className="shrink-0 flex items-center gap-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {previewId === snap.id ? (
                       <button
                         onClick={() => handleRestore(snap.id)}
@@ -255,7 +261,7 @@ export const HistoryPanel: React.FC<Props> = ({
                           "ui-button-primary px-2.5 py-1 text-xs",
                           confirmRestore === snap.id
                             ? "bg-amber-400 text-black hover:bg-amber-300 dark:bg-amber-400 dark:text-black"
-                            : ""
+                            : "",
                         )}
                       >
                         <RotateCcw size={12} strokeWidth={2.5} />
@@ -286,6 +292,6 @@ export const HistoryPanel: React.FC<Props> = ({
         </div>
       </div>
     </>,
-    document.body
+    document.body,
   );
 };

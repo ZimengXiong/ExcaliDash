@@ -45,7 +45,7 @@ describe("https redirect policy", () => {
     });
 
     expect(getHttpsRedirectUrl(req, policy)).toBe(
-      "https://secure.example.com/api/session?next=%2Fdashboard"
+      "https://secure.example.com/api/session?next=%2Fdashboard",
     );
   });
 
@@ -59,7 +59,9 @@ describe("https redirect policy", () => {
       path: "/login",
     });
 
-    expect(getHttpsRedirectUrl(req, policy)).toBe("https://app.example.com/login");
+    expect(getHttpsRedirectUrl(req, policy)).toBe(
+      "https://app.example.com/login",
+    );
   });
 
   it("falls back to the canonical https host for unknown hosts", () => {
@@ -73,7 +75,7 @@ describe("https redirect policy", () => {
     });
 
     expect(getHttpsRedirectUrl(req, policy)).toBe(
-      "https://secure.example.com/login"
+      "https://secure.example.com/login",
     );
   });
 
@@ -97,7 +99,7 @@ describe("https redirect policy", () => {
       });
 
       expect(getHttpsRedirectUrl(req, policy)).toBeNull();
-    }
+    },
   );
 
   it("continues to redirect paths that only start with the health path", () => {
@@ -108,7 +110,7 @@ describe("https redirect policy", () => {
     });
 
     expect(getHttpsRedirectUrl(req, policy)).toBe(
-      "https://secure.example.com/healthcheck"
+      "https://secure.example.com/healthcheck",
     );
   });
 });

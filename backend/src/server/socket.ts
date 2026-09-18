@@ -72,7 +72,9 @@ export const registerSocketHandlers = ({
     return "#4f46e5";
   };
 
-  const getSocketAuthUserId = async (token?: string): Promise<string | null> => {
+  const getSocketAuthUserId = async (
+    token?: string,
+  ): Promise<string | null> => {
     const authEnabled = await authModeService.getAuthEnabled();
     if (!authEnabled) {
       return BOOTSTRAP_USER_ID;
@@ -108,7 +110,9 @@ export const registerSocketHandlers = ({
       const tokenFromCookie = (() => {
         const cookies = parseCookieHeader(socket.handshake.headers.cookie);
         const value = cookies[ACCESS_TOKEN_COOKIE_NAME];
-        return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+        return typeof value === "string" && value.trim().length > 0
+          ? value
+          : undefined;
       })();
       const token = tokenFromAuth || tokenFromCookie;
       const authEnabled = await authModeService.getAuthEnabled();
@@ -163,7 +167,10 @@ export const registerSocketHandlers = ({
       const roomId = `drawing_${drawingId}`;
       const changed = removeSocketFromRooms(roomUsers, [roomId], socket.id);
       for (const changedRoomId of changed) {
-        io.to(changedRoomId).emit("presence-update", roomUsers.get(changedRoomId) ?? []);
+        io.to(changedRoomId).emit(
+          "presence-update",
+          roomUsers.get(changedRoomId) ?? [],
+        );
       }
       state.joinedRooms.delete(roomId);
       socket.leave(roomId);
@@ -179,12 +186,16 @@ export const registerSocketHandlers = ({
           drawingId: string;
           user: Omit<PresenceUser, "socketId" | "isActive">;
         },
-        ack?: (payload: { user: Omit<PresenceUser, "socketId" | "isActive"> }) => void,
+        ack?: (payload: {
+          user: Omit<PresenceUser, "socketId" | "isActive">;
+        }) => void,
       ) => {
         try {
           const access = await getCachedOrFreshAccess(drawingId);
           if (!access) {
-            socket.emit("error", { message: "You do not have access to this drawing" });
+            socket.emit("error", {
+              message: "You do not have access to this drawing",
+            });
             return;
           }
 
@@ -201,7 +212,10 @@ export const registerSocketHandlers = ({
           if (!principal) {
             // Never trust client-provided ids for anonymous/share-link sessions; prevent spoofing/collisions.
             trustedUserId = `anon:${socket.id}`.slice(0, 200);
-          } else if (principal?.kind === "user" && principal.userId !== BOOTSTRAP_USER_ID) {
+          } else if (
+            principal?.kind === "user" &&
+            principal.userId !== BOOTSTRAP_USER_ID
+          ) {
             const account = await prisma.user.findUnique({
               where: { id: principal.userId },
               select: { id: true, name: true },
@@ -259,7 +273,8 @@ export const registerSocketHandlers = ({
     );
 
     socket.on("cursor-move", async (data) => {
-      const drawingId = typeof data?.drawingId === "string" ? data.drawingId : null;
+      const drawingId =
+        typeof data?.drawingId === "string" ? data.drawingId : null;
       if (!drawingId || !state.access.has(drawingId)) {
         return;
       }
@@ -285,7 +300,8 @@ export const registerSocketHandlers = ({
     });
 
     socket.on("element-update", async (data) => {
-      const drawingId = typeof data?.drawingId === "string" ? data.drawingId : null;
+      const drawingId =
+        typeof data?.drawingId === "string" ? data.drawingId : null;
       if (!drawingId || !state.access.has(drawingId)) {
         return;
       }
@@ -319,7 +335,9 @@ export const registerSocketHandlers = ({
         return;
       }
       if (!canEditDrawing(joinedAccess)) {
-        socket.emit("error", { message: "Read-only access: cannot edit this drawing" });
+        socket.emit("error", {
+          message: "Read-only access: cannot edit this drawing",
+        });
         return;
       }
 
@@ -329,7 +347,13 @@ export const registerSocketHandlers = ({
 
     socket.on(
       "user-activity",
-      async ({ drawingId, isActive }: { drawingId: string; isActive: boolean }) => {
+      async ({
+        drawingId,
+        isActive,
+      }: {
+        drawingId: string;
+        isActive: boolean;
+      }) => {
         if (typeof drawingId !== "string" || !state.access.has(drawingId)) {
           return;
         }
@@ -353,7 +377,11 @@ export const registerSocketHandlers = ({
 
     socket.on("disconnect", () => {
       // Only scan the rooms this socket actually joined instead of every room.
-      const changed = removeSocketFromRooms(roomUsers, [...state.joinedRooms], socket.id);
+      const changed = removeSocketFromRooms(
+        roomUsers,
+        [...state.joinedRooms],
+        socket.id,
+      );
       for (const roomId of changed) {
         io.to(roomId).emit("presence-update", roomUsers.get(roomId) ?? []);
       }

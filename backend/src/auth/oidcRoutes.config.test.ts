@@ -44,7 +44,9 @@ describe("OIDC client configuration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     clientConfigs.length = 0;
-    issuerMetadata.token_endpoint_auth_methods_supported = ["client_secret_basic"];
+    issuerMetadata.token_endpoint_auth_methods_supported = [
+      "client_secret_basic",
+    ];
     issuerMetadata.id_token_signing_alg_values_supported = ["RS256"];
   });
 

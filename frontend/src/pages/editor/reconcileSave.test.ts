@@ -32,9 +32,16 @@ describe("reloadAndReconcile (409 conflict recovery)", () => {
 
     const refs = makeRefs();
     const localElements = [{ id: "L", version: 3 }];
-    const localFiles = { "local-file": { id: "local-file", dataURL: "data:,L" } };
+    const localFiles = {
+      "local-file": { id: "local-file", dataURL: "data:,L" },
+    };
 
-    const result = await reloadAndReconcile(refs, "d1", localElements, localFiles);
+    const result = await reloadAndReconcile(
+      refs,
+      "d1",
+      localElements,
+      localFiles,
+    );
 
     // Both the local and remote elements survive the merge.
     expect(result.elements.map((e: any) => e.id).sort()).toEqual(["L", "R"]);

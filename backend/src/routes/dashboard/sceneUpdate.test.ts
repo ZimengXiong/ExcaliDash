@@ -50,7 +50,10 @@ describe("applySceneUpdateTx", () => {
       $transaction: async (callback: (client: any) => unknown) =>
         callback({
           drawing: {
-            findUnique: async () => ({ ...drawing(7), elements: largeElements }),
+            findUnique: async () => ({
+              ...drawing(7),
+              elements: largeElements,
+            }),
             updateMany: async () => ({ count: 1 }),
             findFirst: async () => drawing(8),
           },

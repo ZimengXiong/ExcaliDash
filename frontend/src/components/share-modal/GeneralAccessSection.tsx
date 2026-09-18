@@ -1,13 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  Eye,
-  Globe,
-  Lock,
-  Pencil,
-  Clock,
-  Check,
-} from "lucide-react";
+import { Eye, Globe, Lock, Pencil, Clock, Check } from "lucide-react";
 import * as api from "../../api";
 import { PlayfulSelect } from "../PlayfulSelect";
 import {
@@ -192,10 +185,7 @@ export const LinkExpirySelect: React.FC<{
         title="Set link expiration"
         aria-label="Set link expiration"
       >
-        <Clock
-          size={14}
-          className="text-indigo-600 dark:text-indigo-400"
-        />
+        <Clock size={14} className="text-indigo-600 dark:text-indigo-400" />
       </button>
 
       {menu && createPortal(menu, document.body)}

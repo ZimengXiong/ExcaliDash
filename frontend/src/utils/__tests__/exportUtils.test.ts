@@ -1,6 +1,6 @@
 /**
  * Tests for exportUtils.ts
- * 
+ *
  * These tests verify that the export functionality preserves image data
  * correctly, which is critical for the issue #17 fix.
  */
@@ -9,7 +9,8 @@ import { describe, it, expect } from "vitest";
 import { type ExportData } from "../exportUtils";
 
 const createLargeDataUrl = (size: number = 50000): string => {
-  const baseImage = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
+  const baseImage =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
   const repetitions = Math.ceil(size / baseImage.length);
   return `data:image/png;base64,${baseImage.repeat(repetitions)}`;
 };
@@ -22,8 +23,9 @@ const createLargeDataUrl = (size: number = 50000): string => {
 describe("ExportData JSON Serialization - Issue #17 Regression", () => {
   describe("files object serialization", () => {
     it("should preserve small image data URLs through JSON round-trip", () => {
-      const smallDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
-      
+      const smallDataUrl =
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
+
       const exportData: ExportData = {
         type: "excalidraw",
         version: 2,
@@ -47,9 +49,9 @@ describe("ExportData JSON Serialization - Issue #17 Regression", () => {
 
     it("should preserve large image data URLs (>10000 chars) through JSON round-trip - REGRESSION TEST", () => {
       const largeDataUrl = createLargeDataUrl(50000);
-      
+
       expect(largeDataUrl.length).toBeGreaterThan(10000);
-      
+
       const exportData: ExportData = {
         type: "excalidraw",
         version: 2,
@@ -77,17 +79,20 @@ describe("ExportData JSON Serialization - Issue #17 Regression", () => {
       };
 
       const jsonString = JSON.stringify(exportData, null, 2);
-      
+
       const parsed: ExportData = JSON.parse(jsonString);
 
       expect(parsed.files["file-1"].dataURL).toBe(largeDataUrl);
       expect(parsed.files["file-1"].dataURL.length).toBe(largeDataUrl.length);
-      
-      expect(parsed.files["file-1"].dataURL).toMatch(/^data:image\/png;base64,/);
+
+      expect(parsed.files["file-1"].dataURL).toMatch(
+        /^data:image\/png;base64,/,
+      );
     });
 
     it("should preserve multiple images with varying sizes", () => {
-      const smallDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
+      const smallDataUrl =
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
       const largeDataUrl = createLargeDataUrl(100000);
 
       const exportData: ExportData = {
@@ -115,7 +120,9 @@ describe("ExportData JSON Serialization - Issue #17 Regression", () => {
 
       expect(parsed.files["small-img"].dataURL).toBe(smallDataUrl);
       expect(parsed.files["large-img"].dataURL).toBe(largeDataUrl);
-      expect(parsed.files["large-img"].dataURL.length).toBe(largeDataUrl.length);
+      expect(parsed.files["large-img"].dataURL.length).toBe(
+        largeDataUrl.length,
+      );
     });
 
     it("should handle empty files object", () => {
@@ -138,7 +145,7 @@ describe("ExportData JSON Serialization - Issue #17 Regression", () => {
       const baseData = "data:image/png;base64,";
       const neededChars = 10000 - baseData.length;
       const exactDataUrl = baseData + "A".repeat(neededChars);
-      
+
       expect(exactDataUrl.length).toBe(10000);
 
       const exportData: ExportData = {
@@ -165,7 +172,7 @@ describe("ExportData JSON Serialization - Issue #17 Regression", () => {
       const baseData = "data:image/png;base64,";
       const neededChars = 10001 - baseData.length;
       const justOverDataUrl = baseData + "A".repeat(neededChars);
-      
+
       expect(justOverDataUrl.length).toBe(10001);
 
       const exportData: ExportData = {
@@ -200,7 +207,7 @@ describe("ExportData JSON Serialization - Issue #17 Regression", () => {
     mimeTypes.forEach(({ type, dataPrefix }) => {
       it(`should preserve ${type} data URLs`, () => {
         const dataUrl = dataPrefix + "A".repeat(20000);
-        
+
         const exportData: ExportData = {
           type: "excalidraw",
           version: 2,
@@ -228,10 +235,11 @@ describe("ExportData JSON Serialization - Issue #17 Regression", () => {
 
 describe("Issue #17 Full Scenario Simulation", () => {
   it("should simulate the complete save/reload cycle that caused the bug", () => {
-    
     const largeImageDataUrl = createLargeDataUrl(50000);
-    console.log(`Testing with image data URL of length: ${largeImageDataUrl.length}`);
-    
+    console.log(
+      `Testing with image data URL of length: ${largeImageDataUrl.length}`,
+    );
+
     const originalDrawingData = {
       elements: [
         {
@@ -262,7 +270,7 @@ describe("Issue #17 Full Scenario Simulation", () => {
       appState: originalDrawingData.appState,
       files: originalDrawingData.files,
     };
-    
+
     const requestBody = JSON.stringify(savePayload);
 
     const savedData = JSON.parse(requestBody);
@@ -273,10 +281,11 @@ describe("Issue #17 Full Scenario Simulation", () => {
     expect(reloadedDataUrl).toBeDefined();
     expect(reloadedDataUrl.length).toBe(largeImageDataUrl.length);
     expect(reloadedDataUrl).toBe(largeImageDataUrl);
-    
+
     expect(reloadedDataUrl.startsWith("data:image/png;base64,")).toBe(true);
-    
-    console.log("✓ Issue #17 full scenario test passed - image data preserved correctly");
+
+    console.log(
+      "✓ Issue #17 full scenario test passed - image data preserved correctly",
+    );
   });
 });
-

@@ -6,7 +6,10 @@ import { applyOps, type ApplyOpsSuccess } from "../agent/applyOps";
 import { prepareFailed, prepareOpsContext } from "../agent/prepareOps";
 import { opsBatchSchema, type OpError } from "../agent/opSchemas";
 import { buildStructuralSummary, summarizeElements } from "../agent/summary";
-import { applySceneUpdateTx, isVersionConflict } from "../routes/dashboard/sceneUpdate";
+import {
+  applySceneUpdateTx,
+  isVersionConflict,
+} from "../routes/dashboard/sceneUpdate";
 import type { AuditLogData } from "../utils/audit";
 import { decodeSnapshotField } from "../snapshots/snapshotCodec";
 
@@ -14,7 +17,11 @@ export type RegisterAiRoutesDeps = {
   prisma: PrismaClient;
   requireAuth: express.RequestHandler;
   asyncHandler: (
-    fn: (req: express.Request, res: express.Response, next: express.NextFunction) => unknown,
+    fn: (
+      req: express.Request,
+      res: express.Response,
+      next: express.NextFunction,
+    ) => unknown,
   ) => express.RequestHandler;
   parseJsonField: <T>(raw: string | null | undefined, fallback: T) => T;
   invalidateDrawingsCache: () => void;
@@ -84,7 +91,11 @@ export const applyOpsBatch = async (
     return {
       ok: false,
       errors: prepared.errors ?? [
-        { opIndex: 0, code: "UNSUPPORTED", message: String(prepared.body.message ?? "Layout unavailable") },
+        {
+          opIndex: 0,
+          code: "UNSUPPORTED",
+          message: String(prepared.body.message ?? "Layout unavailable"),
+        },
       ],
     };
   }
@@ -102,7 +113,10 @@ export const applyOpsBatch = async (
       versionGuard: "optimistic",
       maxRetries: 3,
       mutate: (current) => {
-        const currentElements = deps.parseJsonField<any[]>(current.elements, []);
+        const currentElements = deps.parseJsonField<any[]>(
+          current.elements,
+          [],
+        );
         const currentAppState = deps.parseJsonField<Record<string, unknown>>(
           current.appState,
           {},
