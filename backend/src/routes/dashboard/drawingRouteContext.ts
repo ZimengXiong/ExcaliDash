@@ -14,14 +14,19 @@ import { type DrawingPrincipal } from "../../authz/sharing";
 import { config } from "../../config";
 
 export type DrawingRouteContext = DashboardRouteDeps & {
-  getRequestPrincipal: (req: express.Request) => Promise<DrawingPrincipal | null>;
+  getRequestPrincipal: (
+    req: express.Request,
+  ) => Promise<DrawingPrincipal | null>;
   resolveDefaultTtlMs: (permission: "view" | "edit") => number;
   resolveMaxTtlMs: () => number;
   respondWithAuthErrorIfPresent: (
     req: express.Request,
     res: express.Response,
   ) => boolean;
-  cleanupS3FilesForDrawing: (drawingId: string, userId: string) => Promise<void>;
+  cleanupS3FilesForDrawing: (
+    drawingId: string,
+    userId: string,
+  ) => Promise<void>;
   cloneS3FileReferences: (
     sourceDrawingId: string,
     targetDrawingId: string,

@@ -48,9 +48,7 @@
       "email": "admin@example.com",
       "firstName": "Admin",
       "lastName": "Example",
-      "groups": [
-        "excalidash-admins"
-      ],
+      "groups": ["excalidash-admins"],
       "credentials": [
         {
           "type": "password",
@@ -66,9 +64,7 @@
       "email": "alice@example.com",
       "firstName": "Alice",
       "lastName": "Example",
-      "groups": [
-        "excalidash-admins"
-      ],
+      "groups": ["excalidash-admins"],
       "credentials": [
         {
           "type": "password",

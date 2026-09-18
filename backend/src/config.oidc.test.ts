@@ -43,7 +43,7 @@ describe("OIDC signing algorithm config", () => {
     process.env.OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG = "none";
 
     await expect(loadConfig()).rejects.toThrow(
-      "OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG must not be empty or 'none'"
+      "OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG must not be empty or 'none'",
     );
   });
 
@@ -63,7 +63,7 @@ describe("OIDC signing algorithm config", () => {
     process.env.OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG = "HS256";
 
     await expect(loadConfig()).rejects.toThrow(
-      "OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG using HS* requires OIDC_CLIENT_SECRET"
+      "OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG using HS* requires OIDC_CLIENT_SECRET",
     );
   });
 });

@@ -30,4 +30,3 @@ describe("semver utils", () => {
     expect(compareSemver(a, b)).toBeLessThan(0);
   });
 });
-

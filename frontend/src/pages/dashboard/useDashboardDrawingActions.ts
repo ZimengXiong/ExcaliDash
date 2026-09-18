@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import type { NavigateFunction } from "react-router-dom";
 import * as api from "../../api";
 import type { Collection, DrawingSummary } from "../../types";
@@ -53,7 +53,9 @@ export const useDashboardDrawingActions = ({
     (collection) => collection.id === selectedCollectionId,
   );
   const isSharedCollection = !!(
-    currentCollection && currentCollection.isOwner === false
+    selectedCollectionId !== "trash" &&
+    currentCollection &&
+    currentCollection.isOwner === false
   );
 
   const handleViewerActionError = (message: string) =>
@@ -68,7 +70,10 @@ export const useDashboardDrawingActions = ({
     try {
       const targetCollectionId =
         selectedCollectionId === undefined ? null : selectedCollectionId;
-      const { id } = await api.createDrawing("Untitled Drawing", targetCollectionId);
+      const { id } = await api.createDrawing(
+        "Untitled Drawing",
+        targetCollectionId,
+      );
       navigate(`/editor/${id}`);
     } catch (err) {
       console.error(err);
@@ -343,13 +348,16 @@ export const useDashboardDrawingActions = ({
     if (preview) event.dataTransfer.setDragImage(preview, 80, 50);
   };
 
-  const handlePreviewGenerated = (id: string, preview: string) => {
-    setDrawings((current) =>
-      current.map((drawing) =>
-        drawing.id === id ? { ...drawing, preview } : drawing,
-      ),
-    );
-  };
+  const handlePreviewGenerated = useCallback(
+    (id: string, preview: string) => {
+      setDrawings((current) =>
+        current.map((drawing) =>
+          drawing.id === id ? { ...drawing, preview } : drawing,
+        ),
+      );
+    },
+    [setDrawings],
+  );
 
   return {
     drawingToDelete,

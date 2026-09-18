@@ -24,15 +24,10 @@ describe("file routes", () => {
   it("allows private S3 redirects for users with collection share access", async () => {
     const prisma = {
       drawing: {
-        findUnique: vi
-          .fn()
-          .mockResolvedValueOnce({
-            userId: "owner-user",
-          })
-          .mockResolvedValueOnce({
-            collectionId: "shared-collection",
-            userId: "owner-user",
-          }),
+        findUnique: vi.fn().mockResolvedValue({
+          collectionId: "shared-collection",
+          userId: "owner-user",
+        }),
       },
       drawingPermission: {
         findUnique: vi.fn().mockResolvedValue(null),

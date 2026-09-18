@@ -28,7 +28,8 @@ const baseAuthState = {
   register: vi.fn(),
   authEnabled: true,
   registrationEnabled: true,
-  authStatusError: "Unable to reach the backend API. Check BACKEND_URL and reverse proxy settings, then retry.",
+  authStatusError:
+    "Unable to reach the backend API. Check BACKEND_URL and reverse proxy settings, then retry.",
   retryAuthStatus: vi.fn(),
   oidcEnabled: false,
   oidcEnforced: false,
@@ -51,12 +52,18 @@ describe("auth pages block on auth status failures", () => {
     render(
       <MemoryRouter initialEntries={["/login"]}>
         <Login />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
-    expect(screen.getByText(/Unable to reach the backend API/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /retry connection/i })).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText(/Email address/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/Unable to reach the backend API/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /retry connection/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText(/Email address/i),
+    ).not.toBeInTheDocument();
   });
 
   it("renders the registration page as a blocking error state", () => {
@@ -65,11 +72,15 @@ describe("auth pages block on auth status failures", () => {
     render(
       <MemoryRouter initialEntries={["/register"]}>
         <Register />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
-    expect(screen.getByText(/Unable to reach the backend API/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /retry connection/i })).toBeInTheDocument();
+    expect(
+      screen.getByText(/Unable to reach the backend API/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /retry connection/i }),
+    ).toBeInTheDocument();
     expect(screen.queryByPlaceholderText(/Your name/i)).not.toBeInTheDocument();
   });
 });

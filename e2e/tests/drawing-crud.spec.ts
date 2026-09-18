@@ -9,7 +9,7 @@ import {
 
 /**
  * E2E Tests for Drawing Creation and Editing
- * 
+ *
  * Tests the persistent storage feature mentioned in README:
  * - Create new drawings
  * - Edit drawing names
@@ -30,8 +30,7 @@ test.describe("Drawing Creation", () => {
     for (const id of createdDrawingIds) {
       try {
         await deleteDrawing(request, id);
-      } catch {
-      }
+      } catch {}
     }
     createdDrawingIds = [];
   });
@@ -51,7 +50,9 @@ test.describe("Drawing Creation", () => {
     const drawingId = match![1];
     createdDrawingIds.push(drawingId);
 
-    await page.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
+    await page.waitForSelector("[class*='excalidraw'], canvas", {
+      timeout: 15000,
+    });
 
     const drawing = await getDrawing(request, drawingId);
     expect(drawing).toBeDefined();
@@ -59,7 +60,9 @@ test.describe("Drawing Creation", () => {
   });
 
   test("should open existing drawing in editor", async ({ page, request }) => {
-    const drawing = await createDrawing(request, { name: `Open_Test_${Date.now()}` });
+    const drawing = await createDrawing(request, {
+      name: `Open_Test_${Date.now()}`,
+    });
     createdDrawingIds.push(drawing.id);
 
     await page.goto("/");
@@ -73,16 +76,23 @@ test.describe("Drawing Creation", () => {
 
     await page.waitForURL(`/editor/${drawing.id}`);
 
-    await page.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
+    await page.waitForSelector("[class*='excalidraw'], canvas", {
+      timeout: 15000,
+    });
   });
 
-  test("should display drawing name in editor header", async ({ page, request }) => {
+  test("should display drawing name in editor header", async ({
+    page,
+    request,
+  }) => {
     const drawingName = `Header_Test_${Date.now()}`;
     const drawing = await createDrawing(request, { name: drawingName });
     createdDrawingIds.push(drawing.id);
 
     await page.goto(`/editor/${drawing.id}`);
-    await page.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
+    await page.waitForSelector("[class*='excalidraw'], canvas", {
+      timeout: 15000,
+    });
 
     await expect(page.getByText(drawingName)).toBeVisible();
   });
@@ -95,7 +105,9 @@ test.describe("Drawing Creation", () => {
     createdDrawingIds.push(drawing.id);
 
     await page.goto(`/editor/${drawing.id}`);
-    await page.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
+    await page.waitForSelector("[class*='excalidraw'], canvas", {
+      timeout: 15000,
+    });
 
     await revealEditorHeader(page);
 
@@ -116,12 +128,19 @@ test.describe("Drawing Creation", () => {
     expect(updatedDrawing.name).toBe(newName);
   });
 
-  test("should navigate back to dashboard from editor", async ({ page, request }) => {
-    const drawing = await createDrawing(request, { name: `BackNav_Test_${Date.now()}` });
+  test("should navigate back to dashboard from editor", async ({
+    page,
+    request,
+  }) => {
+    const drawing = await createDrawing(request, {
+      name: `BackNav_Test_${Date.now()}`,
+    });
     createdDrawingIds.push(drawing.id);
 
     await page.goto(`/editor/${drawing.id}`);
-    await page.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
+    await page.waitForSelector("[class*='excalidraw'], canvas", {
+      timeout: 15000,
+    });
 
     await revealEditorHeader(page);
 
@@ -141,8 +160,7 @@ test.describe("Drawing Editing", () => {
     for (const id of createdDrawingIds) {
       try {
         await deleteDrawing(request, id);
-      } catch {
-      }
+      } catch {}
     }
     createdDrawingIds = [];
   });
@@ -155,21 +173,32 @@ test.describe("Drawing Editing", () => {
     createdDrawingIds.push(drawing.id);
 
     await page.goto(`/editor/${drawing.id}`);
-    await page.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
+    await page.waitForSelector("[class*='excalidraw'], canvas", {
+      timeout: 15000,
+    });
     await page.waitForTimeout(1500);
 
     const canvas = page.locator("canvas.excalidraw__canvas.interactive");
     const box = await canvas.boundingBox();
     if (!box) throw new Error("Canvas not found");
 
-    console.log(`Canvas bounding box: x=${box.x}, y=${box.y}, width=${box.width}, height=${box.height}`);
+    console.log(
+      `Canvas bounding box: x=${box.x}, y=${box.y}, width=${box.width}, height=${box.height}`,
+    );
 
-    const rectangleLabel = page.locator('label:has([data-testid="toolbar-rectangle"])');
+    const rectangleLabel = page.locator(
+      'label:has([data-testid="toolbar-rectangle"])',
+    );
     await rectangleLabel.click();
     await page.waitForTimeout(500);
 
-    const isRectangleSelectedBefore = await page.locator('[data-testid="toolbar-rectangle"]').isChecked();
-    console.log("Rectangle tool selected before drawing:", isRectangleSelectedBefore);
+    const isRectangleSelectedBefore = await page
+      .locator('[data-testid="toolbar-rectangle"]')
+      .isChecked();
+    console.log(
+      "Rectangle tool selected before drawing:",
+      isRectangleSelectedBefore,
+    );
 
     const centerX = box.x + box.width / 2;
     const centerY = box.y + box.height / 2;
@@ -191,10 +220,10 @@ test.describe("Drawing Editing", () => {
     await page.waitForTimeout(100);
     await page.mouse.up();
 
-    await page.screenshot({ path: 'test-results/after-drawing.png' });
+    await page.screenshot({ path: "test-results/after-drawing.png" });
 
     const undoButton = page.locator('button[aria-label="Undo"]');
-    const isUndoDisabled = await undoButton.getAttribute('disabled');
+    const isUndoDisabled = await undoButton.getAttribute("disabled");
     console.log("Undo button disabled:", isUndoDisabled);
 
     await page.keyboard.press("Escape");
@@ -202,10 +231,15 @@ test.describe("Drawing Editing", () => {
 
     await page.waitForTimeout(2000);
 
-    await expect.poll(async () => {
-      const savedDrawing = await getDrawing(request, drawing.id);
-      return savedDrawing.elements?.length || 0;
-    }, { timeout: 15000 }).toBeGreaterThan(0);
+    await expect
+      .poll(
+        async () => {
+          const savedDrawing = await getDrawing(request, drawing.id);
+          return savedDrawing.elements?.length || 0;
+        },
+        { timeout: 15000 },
+      )
+      .toBeGreaterThan(0);
   });
 
   test("should draw text on canvas", async ({ page, request }) => {
@@ -216,7 +250,9 @@ test.describe("Drawing Editing", () => {
     createdDrawingIds.push(drawing.id);
 
     await page.goto(`/editor/${drawing.id}`);
-    await page.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
+    await page.waitForSelector("[class*='excalidraw'], canvas", {
+      timeout: 15000,
+    });
     await page.waitForTimeout(1000);
 
     const canvas = page.locator("canvas.excalidraw__canvas.interactive");
@@ -239,10 +275,15 @@ test.describe("Drawing Editing", () => {
 
     await page.waitForTimeout(3000);
 
-    await expect.poll(async () => {
-      const savedDrawing = await getDrawing(request, drawing.id);
-      return savedDrawing.elements?.length || 0;
-    }, { timeout: 10000 }).toBeGreaterThan(0);
+    await expect
+      .poll(
+        async () => {
+          const savedDrawing = await getDrawing(request, drawing.id);
+          return savedDrawing.elements?.length || 0;
+        },
+        { timeout: 10000 },
+      )
+      .toBeGreaterThan(0);
   });
 
   test("should use undo/redo functionality", async ({ page, request }) => {
@@ -253,7 +294,9 @@ test.describe("Drawing Editing", () => {
     createdDrawingIds.push(drawing.id);
 
     await page.goto(`/editor/${drawing.id}`);
-    await page.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
+    await page.waitForSelector("[class*='excalidraw'], canvas", {
+      timeout: 15000,
+    });
     await page.waitForTimeout(1000);
 
     const canvas = page.locator("canvas.excalidraw__canvas.interactive");
@@ -275,7 +318,6 @@ test.describe("Drawing Editing", () => {
 
     await page.keyboard.press("Meta+Shift+z");
     await page.waitForTimeout(500);
-
   });
 });
 
@@ -286,14 +328,15 @@ test.describe("Drawing Deletion", () => {
     for (const id of createdDrawingIds) {
       try {
         await deleteDrawing(request, id);
-      } catch {
-      }
+      } catch {}
     }
     createdDrawingIds = [];
   });
 
   test("should delete drawing via card menu", async ({ page, request }) => {
-    const drawing = await createDrawing(request, { name: `Delete_Card_${Date.now()}` });
+    const drawing = await createDrawing(request, {
+      name: `Delete_Card_${Date.now()}`,
+    });
     createdDrawingIds.push(drawing.id);
 
     await page.goto("/");
@@ -305,7 +348,9 @@ test.describe("Drawing Deletion", () => {
     const card = page.locator(`#drawing-card-${drawing.id}`);
     await card.hover();
 
-    const selectToggle = card.locator(`[data-testid="select-drawing-${drawing.id}"]`);
+    const selectToggle = card.locator(
+      `[data-testid="select-drawing-${drawing.id}"]`,
+    );
     await selectToggle.click();
 
     await page.getByTitle("Move to Trash").click();
@@ -318,10 +363,13 @@ test.describe("Drawing Deletion", () => {
     await expect(page.locator(`#drawing-card-${drawing.id}`)).toBeVisible();
   });
 
-  test("should permanently delete drawing from trash", async ({ page, request }) => {
+  test("should permanently delete drawing from trash", async ({
+    page,
+    request,
+  }) => {
     const drawing = await createDrawing(request, {
       name: `Perm_Delete_${Date.now()}`,
-      collectionId: "trash"
+      collectionId: "trash",
     });
     createdDrawingIds.push(drawing.id);
 
@@ -332,7 +380,9 @@ test.describe("Drawing Deletion", () => {
     const card = page.locator(`#drawing-card-${drawing.id}`);
     await card.hover();
 
-    const selectToggle = card.locator(`[data-testid="select-drawing-${drawing.id}"]`);
+    const selectToggle = card.locator(
+      `[data-testid="select-drawing-${drawing.id}"]`,
+    );
     await selectToggle.click();
 
     await page.getByTitle("Delete Permanently").click();
@@ -344,7 +394,7 @@ test.describe("Drawing Deletion", () => {
     const response = await request.get(`${API_URL}/drawings/${drawing.id}`);
     expect(response.status()).toBe(404);
 
-    createdDrawingIds = createdDrawingIds.filter(id => id !== drawing.id);
+    createdDrawingIds = createdDrawingIds.filter((id) => id !== drawing.id);
   });
 
   test("should duplicate drawing", async ({ page, request }) => {
@@ -361,15 +411,22 @@ test.describe("Drawing Deletion", () => {
     const card = page.locator(`#drawing-card-${drawing.id}`);
     await card.hover();
 
-    const selectToggle = card.locator(`[data-testid="select-drawing-${drawing.id}"]`);
+    const selectToggle = card.locator(
+      `[data-testid="select-drawing-${drawing.id}"]`,
+    );
     await selectToggle.click();
 
     await page.getByTitle("Duplicate Selected").click();
 
-    await expect.poll(async () => {
-      const allDrawings = await listDrawings(request, { search: baseName });
-      return allDrawings.length;
-    }, { timeout: 10000 }).toBe(2);
+    await expect
+      .poll(
+        async () => {
+          const allDrawings = await listDrawings(request, { search: baseName });
+          return allDrawings.length;
+        },
+        { timeout: 10000 },
+      )
+      .toBe(2);
 
     await page.getByPlaceholder("Search drawings...").fill(baseName);
     await page.waitForTimeout(700);

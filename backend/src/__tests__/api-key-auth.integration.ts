@@ -63,7 +63,11 @@ describe("API key authentication", () => {
     });
     userId = user.id;
 
-    const apiKeyFixture = await createApiKeyFixture(prisma, userId, "Obsidian automation");
+    const apiKeyFixture = await createApiKeyFixture(
+      prisma,
+      userId,
+      "Obsidian automation",
+    );
     apiKeyToken = apiKeyFixture.token;
     apiKeyId = apiKeyFixture.id;
 
@@ -77,7 +81,11 @@ describe("API key authentication", () => {
       },
       select: { id: true },
     });
-    const adminApiKeyFixture = await createApiKeyFixture(prisma, adminUser.id, "Admin automation");
+    const adminApiKeyFixture = await createApiKeyFixture(
+      prisma,
+      adminUser.id,
+      "Admin automation",
+    );
     adminApiKeyToken = adminApiKeyFixture.token;
   });
 

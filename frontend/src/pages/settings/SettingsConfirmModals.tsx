@@ -77,15 +77,15 @@ export const SettingsConfirmModals = ({
   <>
     <ConfirmModal
       isOpen={legacyDbImportConfirmation.isOpen}
-      title="Merge-import legacy database?"
+      title="Merge legacy database?"
       message={
-        <div className="space-y-2">
+        <div className="space-y-2 text-left">
           <div>
-            This will merge legacy data into your account (it will not replace
-            the server database).
+            This merges legacy data into your account without replacing the
+            server database.
           </div>
           {legacyDbImportConfirmation.info && (
-            <div className="text-sm text-slate-700 dark:text-neutral-200 space-y-1">
+            <div className="space-y-1 text-sm text-slate-700 dark:text-neutral-200">
               <div>Drawings: {legacyDbImportConfirmation.info.drawings}</div>
               <div>
                 Collections: {legacyDbImportConfirmation.info.collections}
@@ -104,7 +104,7 @@ export const SettingsConfirmModals = ({
           )}
         </div>
       }
-      confirmText="Merge Import"
+      confirmText="Merge import"
       cancelText="Cancel"
       onConfirm={async () => {
         const file = legacyDbImportConfirmation.file;
@@ -118,22 +118,16 @@ export const SettingsConfirmModals = ({
         formData.append("db", file);
         try {
           const response = await api.api.post<{
-            success: boolean;
-            collections: {
-              created: number;
-              updated: number;
-              idConflicts: number;
-            };
-            drawings: { created: number; updated: number; idConflicts: number };
+            collections: { created: number; updated: number };
+            drawings: { created: number; updated: number };
           }>("/import/sqlite/legacy", formData, {
             headers: { "Content-Type": "multipart/form-data" },
           });
           setImportSuccess({
             isOpen: true,
-            message: `Legacy DB imported. Collections: +${response.data.collections.created} / ~${response.data.collections.updated}. Drawings: +${response.data.drawings.created} / ~${response.data.drawings.updated}.`,
+            message: `Legacy database imported. Collections: +${response.data.collections.created} / ~${response.data.collections.updated}. Drawings: +${response.data.drawings.created} / ~${response.data.drawings.updated}.`,
           });
         } catch (err: unknown) {
-          console.error(err);
           let message = "Failed to import legacy database.";
           if (api.isAxiosError(err)) {
             message =
@@ -150,10 +144,9 @@ export const SettingsConfirmModals = ({
     />
     <ConfirmModal
       isOpen={importError.isOpen}
-      title="Import Failed"
+      title="Import failed"
       message={importError.message}
       confirmText="OK"
-      cancelText=""
       showCancel={false}
       isDangerous={false}
       onConfirm={() => setImportError({ isOpen: false, message: "" })}
@@ -161,7 +154,7 @@ export const SettingsConfirmModals = ({
     />
     <ConfirmModal
       isOpen={importSuccess.isOpen}
-      title="Import Successful"
+      title="Import successful"
       message={importSuccess.message}
       confirmText="OK"
       showCancel={false}

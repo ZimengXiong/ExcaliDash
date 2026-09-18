@@ -41,7 +41,11 @@ const loadImageFromDataUrl = (dataURL: string): Promise<HTMLImageElement> =>
     image.src = dataURL;
   });
 
-const clampDimension = (width: number, height: number, maxDimension: number) => {
+const clampDimension = (
+  width: number,
+  height: number,
+  maxDimension: number,
+) => {
   const safeWidth = Math.max(1, Math.round(width));
   const safeHeight = Math.max(1, Math.round(height));
   const largest = Math.max(safeWidth, safeHeight);
@@ -59,7 +63,7 @@ const clampDimension = (width: number, height: number, maxDimension: number) => 
 const drawToCanvas = (
   image: HTMLImageElement,
   width: number,
-  height: number
+  height: number,
 ): HTMLCanvasElement => {
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -94,7 +98,7 @@ const maybeCompressDataUrl = async (
     minDataUrlLength?: number;
     maxDimension?: number;
     minImprovementRatio?: number;
-  }
+  },
 ): Promise<CompressionResult> => {
   if (!isCompressionEnabled()) {
     return {
@@ -106,9 +110,11 @@ const maybeCompressDataUrl = async (
     };
   }
 
-  const minDataUrlLength = options?.minDataUrlLength ?? DEFAULT_MIN_DATA_URL_LENGTH;
+  const minDataUrlLength =
+    options?.minDataUrlLength ?? DEFAULT_MIN_DATA_URL_LENGTH;
   const maxDimension = options?.maxDimension ?? DEFAULT_MAX_DIMENSION;
-  const minImprovementRatio = options?.minImprovementRatio ?? DEFAULT_MIN_IMPROVEMENT_RATIO;
+  const minImprovementRatio =
+    options?.minImprovementRatio ?? DEFAULT_MIN_IMPROVEMENT_RATIO;
 
   if (!isDataImageUrl(inputDataURL)) {
     return {
@@ -120,7 +126,11 @@ const maybeCompressDataUrl = async (
     };
   }
 
-  const effectiveMimeType = (sourceMimeType || getMimeTypeFromDataUrl(inputDataURL) || "").toLowerCase();
+  const effectiveMimeType = (
+    sourceMimeType ||
+    getMimeTypeFromDataUrl(inputDataURL) ||
+    ""
+  ).toLowerCase();
   if (!canCompressMimeType(effectiveMimeType)) {
     return {
       dataURL: inputDataURL,
@@ -158,7 +168,8 @@ const maybeCompressDataUrl = async (
     }
   }
 
-  const improvedEnough = best.length <= Math.floor(inputDataURL.length * minImprovementRatio);
+  const improvedEnough =
+    best.length <= Math.floor(inputDataURL.length * minImprovementRatio);
   if (!improvedEnough) {
     return {
       dataURL: inputDataURL,
@@ -209,7 +220,7 @@ export const resetImageCompressionMemo = (): void => {
 };
 
 export const compressExcalidrawFiles = async (
-  files: Record<string, ExcalidrawFileRecord>
+  files: Record<string, ExcalidrawFileRecord>,
 ): Promise<{
   files: Record<string, ExcalidrawFileRecord>;
   changed: boolean;
@@ -227,10 +238,14 @@ export const compressExcalidrawFiles = async (
   for (const [id, fileRecord] of entries) {
     const dataURL = fileRecord?.dataURL;
     const mimeType =
-      (typeof fileRecord?.mimeType === "string" ? fileRecord.mimeType : getMimeTypeFromDataUrl(String(dataURL || ""))) ||
-      "";
+      (typeof fileRecord?.mimeType === "string"
+        ? fileRecord.mimeType
+        : getMimeTypeFromDataUrl(String(dataURL || ""))) || "";
 
-    if (!isDataImageUrl(dataURL) || !canCompressMimeType(mimeType.toLowerCase())) {
+    if (
+      !isDataImageUrl(dataURL) ||
+      !canCompressMimeType(mimeType.toLowerCase())
+    ) {
       continue;
     }
 

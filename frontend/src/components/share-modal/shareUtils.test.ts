@@ -12,8 +12,12 @@ describe("share modal expiry helpers", () => {
   });
 
   it("does not expose never auto-disable for editor links", () => {
-    expect(EXPIRY_OPTIONS_FOR_EDIT.map((option) => option.value)).not.toContain("never");
-    expect(calculateExpiresAt(DEFAULT_EDIT_EXPIRY_OPTION)).toEqual(expect.any(String));
+    expect(EXPIRY_OPTIONS_FOR_EDIT.map((option) => option.value)).not.toContain(
+      "never",
+    );
+    expect(calculateExpiresAt(DEFAULT_EDIT_EXPIRY_OPTION)).toEqual(
+      expect.any(String),
+    );
   });
 
   it("returns an ISO string for preset expiry options", () => {
@@ -37,6 +41,8 @@ describe("share modal expiry helpers", () => {
     expect(calculateExpiresAt("custom", "2000-01-02T03:04")).toBeUndefined();
 
     const tooSoon = new Date(Date.now() + 30_000).toISOString();
-    expect(calculateExpiresAt("custom", toDatetimeLocalFromIso(tooSoon))).toBeUndefined();
+    expect(
+      calculateExpiresAt("custom", toDatetimeLocalFromIso(tooSoon)),
+    ).toBeUndefined();
   });
 });

@@ -10,7 +10,7 @@ import {
 
 /**
  * E2E Tests for Export/Import functionality
- * 
+ *
  * Tests the export/import feature:
  * - Export/Import `.excalidash` backups
  * - Import `.excalidraw` and JSON files
@@ -25,37 +25,41 @@ test.describe("Export Functionality", () => {
     for (const id of createdDrawingIds) {
       try {
         await deleteDrawing(request, id);
-      } catch {
-      }
+      } catch {}
     }
     createdDrawingIds = [];
 
     for (const id of createdCollectionIds) {
       try {
         await deleteCollection(request, id);
-      } catch {
-      }
+      } catch {}
     }
     createdCollectionIds = [];
   });
 
-  test("should show backup export controls on Settings page", async ({ page, request }) => {
-    const drawing = await createDrawing(request, { name: `Export_Backup_${Date.now()}` });
+  test("should show backup export controls on Settings page", async ({
+    page,
+    request,
+  }) => {
+    const drawing = await createDrawing(request, {
+      name: `Export_Backup_${Date.now()}`,
+    });
     createdDrawingIds.push(drawing.id);
 
     await page.goto("/settings");
     await page.waitForLoadState("networkidle");
 
-    await expect(page.getByRole("heading", { name: "Export Backup" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Export Backup" }),
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: /^Export$/ })).toBeVisible();
-    const downloadNameSelect = page.getByRole("combobox", { name: "Download name" });
-    await expect(downloadNameSelect).toBeVisible();
-    await expect(downloadNameSelect.locator('option[value="excalidash"]')).toHaveText(".excalidash");
-    await expect(downloadNameSelect.locator('option[value="excalidash.zip"]')).toHaveText(".excalidash.zip");
+    await expect(page.getByText("Export backup")).toBeVisible();
   });
 
   test("should export .excalidash via API", async ({ request }) => {
-    const drawing = await createDrawing(request, { name: `Export_API_${Date.now()}` });
+    const drawing = await createDrawing(request, {
+      name: `Export_API_${Date.now()}`,
+    });
     createdDrawingIds.push(drawing.id);
 
     const response = await request.get(`${API_URL}/export/excalidash`);
@@ -70,7 +74,9 @@ test.describe("Export Functionality", () => {
   });
 
   test("should export .excalidash.zip via API", async ({ request }) => {
-    const drawing = await createDrawing(request, { name: `Export_Zip_${Date.now()}` });
+    const drawing = await createDrawing(request, {
+      name: `Export_Zip_${Date.now()}`,
+    });
     createdDrawingIds.push(drawing.id);
 
     const response = await request.get(`${API_URL}/export/excalidash?ext=zip`);
@@ -93,32 +99,39 @@ test.describe.serial("Import Functionality", () => {
     for (const drawing of testDrawings) {
       try {
         await deleteDrawing(request, drawing.id);
-      } catch {
-      }
+      } catch {}
     }
 
     for (const id of createdDrawingIds) {
       try {
         await deleteDrawing(request, id);
-      } catch {
-      }
+      } catch {}
     }
     createdDrawingIds = [];
   });
 
-  test("should show Import Backup button on Settings page", async ({ page }) => {
+  test("should show Import Backup button on Settings page", async ({
+    page,
+  }) => {
     await page.goto("/settings");
     await page.waitForLoadState("networkidle");
 
-    const advancedDetails = page.locator("details", { hasText: "Advanced / Legacy" });
+    const advancedDetails = page.locator("details", { hasText: "Advanced" });
     await expect(advancedDetails).toHaveCount(1);
-    const isOpen = await advancedDetails.evaluate((el) => el.hasAttribute("open"));
+    const isOpen = await advancedDetails.evaluate((el) =>
+      el.hasAttribute("open"),
+    );
     if (!isOpen) {
       await advancedDetails.locator("summary").click();
     }
 
-    await expect(page.getByRole("heading", { name: "Import Backup" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Import Backup" }),
+    ).toBeVisible();
     await expect(page.locator("#settings-import-backup")).toBeAttached();
+    await expect(
+      page.getByRole("button", { name: "Choose file", exact: true }),
+    ).toBeVisible();
   });
 
   test("should import .excalidraw file from Dashboard", async ({ page }) => {
@@ -156,15 +169,13 @@ test.describe.serial("Import Functionality", () => {
           updated: Date.now(),
           link: null,
           locked: false,
-        }
+        },
       ],
       appState: {
-        viewBackgroundColor: "#ffffff"
+        viewBackgroundColor: "#ffffff",
       },
-      files: {}
+      files: {},
     });
-
-
 
     const fileInput = page.locator("#dashboard-import");
 
@@ -174,11 +185,15 @@ test.describe.serial("Import Functionality", () => {
       buffer: Buffer.from(fixtureContent),
     });
 
-    await expect(page.getByText("Uploads (Done)")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("Uploads (Done)")).toBeVisible({
+      timeout: 10000,
+    });
 
     await page.reload({ waitUntil: "networkidle" });
 
-    await page.getByPlaceholder("Search drawings...").fill("Import_ExcalidrawTest");
+    await page
+      .getByPlaceholder("Search drawings...")
+      .fill("Import_ExcalidrawTest");
     await page.waitForTimeout(1000);
 
     const importedCards = page.locator("[id^='drawing-card-']");
@@ -223,10 +238,10 @@ test.describe.serial("Import Functionality", () => {
           updated: Date.now(),
           link: null,
           locked: false,
-        }
+        },
       ],
       appState: { viewBackgroundColor: "#ffffff" },
-      files: {}
+      files: {},
     });
 
     const fileInput = page.locator("#dashboard-import");
@@ -237,7 +252,9 @@ test.describe.serial("Import Functionality", () => {
       buffer: Buffer.from(jsonContent),
     });
 
-    await expect(page.getByText("Uploads (Done)")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText("Uploads (Done)")).toBeVisible({
+      timeout: 15000,
+    });
 
     const failedIndicator = page.getByText("Failed");
     if (await failedIndicator.isVisible()) {
@@ -270,8 +287,10 @@ test.describe.serial("Import Functionality", () => {
       buffer: Buffer.from(invalidContent),
     });
 
-    await expect(page.getByText("Uploads (Done)")).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText("Failed")).toBeVisible();
+    await expect(page.getByText("Uploads (Done)")).toBeVisible({
+      timeout: 10000,
+    });
+    await expect(page.getByTitle(/not valid JSON/)).toBeVisible();
   });
 
   test("should import multiple drawings at once", async ({ page }) => {
@@ -284,31 +303,37 @@ test.describe.serial("Import Functionality", () => {
       {
         name: `${searchPrefix}_A.excalidraw`,
         mimeType: "application/json",
-        buffer: Buffer.from(JSON.stringify({
-          type: "excalidraw",
-          version: 2,
-          elements: [],
-          appState: { viewBackgroundColor: "#ffffff" },
-          files: {}
-        })),
+        buffer: Buffer.from(
+          JSON.stringify({
+            type: "excalidraw",
+            version: 2,
+            elements: [],
+            appState: { viewBackgroundColor: "#ffffff" },
+            files: {},
+          }),
+        ),
       },
       {
         name: `${searchPrefix}_B.excalidraw`,
         mimeType: "application/json",
-        buffer: Buffer.from(JSON.stringify({
-          type: "excalidraw",
-          version: 2,
-          elements: [],
-          appState: { viewBackgroundColor: "#f0f0f0" },
-          files: {}
-        })),
+        buffer: Buffer.from(
+          JSON.stringify({
+            type: "excalidraw",
+            version: 2,
+            elements: [],
+            appState: { viewBackgroundColor: "#f0f0f0" },
+            files: {},
+          }),
+        ),
       },
     ];
 
     const fileInput = page.locator("#dashboard-import");
     await fileInput.setInputFiles(files);
 
-    await expect(page.getByText("Uploads (Done)")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("Uploads (Done)")).toBeVisible({
+      timeout: 10000,
+    });
 
     await page.getByPlaceholder("Search drawings...").fill(searchPrefix);
     await page.waitForTimeout(500);
@@ -320,16 +345,19 @@ test.describe.serial("Import Functionality", () => {
 
 test.describe("Database Import Verification", () => {
   test("should verify SQLite import endpoint exists", async ({ request }) => {
-    const response = await request.post(`${API_URL}/import/sqlite/legacy/verify`, {
-      headers: await getCsrfHeaders(request),
-      multipart: {
-        db: {
-          name: "test.sqlite",
-          mimeType: "application/x-sqlite3",
-          buffer: Buffer.from(""),
+    const response = await request.post(
+      `${API_URL}/import/sqlite/legacy/verify`,
+      {
+        headers: await getCsrfHeaders(request),
+        multipart: {
+          db: {
+            name: "test.sqlite",
+            mimeType: "application/x-sqlite3",
+            buffer: Buffer.from(""),
+          },
         },
       },
-    });
+    );
 
     expect([400, 500]).toContain(response.status());
   });

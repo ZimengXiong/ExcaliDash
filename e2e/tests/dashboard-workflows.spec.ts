@@ -19,7 +19,10 @@ async function applyDashboardSearch(page: Page, term: string) {
   await searchInput.fill(term);
 }
 
-async function ensureCardVisible(page: Page, drawingId: string): Promise<Locator> {
+async function ensureCardVisible(
+  page: Page,
+  drawingId: string,
+): Promise<Locator> {
   const card = page.locator(`#drawing-card-${drawingId}`);
   await card.waitFor({ state: "attached" });
   await card.scrollIntoViewIfNeeded();
@@ -45,21 +48,22 @@ test.describe("Dashboard Workflows", () => {
     for (const id of createdDrawingIds) {
       try {
         await deleteDrawing(request, id);
-      } catch {
-      }
+      } catch {}
     }
     createdDrawingIds = [];
 
     for (const id of createdCollectionIds) {
       try {
         await deleteCollection(request, id);
-      } catch {
-      }
+      } catch {}
     }
     createdCollectionIds = [];
   });
 
-  test("should move drawing to trash and permanently delete it via bulk controls", async ({ page, request }) => {
+  test("should move drawing to trash and permanently delete it via bulk controls", async ({
+    page,
+    request,
+  }) => {
     const drawingName = `Trash Workflow ${Date.now()}`;
     const createdDrawing = await createDrawing(request, { name: drawingName });
     createdDrawingIds.push(createdDrawing.id);
@@ -83,12 +87,19 @@ test.describe("Dashboard Workflows", () => {
 
     await expect(trashCard).toHaveCount(0);
 
-    const response = await request.get(`${API_URL}/drawings/${createdDrawing.id}`);
+    const response = await request.get(
+      `${API_URL}/drawings/${createdDrawing.id}`,
+    );
     expect(response.status()).toBe(404);
-    createdDrawingIds = createdDrawingIds.filter((id) => id !== createdDrawing.id);
+    createdDrawingIds = createdDrawingIds.filter(
+      (id) => id !== createdDrawing.id,
+    );
   });
 
-  test("should create a collection via UI and move drawings using card controls", async ({ page, request }) => {
+  test("should create a collection via UI and move drawings using card controls", async ({
+    page,
+    request,
+  }) => {
     const drawingName = `Collection Flow ${Date.now()}`;
     const createdDrawing = await createDrawing(request, { name: drawingName });
     createdDrawingIds.push(createdDrawing.id);
@@ -103,10 +114,14 @@ test.describe("Dashboard Workflows", () => {
     await collectionInput.fill(collectionName);
     await collectionInput.press("Enter");
 
-    await expect(page.getByRole("button", { name: collectionName })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: collectionName }),
+    ).toBeVisible();
 
     const collections = await listCollections(request);
-    const createdCollection = collections.find((collection) => collection.name === collectionName);
+    const createdCollection = collections.find(
+      (collection) => collection.name === collectionName,
+    );
     expect(createdCollection).toBeDefined();
     if (!createdCollection) {
       throw new Error("Failed to locate created collection");
@@ -115,24 +130,39 @@ test.describe("Dashboard Workflows", () => {
 
     const cardLocator = await ensureCardVisible(page, createdDrawing.id);
 
-    const collectionButton = cardLocator.locator(`[data-testid="collection-picker-${createdDrawing.id}"]`);
+    const collectionButton = cardLocator.locator(
+      `[data-testid="collection-picker-${createdDrawing.id}"]`,
+    );
     await collectionButton.click();
-    await page.locator(`[data-testid="collection-option-${createdCollection.id}"]`).click();
+    await page
+      .locator(`[data-testid="collection-option-${createdCollection.id}"]`)
+      .click();
     await expect(collectionButton).toContainText(collectionName);
 
-    await expect.poll(async () => {
-      const updated = await getDrawing(request, createdDrawing.id);
-      return updated.collectionId;
-    }).toBe(createdCollection.id);
+    await expect
+      .poll(async () => {
+        const updated = await getDrawing(request, createdDrawing.id);
+        return updated.collectionId;
+      })
+      .toBe(createdCollection.id);
 
-    await page.getByRole("navigation").getByRole("button", { name: collectionName }).click();
+    await page
+      .getByRole("navigation")
+      .getByRole("button", { name: collectionName })
+      .click();
     await expect(cardLocator).toBeVisible();
 
-    await page.getByRole("navigation").getByRole("button", { name: "Unorganized" }).click();
+    await page
+      .getByRole("navigation")
+      .getByRole("button", { name: "Unorganized" })
+      .click();
     await expect(cardLocator).toHaveCount(0);
   });
 
-  test("should duplicate multiple drawings and move them to trash via bulk toolbar", async ({ page, request }) => {
+  test("should duplicate multiple drawings and move them to trash via bulk toolbar", async ({
+    page,
+    request,
+  }) => {
     const prefix = `Bulk Flow ${Date.now()}`;
     const [first, second] = await Promise.all([
       createDrawing(request, { name: `${prefix} A` }),
@@ -149,10 +179,12 @@ test.describe("Dashboard Workflows", () => {
 
     await page.getByTitle("Duplicate Selected").click();
 
-    await expect.poll(async () => {
-      const results = await listDrawings(request, { search: prefix });
-      return results.length;
-    }).toBe(4);
+    await expect
+      .poll(async () => {
+        const results = await listDrawings(request, { search: prefix });
+        return results.length;
+      })
+      .toBe(4);
 
     await applyDashboardSearch(page, prefix);
     await expect(page.locator("[id^='drawing-card-']")).toHaveCount(4);
@@ -175,21 +207,34 @@ test.describe("Dashboard Workflows", () => {
       await bulkMoveToTrash();
     }
 
-    await expect.poll(async () => {
-      const trashed = await listDrawings(request, { search: prefix, collectionId: "trash" });
-      return trashed.length;
-    }, { timeout: 15000 }).toBe(4);
+    await expect
+      .poll(
+        async () => {
+          const trashed = await listDrawings(request, {
+            search: prefix,
+            collectionId: "trash",
+          });
+          return trashed.length;
+        },
+        { timeout: 15000 },
+      )
+      .toBe(4);
 
-    const trashDrawings = await listDrawings(request, { search: prefix, collectionId: "trash" });
+    const trashDrawings = await listDrawings(request, {
+      search: prefix,
+      collectionId: "trash",
+    });
     for (const drawing of trashDrawings) {
       await deleteDrawing(request, drawing.id);
     }
     const removedIds = new Set(trashDrawings.map((drawing) => drawing.id));
     createdDrawingIds = createdDrawingIds.filter((id) => !removedIds.has(id));
 
-    await expect.poll(async () => {
-      const remaining = await listDrawings(request, { search: prefix });
-      return remaining.length;
-    }).toBe(0);
+    await expect
+      .poll(async () => {
+        const remaining = await listDrawings(request, { search: prefix });
+        return remaining.length;
+      })
+      .toBe(0);
   });
 });

@@ -38,7 +38,9 @@ describe("sanitizeSvg preview image hrefs (S3 rehydration)", () => {
 
   it("strips a javascript: href", () => {
     const out = sanitizeSvg(
-      wrap(`<image x="0" y="0" width="1" height="1" href="javascript:alert(1)" />`),
+      wrap(
+        `<image x="0" y="0" width="1" height="1" href="javascript:alert(1)" />`,
+      ),
     );
     expect(out).not.toContain("javascript:");
     expect(out).not.toContain("<image");

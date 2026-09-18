@@ -58,7 +58,11 @@ describe("Drawings - Shared With Me hide/unhide", () => {
       select: { id: true, email: true },
     });
     const recipient = await prisma.user.create({
-      data: { email: "recipient-h@test.local", passwordHash, name: "Recipient" },
+      data: {
+        email: "recipient-h@test.local",
+        passwordHash,
+        name: "Recipient",
+      },
       select: { id: true, email: true },
     });
 

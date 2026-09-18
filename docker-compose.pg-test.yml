@@ -20,8 +20,8 @@ services:
   # Backend with PostgreSQL
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     environment:
       - DATABASE_PROVIDER=postgresql
       - DATABASE_URL=postgresql://excalidash:test123@postgres:5432/excalidash

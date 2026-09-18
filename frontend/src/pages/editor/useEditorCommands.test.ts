@@ -77,7 +77,10 @@ describe("useEditorCommands rename", () => {
 
   it("reverts the name and toasts when the rename request fails", async () => {
     updateDrawing.mockRejectedValue(new Error("boom"));
-    const params = baseParams({ newName: "Attempted", drawingName: "Old Name" });
+    const params = baseParams({
+      newName: "Attempted",
+      drawingName: "Old Name",
+    });
     const { result } = renderHook(() => useEditorCommands(params));
 
     await act(async () => {
@@ -152,7 +155,9 @@ describe("useEditorCommands Ctrl+S", () => {
   });
 
   it("does not toast success when the save fails", async () => {
-    const enqueueSceneSave = vi.fn().mockRejectedValue(new Error("save failed"));
+    const enqueueSceneSave = vi
+      .fn()
+      .mockRejectedValue(new Error("save failed"));
     const refs = makeRefs();
     refs.excalidrawAPI.current = {
       getSceneElementsIncludingDeleted: () => [{ id: "a" }],

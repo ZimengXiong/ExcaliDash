@@ -24,7 +24,10 @@ vi.mock("../components/Logo", () => ({
 }));
 
 vi.mock("react-router-dom", async () => {
-  const actual = await vi.importActual<typeof import("react-router-dom")>("react-router-dom");
+  const actual =
+    await vi.importActual<typeof import("react-router-dom")>(
+      "react-router-dom",
+    );
   return {
     ...actual,
     useNavigate: () => mockNavigate,
@@ -63,11 +66,15 @@ describe("auth page registration policy", () => {
     render(
       <MemoryRouter initialEntries={["/login"]}>
         <Login />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
-    expect(screen.queryByRole("link", { name: /create a new account/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/sign in with an existing account/i)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /create a new account/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^sign in$/i }),
+    ).toBeInTheDocument();
   });
 
   it("redirects away from /register when registration is disabled outside bootstrap flow", () => {
@@ -79,7 +86,7 @@ describe("auth page registration policy", () => {
     render(
       <MemoryRouter initialEntries={["/register"]}>
         <Register />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(mockNavigate).toHaveBeenCalledWith("/login", { replace: true });

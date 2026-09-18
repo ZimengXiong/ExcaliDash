@@ -6,16 +6,39 @@ import {
   isSuspiciousEmptySnapshot,
   isStaleEmptySnapshot,
   isStaleNonRenderableSnapshot,
+  validateEmbeddableUrl,
 } from "./shared";
 
 describe("editor/shared scene guards", () => {
+  it("accepts public HTTPS embeds outside Excalidraw's built-in domain list", () => {
+    expect(validateEmbeddableUrl("https://example.com/embed/123")).toBe(true);
+  });
+
+  it("rejects malformed, credentialed, insecure, and private-network embed URLs", () => {
+    expect(validateEmbeddableUrl("not a URL")).toBe(false);
+    expect(validateEmbeddableUrl("javascript:alert(1)")).toBe(false);
+    expect(
+      validateEmbeddableUrl("data:text/html,<script>alert(1)</script>"),
+    ).toBe(false);
+    expect(validateEmbeddableUrl("https://user:password@example.com")).toBe(
+      false,
+    );
+    expect(validateEmbeddableUrl("http://example.com/embed/123")).toBe(false);
+    expect(validateEmbeddableUrl("https://localhost:3000/dashboard")).toBe(
+      false,
+    );
+    expect(validateEmbeddableUrl("https://router.local/dashboard")).toBe(false);
+    expect(validateEmbeddableUrl("https://192.168.1.10/dashboard")).toBe(false);
+    expect(validateEmbeddableUrl("https://[::1]/dashboard")).toBe(false);
+  });
+
   it("detects renderable elements", () => {
     expect(hasRenderableElements([{ id: "a", isDeleted: false }])).toBe(true);
     expect(
       hasRenderableElements([
         { id: "a", isDeleted: true },
         { id: "b", isDeleted: true },
-      ])
+      ]),
     ).toBe(false);
   });
 
@@ -51,13 +74,17 @@ describe("editor/shared scene guards", () => {
 
   it("flags stale non-renderable snapshot when latest scene has renderable elements", () => {
     const latest = [{ id: "a", version: 2, versionNonce: 2, isDeleted: false }];
-    const candidate = [{ id: "a", version: 1, versionNonce: 1, isDeleted: true }];
+    const candidate = [
+      { id: "a", version: 1, versionNonce: 1, isDeleted: true },
+    ];
     expect(isStaleNonRenderableSnapshot(latest, candidate)).toBe(true);
   });
 
   it("does not flag non-renderable snapshot when latest scene is already non-renderable", () => {
     const latest = [{ id: "a", version: 2, versionNonce: 2, isDeleted: true }];
-    const candidate = [{ id: "a", version: 1, versionNonce: 1, isDeleted: true }];
+    const candidate = [
+      { id: "a", version: 1, versionNonce: 1, isDeleted: true },
+    ];
     expect(isStaleNonRenderableSnapshot(latest, candidate)).toBe(false);
   });
 
@@ -78,10 +105,26 @@ describe("editor/shared scene guards", () => {
 
   it("marks remote element merges as non-history scene changes", () => {
     const localElements = [
-      { id: "local", version: 1, versionNonce: 1, updated: 1, x: 0, y: 0, isDeleted: false },
+      {
+        id: "local",
+        version: 1,
+        versionNonce: 1,
+        updated: 1,
+        x: 0,
+        y: 0,
+        isDeleted: false,
+      },
     ];
     const pendingElements = [
-      { id: "remote", version: 2, versionNonce: 2, updated: 2, x: 10, y: 15, isDeleted: false },
+      {
+        id: "remote",
+        version: 2,
+        versionNonce: 2,
+        updated: 2,
+        x: 10,
+        y: 15,
+        isDeleted: false,
+      },
     ];
 
     const result = buildRemoteSceneUpdate({
@@ -92,10 +135,7 @@ describe("editor/shared scene guards", () => {
     });
 
     expect(result.sceneUpdate).toEqual({
-      elements: [
-        localElements[0],
-        pendingElements[0],
-      ],
+      elements: [localElements[0], pendingElements[0]],
       captureUpdate: "NEVER",
     });
     expect(result.mergedElements).toEqual([
@@ -140,16 +180,10 @@ describe("editor/shared scene guards", () => {
     });
 
     expect(result.sceneUpdate).toEqual({
-      elements: [
-        localElements[1],
-        localElements[0],
-      ],
+      elements: [localElements[1], localElements[0]],
       captureUpdate: "NEVER",
     });
-    expect(result.mergedElements).toEqual([
-      localElements[1],
-      localElements[0],
-    ]);
+    expect(result.mergedElements).toEqual([localElements[1], localElements[0]]);
   });
 
   it("keeps only durable appState fields for persisted drawings", () => {
@@ -167,7 +201,7 @@ describe("editor/shared scene guards", () => {
         draggingElement: { id: "dragging" },
         scrollX: 120,
         scrollY: 240,
-      })
+      }),
     ).toEqual({
       viewBackgroundColor: "#123456",
       gridSize: 24,

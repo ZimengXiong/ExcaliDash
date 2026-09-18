@@ -7,6 +7,14 @@ MIGRATION_LOCK_DIR="/app/prisma/.migration-lock"
 MIGRATION_LOCK_TIMEOUT_SECONDS="${MIGRATION_LOCK_TIMEOUT_SECONDS:-120}"
 RUN_MIGRATIONS="${RUN_MIGRATIONS:-true}"
 
+run_as_app_user() {
+    if [ "$(id -u)" -eq 0 ]; then
+        su-exec nodejs "$@"
+    else
+        "$@"
+    fi
+}
+
 # Ensure JWT secret exists for production startup.
 # Backward compatibility: older installs may not have JWT_SECRET configured.
 if [ -z "${JWT_SECRET:-}" ]; then
@@ -50,6 +58,26 @@ fi
 
 export CSRF_SECRET
 
+# Docker secrets can provide the confidential OIDC client secret without
+# exposing it directly in the container environment.
+if [ -n "${OIDC_CLIENT_SECRET_FILE:-}" ]; then
+    if [ -n "${OIDC_CLIENT_SECRET:-}" ]; then
+        echo "ERROR: Both OIDC_CLIENT_SECRET and OIDC_CLIENT_SECRET_FILE are set. Use only one." >&2
+        exit 1
+    fi
+    if [ ! -r "${OIDC_CLIENT_SECRET_FILE}" ]; then
+        echo "ERROR: OIDC_CLIENT_SECRET_FILE is not readable: ${OIDC_CLIENT_SECRET_FILE}" >&2
+        exit 1
+    fi
+
+    OIDC_CLIENT_SECRET="$(tr -d '\r\n' < "${OIDC_CLIENT_SECRET_FILE}")"
+    if [ -z "${OIDC_CLIENT_SECRET}" ]; then
+        echo "ERROR: OIDC_CLIENT_SECRET_FILE is empty: ${OIDC_CLIENT_SECRET_FILE}" >&2
+        exit 1
+    fi
+    export OIDC_CLIENT_SECRET
+fi
+
 # Set default DATABASE_PROVIDER if not set
 if [ -z "${DATABASE_PROVIDER:-}" ]; then
     echo "DATABASE_PROVIDER not set, defaulting to sqlite"
@@ -78,17 +106,26 @@ echo "Configuring Prisma for provider: ${DATABASE_PROVIDER}"
 sed -i '/datasource db {/,/}/ s/provider = env("[^"]*")/provider = "'"${DATABASE_PROVIDER}"'"/' /app/prisma/schema.prisma
 sed -i '/datasource db {/,/}/ s/provider = "[^"]*"/provider = "'"${DATABASE_PROVIDER}"'"/' /app/prisma/schema.prisma
 
-# Generate Prisma Client at runtime (run as root since schema is owned by root)
-echo "Generating Prisma Client..."
-npx prisma generate --schema=/app/prisma/schema.prisma
+# Select the provider-specific client generated during the image build. This
+# keeps container startup independent of binaries.prisma.sh and other egress.
+PRISMA_CLIENT_SOURCE="/app/prisma_clients/${DATABASE_PROVIDER}"
+if [ ! -d "${PRISMA_CLIENT_SOURCE}/client" ]; then
+    echo "ERROR: Prebuilt Prisma Client not found for provider '${DATABASE_PROVIDER}'" >&2
+    exit 1
+fi
 
-# Copy generated client to the expected location for the application
+echo "Selecting prebuilt Prisma Client for provider: ${DATABASE_PROVIDER}"
+rm -rf /app/dist/generated
 mkdir -p /app/dist/generated
-cp -r /app/src/generated/* /app/dist/generated/
+cp -R "${PRISMA_CLIENT_SOURCE}/." /app/dist/generated/
 
-# 2. Fix permissions unconditionally (Running as root)
-echo "Fixing filesystem permissions..."
-chown -R nodejs:nodejs /app/uploads /app/prisma /app/dist/generated
+# An explicit root override remains compatible with existing root-owned
+# volumes. Normal image startup is already UID 1001 and never calls chown.
+if [ "$(id -u)" -eq 0 ]; then
+    echo "Fixing filesystem permissions..."
+    chown -R nodejs:nodejs /app/uploads /app/prisma /app/dist/generated
+fi
+
 chmod 755 /app/uploads
 chmod -R 755 /app/dist/generated
 chmod 600 "${JWT_SECRET_FILE}"
@@ -122,7 +159,7 @@ if [ "${RUN_MIGRATIONS}" = "true" ] || [ "${RUN_MIGRATIONS}" = "1" ]; then
     # Best-effort cleanup so future startups don't block forever.
     trap 'rmdir "${MIGRATION_LOCK_DIR}" 2>/dev/null || true' EXIT INT TERM
 
-    su-exec nodejs npx prisma migrate deploy
+    run_as_app_user npx prisma migrate deploy
 
     rmdir "${MIGRATION_LOCK_DIR}" 2>/dev/null || true
     trap - EXIT INT TERM
@@ -130,6 +167,11 @@ else
     echo "Skipping database migrations (RUN_MIGRATIONS=${RUN_MIGRATIONS})"
 fi
 
-# 4. Start Application (Drop privileges to nodejs)
-echo "Starting application as nodejs..."
-exec su-exec nodejs node dist/index.js
+# 4. Start Application
+if [ "$(id -u)" -eq 0 ]; then
+    echo "Starting application as nodejs..."
+    exec su-exec nodejs node dist/index.js
+fi
+
+echo "Starting application as uid $(id -u)..."
+exec node dist/index.js

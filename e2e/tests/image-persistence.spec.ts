@@ -11,19 +11,20 @@ import {
 
 /**
  * E2E Browser Tests for Image Persistence - Issue #17 Regression
- * 
+ *
  * These tests verify the complete user workflow:
  * 1. Create a drawing with an embedded image
  * 2. Save the drawing
  * 3. Close and reopen the drawing
  * 4. Verify the image loads correctly
- * 
+ *
  * This tests the fix for GitHub issue #17:
  * "Images don't load fully when reopening the file"
  */
 
 function generateLargeImageDataUrl(sizeInBytes: number = 50000): string {
-  const base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  const base64Chars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   let base64Data = "";
   for (let i = 0; i < sizeInBytes; i++) {
     base64Data += base64Chars[Math.floor(Math.random() * 64)];
@@ -38,13 +39,14 @@ test.describe("Image Persistence - Browser E2E Tests", () => {
     for (const id of testDrawingIds) {
       try {
         await deleteDrawing(request, id);
-      } catch {
-      }
+      } catch {}
     }
     testDrawingIds = [];
   });
 
-  test("should navigate to dashboard and see drawing list", async ({ page }) => {
+  test("should navigate to dashboard and see drawing list", async ({
+    page,
+  }) => {
     await page.goto("/");
 
     await expect(page).toHaveTitle(/ExcaliDash/i);
@@ -55,17 +57,22 @@ test.describe("Image Persistence - Browser E2E Tests", () => {
   test("should create a new drawing via UI", async ({ page }) => {
     await page.goto("/");
 
-    const newDrawingBtn = page.getByRole("button", { name: /new|create/i }).first();
+    const newDrawingBtn = page
+      .getByRole("button", { name: /new|create/i })
+      .first();
 
     if (await newDrawingBtn.isVisible()) {
       await newDrawingBtn.click();
 
-      await page.waitForURL(/\/(editor|drawing)/i, { timeout: 5000 }).catch(() => {
-      });
+      await page
+        .waitForURL(/\/(editor|drawing)/i, { timeout: 5000 })
+        .catch(() => {});
     }
   });
 
-  test("should preserve large image data through save/reload cycle via API", async ({ request }) => {
+  test("should preserve large image data through save/reload cycle via API", async ({
+    request,
+  }) => {
     const largeDataUrl = generateLargeImageDataUrl(50000);
     expect(largeDataUrl.length).toBeGreaterThan(10000);
 
@@ -85,10 +92,12 @@ test.describe("Image Persistence - Browser E2E Tests", () => {
     testDrawingIds.push(createdDrawing.id);
 
     const drawing = await getDrawing(request, createdDrawing.id);
-    const savedFiles = drawing.files || {};  // Already parsed by API
+    const savedFiles = drawing.files || {}; // Already parsed by API
 
     expect(savedFiles["test-image-1"]).toBeDefined();
-    expect(savedFiles["test-image-1"].dataURL).toBe(`/api/files/${drawing.id}/test-image-1`);
+    expect(savedFiles["test-image-1"].dataURL).toBe(
+      `/api/files/${drawing.id}/test-image-1`,
+    );
 
     // The stored ref is client-relative ("/api/files/..."); the backend
     // serves it without the "/api" prefix outside the reverse proxy.
@@ -97,7 +106,9 @@ test.describe("Image Persistence - Browser E2E Tests", () => {
     expect(fileResponse.ok()).toBe(true);
     expect(fileResponse.headers()["content-type"]).toContain("image/png");
 
-    console.log("✓ Large image data preserved correctly through save/reload cycle");
+    console.log(
+      "✓ Large image data preserved correctly through save/reload cycle",
+    );
   });
 
   test("should display drawing in editor view", async ({ page, request }) => {
@@ -110,12 +121,21 @@ test.describe("Image Persistence - Browser E2E Tests", () => {
 
     await page.waitForLoadState("networkidle");
 
-    const editorContainer = page.locator("[class*='excalidraw'], canvas").first();
+    const editorContainer = page
+      .locator("[class*='excalidraw'], canvas")
+      .first();
     await expect(editorContainer).toBeVisible({ timeout: 10000 });
   });
 
-  test("should import .excalidraw file with embedded image", async ({ request }) => {
-    const fixturePath = path.join(__dirname, "..", "fixtures", "small-image.excalidraw");
+  test("should import .excalidraw file with embedded image", async ({
+    request,
+  }) => {
+    const fixturePath = path.join(
+      __dirname,
+      "..",
+      "fixtures",
+      "small-image.excalidraw",
+    );
     const fixtureContent = fs.readFileSync(fixturePath, "utf-8");
     const fixtureData = JSON.parse(fixtureContent);
 
@@ -126,13 +146,17 @@ test.describe("Image Persistence - Browser E2E Tests", () => {
     testDrawingIds.push(createdDrawing.id);
 
     const drawing = await getDrawing(request, createdDrawing.id);
-    const savedFiles = drawing.files || {};  // Already parsed by API
+    const savedFiles = drawing.files || {}; // Already parsed by API
 
     expect(savedFiles["embedded-test-image"]).toBeDefined();
-    expect(savedFiles["embedded-test-image"].dataURL).toBe(`/api/files/${drawing.id}/embedded-test-image`);
+    expect(savedFiles["embedded-test-image"].dataURL).toBe(
+      `/api/files/${drawing.id}/embedded-test-image`,
+    );
   });
 
-  test("should handle multiple images of varying sizes", async ({ request }) => {
+  test("should handle multiple images of varying sizes", async ({
+    request,
+  }) => {
     const files = {
       "small-image": {
         id: "small-image",
@@ -161,7 +185,7 @@ test.describe("Image Persistence - Browser E2E Tests", () => {
     testDrawingIds.push(createdDrawing.id);
 
     const drawing = await getDrawing(request, createdDrawing.id);
-    const savedFiles = drawing.files || {};  // Already parsed by API
+    const savedFiles = drawing.files || {}; // Already parsed by API
 
     for (const [id, originalFile] of Object.entries(files)) {
       expect(savedFiles[id]).toBeDefined();

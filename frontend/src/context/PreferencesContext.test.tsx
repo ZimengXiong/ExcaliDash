@@ -114,7 +114,6 @@ describe("PreferencesContext", () => {
     expect(stored.language).toBe("es-ES");
   });
 
-
   it("refetches when the authenticated user id changes", async () => {
     getPrefsMock.mockResolvedValueOnce({});
     getPrefsMock.mockResolvedValueOnce({ language: "it-IT" });

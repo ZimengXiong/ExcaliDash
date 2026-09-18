@@ -3,7 +3,18 @@ import { Prisma } from "../generated/client";
 import { logAuditEvent } from "../utils/audit";
 import type { RegisterOidcRoutesDeps } from "./oidcRoutes";
 import { hashTokenForStorage } from "./tokenSecurity";
-import { canUseIdTokenSigningAlg, decodeFlowPayload, normalizeClaimGroups, normalizeEmail, OIDC_FLOW_COOKIE_NAME, OIDC_PROVIDER_KEY, parseJwtAlgMismatchError, readBooleanClaim, readClaimByPath, readStringClaim } from "./oidcRouteHelpers";
+import {
+  canUseIdTokenSigningAlg,
+  decodeFlowPayload,
+  normalizeClaimGroups,
+  normalizeEmail,
+  OIDC_FLOW_COOKIE_NAME,
+  OIDC_PROVIDER_KEY,
+  parseJwtAlgMismatchError,
+  readBooleanClaim,
+  readClaimByPath,
+  readStringClaim,
+} from "./oidcRouteHelpers";
 
 type OidcUser = {
   id: string;
@@ -17,13 +28,37 @@ type OidcUser = {
 
 type RegisterOidcCallbackRouteDeps = RegisterOidcRoutesDeps & {
   clearOidcFlowCookie: (req: Request, res: Response) => void;
-  redirectToLoginWithError: (req: Request, res: Response, errorCode: string, returnTo?: string) => void;
+  redirectToLoginWithError: (
+    req: Request,
+    res: Response,
+    errorCode: string,
+    returnTo?: string,
+  ) => void;
   getOidcClient: () => Promise<any>;
-  buildOidcClient: (idTokenSignedResponseAlgOverride?: string | null) => Promise<any>;
+  buildOidcClient: (
+    idTokenSignedResponseAlgOverride?: string | null,
+  ) => Promise<any>;
 };
 
-export const registerOidcCallbackRoute = (deps: RegisterOidcCallbackRouteDeps) => {
-  const { router, prisma, ensureAuthEnabled, ensureSystemConfig, sanitizeText, generateTokens, setAuthCookies, getRefreshTokenExpiresAt, isMissingRefreshTokenTableError, config, clearOidcFlowCookie, redirectToLoginWithError, getOidcClient, buildOidcClient } = deps;
+export const registerOidcCallbackRoute = (
+  deps: RegisterOidcCallbackRouteDeps,
+) => {
+  const {
+    router,
+    prisma,
+    ensureAuthEnabled,
+    ensureSystemConfig,
+    sanitizeText,
+    generateTokens,
+    setAuthCookies,
+    getRefreshTokenExpiresAt,
+    isMissingRefreshTokenTableError,
+    config,
+    clearOidcFlowCookie,
+    redirectToLoginWithError,
+    getOidcClient,
+    buildOidcClient,
+  } = deps;
   const userSelect = {
     id: true,
     username: true,
@@ -365,4 +400,5 @@ export const registerOidcCallbackRoute = (deps: RegisterOidcCallbackRouteDeps) =
         flow.returnTo,
       );
     }
-  });};
+  });
+};

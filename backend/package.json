@@ -1,7 +1,11 @@
 {
   "name": "backend",
-  "version": "0.6.0",
+  "private": true,
   "description": "",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "npm@10.9.2",
   "scripts": {
     "build": "prisma generate && tsc",
     "predev": "node scripts/predev-migrate.cjs",
@@ -15,7 +19,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "check:max-lines": "node ../scripts/check-source-line-count.cjs",
+    "lint": "eslint src scripts --config ../eslint.config.js",
     "check:env-boundary": "node ../scripts/check-env-boundary.cjs",
     "gen:env": "ts-node src/config/generateEnvReference.ts"
   },
@@ -26,6 +30,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1026.0",
     "@aws-sdk/s3-request-presigner": "^3.1026.0",
+    "@dagrejs/dagre": "^3.1.0",
     "@prisma/client": "^5.22.0",
     "archiver": "^7.0.1",
     "bcrypt": "^6.0.0",
@@ -41,8 +46,10 @@
     "jszip": "^3.10.1",
     "ms": "^2.1.3",
     "multer": "^2.0.2",
+    "nodemailer": "^9.0.5",
     "openid-client": "^5.7.1",
     "prisma": "^5.22.0",
+    "resend": "^6.22.0",
     "socket.io": "^4.8.1",
     "uuid": "^14.0.0",
     "zod": "^4.1.12"
@@ -57,6 +64,7 @@
     "@types/ms": "^2.1.0",
     "@types/multer": "^2.0.0",
     "@types/node": "^24.10.1",
+    "@types/nodemailer": "^8.0.1",
     "@types/supertest": "^6.0.3",
     "nodemon": "^3.1.11",
     "supertest": "^7.1.4",

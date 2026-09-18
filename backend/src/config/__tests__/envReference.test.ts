@@ -9,7 +9,10 @@ const DOCS_PATH = path.resolve(__dirname, "../../../../docs/CONFIGURATION.md");
 
 /** Normalize trailing whitespace so line-ending noise never fails the test. */
 const normalize = (text: string): string =>
-  text.replace(/[ \t]+$/gm, "").replace(/\r\n/g, "\n").trimEnd();
+  text
+    .replace(/[ \t]+$/gm, "")
+    .replace(/\r\n/g, "\n")
+    .trimEnd();
 
 describe("generated env reference is fresh", () => {
   it("backend/.env.example matches the registry (run npm run gen:env)", () => {

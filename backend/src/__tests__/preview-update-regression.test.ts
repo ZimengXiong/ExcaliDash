@@ -9,7 +9,7 @@ describe("sanitizeDrawingUpdateData regression", () => {
       appState?: Record<string, unknown>;
       files?: Record<string, unknown>;
     } = {
-      preview: "<svg><rect width=\"10\" height=\"10\"/></svg>",
+      preview: '<svg><rect width="10" height="10"/></svg>',
     };
 
     const ok = sanitizeDrawingUpdateData(payload);
@@ -52,4 +52,3 @@ describe("sanitizeDrawingUpdateData regression", () => {
     expect(typeof payload.appState).toBe("object");
   });
 });
-

@@ -5,9 +5,17 @@ const path = require("path");
 const ROOT = path.resolve(__dirname, "..");
 const SCAN_ROOT = path.join(ROOT, "backend/src");
 const EXTENSIONS = new Set([".ts"]);
-const SKIP_DIRS = new Set(["node_modules", "dist", "coverage", ".git", "generated", "__tests__"]);
+const SKIP_DIRS = new Set([
+  "node_modules",
+  "dist",
+  "coverage",
+  ".git",
+  "generated",
+  "__tests__",
+]);
 const NEEDLE = "process.env";
-const isAllowed = (rel) => rel === "backend/src/config.ts" || rel.startsWith("backend/src/config/");
+const isAllowed = (rel) =>
+  rel === "backend/src/config.ts" || rel.startsWith("backend/src/config/");
 const isTestFile = (name) => name.endsWith(".test.ts");
 const walk = (dir, files = []) => {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -15,7 +23,8 @@ const walk = (dir, files = []) => {
       if (!SKIP_DIRS.has(entry.name)) walk(path.join(dir, entry.name), files);
       continue;
     }
-    if (EXTENSIONS.has(path.extname(entry.name)) && !isTestFile(entry.name)) files.push(path.join(dir, entry.name));
+    if (EXTENSIONS.has(path.extname(entry.name)) && !isTestFile(entry.name))
+      files.push(path.join(dir, entry.name));
   }
   return files;
 };
@@ -30,7 +39,11 @@ for (const file of files) {
   });
 }
 if (failures.length > 0) {
-  console.error(`process.env may only be read in backend/src/config.ts and backend/src/config/:\n${failures.join("\n")}`);
+  console.error(
+    `process.env may only be read in backend/src/config.ts and backend/src/config/:\n${failures.join("\n")}`,
+  );
   process.exit(1);
 }
-console.log(`Env-boundary check passed (${files.length} files scanned; process.env confined to config).`);
+console.log(
+  `Env-boundary check passed (${files.length} files scanned; process.env confined to config).`,
+);

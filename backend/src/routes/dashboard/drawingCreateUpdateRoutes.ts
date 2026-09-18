@@ -62,7 +62,9 @@ export const registerDrawingCreateUpdateRoutes = (
         const referenced = new Set(
           Object.keys(parseJsonField(current?.files ?? "{}", {})),
         );
-        const deletable = candidates.filter((fileId) => !referenced.has(fileId));
+        const deletable = candidates.filter(
+          (fileId) => !referenced.has(fileId),
+        );
         if (deletable.length === 0) return;
         await tx.drawingFile.deleteMany({
           where: { drawingId, fileId: { in: deletable } },
@@ -247,13 +249,19 @@ export const registerDrawingCreateUpdateRoutes = (
       };
 
       const ownerUserId = existingDrawing.userId;
+      const actingUserId =
+        principal?.kind === "user" ? principal.userId : ownerUserId;
       const trashCollectionId = getUserTrashCollectionId(ownerUserId);
       const isSceneUpdate =
         payload.elements !== undefined ||
         payload.appState !== undefined ||
         payload.files !== undefined;
 
-      if (isSceneUpdate && payload.version !== undefined && payload.version !== existingDrawing.version) {
+      if (
+        isSceneUpdate &&
+        payload.version !== undefined &&
+        payload.version !== existingDrawing.version
+      ) {
         return res.status(409).json({
           error: "Conflict",
           code: "VERSION_CONFLICT",
@@ -285,9 +293,14 @@ export const registerDrawingCreateUpdateRoutes = (
       }
       if (payload.preview !== undefined) {
         const processedPreview: unknown = processedFilesForUpdate
-          ? rewritePreviewForInternedFiles(payload.preview, payload.files ?? {}, processedFilesForUpdate)
+          ? rewritePreviewForInternedFiles(
+              payload.preview,
+              payload.files ?? {},
+              processedFilesForUpdate,
+            )
           : payload.preview;
-        data.preview = typeof processedPreview === "string" ? processedPreview : null;
+        data.preview =
+          typeof processedPreview === "string" ? processedPreview : null;
       }
 
       if (payload.collectionId !== undefined) {
@@ -302,11 +315,22 @@ export const registerDrawingCreateUpdateRoutes = (
           (data as Prisma.DrawingUncheckedUpdateInput).collectionId =
             trashCollectionId;
         } else if (payload.collectionId) {
-          const collection = await prisma.collection.findFirst({
-            where: { id: payload.collectionId, userId: ownerUserId },
+          const ownedCollection = await prisma.collection.findFirst({
+            where: { id: payload.collectionId, userId: actingUserId },
           });
-          if (!collection)
-            return res.status(404).json({ error: "Collection not found" });
+          if (!ownedCollection) {
+            const editableShare = await prisma.collectionShare.findFirst({
+              where: {
+                collectionId: payload.collectionId,
+                granteeUserId: actingUserId,
+                role: "edit",
+              },
+              select: { id: true },
+            });
+            if (!editableShare) {
+              return res.status(404).json({ error: "Collection not found" });
+            }
+          }
           (data as Prisma.DrawingUncheckedUpdateInput).collectionId =
             payload.collectionId;
         } else {
@@ -341,7 +365,11 @@ export const registerDrawingCreateUpdateRoutes = (
           });
         }
       } catch (error) {
-        if (isSceneUpdate && processedFilesForUpdate && knownFileIdsBeforeUpdate) {
+        if (
+          isSceneUpdate &&
+          processedFilesForUpdate &&
+          knownFileIdsBeforeUpdate
+        ) {
           await cleanupUnreferencedInternedFiles(
             id,
             knownFileIdsBeforeUpdate,
@@ -383,5 +411,4 @@ export const registerDrawingCreateUpdateRoutes = (
       });
     }),
   );
-
 };

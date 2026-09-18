@@ -48,7 +48,6 @@ const DEFAULT_RELAXED_POLICY: PasswordPolicyResponse = {
   requireSymbol: false,
 };
 
-
 const buildPatternHtml = (policy: PasswordPolicyResponse): string => {
   const parts: string[] = [];
   if (policy.requireLowercase) parts.push("(?=.*[a-z])");
@@ -76,7 +75,9 @@ const buildRequirementsText = (policy: PasswordPolicyResponse): string => {
   return `${requirements.join(", ")}.`;
 };
 
-const normalizePolicy = (raw: Partial<PasswordPolicyResponse> | null | undefined): PasswordPolicyResponse | null => {
+const normalizePolicy = (
+  raw: Partial<PasswordPolicyResponse> | null | undefined,
+): PasswordPolicyResponse | null => {
   if (!raw) return null;
   const minLength = Number(raw.minLength);
   const maxLength = Number(raw.maxLength);
@@ -103,22 +104,34 @@ const readCachedPolicy = (): PasswordPolicyResponse | null => {
   }
 };
 
-export const cachePasswordPolicy = (policy: Partial<PasswordPolicyResponse> | null | undefined): void => {
+export const cachePasswordPolicy = (
+  policy: Partial<PasswordPolicyResponse> | null | undefined,
+): void => {
   const normalized = normalizePolicy(policy);
   if (!normalized) return;
   try {
     if (typeof window === "undefined" || !window.localStorage) return;
-    window.localStorage.setItem(PASSWORD_POLICY_STORAGE_KEY, JSON.stringify(normalized));
+    window.localStorage.setItem(
+      PASSWORD_POLICY_STORAGE_KEY,
+      JSON.stringify(normalized),
+    );
   } catch {
     // localStorage can be unavailable in restricted browser contexts.
   }
 };
 
-export const getPasswordPolicy = (opts?: { strong?: boolean }): PasswordPolicy => {
+export const getPasswordPolicy = (opts?: {
+  strong?: boolean;
+}): PasswordPolicy => {
   const strong = typeof opts?.strong === "boolean" ? opts.strong : true;
-  const base = strong ? readCachedPolicy() ?? DEFAULT_STRONG_POLICY : DEFAULT_RELAXED_POLICY;
+  const base = strong
+    ? (readCachedPolicy() ?? DEFAULT_STRONG_POLICY)
+    : DEFAULT_RELAXED_POLICY;
   const requiresComplexity =
-    base.requireUppercase || base.requireLowercase || base.requireNumber || base.requireSymbol;
+    base.requireUppercase ||
+    base.requireLowercase ||
+    base.requireNumber ||
+    base.requireSymbol;
   const patternHtml = buildPatternHtml(base);
 
   return {
@@ -133,7 +146,7 @@ export const getPasswordPolicy = (opts?: { strong?: boolean }): PasswordPolicy =
 
 export const getPasswordRequirements = (
   password: string,
-  policy: PasswordPolicy
+  policy: PasswordPolicy,
 ): PasswordRequirement[] => {
   const value = typeof password === "string" ? password : "";
   const requirements: PasswordRequirement[] = [
@@ -145,29 +158,52 @@ export const getPasswordRequirements = (
   ];
 
   if (policy.requireUppercase) {
-    requirements.push({ id: "uppercase", label: "One uppercase letter (A-Z)", ok: /[A-Z]/.test(value) });
+    requirements.push({
+      id: "uppercase",
+      label: "One uppercase letter (A-Z)",
+      ok: /[A-Z]/.test(value),
+    });
   }
   if (policy.requireLowercase) {
-    requirements.push({ id: "lowercase", label: "One lowercase letter (a-z)", ok: /[a-z]/.test(value) });
+    requirements.push({
+      id: "lowercase",
+      label: "One lowercase letter (a-z)",
+      ok: /[a-z]/.test(value),
+    });
   }
   if (policy.requireNumber) {
-    requirements.push({ id: "number", label: "One number (0-9)", ok: /\d/.test(value) });
+    requirements.push({
+      id: "number",
+      label: "One number (0-9)",
+      ok: /\d/.test(value),
+    });
   }
   if (policy.requireSymbol) {
-    requirements.push({ id: "symbol", label: "One symbol", ok: /[^A-Za-z0-9]/.test(value) });
+    requirements.push({
+      id: "symbol",
+      label: "One symbol",
+      ok: /[^A-Za-z0-9]/.test(value),
+    });
   }
 
   return requirements;
 };
 
-export const validatePassword = (password: string, policy: PasswordPolicy): string | null => {
+export const validatePassword = (
+  password: string,
+  policy: PasswordPolicy,
+): string | null => {
   if (typeof password !== "string") return policy.validationMessage;
   if (password.length < policy.minLength) return policy.validationMessage;
   if (password.length > policy.maxLength)
     return `Password must be at most ${policy.maxLength} characters long`;
-  if (policy.requireUppercase && !/[A-Z]/.test(password)) return policy.validationMessage;
-  if (policy.requireLowercase && !/[a-z]/.test(password)) return policy.validationMessage;
-  if (policy.requireNumber && !/\d/.test(password)) return policy.validationMessage;
-  if (policy.requireSymbol && !/[^A-Za-z0-9]/.test(password)) return policy.validationMessage;
+  if (policy.requireUppercase && !/[A-Z]/.test(password))
+    return policy.validationMessage;
+  if (policy.requireLowercase && !/[a-z]/.test(password))
+    return policy.validationMessage;
+  if (policy.requireNumber && !/\d/.test(password))
+    return policy.validationMessage;
+  if (policy.requireSymbol && !/[^A-Za-z0-9]/.test(password))
+    return policy.validationMessage;
   return null;
 };

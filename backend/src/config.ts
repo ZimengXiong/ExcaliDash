@@ -11,7 +11,10 @@ import {
   validatePasswordAgainstPolicy,
 } from "./config/passwordPolicy";
 import { validateProductionConfig } from "./config/production";
-import { resolveFileUploadMaxMb, validateS3Configuration } from "./config/storageValidation";
+import {
+  resolveFileUploadMaxMb,
+  validateS3Configuration,
+} from "./config/storageValidation";
 import {
   readBoolean,
   readCsv,
@@ -28,6 +31,8 @@ import {
   resolveLinkShareConfig,
   resolveUpdateCheckConfig,
 } from "./config/derived";
+import { type AiConfig, resolveAiConfig } from "./config/ai";
+import { type MailConfig, resolveMailConfig } from "./config/mail";
 
 export { buildPasswordPolicyMessage, validatePasswordAgainstPolicy };
 
@@ -67,6 +72,8 @@ interface Config {
   rateLimitWindowMs: number;
   csrfMaxRequests: number;
   csrfRateLimitWindowMs: number;
+  agentOpsRateLimitMax: number;
+  agentOpsRateLimitWindowMs: number;
   snapshotRetentionMs: number;
   uploadMaxBytes: number;
   bodyLimitMb: number;
@@ -88,11 +95,14 @@ interface Config {
   s3: S3Config;
   linkShare: LinkShareConfig;
   updateCheck: UpdateCheckConfig;
+  ai: AiConfig;
+  mail: MailConfig;
 }
 
 export type AuthMode = "local" | "hybrid" | "oidc_enforced" | "disabled";
 // True only for env-enforced (OIDC-backed) modes; `local` uses the runtime toggle, `disabled` turns auth off.
-export const authModeEnablesAuth = (mode: AuthMode): boolean => mode === "hybrid" || mode === "oidc_enforced";
+export const authModeEnablesAuth = (mode: AuthMode): boolean =>
+  mode === "hybrid" || mode === "oidc_enforced";
 
 interface OidcConfig {
   enabled: boolean;
@@ -105,10 +115,7 @@ interface OidcConfig {
   redirectUri: string | null;
   idTokenSignedResponseAlg: string | null;
   tokenEndpointAuthMethod:
-    | "none"
-    | "client_secret_basic"
-    | "client_secret_post"
-    | null;
+    "none" | "client_secret_basic" | "client_secret_post" | null;
   scopes: string;
   emailClaim: string;
   emailVerifiedClaim: string;
@@ -145,7 +152,7 @@ const getOptionalOidcSigningAlg = (key: string): string | null => {
   }
   if (!ALLOWED_OIDC_ID_TOKEN_ALGS.has(normalized)) {
     throw new Error(
-      `${key} must be one of: ${Array.from(ALLOWED_OIDC_ID_TOKEN_ALGS).join(", ")}`
+      `${key} must be one of: ${Array.from(ALLOWED_OIDC_ID_TOKEN_ALGS).join(", ")}`,
     );
   }
 
@@ -290,9 +297,14 @@ const resolveOidcConfig = (authMode: AuthMode): OidcConfig => {
   const tokenEndpointAuthMethod = enabled
     ? getOptionalOidcTokenEndpointAuthMethod("OIDC_TOKEN_ENDPOINT_AUTH_METHOD")
     : null;
-  if (enabled && idTokenSignedResponseAlg && /^HS/i.test(idTokenSignedResponseAlg) && !clientSecret) {
+  if (
+    enabled &&
+    idTokenSignedResponseAlg &&
+    /^HS/i.test(idTokenSignedResponseAlg) &&
+    !clientSecret
+  ) {
     throw new Error(
-      "OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG using HS* requires OIDC_CLIENT_SECRET for a confidential client"
+      "OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG using HS* requires OIDC_CLIENT_SECRET for a confidential client",
     );
   }
 
@@ -309,7 +321,10 @@ const resolveOidcConfig = (authMode: AuthMode): OidcConfig => {
     tokenEndpointAuthMethod,
     scopes: readString("OIDC_SCOPES", "openid profile email"),
     emailClaim: readString("OIDC_EMAIL_CLAIM", "email"),
-    emailVerifiedClaim: readString("OIDC_EMAIL_VERIFIED_CLAIM", "email_verified"),
+    emailVerifiedClaim: readString(
+      "OIDC_EMAIL_VERIFIED_CLAIM",
+      "email_verified",
+    ),
     groupsClaim,
     adminGroups,
     requireEmailVerified: readBoolean("OIDC_REQUIRE_EMAIL_VERIFIED", true),
@@ -319,7 +334,8 @@ const resolveOidcConfig = (authMode: AuthMode): OidcConfig => {
 };
 
 const resolveBackupConfig = (): BackupConfig => {
-  const backupDir = readOptionalString("BACKUP_DIR") || path.resolve(__dirname, "../backups");
+  const backupDir =
+    readOptionalString("BACKUP_DIR") || path.resolve(__dirname, "../backups");
   return {
     schedule: readOptionalString("BACKUP_SCHEDULE"),
     dir: backupDir,
@@ -337,7 +353,8 @@ const resolveS3Config = (): S3Config => ({
   region: readString("S3_REGION", "us-east-1"),
   endpoint: readOptionalString("S3_ENDPOINT"),
   publicUrl: readOptionalString("S3_PUBLIC_URL"),
-  forcePathStyle: readString("S3_FORCE_PATH_STYLE", "false").toLowerCase() === "true",
+  forcePathStyle:
+    readString("S3_FORCE_PATH_STYLE", "false").toLowerCase() === "true",
   keyPrefix: readRaw("S3_KEY_PREFIX")?.replace(/\/+$/, "") || "excalidash",
   accessKeyId: readOptionalString("AWS_ACCESS_KEY_ID"),
   secretAccessKey: readOptionalString("AWS_SECRET_ACCESS_KEY"),
@@ -360,7 +377,13 @@ export const config: Config = {
   rateLimitWindowMs: readNumber("RATE_LIMIT_WINDOW_MS", 900000),
   csrfMaxRequests: readNumber("CSRF_MAX_REQUESTS", 60),
   csrfRateLimitWindowMs: readNumber("CSRF_RATE_LIMIT_WINDOW_MS", 60000),
-  snapshotRetentionMs: readNumber("SNAPSHOT_RETENTION_DAYS", 2) * 24 * 60 * 60 * 1000,
+  agentOpsRateLimitMax: readNumber("AGENT_OPS_RATE_LIMIT_MAX", 120),
+  agentOpsRateLimitWindowMs: readNumber(
+    "AGENT_OPS_RATE_LIMIT_WINDOW_MS",
+    60000,
+  ),
+  snapshotRetentionMs:
+    readNumber("SNAPSHOT_RETENTION_DAYS", 2) * 24 * 60 * 60 * 1000,
   uploadMaxBytes: readNumber("UPLOAD_MAX_MB", 100) * 1024 * 1024,
   bodyLimitMb: readNumber("BODY_LIMIT_MB", 50),
   fileUploadMaxMb,
@@ -370,17 +393,25 @@ export const config: Config = {
   apiKeyHashPepper: readRaw("API_KEY_HASH_PEPPER") || "api-key-hash-pepper",
   oidc: resolveOidcConfig(resolvedAuthMode),
   enablePasswordReset: readBoolean("ENABLE_PASSWORD_RESET", false),
-  enableRefreshTokenRotation: readBoolean("ENABLE_REFRESH_TOKEN_ROTATION", true),
+  enableRefreshTokenRotation: readBoolean(
+    "ENABLE_REFRESH_TOKEN_ROTATION",
+    true,
+  ),
   enableAuditLogging: readBoolean("ENABLE_AUDIT_LOGGING", false),
   enforceHttpsRedirect: readBoolean("ENFORCE_HTTPS_REDIRECT", true),
   disableOnboardingGate: readRaw("DISABLE_ONBOARDING_GATE") === "true",
   bootstrapSetupCodeTtlMs: readNumber("BOOTSTRAP_SETUP_CODE_TTL_MS", 900000),
-  bootstrapSetupCodeMaxAttempts: readNumber("BOOTSTRAP_SETUP_CODE_MAX_ATTEMPTS", 10),
+  bootstrapSetupCodeMaxAttempts: readNumber(
+    "BOOTSTRAP_SETUP_CODE_MAX_ATTEMPTS",
+    10,
+  ),
   passwordPolicy: resolvePasswordPolicyConfig(),
   backups: resolveBackupConfig(),
   s3: resolveS3Config(),
   linkShare: resolveLinkShareConfig(),
   updateCheck: resolveUpdateCheckConfig(),
+  ai: resolveAiConfig(),
+  mail: resolveMailConfig(),
 };
 if (config.nodeEnv === "production") {
   validateProductionConfig(config);

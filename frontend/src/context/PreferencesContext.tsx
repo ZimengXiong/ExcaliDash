@@ -5,24 +5,24 @@ import React, {
   useEffect,
   useRef,
   useState,
-} from 'react';
-import * as api from '../api';
-import type { UserPreferences } from '../api';
-import { useAuth } from './AuthContext';
+} from "react";
+import * as api from "../api";
+import type { UserPreferences } from "../api";
+import { useAuth } from "./AuthContext";
 
 type Preferences = UserPreferences;
 type PreferenceKey = keyof Preferences;
 
-const STORAGE_KEY = 'excalidash-preferences';
+const STORAGE_KEY = "excalidash-preferences";
 
 // Keys that participate in server sync + localStorage mirroring. Anything the
 // server returns outside this set is ignored so a stale field can't leak in.
 const KNOWN_KEYS: PreferenceKey[] = [
-  'theme',
-  'dashboardSortField',
-  'dashboardSortDirection',
-  'language',
-  'gridStep',
+  "theme",
+  "dashboardSortField",
+  "dashboardSortDirection",
+  "language",
+  "gridStep",
 ];
 
 const pickKnown = (source: Partial<Preferences>): Preferences => {
@@ -41,30 +41,31 @@ const pickKnown = (source: Partial<Preferences>): Preferences => {
 const readLegacyPreferences = (): Preferences => {
   const legacy: Preferences = {};
   try {
-    const theme = localStorage.getItem('theme');
-    if (theme === 'dark' || theme === 'light') legacy.theme = theme;
+    const theme = localStorage.getItem("theme");
+    if (theme === "dark" || theme === "light") legacy.theme = theme;
   } catch {
     /* ignore unavailable storage */
   }
   try {
-    const lang = localStorage.getItem('excalidash-lang');
+    const lang = localStorage.getItem("excalidash-lang");
     if (lang) legacy.language = lang;
   } catch {
     /* ignore */
   }
   try {
-    const rawSort = localStorage.getItem('excalidash-dashboard-sort');
+    const rawSort = localStorage.getItem("excalidash-dashboard-sort");
     if (rawSort) {
       const parsed = JSON.parse(rawSort) as {
         field?: unknown;
         direction?: unknown;
       };
-      if (typeof parsed.field === 'string') {
-        legacy.dashboardSortField = parsed.field as Preferences['dashboardSortField'];
+      if (typeof parsed.field === "string") {
+        legacy.dashboardSortField =
+          parsed.field as Preferences["dashboardSortField"];
       }
-      if (typeof parsed.direction === 'string') {
+      if (typeof parsed.direction === "string") {
         legacy.dashboardSortDirection =
-          parsed.direction as Preferences['dashboardSortDirection'];
+          parsed.direction as Preferences["dashboardSortDirection"];
       }
     }
   } catch {
@@ -89,7 +90,10 @@ const readStoredPreferences = (): Preferences => {
 interface PreferencesContextType {
   preferences: Preferences;
   updatePreferences: (partial: Partial<Preferences>) => void;
-  setPreference: <K extends PreferenceKey>(key: K, value: Preferences[K]) => void;
+  setPreference: <K extends PreferenceKey>(
+    key: K,
+    value: Preferences[K],
+  ) => void;
 }
 
 const PreferencesContext = createContext<PreferencesContextType | undefined>(
@@ -188,7 +192,7 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({
 export const usePreferences = (): PreferencesContextType => {
   const context = useContext(PreferencesContext);
   if (context === undefined) {
-    throw new Error('usePreferences must be used within a PreferencesProvider');
+    throw new Error("usePreferences must be used within a PreferencesProvider");
   }
   return context;
 };
@@ -202,8 +206,9 @@ export const usePreference = <K extends PreferenceKey>(
   defaultValue: NonNullable<Preferences[K]>,
 ): readonly [NonNullable<Preferences[K]>, (value: Preferences[K]) => void] => {
   const { preferences, setPreference } = usePreferences();
-  const value = (preferences[key] ??
-    defaultValue) as NonNullable<Preferences[K]>;
+  const value = (preferences[key] ?? defaultValue) as NonNullable<
+    Preferences[K]
+  >;
   const setValue = useCallback(
     (next: Preferences[K]) => setPreference(key, next),
     [key, setPreference],

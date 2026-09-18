@@ -1,4 +1,5 @@
 # Dependencies
+node_modules/
 frontend/node_modules
 backend/node_modules
 
@@ -35,11 +36,13 @@ backend/src/generated/
 
 # Environment variables
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
+!*.env.example
 # frontend/.env.production is intentionally committed; keep this exception explicit
 !frontend/.env.production
-.env.staging
+.envrc
+.direnv/
 
 # Build outputs
 frontend/dist/
@@ -91,6 +94,7 @@ coverage/
 
 # Vitest cache
 .vitest/
+backend/prisma/.test-db-push.lock
 
 # Playwright screenshots/videos on failure
 **/screenshots/

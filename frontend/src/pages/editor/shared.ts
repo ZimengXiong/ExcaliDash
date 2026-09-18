@@ -45,7 +45,8 @@ export const getElementContentSig = (element: any): string => {
  * literal strings "NEVER" / "IMMEDIATELY" (see store.d.ts).
  */
 const CAPTURE_UPDATE_NEVER = "NEVER" as const;
-type CaptureMode = "NEVER" | "IMMEDIATELY";
+
+export type CaptureMode = "NEVER" | "IMMEDIATELY";
 
 type RemoteSceneUpdate =
   | {
@@ -77,13 +78,16 @@ type BuildRemoteSceneUpdateInput = {
   captureUpdate?: CaptureMode;
 };
 
-export const getPersistedAppState = (appState: Record<string, any> | null | undefined) => {
+export const getPersistedAppState = (
+  appState: Record<string, any> | null | undefined,
+) => {
   const base: Record<string, any> = {
     viewBackgroundColor: appState?.viewBackgroundColor ?? "#ffffff",
     gridSize: appState?.gridSize ?? null,
   };
   if (appState?.gridStep != null) base.gridStep = appState.gridStep;
-  if (appState?.gridModeEnabled != null) base.gridModeEnabled = appState.gridModeEnabled;
+  if (appState?.gridModeEnabled != null)
+    base.gridModeEnabled = appState.gridModeEnabled;
   return base;
 };
 
@@ -117,7 +121,8 @@ export const buildRemoteSceneUpdate = ({
   const nextFiles = shouldUpdateFiles
     ? { ...lastSyncedFiles, ...incomingFiles }
     : lastSyncedFiles;
-  const hasElementOrder = Array.isArray(elementOrder) && elementOrder.length > 0;
+  const hasElementOrder =
+    Array.isArray(elementOrder) && elementOrder.length > 0;
   const shouldUpdateElements = pendingElements.length > 0 || hasElementOrder;
 
   if (shouldUpdateElements) {
@@ -158,7 +163,10 @@ export const buildRemoteSceneUpdate = ({
   };
 };
 
-export const haveSameElements = (a: readonly any[] = [], b: readonly any[] = []) => {
+export const haveSameElements = (
+  a: readonly any[] = [],
+  b: readonly any[] = [],
+) => {
   if (!a || !b) return false;
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
@@ -170,9 +178,14 @@ export const haveSameElements = (a: readonly any[] = [], b: readonly any[] = [])
     if ((left.versionNonce ?? 0) !== (right.versionNonce ?? 0)) return false;
     // Some Excalidraw interactions (notably drag/resize) can update geometry while
     // keeping version/versionNonce stable until commit; `updated` catches those frames.
-    const leftUpdated = typeof left.updated === "number" ? left.updated : Number(left.updated) || 0;
+    const leftUpdated =
+      typeof left.updated === "number"
+        ? left.updated
+        : Number(left.updated) || 0;
     const rightUpdated =
-      typeof right.updated === "number" ? right.updated : Number(right.updated) || 0;
+      typeof right.updated === "number"
+        ? right.updated
+        : Number(right.updated) || 0;
     if (leftUpdated !== rightUpdated) return false;
   }
   return true;
@@ -187,7 +200,7 @@ export const hasRenderableElements = (elements: readonly any[] = []): boolean =>
  */
 export const isSuspiciousEmptySnapshot = (
   previousPersisted: readonly any[] = [],
-  nextSnapshot: readonly any[] = []
+  nextSnapshot: readonly any[] = [],
 ): boolean => {
   if (!Array.isArray(nextSnapshot) || nextSnapshot.length > 0) return false;
   return hasRenderableElements(previousPersisted);
@@ -200,9 +213,10 @@ export const isSuspiciousEmptySnapshot = (
  */
 export const isStaleEmptySnapshot = (
   latestSnapshot: readonly any[] = [],
-  candidateSnapshot: readonly any[] = []
+  candidateSnapshot: readonly any[] = [],
 ): boolean => {
-  if (!Array.isArray(candidateSnapshot) || candidateSnapshot.length > 0) return false;
+  if (!Array.isArray(candidateSnapshot) || candidateSnapshot.length > 0)
+    return false;
   if (!hasRenderableElements(latestSnapshot)) return false;
   return !haveSameElements(latestSnapshot, candidateSnapshot);
 };
@@ -216,7 +230,7 @@ export const isStaleEmptySnapshot = (
  */
 export const isStaleNonRenderableSnapshot = (
   latestSnapshot: readonly any[] = [],
-  candidateSnapshot: readonly any[] = []
+  candidateSnapshot: readonly any[] = [],
 ): boolean => {
   if (!Array.isArray(candidateSnapshot)) return false;
   if (hasRenderableElements(candidateSnapshot)) return false;
@@ -235,7 +249,7 @@ const buildFileSignature = (file: any): string => {
 
 export const getFilesDelta = (
   previous: Record<string, any>,
-  next: Record<string, any>
+  next: Record<string, any>,
 ): Record<string, any> => {
   const delta: Record<string, any> = {};
   const prev = previous || {};
@@ -243,7 +257,8 @@ export const getFilesDelta = (
 
   for (const fileId of Object.keys(nxt)) {
     const nextFile = nxt[fileId];
-    const nextHasDataUrl = typeof nextFile?.dataURL === "string" && nextFile.dataURL.length > 0;
+    const nextHasDataUrl =
+      typeof nextFile?.dataURL === "string" && nextFile.dataURL.length > 0;
     if (!nextHasDataUrl) continue;
 
     const prevFile = prev[fileId];
@@ -319,13 +334,75 @@ export const UIOptions = {
   },
 } as const;
 
+/**
+ * Allow user-selected web embeds without permitting scriptable or local URL
+ * schemes. Excalidraw otherwise falls back to its short built-in domain list,
+ * which makes the generic Web Embed tool reject most websites.
+ */
+export const validateEmbeddableUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+    const privateName =
+      hostname === "localhost" ||
+      !hostname.includes(".") ||
+      [
+        ".localhost",
+        ".local",
+        ".localdomain",
+        ".internal",
+        ".lan",
+        ".home",
+      ].some((suffix) => hostname.endsWith(suffix));
+    const ipv4 = hostname.split(".").map(Number);
+    const isIpv4 =
+      ipv4.length === 4 &&
+      ipv4.every((part) => Number.isInteger(part) && part >= 0 && part <= 255);
+    const privateIpv4 =
+      isIpv4 &&
+      (ipv4[0] === 0 ||
+        ipv4[0] === 10 ||
+        ipv4[0] === 127 ||
+        (ipv4[0] === 100 && ipv4[1] >= 64 && ipv4[1] <= 127) ||
+        (ipv4[0] === 169 && ipv4[1] === 254) ||
+        (ipv4[0] === 172 && ipv4[1] >= 16 && ipv4[1] <= 31) ||
+        (ipv4[0] === 192 && ipv4[1] === 168) ||
+        ipv4[0] >= 224);
+
+    return (
+      url.protocol === "https:" &&
+      hostname.length > 0 &&
+      !privateName &&
+      !privateIpv4 &&
+      !hostname.includes(":") &&
+      url.username === "" &&
+      url.password === ""
+    );
+  } catch {
+    return false;
+  }
+};
+
 export { getInitialsFromName } from "../../utils/user";
 
 export const getColorFromString = (str: string): string => {
   const COLORS = [
-    "#ef4444", "#f97316", "#f59e0b", "#84cc16", "#22c55e", "#10b981",
-    "#14b8a6", "#06b6d4", "#0ea5e9", "#3b82f6", "#6366f1", "#8b5cf6",
-    "#a855f7", "#d946ef", "#ec4899", "#f43f5e",
+    "#ef4444",
+    "#f97316",
+    "#f59e0b",
+    "#84cc16",
+    "#22c55e",
+    "#10b981",
+    "#14b8a6",
+    "#06b6d4",
+    "#0ea5e9",
+    "#3b82f6",
+    "#6366f1",
+    "#8b5cf6",
+    "#a855f7",
+    "#d946ef",
+    "#ec4899",
+    "#f43f5e",
   ];
   let hash = 0;
   for (let i = 0; i < str.length; i++) {

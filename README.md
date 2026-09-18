@@ -8,7 +8,7 @@
 
 A self-hosted dashboard and organizer for [Excalidraw](https://github.com/excalidraw/excalidraw) with live collaboration features.
 
-![](readme-assets/demo.gif)
+![](readme-assets/demo.webp)
 
 ## Table of Contents
 
@@ -25,14 +25,14 @@ A self-hosted dashboard and organizer for [Excalidraw](https://github.com/excali
 <details>
 <summary>Persistent storage for all your drawings</summary>
 
-![](readme-assets/dashboard.png)
+![](readme-assets/dashboard.webp)
 
 </details>
 
 <details>
 <summary>Real time collaboration</summary>
 
-![](readme-assets/collabDemo.gif)
+![](readme-assets/collabDemo.webp)
 
 </details>
 
@@ -48,39 +48,39 @@ Automatically retain recent drawing snapshots, preview past versions from the ed
 
 ### Sign in with OIDC
 
-![](readme-assets/signInOIDC.png)
+![](readme-assets/signInOIDC.webp)
 
 ### Migration from v0.3
 
-![](readme-assets/migrationScreen.png)
+![](readme-assets/migrationScreen.webp)
 
 ### Admin Bootstrap
 
-![](readme-assets/adminBootstrap.png)
+![](readme-assets/adminBootstrap.webp)
 
 ### Admin Dashboard
 
-![](readme-assets/adminDashboard.png)
+![](readme-assets/adminDashboard.webp)
 
 </details>
 
 <details>
 <summary>Scoped internal & external sharing</summary>
 
-![](readme-assets/scoped.png)
+![](readme-assets/scoped.webp)
 
 </details>
 <details>
 <summary>Search your drawings</summary>
 
-![](readme-assets/search.gif)
+![](readme-assets/search.webp)
 
 </details>
 
 <details>
 <summary>Drag and drop drawings into collections</summary>
 
-![](readme-assets/collections.gif)
+![](readme-assets/collections.webp)
 
 </details>
 
@@ -89,7 +89,7 @@ Automatically retain recent drawing snapshots, preview past versions from the ed
 
 ### Excalidash uses a non-proprietary archival format that stores your drawings in plain .excalidraw format
 
-![](readme-assets/backupsImport.gif)
+![](readme-assets/backupsImport.webp)
 
 </details>
 
@@ -197,7 +197,7 @@ For release-candidate validation across multiple local configurations, see the
 
 # Development
 
-For contributor workflow, `make dev` starts the app in local single-user mode so you can reproduce editor bugs without going through login/onboarding. Use `make dev-auth` if you need to test local auth or OIDC flows from your `backend/.env`.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the supported toolchain and repository-wide checks. Run the backend and frontend in separate terminals so logs and shutdown behavior remain explicit.
 
 <details>
 <summary>Clone the Repository</summary>
@@ -221,7 +221,7 @@ git clone git@github.com:ZimengXiong/ExcaliDash.git
 
 ```bash
 cd ExcaliDash/frontend
-npm install
+npm ci
 
 # Copy environment file and customize if needed
 cp .env.example .env
@@ -238,7 +238,7 @@ npm run dev
 
 ```bash
 cd ExcaliDash/backend
-npm install
+npm ci
 
 # Copy environment file and customize if needed
 cp .env.example .env
@@ -310,7 +310,9 @@ Common flags:
 </details>
 
 # Credits
+
 If you find ExcaliDash useful, please consider [sponsoring](https://github.com/sponsors/ZimengXiong)
+
 - Example designs from:
   - <https://github.com/Prakash-sa/system-design-ultimatum/tree/main>
   - <https://github.com/kitsteam/excalidraw-examples/tree/main>

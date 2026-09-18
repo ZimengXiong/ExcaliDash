@@ -9,7 +9,9 @@ export type ProductionValidationConfig = {
 
 const DEFAULT_API_KEY_HASH_PEPPER = "api-key-hash-pepper";
 
-export const validateProductionConfig = (config: ProductionValidationConfig): void => {
+export const validateProductionConfig = (
+  config: ProductionValidationConfig,
+): void => {
   if (config.apiKeyHashPepper === DEFAULT_API_KEY_HASH_PEPPER) {
     console.warn(
       "[security] API_KEY_HASH_PEPPER is using the built-in default value in production. " +
@@ -25,12 +27,20 @@ export const validateProductionConfig = (config: ProductionValidationConfig): vo
   ]);
 
   if (config.jwtSecret.length < 32) {
-    throw new Error("JWT_SECRET must be at least 32 characters long in production");
+    throw new Error(
+      "JWT_SECRET must be at least 32 characters long in production",
+    );
   }
   if (insecureJwtSecretPlaceholders.has(normalizedSecret)) {
-    throw new Error("JWT_SECRET must be changed from placeholder/default value in production");
+    throw new Error(
+      "JWT_SECRET must be changed from placeholder/default value in production",
+    );
   }
-  if (config.oidc.enabled && config.oidc.redirectUri && !/^https:\/\//i.test(config.oidc.redirectUri)) {
+  if (
+    config.oidc.enabled &&
+    config.oidc.redirectUri &&
+    !/^https:\/\//i.test(config.oidc.redirectUri)
+  ) {
     throw new Error("OIDC_REDIRECT_URI must be HTTPS in production");
   }
 };

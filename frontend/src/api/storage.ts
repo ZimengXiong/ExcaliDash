@@ -57,8 +57,13 @@ export type DeleteOrphansResult = {
   errors: number;
 };
 
-export const trimDrawing = async (id: string, confirmName: string): Promise<TrimResult> => {
-  const response = await api.post<TrimResult>(`/drawings/${id}/trim`, { confirmName });
+export const trimDrawing = async (
+  id: string,
+  confirmName: string,
+): Promise<TrimResult> => {
+  const response = await api.post<TrimResult>(`/drawings/${id}/trim`, {
+    confirmName,
+  });
   return response.data;
 };
 
@@ -72,8 +77,11 @@ export const deleteOrphanFiles = async (
   confirmName: string,
   fileIds: string[],
 ): Promise<DeleteOrphansResult> => {
-  const response = await api.delete<DeleteOrphansResult>(`/drawings/${id}/files/orphans`, {
-    data: { confirmName, fileIds },
-  });
+  const response = await api.delete<DeleteOrphansResult>(
+    `/drawings/${id}/files/orphans`,
+    {
+      data: { confirmName, fileIds },
+    },
+  );
   return response.data;
 };

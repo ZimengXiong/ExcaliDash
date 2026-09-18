@@ -13,7 +13,8 @@ const parseArgs = (argv) => {
     const arg = argv[i];
     if (!arg.startsWith("--")) continue;
     const key = arg.slice(2);
-    const value = argv[i + 1] && !argv[i + 1].startsWith("--") ? argv[++i] : "true";
+    const value =
+      argv[i + 1] && !argv[i + 1].startsWith("--") ? argv[++i] : "true";
     out[key] = value;
   }
   return out;
@@ -36,30 +37,47 @@ const timeoutFetch = async (url, opts = {}, timeoutMs = 12000) => {
 };
 
 const inferProvider = ({ issuerUrl, metadata }) => {
-  const raw = `${issuerUrl || ""} ${metadata?.issuer || ""} ${metadata?.authorization_endpoint || ""}`.toLowerCase();
+  const raw =
+    `${issuerUrl || ""} ${metadata?.issuer || ""} ${metadata?.authorization_endpoint || ""}`.toLowerCase();
   if (raw.includes("/realms/") || raw.includes("keycloak")) return "keycloak";
-  if (raw.includes("/application/o/") || raw.includes("authentik")) return "authentik";
+  if (raw.includes("/application/o/") || raw.includes("authentik"))
+    return "authentik";
   return "generic";
 };
 
 const pickExpectedIdTokenAlg = ({ configured, hasClientSecret, supported }) => {
   if (configured) return configured;
   if (!Array.isArray(supported) || supported.length === 0) return "RS256";
-  const clean = supported.filter((alg) => typeof alg === "string" && alg.trim().length > 0).map((alg) => alg.trim());
+  const clean = supported
+    .filter((alg) => typeof alg === "string" && alg.trim().length > 0)
+    .map((alg) => alg.trim());
 
-  const preferred = ["RS256", "PS256", "ES256", "EdDSA", "RS384", "PS384", "ES384", "RS512", "PS512", "ES512"];
+  const preferred = [
+    "RS256",
+    "PS256",
+    "ES256",
+    "EdDSA",
+    "RS384",
+    "PS384",
+    "ES384",
+    "RS512",
+    "PS512",
+    "ES512",
+  ];
   for (const candidate of preferred) {
     if (clean.includes(candidate)) return candidate;
   }
 
-  const firstAsymmetric = clean.find((alg) => !/^HS/i.test(alg) && alg.toLowerCase() !== "none");
+  const firstAsymmetric = clean.find(
+    (alg) => !/^HS/i.test(alg) && alg.toLowerCase() !== "none",
+  );
   if (firstAsymmetric) return firstAsymmetric;
 
   const hs = clean.filter((alg) => /^HS/i.test(alg));
   if (hs.length > 0) {
     if (!hasClientSecret) {
       throw new Error(
-        "Provider only advertises HS* ID token algs, but OIDC_CLIENT_SECRET is missing. Use a confidential client or configure an asymmetric alg (for example RS256)."
+        "Provider only advertises HS* ID token algs, but OIDC_CLIENT_SECRET is missing. Use a confidential client or configure an asymmetric alg (for example RS256).",
       );
     }
     for (const candidate of ["HS256", "HS384", "HS512"]) {
@@ -78,10 +96,18 @@ const main = async () => {
   const args = parseArgs(process.argv.slice(2));
   const issuerUrl = trimOrNull(args.issuer || process.env.OIDC_ISSUER_URL);
   const clientId = trimOrNull(args["client-id"] || process.env.OIDC_CLIENT_ID);
-  const clientSecret = trimOrNull(args["client-secret"] || process.env.OIDC_CLIENT_SECRET);
-  const redirectUri = trimOrNull(args["redirect-uri"] || process.env.OIDC_REDIRECT_URI);
-  const providerName = trimOrNull(args.provider || process.env.OIDC_PROVIDER_NAME || "OIDC");
-  const configuredAlg = trimOrNull(args.alg || process.env.OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG);
+  const clientSecret = trimOrNull(
+    args["client-secret"] || process.env.OIDC_CLIENT_SECRET,
+  );
+  const redirectUri = trimOrNull(
+    args["redirect-uri"] || process.env.OIDC_REDIRECT_URI,
+  );
+  const providerName = trimOrNull(
+    args.provider || process.env.OIDC_PROVIDER_NAME || "OIDC",
+  );
+  const configuredAlg = trimOrNull(
+    args.alg || process.env.OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG,
+  );
 
   const envView = {
     OIDC_ISSUER_URL: issuerUrl,
@@ -91,12 +117,16 @@ const main = async () => {
   const missing = REQUIRED.filter((key) => !envView[key]);
   if (missing.length > 0) {
     console.error(`Missing required OIDC settings: ${missing.join(", ")}`);
-    console.error("Set them in backend/.env or pass --issuer --client-id --redirect-uri.");
+    console.error(
+      "Set them in backend/.env or pass --issuer --client-id --redirect-uri.",
+    );
     process.exit(2);
   }
 
   const baseIssuer = issuerUrl.replace(/\/+$/, "");
-  const discoveryCandidates = issuerUrl.includes("/.well-known/openid-configuration")
+  const discoveryCandidates = issuerUrl.includes(
+    "/.well-known/openid-configuration",
+  )
     ? [issuerUrl]
     : [
         `${baseIssuer}/.well-known/openid-configuration`,
@@ -119,15 +149,21 @@ const main = async () => {
   }
   if (!metadata) {
     console.error(`OIDC discovery failed for issuer: ${issuerUrl}`);
-    console.error(`Last error: ${discoveryError?.message || String(discoveryError)}`);
+    console.error(
+      `Last error: ${discoveryError?.message || String(discoveryError)}`,
+    );
     process.exit(3);
   }
 
   const provider = inferProvider({ issuerUrl, metadata });
-  const supportedAuthMethods = Array.isArray(metadata.token_endpoint_auth_methods_supported)
+  const supportedAuthMethods = Array.isArray(
+    metadata.token_endpoint_auth_methods_supported,
+  )
     ? metadata.token_endpoint_auth_methods_supported
     : [];
-  const supportedIdAlgs = Array.isArray(metadata.id_token_signing_alg_values_supported)
+  const supportedIdAlgs = Array.isArray(
+    metadata.id_token_signing_alg_values_supported,
+  )
     ? metadata.id_token_signing_alg_values_supported
     : [];
 
@@ -143,12 +179,17 @@ const main = async () => {
     process.exit(4);
   }
 
-  const tokenMethod = clientSecret ? "client_secret_basic/client_secret_post" : "none";
-  const authMethodLooksOk = supportedAuthMethods.length === 0
-    ? true
-    : clientSecret
-      ? supportedAuthMethods.some((m) => m === "client_secret_basic" || m === "client_secret_post")
-      : supportedAuthMethods.includes("none");
+  const tokenMethod = clientSecret
+    ? "client_secret_basic/client_secret_post"
+    : "none";
+  const authMethodLooksOk =
+    supportedAuthMethods.length === 0
+      ? true
+      : clientSecret
+        ? supportedAuthMethods.some(
+            (m) => m === "client_secret_basic" || m === "client_secret_post",
+          )
+        : supportedAuthMethods.includes("none");
 
   console.log("ExcaliDash OIDC Doctor");
   console.log("======================");
@@ -163,23 +204,31 @@ const main = async () => {
   printLine("Token auth compatibility", authMethodLooksOk ? "ok" : "mismatch");
   printLine(
     "Recommended ID token alg",
-    configuredAlg ? `${expectedAlg} (from OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG)` : `${expectedAlg} (auto)`
+    configuredAlg
+      ? `${expectedAlg} (from OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG)`
+      : `${expectedAlg} (auto)`,
   );
 
   if (!authMethodLooksOk) {
     console.log("");
     console.log("Action needed:");
     if (clientSecret) {
-      console.log("- IdP doesn't advertise client_secret_basic/post; configure one of those methods or switch to supported method in IdP.");
+      console.log(
+        "- IdP doesn't advertise client_secret_basic/post; configure one of those methods or switch to supported method in IdP.",
+      );
     } else {
-      console.log("- IdP doesn't advertise public client token auth method `none`; either mark client as public or set OIDC_CLIENT_SECRET.");
+      console.log(
+        "- IdP doesn't advertise public client token auth method `none`; either mark client as public or set OIDC_CLIENT_SECRET.",
+      );
     }
   }
 
   console.log("");
   console.log("Recommended backend env:");
   console.log(`AUTH_MODE=oidc_enforced`);
-  console.log(`OIDC_PROVIDER_NAME=${provider === "generic" ? providerName : provider === "keycloak" ? "Keycloak" : "Authentik"}`);
+  console.log(
+    `OIDC_PROVIDER_NAME=${provider === "generic" ? providerName : provider === "keycloak" ? "Keycloak" : "Authentik"}`,
+  );
   console.log(`OIDC_ISSUER_URL=${issuerUrl}`);
   console.log(`OIDC_CLIENT_ID=${clientId}`);
   if (clientSecret) console.log("OIDC_CLIENT_SECRET=<redacted>");
@@ -196,10 +245,14 @@ const main = async () => {
     console.log("- Redirect URI must include exact callback URL.");
   } else if (provider === "authentik") {
     console.log("Authentik checklist:");
-    console.log("- Issuer should look like: https://<host>/application/o/<provider-slug>/");
+    console.log(
+      "- Issuer should look like: https://<host>/application/o/<provider-slug>/",
+    );
     console.log("- Provider type: OAuth2/OpenID Connect.");
     console.log("- Add exact callback as Strict redirect URI.");
-    console.log("- Ensure `email` and `email_verified` claims are mapped as expected.");
+    console.log(
+      "- Ensure `email` and `email_verified` claims are mapped as expected.",
+    );
   } else {
     console.log("Generic OIDC checklist:");
     console.log("- Verify issuer and callback are exact.");
@@ -207,9 +260,15 @@ const main = async () => {
     console.log("- Verify provider signs ID tokens with the selected alg.");
   }
 
-  if (!metadata.authorization_endpoint || !metadata.token_endpoint || !metadata.jwks_uri) {
+  if (
+    !metadata.authorization_endpoint ||
+    !metadata.token_endpoint ||
+    !metadata.jwks_uri
+  ) {
     console.log("");
-    console.log("Warning: discovery metadata missing one or more required endpoints (authorization/token/jwks).");
+    console.log(
+      "Warning: discovery metadata missing one or more required endpoints (authorization/token/jwks).",
+    );
     process.exitCode = 5;
   }
 };

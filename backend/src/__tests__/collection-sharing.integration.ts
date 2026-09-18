@@ -220,6 +220,39 @@ describe("Collection Sharing - Backend Integration", () => {
     expect(createDrawingResponse.body?.userId).toBe(editor.id);
   });
 
+  it("uses the stronger collection role when a direct drawing grant is weaker", async () => {
+    const collection = await createCollection();
+    const drawing = await createDrawingInCollection(collection.id);
+
+    await prisma.collectionShare.create({
+      data: {
+        collectionId: collection.id,
+        granteeUserId: editor.id,
+        role: "edit",
+        createdByUserId: owner.id,
+      },
+    });
+    await prisma.drawingPermission.create({
+      data: {
+        drawingId: drawing.id,
+        granteeUserId: editor.id,
+        permission: "view",
+        createdByUserId: owner.id,
+      },
+    });
+
+    const updateResponse = await editorAgent
+      .put(`/drawings/${drawing.id}`)
+      .set("User-Agent", userAgent)
+      .set("Authorization", `Bearer ${editorToken}`)
+      .set(editorCsrfHeaderName, editorCsrfToken)
+      .send({ name: "Edited through collection role" });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body?.name).toBe("Edited through collection role");
+    expect(updateResponse.body?.accessLevel).toBe("edit");
+  });
+
   it("revokes access after removing collection share", async () => {
     const collection = await createCollection();
     await createDrawingInCollection(collection.id);
@@ -323,7 +356,9 @@ describe("Collection Sharing - Backend Integration", () => {
       .set("Authorization", `Bearer ${viewerToken}`)
       .set(viewerCsrfHeaderName, viewerCsrfToken)
       .send({
-        elements: [{ id: "v1", type: "rectangle", x: 0, y: 0, width: 10, height: 10 }],
+        elements: [
+          { id: "v1", type: "rectangle", x: 0, y: 0, width: 10, height: 10 },
+        ],
         appState: {},
         files: {},
       });
@@ -391,5 +426,97 @@ describe("Collection Sharing - Backend Integration", () => {
 
     expect(importDrawingResponse.status).toBe(403);
     expect(importDrawingResponse.body?.error).toContain("No edit access");
+  });
+
+  it("allows an editor to move their own drawing into a shared collection", async () => {
+    const collection = await createCollection();
+    await prisma.collectionShare.create({
+      data: {
+        collectionId: collection.id,
+        granteeUserId: editor.id,
+        role: "edit",
+        createdByUserId: owner.id,
+      },
+    });
+    const drawing = await prisma.drawing.create({
+      data: {
+        name: "Editor Drawing",
+        elements: "[]",
+        appState: "{}",
+        files: "{}",
+        userId: editor.id,
+      },
+    });
+
+    const moveResponse = await editorAgent
+      .put(`/drawings/${drawing.id}`)
+      .set("User-Agent", userAgent)
+      .set("Authorization", `Bearer ${editorToken}`)
+      .set(editorCsrfHeaderName, editorCsrfToken)
+      .send({ collectionId: collection.id });
+
+    expect(moveResponse.status).toBe(200);
+    expect(moveResponse.body?.collectionId).toBe(collection.id);
+
+    const afterAddResponse = await request(app)
+      .get(`/drawings?collectionId=${collection.id}`)
+      .set("User-Agent", userAgent)
+      .set("Authorization", `Bearer ${editorToken}`);
+    expect(afterAddResponse.status).toBe(200);
+    expect(afterAddResponse.body?.drawings).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: drawing.id })]),
+    );
+
+    const removeResponse = await editorAgent
+      .put(`/drawings/${drawing.id}`)
+      .set("User-Agent", userAgent)
+      .set("Authorization", `Bearer ${editorToken}`)
+      .set(editorCsrfHeaderName, editorCsrfToken)
+      .send({ collectionId: null });
+    expect(removeResponse.status).toBe(200);
+
+    const afterRemoveResponse = await request(app)
+      .get(`/drawings?collectionId=${collection.id}`)
+      .set("User-Agent", userAgent)
+      .set("Authorization", `Bearer ${editorToken}`);
+    expect(afterRemoveResponse.status).toBe(200);
+    expect(afterRemoveResponse.body?.drawings).toEqual([]);
+  });
+
+  it("prevents a viewer from moving their own drawing into a shared collection", async () => {
+    const collection = await createCollection();
+    await prisma.collectionShare.create({
+      data: {
+        collectionId: collection.id,
+        granteeUserId: viewer.id,
+        role: "view",
+        createdByUserId: owner.id,
+      },
+    });
+    const drawing = await prisma.drawing.create({
+      data: {
+        name: "Viewer Drawing",
+        elements: "[]",
+        appState: "{}",
+        files: "{}",
+        userId: viewer.id,
+      },
+    });
+
+    const moveResponse = await viewerAgent
+      .put(`/drawings/${drawing.id}`)
+      .set("User-Agent", userAgent)
+      .set("Authorization", `Bearer ${viewerToken}`)
+      .set(viewerCsrfHeaderName, viewerCsrfToken)
+      .send({ collectionId: collection.id });
+
+    expect(moveResponse.status).toBe(404);
+    expect(moveResponse.body?.error).toBe("Collection not found");
+    expect(
+      await prisma.drawing.findUnique({
+        where: { id: drawing.id },
+        select: { collectionId: true },
+      }),
+    ).toEqual({ collectionId: null });
   });
 });

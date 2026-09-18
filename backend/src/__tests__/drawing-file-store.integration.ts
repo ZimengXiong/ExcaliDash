@@ -45,7 +45,10 @@ describe("DrawingFile store (database-bytes mode)", () => {
     return jwt.sign({ userId, email, type: "access" }, config.jwtSecret, opts);
   };
 
-  const createDrawing = async (userId: string, files: Record<string, any> = {}) =>
+  const createDrawing = async (
+    userId: string,
+    files: Record<string, any> = {},
+  ) =>
     prisma.drawing.create({
       data: {
         name: "Store Test",

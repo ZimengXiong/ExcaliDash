@@ -5,7 +5,7 @@ export const getEffectiveOidcJitProvisioning = (
   },
   systemConfig: {
     oidcJitProvisioningEnabled: boolean | null;
-  }
+  },
 ): boolean => {
   if (!options.oidcEnabled) return false;
   return typeof systemConfig.oidcJitProvisioningEnabled === "boolean"
@@ -15,5 +15,5 @@ export const getEffectiveOidcJitProvisioning = (
 
 export const getEffectiveRegistrationEnabled = (
   authMode: "local" | "hybrid" | "oidc_enforced" | "disabled",
-  registrationEnabled: boolean
+  registrationEnabled: boolean,
 ): boolean => authMode !== "oidc_enforced" && registrationEnabled;

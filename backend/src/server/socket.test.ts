@@ -75,7 +75,9 @@ const fakePrisma = (cfg: FakePrismaConfig): PrismaClient => {
     drawingPermission: {
       findUnique: vi
         .fn()
-        .mockResolvedValue(cfg.permission ? { permission: cfg.permission } : null),
+        .mockResolvedValue(
+          cfg.permission ? { permission: cfg.permission } : null,
+        ),
     },
     collection: { findFirst: vi.fn().mockResolvedValue(null) },
     collectionShare: { findFirst: vi.fn().mockResolvedValue(null) },
@@ -95,7 +97,11 @@ const makeSocket = (id: string, principal: SocketState["principal"]) => {
   return {
     socket: {
       id,
-      data: { principal, access: new Map(), joinedRooms: new Set(["drawing_d1"]) },
+      data: {
+        principal,
+        access: new Map(),
+        joinedRooms: new Set(["drawing_d1"]),
+      },
       emit,
       disconnect,
     },
@@ -107,7 +113,13 @@ const makeSocket = (id: string, principal: SocketState["principal"]) => {
 describe("revalidateRoomSockets (B15: kick revoked collaborators)", () => {
   it("disconnects a member whose permission was revoked and clears presence", async () => {
     const roomUsers = new Map<string, PresenceUser[]>([
-      ["drawing_d1", [presenceUser("s-revoked", "grantee"), presenceUser("s-owner", "owner-user")]],
+      [
+        "drawing_d1",
+        [
+          presenceUser("s-revoked", "grantee"),
+          presenceUser("s-owner", "owner-user"),
+        ],
+      ],
     ]);
     const emitPresence = vi.fn();
     const { socket, disconnect, emit } = makeSocket("s-revoked", {
@@ -117,7 +129,11 @@ describe("revalidateRoomSockets (B15: kick revoked collaborators)", () => {
 
     await revalidateRoomSockets({
       // No perm, no link, not owner -> access "none".
-      prisma: fakePrisma({ ownerUserId: "owner-user", permission: null, linkPermission: null }),
+      prisma: fakePrisma({
+        ownerUserId: "owner-user",
+        permission: null,
+        linkPermission: null,
+      }),
       drawingId: "d1",
       roomUsers,
       sockets: [socket],
@@ -125,10 +141,17 @@ describe("revalidateRoomSockets (B15: kick revoked collaborators)", () => {
     });
 
     expect(disconnect).toHaveBeenCalledWith(true);
-    expect(emit).toHaveBeenCalledWith("error", expect.objectContaining({ message: expect.any(String) }));
+    expect(emit).toHaveBeenCalledWith(
+      "error",
+      expect.objectContaining({ message: expect.any(String) }),
+    );
     // Revoked user removed from presence; owner remains.
-    expect(roomUsers.get("drawing_d1")).toEqual([presenceUser("s-owner", "owner-user")]);
-    expect(emitPresence).toHaveBeenCalledWith("drawing_d1", [presenceUser("s-owner", "owner-user")]);
+    expect(roomUsers.get("drawing_d1")).toEqual([
+      presenceUser("s-owner", "owner-user"),
+    ]);
+    expect(emitPresence).toHaveBeenCalledWith("drawing_d1", [
+      presenceUser("s-owner", "owner-user"),
+    ]);
     expect(socket.data.joinedRooms.has("drawing_d1")).toBe(false);
   });
 
@@ -143,7 +166,11 @@ describe("revalidateRoomSockets (B15: kick revoked collaborators)", () => {
     });
 
     await revalidateRoomSockets({
-      prisma: fakePrisma({ ownerUserId: "owner-user", permission: "edit", linkPermission: null }),
+      prisma: fakePrisma({
+        ownerUserId: "owner-user",
+        permission: "edit",
+        linkPermission: null,
+      }),
       drawingId: "d1",
       roomUsers,
       sockets: [socket],

@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../../api";
+import { compressExcalidrawFiles } from "../../utils/imageCompression";
 import { useEditorPersistence } from "./useEditorPersistence";
 
 vi.mock("@excalidraw/excalidraw", () => ({ exportToSvg: vi.fn() }));
@@ -143,6 +144,58 @@ describe("useEditorPersistence file ref substitution", () => {
     });
 
     expect(bodyOf().files.a.dataURL.startsWith("data:")).toBe(true);
+  });
+});
+
+describe("useEditorPersistence image compression", () => {
+  const updateDrawing = vi.mocked(api.updateDrawing);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    updateDrawing.mockResolvedValue({ version: 2 } as any);
+  });
+
+  it("keeps the editor file map as the realtime sync baseline", async () => {
+    const editorFiles = {
+      image: {
+        id: "image",
+        dataURL: "data:image/png;base64,original",
+      },
+    };
+    const compressedFiles = {
+      image: {
+        id: "image",
+        dataURL: "data:image/webp;base64,compressed",
+      },
+    };
+    vi.mocked(compressExcalidrawFiles).mockResolvedValueOnce({
+      files: compressedFiles,
+      changed: true,
+      changedIds: ["image"],
+    });
+    const refs = makeRefs();
+    refs.excalidrawAPI.current = { addFiles: vi.fn() };
+    const { result } = renderHook(() => useEditorPersistence(params(refs)));
+
+    await act(async () => {
+      await result.current.enqueueSceneSave(
+        "d1",
+        [{ id: "element", type: "image", fileId: "image" }],
+        {},
+        editorFiles,
+        { suppressErrors: false },
+      );
+    });
+
+    expect(updateDrawing).toHaveBeenCalledWith(
+      "d1",
+      expect.objectContaining({ files: compressedFiles }),
+    );
+    expect(refs.excalidrawAPI.current.addFiles).toHaveBeenCalledWith(
+      Object.values(compressedFiles),
+    );
+    expect(refs.latestFiles.current).toBe(compressedFiles);
+    expect(refs.lastSyncedFiles.current).toBe(editorFiles);
   });
 });
 

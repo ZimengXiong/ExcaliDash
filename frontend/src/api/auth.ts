@@ -1,6 +1,10 @@
-import { cachePasswordPolicy, type PasswordPolicyResponse } from "../utils/passwordPolicy";
+import {
+  cachePasswordPolicy,
+  type PasswordPolicyResponse,
+} from "../utils/passwordPolicy";
 import { API_URL, api, axios } from "./client";
 import type { DrawingSortField, SortDirection } from "./drawings";
+import { isOidcAutoLoginSuppressed } from "../utils/oidcLogout";
 
 const USER_KEY = "excalidash-user";
 const AUTH_ENABLED_CACHE_KEY = "excalidash-auth-enabled";
@@ -26,6 +30,7 @@ let csrfTokenPromise: Promise<void> | null = null;
 let refreshPromise: Promise<void> | null = null;
 
 export interface AuthStatusResponse {
+  aiEnabled?: boolean;
   authEnabled?: boolean;
   enabled?: boolean;
   registrationEnabled?: boolean;
@@ -81,7 +86,7 @@ export const API_KEY_SCOPES = [
   "collections:write",
 ] as const;
 
-const fetchCsrfToken = async (): Promise<void> => {
+export const fetchCsrfToken = async (): Promise<void> => {
   const response = await axios.get<{ token: string; header: string }>(
     `${API_URL}/csrf-token`,
     { withCredentials: true },
@@ -90,7 +95,7 @@ const fetchCsrfToken = async (): Promise<void> => {
   csrfHeaderName = response.data.header || "x-csrf-token";
 };
 
-const clearCsrfToken = (): void => {
+export const clearCsrfToken = (): void => {
   csrfToken = null;
 };
 
@@ -103,9 +108,12 @@ export const getCsrfHeader = (): { name: string; token: string } | null => {
 };
 
 export const authStatus = async (): Promise<AuthStatusResponse> => {
-  const response = await axios.get<AuthStatusResponse>(`${API_URL}/auth/status`, {
-    withCredentials: true,
-  });
+  const response = await axios.get<AuthStatusResponse>(
+    `${API_URL}/auth/status`,
+    {
+      withCredentials: true,
+    },
+  );
   cachePasswordPolicy(response.data.passwordPolicy);
   return response.data;
 };
@@ -128,7 +136,9 @@ export const authMe = async (): Promise<{ user: AuthUser }> => {
 };
 
 export const getUserPreferences = async (): Promise<UserPreferences> => {
-  const response = await api.get<{ preferences: UserPreferences }>("/auth/preferences");
+  const response = await api.get<{ preferences: UserPreferences }>(
+    "/auth/preferences",
+  );
   return response.data.preferences ?? {};
 };
 
@@ -146,8 +156,13 @@ export const authRefresh = async (): Promise<void> => {
   await api.post<{ ok?: boolean }>("/auth/refresh", {});
 };
 
-export const authLogout = async (): Promise<void> => {
-  await api.post("/auth/logout");
+export const authLogout = async (): Promise<{ oidcLogout: boolean }> => {
+  const response = await api.post<{ oidcLogout?: boolean }>("/auth/logout");
+  return { oidcLogout: response.data.oidcLogout === true };
+};
+
+export const startOidcSignOut = (): void => {
+  window.location.assign(`${API_URL}/auth/oidc/logout`);
 };
 
 export const authLogin = async (
@@ -167,7 +182,12 @@ export const authRegister = async (
   name: string,
   setupCode?: string,
 ): Promise<{ user: AuthUser }> => {
-  const payload: { email: string; password: string; name: string; setupCode?: string } = {
+  const payload: {
+    email: string;
+    password: string;
+    name: string;
+    setupCode?: string;
+  } = {
     email,
     password,
     name,
@@ -175,12 +195,17 @@ export const authRegister = async (
   if (typeof setupCode === "string" && setupCode.trim().length > 0) {
     payload.setupCode = setupCode.trim();
   }
-  const response = await api.post<{ user: AuthUser }>("/auth/register", payload);
+  const response = await api.post<{ user: AuthUser }>(
+    "/auth/register",
+    payload,
+  );
   return response.data;
 };
 
 export const listApiKeys = async (): Promise<ApiKeyMetadata[]> => {
-  const response = await api.get<{ apiKeys: ApiKeyMetadata[] }>("/auth/api-keys");
+  const response = await api.get<{ apiKeys: ApiKeyMetadata[] }>(
+    "/auth/api-keys",
+  );
   return response.data.apiKeys;
 };
 
@@ -188,7 +213,10 @@ export const createApiKey = async (
   name: string,
   scopes?: string[],
 ): Promise<CreateApiKeyResponse> => {
-  const response = await api.post<CreateApiKeyResponse>("/auth/api-keys", { name, scopes });
+  const response = await api.post<CreateApiKeyResponse>("/auth/api-keys", {
+    name,
+    scopes,
+  });
   return response.data;
 };
 
@@ -211,22 +239,11 @@ export const authOnboardingChoice = async (
   return response.data;
 };
 
-export const authPasswordResetConfirm = async (
-  token: string,
-  password: string,
-): Promise<void> => {
-  await axios.post(
-    `${API_URL}/auth/password-reset-confirm`,
-    { token, password },
-    { withCredentials: true },
-  );
-};
-
 const clearStoredAuth = () => {
   localStorage.removeItem(USER_KEY);
 };
 
-const ensureCsrfToken = async (): Promise<void> => {
+export const ensureCsrfToken = async (): Promise<void> => {
   if (csrfToken) return;
   csrfTokenPromise ||= fetchCsrfToken().finally(() => {
     csrfTokenPromise = null;
@@ -250,7 +267,10 @@ const cacheAuthEnabled = (enabled: boolean) => {
 
 const getAuthEnabledStatus = async (): Promise<boolean | null> => {
   const now = Date.now();
-  if (authEnabledProbeCache && now - authEnabledProbeCache.fetchedAt < AUTH_STATUS_TTL_MS) {
+  if (
+    authEnabledProbeCache &&
+    now - authEnabledProbeCache.fetchedAt < AUTH_STATUS_TTL_MS
+  ) {
     return authEnabledProbeCache.value;
   }
 
@@ -275,7 +295,7 @@ const redirectToLogin = async () => {
 
   try {
     const status = await authStatus();
-    if (status?.oidcEnforced) {
+    if (status?.oidcEnforced && !isOidcAutoLoginSuppressed()) {
       startOidcSignIn();
       return;
     }
@@ -296,7 +316,9 @@ const refreshAccessToken = async (): Promise<void> => {
 };
 
 const isPublicAuthEndpoint = (url?: string): boolean =>
-  Boolean(url && publicAuthEndpoints.some((endpoint) => url.startsWith(endpoint)));
+  Boolean(
+    url && publicAuthEndpoints.some((endpoint) => url.startsWith(endpoint)),
+  );
 
 api.interceptors.request.use(
   async (config) => {
@@ -317,7 +339,10 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 403 && error.response?.data?.code === "MUST_RESET_PASSWORD") {
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.code === "MUST_RESET_PASSWORD"
+    ) {
       const url = String(error.config?.url || "");
       const isAuthRoute = [
         "/auth/me",
@@ -365,7 +390,10 @@ api.interceptors.response.use(
       }
     }
 
-    if (error.response?.status === 403 && error.response?.data?.error?.includes("CSRF")) {
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.error?.includes("CSRF")
+    ) {
       clearCsrfToken();
       const originalRequest = (error.config || {}) as RetriableRequestConfig;
       if (!originalRequest._csrfRetry) {

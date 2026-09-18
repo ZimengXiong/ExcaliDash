@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import * as api from "../../api";
 
 export const useAccessControlSettings = (
@@ -18,7 +18,7 @@ export const useAccessControlSettings = (
   const [oidcProviderName, setOidcProviderName] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const response = await api.api.get<{
@@ -51,7 +51,7 @@ export const useAccessControlSettings = (
     } finally {
       setLoading(false);
     }
-  };
+  }, [setError]);
 
   const toggleRegistration = async () => {
     if (!isAdmin || registrationEnabled === null || !localRegistrationAllowed)

@@ -10,6 +10,7 @@ import { useEditorAutoHide } from "./editor/useEditorAutoHide";
 import { useEditorIdentity } from "./editor/useEditorIdentity";
 import { EditorDialogs } from "./editor/EditorDialogs";
 import { EditorView } from "./editor/EditorView";
+import { ChatPanel } from "./editor/ChatPanel";
 import { useLibraryImportFromUrl } from "./editor/useLibraryImportFromUrl";
 import { useEditorSnapshotGuards } from "./editor/useEditorSnapshotGuards";
 import { useEditorSceneLoader } from "./editor/useEditorSceneLoader";
@@ -47,9 +48,13 @@ const ExcalidrawEditor: React.FC = () => {
   const [isSavingOnLeave, setIsSavingOnLeave] = useState(false);
   const { autoHideEnabled, setAutoHideEnabled } = useEditorAutoHide(id);
   const [isShareOpen, setIsShareOpen] = useState(false);
-  const [langCode, setLangCode] = usePreference("language", getInitialLangCode());
+  const [langCode, setLangCode] = usePreference(
+    "language",
+    getInitialLangCode(),
+  );
   const [gridStep, setGridStep] = usePreference("gridStep", DEFAULT_GRID_STEP);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const historyButtonRef = useRef<HTMLButtonElement>(null);
   const previewBackup = useRef<{
     elements: readonly any[];
     appState: any;
@@ -97,6 +102,7 @@ const ExcalidrawEditor: React.FC = () => {
   const lastLocalChangeAtRef = useRef<number>(0);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const excalidrawAPI = useRef<any>(null);
+  const selfAgentBatchIdsRef = useRef<Set<string>>(new Set());
   const { resolveSafeSnapshot, normalizeImageElementStatus } =
     useEditorSnapshotGuards({
       lastPersistedElementsRef,
@@ -129,6 +135,7 @@ const ExcalidrawEditor: React.FC = () => {
       computeElementOrderSig,
       recordElementVersion,
       onAccessDenied: handleSocketAccessDenied,
+      selfAgentBatchIdsRef,
     });
   const { scanNow: scanFileUploads } = useEditorFileUploads({
     drawingId: id,
@@ -330,6 +337,8 @@ const ExcalidrawEditor: React.FC = () => {
         editorContainerRef={editorContainerRef}
         initialData={initialData}
         isHeaderVisible={isHeaderVisible}
+        isHistoryOpen={isHistoryOpen}
+        historyButtonRef={historyButtonRef}
         isRenaming={isRenaming}
         isSavingOnLeave={isSavingOnLeave}
         isSceneLoading={isSceneLoading}
@@ -355,18 +364,24 @@ const ExcalidrawEditor: React.FC = () => {
         gridStep={gridStep}
         onSetGridStep={setGridStep}
         onShareOpen={() => setIsShareOpen(true)}
+        isShareOpen={isShareOpen}
+        onCloseShare={() => setIsShareOpen(false)}
         onHistoryOpen={() => setIsHistoryOpen(true)}
         onToggleAutoHide={handleToggleAutoHide}
       />
       <EditorDialogs
         drawingId={id}
-        drawingName={drawingName}
+        historyButtonRef={historyButtonRef}
+        getCurrentVersion={() => currentDrawingVersionRef.current}
         excalidrawAPIRef={excalidrawAPI}
         isHistoryOpen={isHistoryOpen}
-        isShareOpen={isShareOpen}
         previewBackupRef={previewBackup}
         onCloseHistory={() => setIsHistoryOpen(false)}
-        onCloseShare={() => setIsShareOpen(false)}
+      />
+      <ChatPanel
+        drawingId={id}
+        canEdit={canEdit}
+        selfAgentBatchIdsRef={selfAgentBatchIdsRef}
       />
     </>
   );

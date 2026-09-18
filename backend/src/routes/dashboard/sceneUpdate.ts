@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from "../../generated/client";
+import { encodeSnapshotField } from "../../snapshots/snapshotCodec";
 
 // A file entry is "blank" when it exists but carries no content (empty
 // dataURL). Sanitizer tombstones and transient client state can produce
@@ -59,12 +60,14 @@ type ApplySceneUpdateArgs = {
   drawingId: string;
   parseJsonField: <T>(raw: string | null | undefined, fallback: T) => T;
   versionGuard: number | "optimistic";
+  snapshotCompressionEnabled?: boolean;
   maxRetries?: number;
   mutate: (current: DrawingRow) => SceneMutation | Promise<SceneMutation>;
 };
 
 type ApplySceneUpdateResult = {
   drawing: DrawingRow;
+  revertVersion: number;
 };
 
 export const applySceneUpdateTx = async (
@@ -75,6 +78,7 @@ export const applySceneUpdateTx = async (
     drawingId,
     parseJsonField,
     versionGuard,
+    snapshotCompressionEnabled = true,
     mutate,
     maxRetries = 0,
   } = args;
@@ -85,12 +89,17 @@ export const applySceneUpdateTx = async (
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
       return await prisma.$transaction(async (tx) => {
-        const current = await tx.drawing.findUnique({ where: { id: drawingId } });
+        const current = await tx.drawing.findUnique({
+          where: { id: drawingId },
+        });
         if (!current) {
           throw versionConflictError;
         }
 
-        if (typeof versionGuard === "number" && current.version !== versionGuard) {
+        if (
+          typeof versionGuard === "number" &&
+          current.version !== versionGuard
+        ) {
           throw versionConflictError;
         }
 
@@ -100,9 +109,18 @@ export const applySceneUpdateTx = async (
           data: {
             drawingId,
             version: current.version,
-            elements: current.elements,
-            appState: current.appState,
-            files: current.files,
+            elements: encodeSnapshotField(
+              current.elements,
+              snapshotCompressionEnabled,
+            ),
+            appState: encodeSnapshotField(
+              current.appState,
+              snapshotCompressionEnabled,
+            ),
+            files: encodeSnapshotField(
+              current.files,
+              snapshotCompressionEnabled,
+            ),
           },
         });
 
@@ -128,16 +146,21 @@ export const applySceneUpdateTx = async (
           where.version = current.version;
         }
 
-        const updateResult = await tx.drawing.updateMany({ where, data: writeData });
+        const updateResult = await tx.drawing.updateMany({
+          where,
+          data: writeData,
+        });
         if (updateResult.count === 0) {
           throw versionConflictError;
         }
 
-        const updated = await tx.drawing.findFirst({ where: { id: drawingId } });
+        const updated = await tx.drawing.findFirst({
+          where: { id: drawingId },
+        });
         if (!updated) {
           throw versionConflictError;
         }
-        return { drawing: updated };
+        return { drawing: updated, revertVersion: current.version };
       });
     } catch (error) {
       if (isVersionConflict(error) && attempt < attempts - 1) {

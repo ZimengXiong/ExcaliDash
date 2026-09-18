@@ -20,7 +20,13 @@ const parseJsonField = <T>(raw: string | null | undefined, fallback: T): T => {
 };
 
 const buildApp = (opts: {
-  drawing: { id: string; name: string; version: number; elements: string; files: string };
+  drawing: {
+    id: string;
+    name: string;
+    version: number;
+    elements: string;
+    files: string;
+  };
   updateCount: number;
 }) => {
   const updateMany = vi.fn().mockResolvedValue({ count: opts.updateCount });
@@ -47,8 +53,9 @@ const buildApp = (opts: {
       req.user = { id: "u1" };
       next();
     }) as any,
-    asyncHandler: (<T>(fn: any) => (req: any, res: any, next: any) =>
-      Promise.resolve(fn(req, res, next)).catch(next)) as any,
+    asyncHandler: (<T>(fn: any) =>
+      (req: any, res: any, next: any) =>
+        Promise.resolve(fn(req, res, next)).catch(next)) as any,
     parseJsonField,
     invalidateDrawingsCache: vi.fn(),
     io: { to: () => ({ emit: () => undefined }) } as any,

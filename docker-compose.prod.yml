@@ -1,6 +1,6 @@
 services:
   backend:
-    image: zimengxiong/excalidash-backend:latest
+    image: zimengxiong/excalidash-backend:${EXCALIDASH_TAG:-latest}
     container_name: excalidash-backend
     # Run an init process (PID 1) that reaps zombies and forwards SIGTERM/SIGINT
     # to node so graceful shutdown (io.close / prisma.$disconnect) actually runs.
@@ -51,10 +51,10 @@ services:
       retries: 3
 
   frontend:
-    image: zimengxiong/excalidash-frontend:latest
+    image: zimengxiong/excalidash-frontend:${EXCALIDASH_TAG:-latest}
     container_name: excalidash-frontend
     ports:
-      - "6767:80"
+      - "6767:8080"
     depends_on:
       - backend
     networks:
@@ -69,7 +69,7 @@ services:
           "--quiet",
           "--tries=1",
           "--spider",
-          "http://127.0.0.1:80",
+          "http://127.0.0.1:8080",
         ]
       interval: 30s
       timeout: 10s

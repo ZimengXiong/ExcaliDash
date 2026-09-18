@@ -12,7 +12,7 @@
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
     "skipLibCheck": true,
-    "allowJs": true,
+    "allowJs": true
   },
   "include": ["src/**/*"],
   "exclude": [

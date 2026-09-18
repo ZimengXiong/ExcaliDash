@@ -37,6 +37,15 @@ This file and `backend/.env.example` are generated from that registry; do not ed
 | `JWT_ACCESS_EXPIRES_IN` | `15m` | No | Access-token lifetime (vercel/ms style duration). |
 | `JWT_REFRESH_EXPIRES_IN` | `7d` | No | Refresh-token lifetime (vercel/ms style duration). |
 | `ENABLE_PASSWORD_RESET` | `false` | No | Enable the password-reset flow. |
+| `MAIL_TRANSPORT` | — | No | Transport for password-reset email; when unset, configured Resend credentials take precedence over SMTP. Allowed: smtp, resend, none. |
+| `MAIL_FROM` | — | No | Sender address for password-reset email. |
+| `MAIL_REPLY_TO` | — | No | Optional reply-to address for password-reset email. |
+| `RESEND_API_KEY` | _(none — secret)_ | No | Resend API key used when the Resend mail transport is selected. |
+| `SMTP_HOST` | — | No | SMTP server hostname. |
+| `SMTP_PORT` | `587` | No | SMTP server port. |
+| `SMTP_SECURE` | `false` | No | Use TLS immediately for SMTP, typically on port 465. |
+| `SMTP_USER` | — | No | Optional SMTP authentication username; set with SMTP_PASSWORD. |
+| `SMTP_PASSWORD` | _(none — secret)_ | No | Optional SMTP authentication password; set with SMTP_USER. |
 | `ENABLE_REFRESH_TOKEN_ROTATION` | `true` | No | Rotate refresh tokens on each successful refresh. |
 | `ENABLE_AUDIT_LOGGING` | `false` | No | Write authentication/authorization audit-log entries. |
 | `DISABLE_ONBOARDING_GATE` | `false` | No | Disable the first-run onboarding gate in local-mode production. |
@@ -79,6 +88,8 @@ This file and `backend/.env.example` are generated from that registry; do not ed
 | `RATE_LIMIT_MAX_REQUESTS` | `1000` | No | Maximum general API requests per rate-limit window. |
 | `RATE_LIMIT_WINDOW_MS` | `900000` | No | General API rate-limit window in milliseconds (default 15 minutes); pairs with RATE_LIMIT_MAX_REQUESTS. |
 | `CSRF_RATE_LIMIT_WINDOW_MS` | `60000` | No | CSRF-token issuance rate-limit window in milliseconds (default 1 minute); pairs with CSRF_MAX_REQUESTS. |
+| `AGENT_OPS_RATE_LIMIT_MAX` | `120` | No | Maximum agent ops-batch requests per key or user per window. |
+| `AGENT_OPS_RATE_LIMIT_WINDOW_MS` | `60000` | No | Agent ops-batch rate-limit window in milliseconds. |
 | `ENFORCE_HTTPS_REDIRECT` | `true` | No | Redirect HTTP requests to HTTPS when a secure origin is detected. |
 | `API_KEY_HASH_PEPPER` | _(none — secret)_ | No | Pepper mixed into API-key hashes; set before creating keys (see docs). |
 | `DEBUG_CSRF` | `false` | No | Enable verbose CSRF debug logging. |
@@ -118,6 +129,26 @@ This file and `backend/.env.example` are generated from that registry; do not ed
 | `LINK_SHARE_EDIT_DEFAULT_TTL_MS` | `604800000` | No | Default lifetime (ms) of edit share links (7 days). |
 | `LINK_SHARE_VIEW_DEFAULT_TTL_MS` | `2592000000` | No | Default lifetime (ms) of view share links (30 days). |
 | `LINK_SHARE_MAX_TTL_MS` | `7776000000` | No | Maximum allowed lifetime (ms) for any share link (90 days). |
+
+## AI
+
+| Variable | Default | Required | Description |
+| --- | --- | --- | --- |
+| `AI_PROVIDER` | `disabled` | No | AI chat-proxy provider: disabled (chat panel hidden), anthropic (Messages API), openai (Chat Completions), custom (any OpenAI-compatible baseUrl), or chatgpt (each user connects their own ChatGPT Plus/Pro subscription via Codex OAuth — billed to the user, no server API key). The admin settings page can override this at runtime. Allowed: disabled, anthropic, openai, custom, chatgpt. |
+| `AI_API_KEY` | _(none — secret)_ | No | Provider API key for the AI chat proxy. Server-side only — never shipped to the browser. An env-provided key always wins over a key stored via the admin settings page. |
+| `AI_BASE_URL` | — | No | Override the provider base URL (e.g. an OpenAI-compatible gateway or self-hosted endpoint). Required for AI_PROVIDER=custom; optional otherwise. |
+| `AI_MODEL` | — | No | Model id the chat proxy requests (e.g. claude-opus-4-8 for anthropic, gpt-4o for openai). Falls back to a provider default when unset. |
+| `AI_MAX_TOKENS_PER_REQUEST` | `4096` | No | Maximum output tokens the chat proxy requests per model call. |
+| `AI_RATE_LIMIT_MAX` | `60` | No | Maximum AI chat requests allowed per user within AI_RATE_LIMIT_WINDOW_MS. |
+| `AI_RATE_LIMIT_WINDOW_MS` | `60000` | No | Rolling window (ms) for the AI chat per-user rate limiter. |
+| `AI_CHATGPT_CLIENT_VERSION` | `0.142.5` | No | Codex `client_version` sent to the ChatGPT backend (AI_PROVIDER=chatgpt). The backend gates the available model set on this — bump it toward the current Codex CLI release without a redeploy if models disappear. |
+| `AI_CHATGPT_MODELS` | — | No | Comma-separated Codex model slugs offered when AI_PROVIDER=chatgpt (first is the default). Falls back to a built-in gpt-5.x list when unset. |
+| `AI_CHATGPT_CLIENT_ID` | — | No | Override the ChatGPT/Codex OAuth client id. Defaults to the public Codex CLI client. Only change if OpenAI rotates the client. |
+| `AI_CHATGPT_ISSUER` | — | No | Override the ChatGPT OAuth issuer origin (authorize/token endpoints). Defaults to https://auth.openai.com. |
+| `AI_CHATGPT_REDIRECT_URI` | — | No | OAuth redirect URI for the Codex loopback flow. Defaults to http://localhost:1455/auth/callback; the connect flow uses manual URL paste so this need not be reachable by the server. |
+| `AI_CHATGPT_CODEX_BASE_URL` | — | No | Base URL of the ChatGPT-backed Codex responses API. Defaults to https://chatgpt.com/backend-api/codex. |
+| `AI_CHATGPT_SCOPE` | — | No | OAuth scopes requested for the ChatGPT session. Defaults to 'openid profile email offline_access' (offline_access is required for refresh). |
+| `AI_CHATGPT_ORIGINATOR` | — | No | `originator` header/param value identifying the client to OpenAI. Defaults to codex_cli_rs. |
 
 ## Frontend (build-time)
 

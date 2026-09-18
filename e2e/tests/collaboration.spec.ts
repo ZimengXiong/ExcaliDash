@@ -1,13 +1,9 @@
 import { test, expect } from "@playwright/test";
-import {
-  createDrawing,
-  deleteDrawing,
-  getDrawing,
-} from "./helpers/api";
+import { createDrawing, deleteDrawing, getDrawing } from "./helpers/api";
 
 /**
  * E2E Tests for Real-time Collaboration
- * 
+ *
  * Tests the real-time collaboration feature mentioned in README:
  * - Multiple users can edit drawings simultaneously
  * - Cursor presence is shared between users
@@ -21,14 +17,18 @@ test.describe("Real-time Collaboration", () => {
     for (const id of createdDrawingIds) {
       try {
         await deleteDrawing(request, id);
-      } catch {
-      }
+      } catch {}
     }
     createdDrawingIds = [];
   });
 
-  test("should show presence when multiple users view same drawing", async ({ browser, request }) => {
-    const drawing = await createDrawing(request, { name: `Collab_Presence_${Date.now()}` });
+  test("should show presence when multiple users view same drawing", async ({
+    browser,
+    request,
+  }) => {
+    const drawing = await createDrawing(request, {
+      name: `Collab_Presence_${Date.now()}`,
+    });
     createdDrawingIds.push(drawing.id);
 
     const context1 = await browser.newContext();
@@ -41,14 +41,22 @@ test.describe("Real-time Collaboration", () => {
       await page1.goto(`/editor/${drawing.id}`);
       await page2.goto(`/editor/${drawing.id}`);
 
-      await page1.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
-      await page2.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
+      await page1.waitForSelector("[class*='excalidraw'], canvas", {
+        timeout: 15000,
+      });
+      await page2.waitForSelector("[class*='excalidraw'], canvas", {
+        timeout: 15000,
+      });
 
       await page1.waitForTimeout(2000);
       await page2.waitForTimeout(2000);
 
-      const collaboratorIndicator1 = page1.locator("[data-testid='collaborator-avatar'], .collaborator-avatar, [class*='collaborator']");
-      const collaboratorIndicator2 = page2.locator("[data-testid='collaborator-avatar'], .collaborator-avatar, [class*='collaborator']");
+      const collaboratorIndicator1 = page1.locator(
+        "[data-testid='collaborator-avatar'], .collaborator-avatar, [class*='collaborator']",
+      );
+      const collaboratorIndicator2 = page2.locator(
+        "[data-testid='collaborator-avatar'], .collaborator-avatar, [class*='collaborator']",
+      );
 
       const hasCollaborator1 = await collaboratorIndicator1.count();
       const hasCollaborator2 = await collaboratorIndicator2.count();
@@ -60,7 +68,10 @@ test.describe("Real-time Collaboration", () => {
     }
   });
 
-  test("should sync drawing changes between two users", async ({ browser, request }) => {
+  test("should sync drawing changes between two users", async ({
+    browser,
+    request,
+  }) => {
     const drawing = await createDrawing(request, {
       name: `Collab_Sync_${Date.now()}`,
       elements: [],
@@ -77,8 +88,12 @@ test.describe("Real-time Collaboration", () => {
       await page1.goto(`/editor/${drawing.id}`);
       await page2.goto(`/editor/${drawing.id}`);
 
-      await page1.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
-      await page2.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
+      await page1.waitForSelector("[class*='excalidraw'], canvas", {
+        timeout: 15000,
+      });
+      await page2.waitForSelector("[class*='excalidraw'], canvas", {
+        timeout: 15000,
+      });
 
       await page1.waitForTimeout(2000);
       await page2.waitForTimeout(2000);
@@ -108,7 +123,10 @@ test.describe("Real-time Collaboration", () => {
     }
   });
 
-  test("should persist drawing changes across page reload", async ({ page, request }) => {
+  test("should persist drawing changes across page reload", async ({
+    page,
+    request,
+  }) => {
     const drawing = await createDrawing(request, {
       name: `Collab_Persist_${Date.now()}`,
       elements: [],
@@ -116,7 +134,9 @@ test.describe("Real-time Collaboration", () => {
     createdDrawingIds.push(drawing.id);
 
     await page.goto(`/editor/${drawing.id}`);
-    await page.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
+    await page.waitForSelector("[class*='excalidraw'], canvas", {
+      timeout: 15000,
+    });
     await page.waitForTimeout(1000);
 
     const canvas = page.locator("canvas.excalidraw__canvas.interactive");
@@ -138,15 +158,22 @@ test.describe("Real-time Collaboration", () => {
     const elementCount = savedDrawing.elements?.length || 0;
 
     await page.reload();
-    await page.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
+    await page.waitForSelector("[class*='excalidraw'], canvas", {
+      timeout: 15000,
+    });
     await page.waitForTimeout(1000);
 
     savedDrawing = await getDrawing(request, drawing.id);
     expect(savedDrawing.elements?.length || 0).toBe(elementCount);
   });
 
-  test("should display collaborator cursor positions", async ({ browser, request }) => {
-    const drawing = await createDrawing(request, { name: `Collab_Cursor_${Date.now()}` });
+  test("should display collaborator cursor positions", async ({
+    browser,
+    request,
+  }) => {
+    const drawing = await createDrawing(request, {
+      name: `Collab_Cursor_${Date.now()}`,
+    });
     createdDrawingIds.push(drawing.id);
 
     const context1 = await browser.newContext();
@@ -159,8 +186,12 @@ test.describe("Real-time Collaboration", () => {
       await page1.goto(`/editor/${drawing.id}`);
       await page2.goto(`/editor/${drawing.id}`);
 
-      await page1.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
-      await page2.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
+      await page1.waitForSelector("[class*='excalidraw'], canvas", {
+        timeout: 15000,
+      });
+      await page2.waitForSelector("[class*='excalidraw'], canvas", {
+        timeout: 15000,
+      });
 
       await page1.waitForTimeout(2000);
       await page2.waitForTimeout(2000);
@@ -174,9 +205,7 @@ test.describe("Real-time Collaboration", () => {
       await page1.mouse.move(box.x + 400, box.y + 400);
       await page1.waitForTimeout(500);
 
-
       await page2.waitForTimeout(1000);
-
     } finally {
       await context1.close();
       await context2.close();

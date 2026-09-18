@@ -46,7 +46,7 @@ describe("getUserIdentity", () => {
         name: "Scourge",
         initials: "LO",
         color: "#123456",
-      })
+      }),
     );
 
     const identity = getUserIdentity();

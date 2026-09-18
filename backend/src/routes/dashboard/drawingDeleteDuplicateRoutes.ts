@@ -45,7 +45,10 @@ export const registerDrawingDeleteDuplicateRoutes = (
       try {
         await cleanupS3FilesForDrawing(id, req.user.id);
       } catch (error) {
-        console.warn("[s3] Failed to cleanup deleted drawing files", { drawingId: id, error });
+        console.warn("[s3] Failed to cleanup deleted drawing files", {
+          drawingId: id,
+          error,
+        });
       }
 
       const deleteResult = await prisma.drawing.deleteMany({
@@ -90,7 +93,10 @@ export const registerDrawingDeleteDuplicateRoutes = (
       }
 
       const newDrawingId = uuidv4();
-      const originalFiles = parseJsonField<Record<string, any>>(original.files, {});
+      const originalFiles = parseJsonField<Record<string, any>>(
+        original.files,
+        {},
+      );
       const duplicatedFiles = await cloneS3FileReferences(
         original.id,
         newDrawingId,
@@ -110,7 +116,10 @@ export const registerDrawingDeleteDuplicateRoutes = (
           elements: original.elements,
           appState: original.appState,
           files: JSON.stringify(duplicatedFiles),
-          preview: typeof duplicatedPreview === "string" ? duplicatedPreview : original.preview,
+          preview:
+            typeof duplicatedPreview === "string"
+              ? duplicatedPreview
+              : original.preview,
           userId: req.user.id,
           collectionId: duplicatedCollectionId,
           version: 1,
@@ -130,5 +139,4 @@ export const registerDrawingDeleteDuplicateRoutes = (
       });
     }),
   );
-
 };
