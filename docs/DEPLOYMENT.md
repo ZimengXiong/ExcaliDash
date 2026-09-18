@@ -1,5 +1,24 @@
 # Advanced deployment and operations
 
+## Image channel
+
+`docker-compose.prod.yml` uses stable `latest` images by default. Set one tag
+for both application containers when testing the development channel or a
+pinned release:
+
+```bash
+# Rolling development images
+EXCALIDASH_TAG=dev docker compose -f docker-compose.prod.yml pull
+EXCALIDASH_TAG=dev docker compose -f docker-compose.prod.yml up -d
+
+# Immutable stable or prerelease images
+EXCALIDASH_TAG=0.6.2 docker compose -f docker-compose.prod.yml up -d
+EXCALIDASH_TAG=0.6.2-dev.abcdef0 docker compose -f docker-compose.prod.yml up -d
+```
+
+Backend and frontend must always use the same tag. See
+`docs/CI_DEPLOYMENT_REVIEW.md` for the publication contract.
+
 <details>
 <summary>Reverse Proxy / Traefik</summary>
 

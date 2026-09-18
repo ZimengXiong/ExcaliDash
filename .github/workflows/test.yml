@@ -1,13 +1,21 @@
-name: Tests
+name: CI
 
 on:
   push:
-    branches: [main, beta, dev]
+    branches: [main, dev]
   pull_request:
     branches: [main, dev]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
+
+env:
+  DOCKERHUB_USERNAME: zimengxiong
 
 jobs:
   backend-tests:
@@ -15,10 +23,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "20"
           cache: "npm"
@@ -44,10 +52,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "20"
           cache: "npm"
@@ -70,10 +78,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "20"
           cache: "npm"
@@ -94,10 +102,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "20"
 
@@ -135,54 +143,48 @@ jobs:
 
       - name: Start servers and run E2E tests
         run: |
-          # Start backend server in background
+          backend_pid=""
+          frontend_pid=""
+          cleanup() {
+            [ -z "$backend_pid" ] || kill "$backend_pid" 2>/dev/null || true
+            [ -z "$frontend_pid" ] || kill "$frontend_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          wait_for_url() {
+            name="$1"
+            url="$2"
+            for attempt in $(seq 1 30); do
+              if curl --fail --silent "$url" >/dev/null; then
+                echo "$name is ready"
+                return 0
+              fi
+              echo "Attempt $attempt: waiting for $name"
+              sleep 2
+            done
+            echo "$name did not become ready: $url" >&2
+            return 1
+          }
+
           cd backend
           DATABASE_URL="file:${{ github.workspace }}/backend/prisma/e2e-test.db" FRONTEND_URL="http://localhost:6767" CSRF_MAX_REQUESTS="100000" RATE_LIMIT_MAX_REQUESTS="100000" CSRF_SECRET="e2e-csrf-secret" npm run dev &
-          BACKEND_PID=$!
+          backend_pid=$!
           cd ..
+          wait_for_url backend http://localhost:8000/health
 
-          # Wait for backend to be ready
-          echo "Waiting for backend server..."
-          for i in {1..30}; do
-            if curl -s http://localhost:8000/health > /dev/null; then
-              echo "Backend is ready!"
-              break
-            fi
-            echo "Attempt $i: Backend not ready yet..."
-            sleep 2
-          done
-
-          # Start frontend server in background
           cd frontend
           npm run dev -- --host &
-          FRONTEND_PID=$!
+          frontend_pid=$!
           cd ..
+          wait_for_url frontend http://localhost:6767
 
-          # Wait for frontend to be ready
-          echo "Waiting for frontend server..."
-          for i in {1..30}; do
-            if curl -s http://localhost:6767 > /dev/null; then
-              echo "Frontend is ready!"
-              break
-            fi
-            echo "Attempt $i: Frontend not ready yet..."
-            sleep 2
-          done
-
-          # Run E2E tests
           cd e2e
           NO_SERVER=true CI=true npx playwright test
-          TEST_EXIT_CODE=$?
-
-          # Cleanup
-          kill $BACKEND_PID $FRONTEND_PID 2>/dev/null || true
-
-          exit $TEST_EXIT_CODE
         env:
           DATABASE_URL: file:${{ github.workspace }}/backend/prisma/e2e-test.db
 
       - name: Upload Playwright report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: playwright-report
@@ -190,34 +192,205 @@ jobs:
           retention-days: 7
 
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:
           name: test-results
           path: e2e/test-results/
           retention-days: 7
 
-  # Security tests for data sanitization
-  security-tests:
-    name: Security Sanitization Tests
+  image-builds:
+    name: Container Image Builds
+    needs: [backend-tests, repo-checks, frontend-unit-tests, e2e-tests]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      stable: ${{ steps.metadata.outputs.stable }}
+      version: ${{ steps.metadata.outputs.version }}
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Check out source
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: backend/package-lock.json
+          fetch-depth: 0
 
-      - name: Install backend dependencies
+      - name: Derive image metadata
+        id: metadata
+        shell: bash
         run: |
-          cd backend
-          npm ci
+          version="$(tr -d '[:space:]' < VERSION)"
+          short_sha="${GITHUB_SHA::7}"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "VERSION must contain a stable x.y.z version." >&2
+            exit 1
+          fi
 
-      - name: Generate Prisma client
+          publish=false
+          stable=false
+          image_tag="ci-${short_sha}"
+          build_label="ci.${short_sha}"
+          platforms="linux/amd64"
+
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF" = refs/heads/dev ]; then
+            publish=true
+            image_tag="${version}-dev.${short_sha}"
+            build_label="dev.${short_sha}"
+            platforms="linux/amd64,linux/arm64"
+          elif [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF" = refs/heads/main ]; then
+            publish=true
+            stable=true
+            image_tag="build-${short_sha}"
+            build_label=production
+            platforms="linux/amd64,linux/arm64"
+
+            release_tag="v${version}"
+            if git show-ref --verify --quiet "refs/tags/${release_tag}"; then
+              tagged_sha="$(git rev-list -n 1 "$release_tag")"
+              if [ "$tagged_sha" != "$GITHUB_SHA" ]; then
+                echo "$release_tag already belongs to $tagged_sha." >&2
+                exit 1
+              fi
+            fi
+          fi
+
+          {
+            echo "version=$version"
+            echo "image_tag=$image_tag"
+            echo "build_label=$build_label"
+            echo "platforms=$platforms"
+            echo "publish=$publish"
+            echo "stable=$stable"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        if: steps.metadata.outputs.publish == 'true'
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+
+      - name: Log in to Docker Hub
+        if: steps.metadata.outputs.publish == 'true'
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build backend image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          file: backend/Dockerfile
+          platforms: ${{ steps.metadata.outputs.platforms }}
+          push: ${{ steps.metadata.outputs.publish == 'true' }}
+          tags: ${{ env.DOCKERHUB_USERNAME }}/excalidash-backend:${{ steps.metadata.outputs.image_tag }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.metadata.outputs.version }}
+          cache-from: type=gha,scope=backend-image
+          cache-to: type=gha,mode=max,scope=backend-image
+          provenance: ${{ steps.metadata.outputs.publish == 'true' }}
+          sbom: ${{ steps.metadata.outputs.publish == 'true' }}
+
+      - name: Build frontend image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          file: frontend/Dockerfile
+          platforms: ${{ steps.metadata.outputs.platforms }}
+          push: ${{ steps.metadata.outputs.publish == 'true' }}
+          build-args: VITE_APP_BUILD_LABEL=${{ steps.metadata.outputs.build_label }}
+          tags: ${{ env.DOCKERHUB_USERNAME }}/excalidash-frontend:${{ steps.metadata.outputs.image_tag }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.metadata.outputs.version }}
+          cache-from: type=gha,scope=frontend-image
+          cache-to: type=gha,mode=max,scope=frontend-image
+          provenance: ${{ steps.metadata.outputs.publish == 'true' }}
+          sbom: ${{ steps.metadata.outputs.publish == 'true' }}
+
+      - name: Verify candidate images
+        if: steps.metadata.outputs.publish == 'true'
+        shell: bash
         run: |
-          cd backend
-          npx prisma generate
+          docker buildx imagetools inspect "${DOCKERHUB_USERNAME}/excalidash-backend:${{ steps.metadata.outputs.image_tag }}"
+          docker buildx imagetools inspect "${DOCKERHUB_USERNAME}/excalidash-frontend:${{ steps.metadata.outputs.image_tag }}"
+
+      - name: Publish dev aliases
+        if: steps.metadata.outputs.publish == 'true' && steps.metadata.outputs.stable != 'true'
+        shell: bash
+        run: |
+          docker buildx imagetools create \
+            --tag "${DOCKERHUB_USERNAME}/excalidash-backend:dev" \
+            "${DOCKERHUB_USERNAME}/excalidash-backend:${{ steps.metadata.outputs.image_tag }}"
+          docker buildx imagetools create \
+            --tag "${DOCKERHUB_USERNAME}/excalidash-frontend:dev" \
+            "${DOCKERHUB_USERNAME}/excalidash-frontend:${{ steps.metadata.outputs.image_tag }}"
+
+      - name: Publish stable aliases
+        if: steps.metadata.outputs.stable == 'true'
+        shell: bash
+        run: |
+          version="${{ steps.metadata.outputs.version }}"
+          candidate="${{ steps.metadata.outputs.image_tag }}"
+          docker buildx imagetools create \
+            --tag "${DOCKERHUB_USERNAME}/excalidash-backend:${version}" \
+            --tag "${DOCKERHUB_USERNAME}/excalidash-backend:latest" \
+            "${DOCKERHUB_USERNAME}/excalidash-backend:${candidate}"
+          docker buildx imagetools create \
+            --tag "${DOCKERHUB_USERNAME}/excalidash-frontend:${version}" \
+            --tag "${DOCKERHUB_USERNAME}/excalidash-frontend:latest" \
+            "${DOCKERHUB_USERNAME}/excalidash-frontend:${candidate}"
+
+  github-release:
+    name: GitHub Release
+    needs: image-builds
+    if: needs.image-builds.outputs.stable == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.image-builds.outputs.version }}
+        run: |
+          tag="v${VERSION}"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "$tag is already published."
+            exit 0
+          fi
+          gh release create "$tag" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --generate-notes \
+            --latest \
+            --title "ExcaliDash ${VERSION}"
+
+  sync-dev:
+    name: Sync Main Back To Dev
+    needs: [image-builds, github-release]
+    if: needs.image-builds.outputs.stable == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Fast-forward dev when it has not moved
+        shell: bash
+        run: |
+          git fetch origin dev
+          if git merge-base --is-ancestor origin/dev "$GITHUB_SHA"; then
+            git push origin "$GITHUB_SHA:refs/heads/dev"
+          else
+            echo "dev advanced during the release; skipping automatic sync." >> "$GITHUB_STEP_SUMMARY"
+          fi

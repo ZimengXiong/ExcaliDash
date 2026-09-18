@@ -1,8 +1,8 @@
 services:
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: excalidash-backend
     # Run an init process (PID 1) that reaps zombies and forwards SIGTERM/SIGINT
     # to node so graceful shutdown (io.close / prisma.$disconnect) actually runs.

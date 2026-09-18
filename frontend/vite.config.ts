@@ -4,18 +4,12 @@ import fs from "fs";
 import path from "path";
 
 const versionFilePath = path.resolve(__dirname, "../VERSION");
-let versionFromFile = "0.0.0";
-
-try {
-  const raw = fs.readFileSync(versionFilePath, "utf8").trim();
-  if (raw) {
-    versionFromFile = raw;
-  }
-} catch (error) {
-  console.warn("Unable to read VERSION file:", error);
+const appVersion = fs.readFileSync(versionFilePath, "utf8").trim();
+if (
+  !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(appVersion)
+) {
+  throw new Error(`Invalid VERSION: ${JSON.stringify(appVersion)}`);
 }
-
-const appVersion = process.env.VITE_APP_VERSION?.trim() || versionFromFile;
 const buildLabel =
   process.env.VITE_APP_BUILD_LABEL?.trim() || "local development build";
 

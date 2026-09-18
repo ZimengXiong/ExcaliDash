@@ -1,5 +1,3 @@
-version: "3.8"
-
 # Docker Compose for E2E Browser Testing
 # This provides a repeatable environment for running Playwright tests
 # with full browser automation against the real frontend and backend.
@@ -14,8 +12,8 @@ services:
   # Backend API server
   backend:
     build:
-      context: ../backend
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: backend/Dockerfile
     environment:
       # Use an absolute sqlite path so Prisma CLI + the running app always point
       # at the same DB file (avoids schema being applied to a different relative path).

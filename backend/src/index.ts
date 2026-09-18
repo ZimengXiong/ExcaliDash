@@ -130,17 +130,22 @@ const MAX_IMPORT_DRAWING_BYTES = Math.min(
 let cachedBackendVersion: string | null = null;
 const getBackendVersion = (): string => {
   if (cachedBackendVersion) return cachedBackendVersion;
-  try {
-    const raw = fs.readFileSync(
-      path.resolve(backendRoot, "package.json"),
-      "utf8",
-    );
-    const parsed = JSON.parse(raw) as { version?: string };
-    cachedBackendVersion =
-      typeof parsed.version === "string" ? parsed.version : "unknown";
-  } catch {
-    cachedBackendVersion = "unknown";
+  const versionPaths = [
+    path.resolve(backendRoot, "VERSION"),
+    path.resolve(backendRoot, "../VERSION"),
+  ];
+  for (const versionPath of versionPaths) {
+    try {
+      const version = fs.readFileSync(versionPath, "utf8").trim();
+      if (version) {
+        cachedBackendVersion = version;
+        return cachedBackendVersion;
+      }
+    } catch {
+      // Try the next runtime layout.
+    }
   }
+  cachedBackendVersion = "unknown";
   return cachedBackendVersion;
 };
 const initializeUploadDir = async () => {

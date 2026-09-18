@@ -1,6 +1,5 @@
 {
   "name": "excalidash",
-  "version": "0.6.2",
   "private": true,
   "type": "module",
   "engines": {
@@ -15,8 +14,9 @@
     "lint": "eslint backend/src backend/scripts e2e scripts && npm --prefix frontend run lint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "check:version": "node scripts/check-version.cjs",
     "check:env": "node scripts/check-env-boundary.cjs",
-    "check": "npm run format:check && npm run lint && npm run check:env"
+    "check": "npm run format:check && npm run lint && npm run check:version && npm run check:env"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

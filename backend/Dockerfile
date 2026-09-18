@@ -1,20 +1,22 @@
-# Build stage
-FROM node:20-alpine AS builder
+# Shared dependency stage
+FROM node:20-alpine AS dependencies
 
 WORKDIR /app
 
-# Native build deps for modules that may compile from source (e.g., better-sqlite3 on arm64)
-RUN apk add --no-cache python3 make g++
+# Native build dependencies for modules such as better-sqlite3. OpenSSL lets
+# Prisma select the correct engine while generating its clients.
+RUN apk add --no-cache python3 make g++ openssl
 
-# Copy package files
-COPY package*.json ./
-COPY tsconfig.json ./
-
-# Install dependencies
+COPY backend/package*.json ./
 RUN npm ci && npm cache clean --force
 
+# Build stage
+FROM dependencies AS builder
+
+COPY backend/tsconfig.json ./
+
 # Copy prisma schema
-COPY prisma ./prisma/
+COPY backend/prisma ./prisma/
 
 # Set default provider for build-time Prisma generation (runtime can override via DATABASE_PROVIDER)
 RUN sed -i '/datasource db {/,/}/ s/provider = env("[^"]*")/provider = "sqlite"/; /datasource db {/,/}/ s/provider = "[^"]*"/provider = "sqlite"/' prisma/schema.prisma
@@ -36,10 +38,16 @@ RUN set -eu; \
     sed -i '/datasource db {/,/}/ s/provider = "[^"]*"/provider = "sqlite"/' prisma/schema.prisma
 
 # Copy source code
-COPY src ./src
+COPY backend/src ./src
 
 # Build TypeScript
 RUN npx tsc
+
+# Remove development dependencies from the already-built dependency tree rather
+# than compiling production dependencies a second time.
+FROM dependencies AS production-dependencies
+
+RUN npm prune --omit=dev && npm cache clean --force
 
 # Production stage
 FROM node:20-alpine
@@ -51,18 +59,15 @@ RUN apk add --no-cache openssl su-exec && \
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+COPY --chown=nodejs:nodejs --chmod=0444 backend/package.json ./
+COPY --from=production-dependencies /app/node_modules ./node_modules
 
-# Install production dependencies only
-RUN apk add --no-cache --virtual .build-deps python3 make g++ && \
-    npm ci --omit=dev && \
-    npm cache clean --force && \
-    apk del .build-deps
+# Application version changes should not invalidate the dependency layer.
+COPY --chown=nodejs:nodejs --chmod=0444 VERSION ./VERSION
 
 # Copy prisma schema and migrations for runtime and hydration template
-COPY prisma ./prisma/
-COPY prisma ./prisma_template/
+COPY backend/prisma ./prisma/
+COPY --chown=nodejs:nodejs backend/prisma ./prisma_template/
 
 # Copy built application from builder
 COPY --from=builder /app/dist ./dist
@@ -77,9 +82,8 @@ RUN mkdir -p /app/uploads /app/prisma /app/dist/generated && \
     chown nodejs:nodejs /app/dist && \
     chown -R nodejs:nodejs /app/uploads /app/prisma /app/dist/generated
 
-# Copy and set permissions for entrypoint script
-COPY docker-entrypoint.sh ./
-RUN chmod +x docker-entrypoint.sh
+# Do not inherit host filesystem modes for the executable entrypoint.
+COPY --chown=nodejs:nodejs --chmod=0555 backend/docker-entrypoint.sh ./
 
 USER nodejs
 

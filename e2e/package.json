@@ -1,6 +1,6 @@
 {
   "name": "excalidash-e2e",
-  "version": "1.0.0",
+  "private": true,
   "description": "E2E browser tests for ExcaliDash",
   "engines": {
     "node": ">=20"
