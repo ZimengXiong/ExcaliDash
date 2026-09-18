@@ -33,7 +33,19 @@ export default tseslint.config(
       "react-hooks/set-state-in-effect": "off",
       "react-refresh/only-export-components": [
         "warn",
-        { allowConstantExport: true },
+        {
+          allowConstantExport: true,
+          allowExportNames: [
+            "clampGridStep",
+            "getInitialLangCode",
+            "getSelectionBounds",
+            "useAuth",
+            "usePreference",
+            "usePreferences",
+            "useTheme",
+            "useUpload",
+          ],
+        },
       ],
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": [

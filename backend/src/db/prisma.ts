@@ -6,11 +6,9 @@ import { enableIncrementalAutoVacuum } from "./sqliteMaintenance";
 // the moment this module is imported, snapshotting the environment before tests
 // (e.g. audit.test.ts) get a chance to set feature-flag env vars in beforeAll.
 const getConfig = (): typeof AppConfig =>
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   (require("../config") as { config: typeof AppConfig }).config;
 
 declare global {
-  // eslint-disable-next-line no-var
   var __excalidashPrisma: PrismaClient | undefined;
 }
 

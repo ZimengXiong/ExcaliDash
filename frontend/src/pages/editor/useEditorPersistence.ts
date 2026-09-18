@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { exportToSvg } from "@excalidraw/excalidraw";
 import debounce from "lodash/debounce";
@@ -330,46 +330,49 @@ export const useEditorPersistence = ({
     }
   };
 
-  const debouncedSave = useCallback(
-    debounce((drawingId, elements, appState, files) => {
-      enqueueSceneSave(drawingId, elements, appState, files);
-    }, 1000),
+  const debouncedSave = useMemo(
+    () =>
+      debounce((drawingId, elements, appState, files) => {
+        enqueueSceneSave(drawingId, elements, appState, files);
+      }, 1000),
     [enqueueSceneSave],
   );
   refs.debouncedSave.current = debouncedSave;
 
-  const debouncedSavePreview = useCallback(
-    debounce((drawingId: string) => {
-      if (!savePreviewRef.current || !drawingId) return;
-      if (refs.isUnmounting.current || refs.isSyncing.current) return;
-      const expectedChangeAt = refs.lastLocalChangeAt.current;
-      const run = () => {
-        if (!savePreviewRef.current) return;
+  const debouncedSavePreview = useMemo(
+    () =>
+      debounce((drawingId: string) => {
+        if (!savePreviewRef.current || !drawingId) return;
         if (refs.isUnmounting.current || refs.isSyncing.current) return;
-        if (refs.lastLocalChangeAt.current !== expectedChangeAt) return;
-        const appState = refs.latestAppState.current;
-        if (!appState) return;
-        void savePreviewRef.current(
-          drawingId,
-          refs.latestElements.current,
-          appState,
-          refs.latestFiles.current || {},
-        );
-      };
-      const w = window as any;
-      if (typeof w.requestIdleCallback === "function") {
-        w.requestIdleCallback(run, { timeout: 2000 });
-      } else {
-        setTimeout(run, 0);
-      }
-    }, 30_000),
+        const expectedChangeAt = refs.lastLocalChangeAt.current;
+        const run = () => {
+          if (!savePreviewRef.current) return;
+          if (refs.isUnmounting.current || refs.isSyncing.current) return;
+          if (refs.lastLocalChangeAt.current !== expectedChangeAt) return;
+          const appState = refs.latestAppState.current;
+          if (!appState) return;
+          void savePreviewRef.current(
+            drawingId,
+            refs.latestElements.current,
+            appState,
+            refs.latestFiles.current || {},
+          );
+        };
+        const w = window as any;
+        if (typeof w.requestIdleCallback === "function") {
+          w.requestIdleCallback(run, { timeout: 2000 });
+        } else {
+          setTimeout(run, 0);
+        }
+      }, 30_000),
     [refs],
   );
 
-  const debouncedSaveLibrary = useCallback(
-    debounce((items: any[]) => {
-      if (saveLibraryRef.current) saveLibraryRef.current(items);
-    }, 1000),
+  const debouncedSaveLibrary = useMemo(
+    () =>
+      debounce((items: any[]) => {
+        if (saveLibraryRef.current) saveLibraryRef.current(items);
+      }, 1000),
     [],
   );
 

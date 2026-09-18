@@ -15,7 +15,6 @@ import {
 } from "./trash";
 import type { DrawingRouteContext } from "./drawingRouteContext";
 import { applySceneUpdateTx, isVersionConflict } from "./sceneUpdate";
-import { sanitizeSvg } from "../../security";
 
 export const registerDrawingCreateUpdateRoutes = (
   app: express.Express,

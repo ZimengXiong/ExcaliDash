@@ -113,7 +113,6 @@ export const renderConfigDocs = (): string => {
 if (require.main === module) {
   fs.writeFileSync(ENV_EXAMPLE_PATH, renderEnvExample());
   fs.writeFileSync(DOCS_PATH, renderConfigDocs());
-  // eslint-disable-next-line no-console
   console.log(
     `Wrote ${path.relative(process.cwd(), ENV_EXAMPLE_PATH)} and ${path.relative(process.cwd(), DOCS_PATH)}`,
   );

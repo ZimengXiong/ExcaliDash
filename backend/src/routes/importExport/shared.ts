@@ -242,14 +242,12 @@ export const resolveSafeUploadedFilePath = async (
 
 export const openReadonlySqliteDb = (filePath: string): any => {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { DatabaseSync } = require("node:sqlite") as any;
     return new DatabaseSync(filePath, {
       readOnly: true,
       enableForeignKeyConstraints: false,
     });
   } catch {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const Database = require("better-sqlite3") as any;
     return new Database(filePath, { readonly: true, fileMustExist: true });
   }

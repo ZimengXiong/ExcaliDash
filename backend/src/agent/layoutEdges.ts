@@ -10,7 +10,6 @@ import {
   ARROW_CLEARANCE,
   alongRoute,
   clipRoute,
-  distance,
   segmentHitsBox,
   midpointOf,
   offsetPolyline,

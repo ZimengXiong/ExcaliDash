@@ -53,9 +53,8 @@ const buildApp = (opts: {
       req.user = { id: "u1" };
       next();
     }) as any,
-    asyncHandler: (<T>(fn: any) =>
-      (req: any, res: any, next: any) =>
-        Promise.resolve(fn(req, res, next)).catch(next)) as any,
+    asyncHandler: ((fn: any) => (req: any, res: any, next: any) =>
+      Promise.resolve(fn(req, res, next)).catch(next)) as any,
     parseJsonField,
     invalidateDrawingsCache: vi.fn(),
     io: { to: () => ({ emit: () => undefined }) } as any,

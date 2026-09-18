@@ -187,7 +187,7 @@ test.describe("Image Persistence - Browser E2E Tests", () => {
     const drawing = await getDrawing(request, createdDrawing.id);
     const savedFiles = drawing.files || {}; // Already parsed by API
 
-    for (const [id, originalFile] of Object.entries(files)) {
+    for (const id of Object.keys(files)) {
       expect(savedFiles[id]).toBeDefined();
       expect(savedFiles[id].dataURL).toBe(`/api/files/${drawing.id}/${id}`);
     }

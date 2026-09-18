@@ -3,7 +3,7 @@
  * Ensures /health returns 200 OK without redirects (for Kubernetes probes)
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import express from "express";
 import request from "supertest";
 
@@ -32,7 +32,7 @@ describe("Health check endpoint", () => {
       }
 
       if (req.header("x-forwarded-proto") !== "https") {
-        return res.redirect(`https://example.com${req.path}`);
+        return res.redirect("https://example.com/other");
       }
       next();
     });

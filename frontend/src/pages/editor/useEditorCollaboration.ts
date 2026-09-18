@@ -83,7 +83,7 @@ export const useEditorCollaboration = ({
 
   useEffect(() => {
     setSocketMe(me);
-  }, [me.id, me.name, me.initials, me.color]);
+  }, [me]);
 
   useEffect(() => {
     socketMeRef.current = socketMe;
@@ -340,6 +340,7 @@ export const useEditorCollaboration = ({
     const detachCanvasZoom = attachCanvasZoomForwarding(
       editorContainerRef.current,
     );
+    const pendingRemoteElements = pendingRemoteElementsRef.current;
     return () => {
       detachCanvasZoom();
       window.removeEventListener("focus", onFocus);
@@ -357,7 +358,7 @@ export const useEditorCollaboration = ({
         remoteFlushRafIdRef.current = null;
       }
       remoteFlushScheduledRef.current = false;
-      pendingRemoteElementsRef.current.clear();
+      pendingRemoteElements.clear();
       pendingRemoteFilesRef.current = {};
       pendingRemoteElementOrderRef.current = null;
       cancelAnimationFrame(animationFrameId.current);
