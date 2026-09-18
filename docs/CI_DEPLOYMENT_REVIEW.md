@@ -44,7 +44,7 @@ Merging `dev` into `main` is the release action. After the complete CI gate:
 1. CI validates that `VERSION` is valid and not assigned to another commit.
 2. Backend and frontend images are built natively for AMD64 and ARM64.
 3. Final manifests are published and verified before the GitHub release.
-4. GitHub creates `v<version>` and generates the release notes.
+4. GitHub creates `v<version>` with the release notes defined by CI.
 5. CI fast-forwards `dev` to the release merge when `dev` has not advanced.
 
 Stable version tags are never intentionally reused for another commit. If

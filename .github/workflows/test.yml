@@ -380,7 +380,7 @@ jobs:
           gh release create "$tag" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --generate-notes \
+            --notes "move to new CI release pipeline" \
             --latest \
             --title "ExcaliDash ${VERSION}"
 
