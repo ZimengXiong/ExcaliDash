@@ -16,15 +16,17 @@ Pull requests and pushes run formatting, linting, version/config checks,
 backend tests, frontend tests, browser E2E tests, and production image builds.
 Superseded development runs are cancelled; stable release runs are not.
 
-Third-party actions are pinned to commits. Published images include OCI source,
-revision, and version labels plus provenance and SBOM attestations.
+Third-party actions and reusable workflows are pinned to commits. Docker's
+maintained builder fans AMD64 and ARM64 work out to native Ubuntu 24.04
+runners, then assembles the manifests. Published images include OCI source,
+revision, and version labels plus signed provenance and SBOM attestations.
 
 ## Development images
 
-Every successful push to `dev` builds Linux AMD64 and ARM64 images. Both
-candidate images are published under the immutable tag
-`<version>-dev.<short-sha>` before the moving `dev` aliases are updated. No Git
-tag or GitHub release is created.
+Every successful push to `dev` builds Linux AMD64 and ARM64 images. The final
+manifests are published under both the immutable tag
+`<version>-dev.<short-sha>` and the moving `dev` alias only after every native
+platform build succeeds. No Git tag or GitHub release is created.
 
 Deploy the rolling development channel with the production Compose file:
 
@@ -40,8 +42,8 @@ For reproducible testing, replace `dev` with an immutable prerelease tag.
 Merging `dev` into `main` is the release action. After the complete CI gate:
 
 1. CI validates that `VERSION` is valid and not assigned to another commit.
-2. Backend and frontend candidates are built for AMD64 and ARM64.
-3. The candidates are verified before version and `latest` aliases move.
+2. Backend and frontend images are built natively for AMD64 and ARM64.
+3. Final manifests are published and verified before the GitHub release.
 4. GitHub creates `v<version>` and generates the release notes.
 5. CI fast-forwards `dev` to the release merge when `dev` has not advanced.
 
