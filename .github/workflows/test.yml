@@ -343,8 +343,10 @@ jobs:
     if: always() && needs.release-metadata.result == 'success' && needs.backend-image.result == 'success' && needs.frontend-image.result == 'success'
     runs-on: ubuntu-24.04
     outputs:
+      publish: ${{ needs.release-metadata.outputs.publish }}
       stable: ${{ needs.release-metadata.outputs.stable }}
       version: ${{ needs.release-metadata.outputs.version }}
+      image-tag: ${{ needs.release-metadata.outputs.image-tag }}
 
     steps:
       - name: Verify published images
@@ -383,6 +385,32 @@ jobs:
             --notes "move to new CI release pipeline" \
             --latest \
             --title "ExcaliDash ${VERSION}"
+
+  github-dev-release:
+    name: GitHub Dev Release
+    needs: image-builds
+    if: needs.image-builds.outputs.publish == 'true' && needs.image-builds.outputs.stable != 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Create GitHub pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE_TAG: ${{ needs.image-builds.outputs.image-tag }}
+        run: |
+          tag="v${IMAGE_TAG}"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "$tag is already published."
+            exit 0
+          fi
+          gh release create "$tag" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --notes "Development container images: ${DOCKERHUB_USERNAME}/excalidash-backend:${IMAGE_TAG} and ${DOCKERHUB_USERNAME}/excalidash-frontend:${IMAGE_TAG}." \
+            --prerelease \
+            --title "ExcaliDash ${IMAGE_TAG}"
 
   sync-dev:
     name: Sync Main Back To Dev
