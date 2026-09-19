@@ -232,19 +232,16 @@ jobs:
           publish=false
           stable=false
           image_tag="ci-${short_sha}"
-          build_label="ci.${short_sha}"
           platforms="linux/amd64"
 
           if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF" = refs/heads/dev ]; then
             publish=true
             image_tag="${version}-dev.${short_sha}"
-            build_label="dev.${short_sha}"
             platforms="linux/amd64,linux/arm64"
           elif [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF" = refs/heads/main ]; then
             publish=true
             stable=true
-            image_tag="build-${short_sha}"
-            build_label=production
+            image_tag="${version}"
             platforms="linux/amd64,linux/arm64"
 
             release_tag="v${version}"
@@ -256,10 +253,11 @@ jobs:
               fi
             fi
           fi
+          build_label="${image_tag}"
 
           tags="type=raw,value=${image_tag}"
           if [ "$publish" = true ] && [ "$stable" = true ]; then
-            tags="${tags}"$'\n'"type=raw,value=${version}"$'\n'"type=raw,value=latest"
+            tags="${tags}"$'\n'"type=raw,value=latest"
           elif [ "$publish" = true ]; then
             tags="${tags}"$'\n'"type=raw,value=dev"
           fi
@@ -299,7 +297,7 @@ jobs:
       meta-labels: |
         org.opencontainers.image.source=https://github.com/${{ github.repository }}
         org.opencontainers.image.revision=${{ github.sha }}
-        org.opencontainers.image.version=${{ needs.release-metadata.outputs.version }}
+        org.opencontainers.image.version=${{ needs.release-metadata.outputs.image-tag }}
     secrets:
       registry-auths: |
         - registry: docker.io
@@ -330,7 +328,7 @@ jobs:
       meta-labels: |
         org.opencontainers.image.source=https://github.com/${{ github.repository }}
         org.opencontainers.image.revision=${{ github.sha }}
-        org.opencontainers.image.version=${{ needs.release-metadata.outputs.version }}
+        org.opencontainers.image.version=${{ needs.release-metadata.outputs.image-tag }}
     secrets:
       registry-auths: |
         - registry: docker.io
