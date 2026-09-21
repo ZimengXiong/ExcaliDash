@@ -182,6 +182,17 @@ docker compose up -d
 
 </details>
 
+<details>
+<summary>Easypanel</summary>
+
+## Easypanel
+
+If you'd rather not manage Docker Compose yourself, [Easypanel](https://easypanel.io) is a self-hosted deployment platform with a one-click ExcaliDash template:
+
+[![Deploy on Easypanel](https://easypanel.io/img/deploy-on-easypanel-40.svg)](https://easypanel.io/templates/excalidash)
+
+</details>
+
 ## Advanced
 
 The root README keeps the install path short. See
