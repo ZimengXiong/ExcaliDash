@@ -1,7 +1,9 @@
 import { test, expect } from "@playwright/test";
 import { API_URL } from "./helpers/api";
 
-test("the e2e backend has enough CSRF and API budget for a full journey", async ({ request }) => {
+test("the e2e backend has enough CSRF and API budget for a full journey", async ({
+  request,
+}) => {
   // The default production budgets are intentionally smaller than this suite.
   // Validate the test-server overrides, not changes to production limits.
   for (let index = 0; index < 125; index++) {
