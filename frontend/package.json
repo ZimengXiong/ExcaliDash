@@ -10,7 +10,8 @@
     "dev": "node scripts/copy-excalidraw-assets.mjs --public && vite --port 6767",
     "build": "tsc -b && vite build && node scripts/copy-excalidraw-assets.mjs --dist",
     "lint": "eslint . --max-warnings 0",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run"
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.1",
@@ -38,11 +39,13 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "jsdom": "^27.4.0",
     "postcss": "^8.5.10",
     "tailwindcss": "^3.4.1",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.3",
-    "vite": "^7.3.2"
+    "vite": "^7.3.2",
+    "vitest": "^4.1.11"
   },
   "overrides": {
     "@excalidraw/excalidraw": {

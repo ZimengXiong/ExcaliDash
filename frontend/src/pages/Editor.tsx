@@ -23,6 +23,7 @@ import { useEditorFileUploads } from "./editor/useEditorFileUploads";
 import { useEditorSceneApi } from "./editor/useEditorSceneApi";
 import { useEditorGridStep } from "./editor/useEditorGridStep";
 import { useKeyboardLayoutFix } from "./editor/useKeyboardLayoutFix";
+import { attachCanvasZoomForwarding } from "./editor/canvasZoomForwarding";
 import { DEFAULT_GRID_STEP } from "../components/GridStepSelector";
 
 export const Editor: React.FC = () => {
@@ -119,6 +120,7 @@ const ExcalidrawEditor: React.FC = () => {
       isUnmounting.current = true;
     };
   }, []);
+  useEffect(() => attachCanvasZoomForwarding(editorContainerRef.current), []);
   const handleSocketAccessDenied = useCallback(() => {
     if (!id || !location.pathname.startsWith("/editor/")) return;
     navigate(`/shared/${id}${location.search}${location.hash}`, {
