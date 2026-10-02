@@ -4,12 +4,12 @@ Create the administrator account before inviting other users. The default authen
 
 ## Choose an authentication mode
 
-| Mode            | Best for                                        |
-| --------------- | ----------------------------------------------- |
-| `local`         | ExcaliDash accounts                             |
-| `hybrid`        | Local accounts and OpenID Connect               |
-| `oidc_enforced` | OpenID Connect only                             |
-| `disabled`      | One shared identity; isolated environments only |
+| Mode            | Best for                                   |
+| --------------- | ------------------------------------------ |
+| `local`         | ExcaliDash accounts                        |
+| `hybrid`        | Local accounts and OpenID Connect          |
+| `oidc_enforced` | OpenID Connect only                        |
+| `disabled`      | Personal use in isolated environments only |
 
 ::: danger Do not expose disabled authentication publicly
 `AUTH_MODE=disabled` gives every visitor the same identity and access.
@@ -28,10 +28,10 @@ For the default `local` mode:
 
    Find the entry labeled `BOOTSTRAP SETUP`. In local development, the code appears in the backend terminal.
 
-3. Enter the code, your account details, and a password that meets the form's requirements.
+3. Enter the code, your account details, and create a password.
 4. Select **Create account**. Use this account to manage the instance.
 
-Setup codes expire after 15 minutes by default. If a code expires, restart the backend and read the new code from its logs.
+Setup codes expire after 15 minutes by default.
 
 To add an account, open **Admin** and select **New user**. To let people register themselves, enable registration in **Admin**.
 
@@ -49,7 +49,7 @@ Select **Share** to grant access. Collaborators appear as avatars and named curs
 
 [Sample drawing credits](/images/CREDITS.txt).
 
-## Protect the instance
+## Securing your instance
 
 Before exposing ExcaliDash beyond a local machine:
 
@@ -59,4 +59,4 @@ Before exposing ExcaliDash beyond a local machine:
 - Persist the database and test a restore procedure.
 - Keep frontend and backend image tags aligned.
 
-Next: [Use your workspace](/guide/workspace) or [configure authentication](/guide/authentication).
+Next: [Configure authentication](/guide/authentication).
