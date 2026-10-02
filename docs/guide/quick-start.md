@@ -26,10 +26,6 @@ Run ExcaliDash with Docker Compose.
 3. Open `http://localhost:6767`.
 4. [Create the administrator account](/guide/first-run#create-the-administrator).
 
-::: tip Data persists between restarts
-SQLite data and generated secrets are stored in `backend-data`. The `down` command preserves this volume; adding `-v` deletes it.
-:::
-
 ## Check the services
 
 ```bash
@@ -37,12 +33,10 @@ docker compose -f docker-compose.prod.yml ps
 docker compose -f docker-compose.prod.yml logs -f
 ```
 
-Both services have health checks. Port `6767` serves the frontend and proxies backend requests.
-
 ## Stop the stack
 
 ```bash
 docker compose -f docker-compose.prod.yml down
 ```
 
-Continue with [your workspace](/guide/workspace). For a server deployment, see [Deploy with Docker Compose](/deploy/docker).
+For a server deployment, see [Deploy with Docker Compose](/deploy/docker).
