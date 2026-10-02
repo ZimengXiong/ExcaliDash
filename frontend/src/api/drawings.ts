@@ -377,11 +377,9 @@ export const getDrawingSnapshot = async (
 export const restoreDrawingSnapshot = async (
   drawingId: string,
   snapshotId: string,
-  version: number,
 ): Promise<Drawing> => {
   const response = await api.post(
     `/drawings/${drawingId}/history/${snapshotId}/restore`,
-    { version },
   );
   return deserializeDrawing(response.data);
 };
