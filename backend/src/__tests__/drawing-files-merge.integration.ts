@@ -199,7 +199,13 @@ describe("Drawing file save-merge (B2)", () => {
   it("rejects stale history restores without mutating the drawing or snapshots", async () => {
     const drawing = await createDrawing(owner.id, {}, 5);
     const snapshot = await prisma.drawingSnapshot.create({
-      data: { drawingId: drawing.id, version: 1, elements: "[]", appState: "{}", files: "{}" },
+      data: {
+        drawingId: drawing.id,
+        version: 1,
+        elements: "[]",
+        appState: "{}",
+        files: "{}",
+      },
     });
     const response = await agent
       .post(`/drawings/${drawing.id}/history/${snapshot.id}/restore`)
@@ -209,14 +215,25 @@ describe("Drawing file save-merge (B2)", () => {
       .send({ version: 4 });
     expect(response.status).toBe(409);
     expect(response.body.code).toBe("VERSION_CONFLICT");
-    expect((await prisma.drawing.findUniqueOrThrow({ where: { id: drawing.id } })).version).toBe(5);
-    expect(await prisma.drawingSnapshot.count({ where: { drawingId: drawing.id } })).toBe(1);
+    expect(
+      (await prisma.drawing.findUniqueOrThrow({ where: { id: drawing.id } }))
+        .version,
+    ).toBe(5);
+    expect(
+      await prisma.drawingSnapshot.count({ where: { drawingId: drawing.id } }),
+    ).toBe(1);
   });
 
   it("restores the matching history revision and backs up the current one atomically", async () => {
     const drawing = await createDrawing(owner.id, {}, 5);
     const snapshot = await prisma.drawingSnapshot.create({
-      data: { drawingId: drawing.id, version: 1, elements: "[]", appState: '{"viewBackgroundColor":"#abcdef"}', files: "{}" },
+      data: {
+        drawingId: drawing.id,
+        version: 1,
+        elements: "[]",
+        appState: '{"viewBackgroundColor":"#abcdef"}',
+        files: "{}",
+      },
     });
     const response = await agent
       .post(`/drawings/${drawing.id}/history/${snapshot.id}/restore`)
@@ -227,7 +244,9 @@ describe("Drawing file save-merge (B2)", () => {
     expect(response.status).toBe(200);
     expect(response.body.version).toBe(6);
     expect(response.body.appState.viewBackgroundColor).toBe("#abcdef");
-    expect(await prisma.drawingSnapshot.count({ where: { drawingId: drawing.id } })).toBe(2);
+    expect(
+      await prisma.drawingSnapshot.count({ where: { drawingId: drawing.id } }),
+    ).toBe(2);
   });
 
   it("returns 409 on a stale version and does not merge", async () => {

@@ -164,7 +164,12 @@ export const HistoryPanel: React.FC<Props> = ({
       onRestore(data);
       onClose();
     } catch (error) {
-      setRestoreError(getApiErrorMessage(error, "Unable to restore this version. Please try again."));
+      setRestoreError(
+        getApiErrorMessage(
+          error,
+          "Unable to restore this version. Please try again.",
+        ),
+      );
     } finally {
       setRestoring(false);
       setConfirmRestore(null);
@@ -290,7 +295,14 @@ export const HistoryPanel: React.FC<Props> = ({
 
         {/* Footer */}
         <div className="border-t-2 border-slate-100 px-4 py-3 dark:border-neutral-800">
-          {restoreError && <p role="alert" className="mb-2 text-sm text-rose-700 dark:text-rose-300">{restoreError}</p>}
+          {restoreError && (
+            <p
+              role="alert"
+              className="mb-2 text-sm text-rose-700 dark:text-rose-300"
+            >
+              {restoreError}
+            </p>
+          )}
           <p className="text-center text-xs font-semibold text-slate-400 dark:text-neutral-500">
             Versions are kept for 2 days
           </p>
