@@ -204,11 +204,19 @@ describe("Drawing file save-merge (B2)", () => {
     try {
       const response = await put(drawing.id, {
         version: drawing.version,
-        files: { "file-a": fileEntry("file-a", `data:image/png;base64,${Buffer.alloc(129).toString("base64")}`) },
+        files: {
+          "file-a": fileEntry(
+            "file-a",
+            `data:image/png;base64,${Buffer.alloc(129).toString("base64")}`,
+          ),
+        },
       });
       expect(response.status).toBe(413);
       expect(await readFiles(drawing.id)).toEqual({ "file-a": original });
-      expect((await prisma.drawing.findUniqueOrThrow({ where: { id: drawing.id } })).version).toBe(drawing.version);
+      expect(
+        (await prisma.drawing.findUniqueOrThrow({ where: { id: drawing.id } }))
+          .version,
+      ).toBe(drawing.version);
     } finally {
       resetSecuritySettings();
     }
@@ -219,7 +227,9 @@ describe("Drawing file save-merge (B2)", () => {
     const dataURL = `data:image/png;base64,${Buffer.alloc(128).toString("base64")}`;
     configureSecuritySettings({ maxDataUrlSize: 128 });
     try {
-      const response = await put(drawing.id, { files: { image: fileEntry("image", dataURL) } });
+      const response = await put(drawing.id, {
+        files: { image: fileEntry("image", dataURL) },
+      });
       expect(response.status).toBe(200);
       expect((await readFiles(drawing.id)).image.dataURL).toBe(dataURL);
     } finally {
