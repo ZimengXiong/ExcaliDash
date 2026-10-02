@@ -20,18 +20,43 @@
       "redirectUris": [
         "http://localhost:1002/*",
         "http://localhost:1003/*",
+        "http://localhost:1103/*",
+        "http://localhost:1104/*",
         "http://localhost:5173/*",
         "http://localhost:6767/*"
       ],
       "webOrigins": [
         "http://localhost:1002",
         "http://localhost:1003",
+        "http://localhost:1103",
+        "http://localhost:1104",
         "http://localhost:5173",
         "http://localhost:6767"
       ]
     }
   ],
+  "groups": [
+    {
+      "name": "excalidash-admins"
+    }
+  ],
   "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "admin@example.com",
+      "firstName": "Admin",
+      "lastName": "Example",
+      "groups": ["excalidash-admins"],
+      "credentials": [
+        {
+          "type": "password",
+          "value": "adminpass",
+          "temporary": false
+        }
+      ]
+    },
     {
       "username": "alice",
       "enabled": true,
@@ -39,10 +64,26 @@
       "email": "alice@example.com",
       "firstName": "Alice",
       "lastName": "Example",
+      "groups": ["excalidash-admins"],
       "credentials": [
         {
           "type": "password",
           "value": "alicepass",
+          "temporary": false
+        }
+      ]
+    },
+    {
+      "username": "bob",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "bob@example.com",
+      "firstName": "Bob",
+      "lastName": "Example",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "bobpass",
           "temporary": false
         }
       ]

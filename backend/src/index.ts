@@ -19,6 +19,8 @@ import {
   sanitizeSvg,
   elementSchema,
   appStateSchema,
+  configureSecuritySettings,
+  DrawingSanitizationError,
 } from "./security";
 import { config } from "./config";
 import { authModeService, requireAuth, optionalAuth } from "./middleware/auth";
@@ -28,7 +30,13 @@ import { logAuditEvent } from "./utils/audit";
 import { registerDashboardRoutes } from "./routes/dashboard";
 import { registerImportExportRoutes } from "./routes/importExport";
 import { registerSystemRoutes } from "./routes/system";
-import { prisma } from "./db/prisma";
+import { registerFileRoutes } from "./routes/files";
+import { registerStorageRoutes } from "./routes/storage";
+import { prisma, configureSqlite } from "./db/prisma";
+import {
+  reclaimSqliteFreeSpace,
+  waitForSqliteMaintenance,
+} from "./db/sqliteMaintenance";
 import { createDrawingsCacheStore } from "./server/drawingsCache";
 import { registerCsrfProtection } from "./server/csrf";
 import { registerSocketHandlers } from "./server/socket";
@@ -37,73 +45,106 @@ import {
   getHttpsRedirectUrl,
 } from "./server/httpsRedirectPolicy";
 import { issueBootstrapSetupCodeIfRequired } from "./auth/bootstrapSetupCode";
-
+import { internDrawingFiles as internDrawingFilesWithPrisma } from "./fileProcessing";
+import { initS3, isS3Enabled, checkBucketReachable } from "./s3";
+import { startScheduledBackups } from "./backups/scheduler";
+import { runStorageDoctor } from "./server/storageDoctor";
 const backendRoot = path.resolve(__dirname, "../");
-console.log("Resolved DATABASE_URL:", process.env.DATABASE_URL);
-
+const redactDatabaseUrl = (value: string | undefined): string => {
+  if (!value) return "<unset>";
+  if (value.startsWith("file:")) return value;
+  try {
+    const parsed = new URL(value);
+    if (parsed.username) parsed.username = "***";
+    if (parsed.password) parsed.password = "***";
+    return parsed.toString();
+  } catch {
+    return "<redacted>";
+  }
+};
+console.log("Resolved DATABASE_URL:", redactDatabaseUrl(config.databaseUrl));
+if (config.s3.bucket) {
+  initS3({
+    bucket: config.s3.bucket,
+    region: config.s3.region,
+    endpoint: config.s3.endpoint ?? undefined,
+    publicUrl: config.s3.publicUrl ?? undefined,
+    forcePathStyle: config.s3.forcePathStyle,
+    accessKeyId: config.s3.accessKeyId ?? undefined,
+    secretAccessKey: config.s3.secretAccessKey ?? undefined,
+  });
+  console.log("S3 image storage enabled", {
+    bucket: config.s3.bucket,
+    region: config.s3.region,
+  });
+}
 const normalizeOrigins = (rawOrigins?: string | null): string[] => {
   const fallback = "http://localhost:6767";
   if (!rawOrigins || rawOrigins.trim().length === 0) {
     return [fallback];
   }
-
   const ensureProtocol = (origin: string) =>
     /^https?:\/\//i.test(origin) ? origin : `http://${origin}`;
-
   const removeTrailingSlash = (origin: string) =>
     origin.endsWith("/") ? origin.slice(0, -1) : origin;
-
   const parsed = rawOrigins
     .split(",")
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0)
     .map(ensureProtocol)
     .map(removeTrailingSlash);
-
   return parsed.length > 0 ? parsed : [fallback];
 };
-
 const allowedOrigins = normalizeOrigins(config.frontendUrl);
 console.log("Allowed origins:", allowedOrigins);
-
-const isDev = (process.env.NODE_ENV || "development") !== "production";
+const isDev = !config.isProduction;
 const isLocalDevOrigin = (origin: string): boolean => {
   return (
     /^http:\/\/localhost:\d+$/i.test(origin) ||
     /^http:\/\/127\.0\.0\.1:\d+$/i.test(origin)
   );
 };
-
 const isAllowedOrigin = (origin?: string): boolean => {
-  if (!origin) return true; // non-browser clients / same-origin
+  if (!origin) return true;
   if (allowedOrigins.includes(origin)) return true;
   if (isDev && isLocalDevOrigin(origin)) return true;
   return false;
 };
-
 const uploadDir = path.resolve(__dirname, "../uploads");
-const MAX_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024;
+const MAX_UPLOAD_SIZE_BYTES = config.uploadMaxBytes;
+const BODY_LIMIT = `${config.bodyLimitMb}mb`;
+const BODY_LIMIT_BYTES = config.bodyLimitMb * 1024 * 1024;
 const MAX_PAGE_SIZE = 200;
 const MAX_IMPORT_ARCHIVE_ENTRIES = 6000;
 const MAX_IMPORT_COLLECTIONS = 1000;
 const MAX_IMPORT_DRAWINGS = 5000;
 const MAX_IMPORT_MANIFEST_BYTES = 2 * 1024 * 1024;
-const MAX_IMPORT_DRAWING_BYTES = 5 * 1024 * 1024;
 const MAX_IMPORT_TOTAL_EXTRACTED_BYTES = 120 * 1024 * 1024;
-
+const MAX_IMPORT_DRAWING_BYTES = Math.min(
+  config.uploadMaxBytes,
+  MAX_IMPORT_TOTAL_EXTRACTED_BYTES,
+);
 let cachedBackendVersion: string | null = null;
 const getBackendVersion = (): string => {
   if (cachedBackendVersion) return cachedBackendVersion;
-  try {
-    const raw = fs.readFileSync(path.resolve(backendRoot, "package.json"), "utf8");
-    const parsed = JSON.parse(raw) as { version?: string };
-    cachedBackendVersion = typeof parsed.version === "string" ? parsed.version : "unknown";
-  } catch {
-    cachedBackendVersion = "unknown";
+  const versionPaths = [
+    path.resolve(backendRoot, "VERSION"),
+    path.resolve(backendRoot, "../VERSION"),
+  ];
+  for (const versionPath of versionPaths) {
+    try {
+      const version = fs.readFileSync(versionPath, "utf8").trim();
+      if (version) {
+        cachedBackendVersion = version;
+        return cachedBackendVersion;
+      }
+    } catch {
+      // Try the next runtime layout.
+    }
   }
+  cachedBackendVersion = "unknown";
   return cachedBackendVersion;
 };
-
 const initializeUploadDir = async () => {
   try {
     await fsPromises.mkdir(uploadDir, { recursive: true });
@@ -111,38 +152,25 @@ const initializeUploadDir = async () => {
     console.error("Failed to create upload directory:", error);
   }
 };
-
 const app = express();
-
-const trustProxyConfig = (process.env.TRUST_PROXY ?? "false").trim();
-const parsedProxyHops = Number.parseInt(trustProxyConfig, 10);
-const trustProxyValue =
-  trustProxyConfig === "true"
-    ? true
-    : trustProxyConfig === "false"
-    ? false
-    : Number.isFinite(parsedProxyHops) && parsedProxyHops > 0
-    ? parsedProxyHops
-    : false;
+const trustProxyValue = config.trustProxy;
 app.set("trust proxy", trustProxyValue);
-
 if (trustProxyValue === true) {
   console.log("[config] trust proxy: enabled (handles multiple proxy layers)");
 } else {
   console.log(`[config] trust proxy: ${trustProxyValue}`);
 }
-
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
     origin: (origin, cb) => cb(null, isAllowedOrigin(origin ?? undefined)),
     credentials: true,
   },
-  maxHttpBufferSize: 50 * 1024 * 1024,
+  maxHttpBufferSize: BODY_LIMIT_BYTES,
 });
 const parseJsonField = <T>(
   rawValue: string | null | undefined,
-  fallback: T
+  fallback: T,
 ): T => {
   if (!rawValue) return fallback;
   try {
@@ -155,56 +183,36 @@ const parseJsonField = <T>(
     return fallback;
   }
 };
-
-const DRAWINGS_CACHE_TTL_MS = (() => {
-  const parsed = Number(process.env.DRAWINGS_CACHE_TTL_MS);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return 5_000;
-  }
-  return parsed;
-})();
+const DRAWINGS_CACHE_TTL_MS = config.drawingsCacheTtlMs;
 const {
   buildDrawingsCacheKey,
   getCachedDrawingsBody,
   cacheDrawingsResponse,
   invalidateDrawingsCache,
 } = createDrawingsCacheStore(DRAWINGS_CACHE_TTL_MS);
-
 const getUserTrashCollectionId = (userId: string): string => `trash:${userId}`;
-
 const ensureTrashCollection = async (
   db: Prisma.TransactionClient | PrismaClient,
-  userId: string
+  userId: string,
 ): Promise<void> => {
   const trashCollectionId = getUserTrashCollectionId(userId);
   const trashCollection = await db.collection.findFirst({
     where: { id: trashCollectionId, userId },
   });
-
   if (!trashCollection) {
     await db.collection.create({
-      data: {
-        id: trashCollectionId,
-        name: "Trash",
-        userId,
-      },
+      data: { id: trashCollectionId, name: "Trash", userId },
     });
   }
-
   await db.drawing.updateMany({
     where: { userId, collectionId: "trash" },
     data: { collectionId: trashCollectionId },
   });
 };
-
 const PORT = config.port;
-
 const upload = multer({
   dest: uploadDir,
-  limits: {
-    fileSize: MAX_UPLOAD_SIZE_BYTES,
-    files: 1,
-  },
+  limits: { fileSize: MAX_UPLOAD_SIZE_BYTES, files: 1 },
   fileFilter: (req, file, cb) => {
     if (file.fieldname === "db") {
       const isSqliteDb =
@@ -217,34 +225,28 @@ const upload = multer({
     cb(null, true);
   },
 });
-
 app.use((req, res, next) => {
   const requestId = uuidv4();
   req.headers["x-request-id"] = requestId;
   res.setHeader("X-Request-ID", requestId);
   next();
 });
-
 const shouldEnforceHttps =
   config.nodeEnv === "production" &&
   config.enforceHttpsRedirect &&
   allowedOrigins.some((origin) => origin.toLowerCase().startsWith("https://"));
-
 if (shouldEnforceHttps) {
   const httpsRedirectPolicy = createHttpsRedirectPolicy(allowedOrigins);
-
   app.use((req, res, next) => {
     const redirectUrl = getHttpsRedirectUrl(req, httpsRedirectPolicy);
     if (!redirectUrl) return next();
     return res.redirect(redirectUrl);
   });
 }
-
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
-        // Backend serves JSON APIs; keep CSP strict and avoid 'unsafe-*'.
         defaultSrc: ["'none'"],
         baseUri: ["'none'"],
         formAction: ["'none'"],
@@ -254,50 +256,44 @@ app.use(
         connectSrc: ["'self'"],
       },
     },
-    hsts: {
-      maxAge: 31536000, // 1 year
-      includeSubDomains: true,
-      preload: true,
-    },
-  })
+    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+  }),
 );
-
 app.use(
   cors({
     origin: (origin, cb) => cb(null, isAllowedOrigin(origin ?? undefined)),
     credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization", "x-csrf-token", "x-imported-file"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "x-csrf-token",
+      "x-imported-file",
+    ],
     exposedHeaders: ["x-csrf-token", "x-request-id"],
-  })
+  }),
 );
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ extended: true, limit: "50mb" }));
-
+app.use(express.json({ limit: BODY_LIMIT }));
+app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT }));
 app.use((req, res, next) => {
   const requestId = req.headers["x-request-id"] || "unknown";
   const contentLength = req.headers["content-length"];
   const userEmail = req.user?.email || "anonymous";
-  
   if (contentLength) {
     const sizeInMB = parseInt(contentLength, 10) / 1024 / 1024;
     if (sizeInMB > 10) {
       console.log(
         `[LARGE REQUEST] ${req.method} ${req.path} - ${sizeInMB.toFixed(
-          2
-        )}MB - User: ${userEmail} - RequestID: ${requestId}`
+          2,
+        )}MB - User: ${userEmail} - RequestID: ${requestId}`,
       );
     }
   }
-  
   console.log(
-    `[REQUEST] ${req.method} ${req.path} - User: ${userEmail} - IP: ${req.ip} - RequestID: ${requestId}`
+    `[REQUEST] ${req.method} ${req.path} - User: ${userEmail} - IP: ${req.ip} - RequestID: ${requestId}`,
   );
-  
   next();
 });
-
-const RATE_LIMIT_WINDOW = 15 * 60 * 1000;
-
+const RATE_LIMIT_WINDOW = config.rateLimitWindowMs;
 const generalRateLimiter = rateLimit({
   windowMs: RATE_LIMIT_WINDOW,
   max: config.rateLimitMaxRequests,
@@ -307,34 +303,26 @@ const generalRateLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: {
-    trustProxy: false,
-    xForwardedForHeader: false,
-  },
+  validate: { trustProxy: false, xForwardedForHeader: false },
 });
-
 app.use(generalRateLimiter);
-
 registerCsrfProtection({
   app,
   isAllowedOrigin,
   maxRequestsPerWindow: config.csrfMaxRequests,
-  enableDebugLogging: process.env.DEBUG_CSRF === "true",
+  rateLimitWindowMs: config.csrfRateLimitWindowMs,
+  enableDebugLogging: config.debugCsrf,
 });
-
 app.use("/auth", authRouter);
-
 const filesFieldSchema = z
   .union([z.record(z.string(), z.unknown()), z.null()])
   .optional()
   .transform((value) => (value === null ? undefined : value));
-
 const drawingBaseSchema = z.object({
   name: z.string().trim().min(1).max(255).optional(),
   collectionId: z.union([z.string().trim().min(1), z.null()]).optional(),
   preview: z.string().nullable().optional(),
 });
-
 const drawingCreateSchema = drawingBaseSchema
   .extend({
     elements: elementSchema.array().default([]),
@@ -348,40 +336,33 @@ const drawingCreateSchema = drawingBaseSchema
         Object.assign(data, sanitized);
         return true;
       } catch (error) {
+        if (error instanceof DrawingSanitizationError) throw error;
         console.error("Sanitization failed:", error);
         return false;
       }
     },
-    {
-      message: "Invalid or malicious drawing data detected",
-    }
+    { message: "Invalid or malicious drawing data detected" },
   );
-
-const drawingUpdateSchemaBase = drawingBaseSchema
-  .extend({
-    elements: elementSchema.array().optional(),
-    appState: appStateSchema.optional(),
-    files: filesFieldSchema,
-    version: z.number().int().positive().optional(),
-  });
-
-export const sanitizeDrawingUpdateData = (
-  data: {
-    elements?: unknown[];
-    appState?: Record<string, unknown>;
-    files?: Record<string, unknown>;
-    preview?: string | null;
-    name?: string;
-    collectionId?: string | null;
-  }
-): boolean => {
+const drawingUpdateSchemaBase = drawingBaseSchema.extend({
+  elements: elementSchema.array().optional(),
+  appState: appStateSchema.optional(),
+  files: filesFieldSchema,
+  version: z.number().int().positive().optional(),
+});
+export const sanitizeDrawingUpdateData = (data: {
+  elements?: unknown[];
+  appState?: Record<string, unknown>;
+  files?: Record<string, unknown>;
+  preview?: string | null;
+  name?: string;
+  collectionId?: string | null;
+}): boolean => {
   const hasSceneFields =
     data.elements !== undefined ||
     data.appState !== undefined ||
     data.files !== undefined;
   const hasPreviewField = data.preview !== undefined;
   const needsSanitization = hasSceneFields || hasPreviewField;
-
   try {
     const sanitizedData = { ...data };
     if (hasSceneFields) {
@@ -397,8 +378,10 @@ export const sanitizeDrawingUpdateData = (
         collectionId: data.collectionId,
       };
       const sanitized = sanitizeDrawingData(fullData);
-      if (data.elements !== undefined) sanitizedData.elements = sanitized.elements;
-      if (data.appState !== undefined) sanitizedData.appState = sanitized.appState;
+      if (data.elements !== undefined)
+        sanitizedData.elements = sanitized.elements;
+      if (data.appState !== undefined)
+        sanitizedData.appState = sanitized.appState;
       if (data.files !== undefined) sanitizedData.files = sanitized.files;
       if (data.preview !== undefined) sanitizedData.preview = sanitized.preview;
       Object.assign(data, sanitizedData);
@@ -410,6 +393,7 @@ export const sanitizeDrawingUpdateData = (
     }
     return true;
   } catch (error) {
+    if (error instanceof DrawingSanitizationError) throw error;
     console.error("Sanitization failed:", error);
     if (!needsSanitization) {
       return true;
@@ -417,50 +401,37 @@ export const sanitizeDrawingUpdateData = (
     return false;
   }
 };
-
 const drawingUpdateSchema = drawingUpdateSchemaBase.refine(
-    (data) => sanitizeDrawingUpdateData(data as any),
-    {
-      message: "Invalid or malicious drawing data detected",
-    }
-  );
-
+  (data) => sanitizeDrawingUpdateData(data as any),
+  { message: "Invalid or malicious drawing data detected" },
+);
 const respondWithValidationErrors = (
   res: express.Response,
-  issues: z.ZodIssue[]
+  issues: z.ZodIssue[],
 ) => {
   if (config.nodeEnv === "production") {
-    res.status(400).json({
-      error: "Validation error",
-      message: "Invalid request data",
-    });
+    res
+      .status(400)
+      .json({ error: "Validation error", message: "Invalid request data" });
   } else {
-    res.status(400).json({
-      error: "Invalid drawing payload",
-      details: issues,
-    });
+    res.status(400).json({ error: "Invalid drawing payload", details: issues });
   }
 };
-
 const collectionNameSchema = z.string().trim().min(1).max(100);
-
 const validateSqliteHeader = (filePath: string): boolean => {
   try {
     const buffer = Buffer.alloc(16);
     const fd = fs.openSync(filePath, "r");
     const bytesRead = fs.readSync(fd, buffer, 0, 16, 0);
     fs.closeSync(fd);
-
     if (bytesRead < 16) {
       console.warn("File too small to be a valid SQLite database");
       return false;
     }
-
     const expectedHeader = Buffer.from([
       0x53, 0x51, 0x4c, 0x69, 0x74, 0x65, 0x20, 0x66, 0x6f, 0x72, 0x6d, 0x61,
       0x74, 0x20, 0x33, 0x00,
     ]);
-
     const isValid = buffer.equals(expectedHeader);
     if (!isValid) {
       console.warn("Invalid SQLite file header detected", {
@@ -469,7 +440,6 @@ const validateSqliteHeader = (filePath: string): boolean => {
         expected: expectedHeader.toString("hex"),
       });
     }
-
     return isValid;
   } catch (error) {
     console.error("Failed to validate SQLite header:", error);
@@ -480,24 +450,18 @@ const verifyDatabaseIntegrityAsync = (filePath: string): Promise<boolean> => {
   if (!validateSqliteHeader(filePath)) {
     return Promise.resolve(false);
   }
-
   return new Promise((resolve) => {
     const worker = new Worker(
       path.resolve(__dirname, "./workers/db-verify.js"),
-      {
-        workerData: { filePath },
-      }
+      { workerData: { filePath } },
     );
-    let timeoutHandle: NodeJS.Timeout;
     let settled = false;
-
     const finish = (result: boolean) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeoutHandle);
       resolve(result);
     };
-
     worker.on("message", (isValid: boolean) => finish(isValid));
     worker.on("error", (err) => {
       console.error("Worker error:", err);
@@ -508,15 +472,13 @@ const verifyDatabaseIntegrityAsync = (filePath: string): Promise<boolean> => {
         finish(false);
       }
     });
-
-    timeoutHandle = setTimeout(() => {
+    const timeoutHandle = setTimeout(() => {
       console.warn("Integrity check worker timed out", { filePath });
       worker.terminate();
       finish(false);
     }, 10000);
   });
 };
-
 const removeFileIfExists = async (filePath?: string) => {
   if (!filePath) return;
   try {
@@ -528,30 +490,29 @@ const removeFileIfExists = async (filePath?: string) => {
     console.error("Failed to remove file", { filePath, error });
   }
 };
-
-registerSocketHandlers({
+const socketHandlers = registerSocketHandlers({
   io,
   prisma,
   authModeService,
   jwtSecret: config.jwtSecret,
 });
-
-app.get("/health", (req, res) => {
-  res.status(200).json({ status: "ok" });
+app.get("/health", async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.status(200).json({ status: "ok", database: "ok" });
+  } catch (error) {
+    console.error("Health check failed", error);
+    res.status(503).json({ status: "error", database: "unavailable" });
+  }
 });
-
-
 const enableOnboardingGate =
   config.authMode === "local" &&
   config.nodeEnv === "production" &&
-  process.env.DISABLE_ONBOARDING_GATE !== "true";
-
+  !config.disableOnboardingGate;
 if (enableOnboardingGate) {
   const ONBOARDING_GATE_TTL_MS = 5_000;
-  let onboardingGateCache:
-    | { required: boolean; fetchedAt: number }
-    | null = null;
-
+  let onboardingGateCache: { required: boolean; fetchedAt: number } | null =
+    null;
   const isOnboardingGateBypassPath = (reqPath: string): boolean => {
     if (reqPath === "/health") return true;
     if (reqPath === "/csrf-token") return true;
@@ -559,36 +520,33 @@ if (enableOnboardingGate) {
     if (reqPath.startsWith("/auth/")) return true;
     return false;
   };
-
   const isAuthOnboardingRequired = async (): Promise<boolean> => {
     const now = Date.now();
-    if (onboardingGateCache && now - onboardingGateCache.fetchedAt < ONBOARDING_GATE_TTL_MS) {
+    if (
+      onboardingGateCache &&
+      now - onboardingGateCache.fetchedAt < ONBOARDING_GATE_TTL_MS
+    ) {
       return onboardingGateCache.required;
     }
-
     const systemConfig = await authModeService.ensureSystemConfig();
     if (systemConfig.authEnabled || systemConfig.authOnboardingCompleted) {
       onboardingGateCache = { required: false, fetchedAt: now };
       return false;
     }
-
     const hasActiveUser = await prisma.user.findFirst({
       where: { isActive: true },
       select: { id: true },
     });
-
     const required = !hasActiveUser;
     onboardingGateCache = { required, fetchedAt: now };
     return required;
   };
-
   app.use(async (req, res, next) => {
     try {
       if (isOnboardingGateBypassPath(req.path)) return next();
       const required = await isAuthOnboardingRequired();
       if (!required) return next();
-
-      res.setHeader("Clear-Site-Data", "\"cache\"");
+      res.setHeader("Clear-Site-Data", '"cache"');
       return res.status(409).json({
         error: "Authentication onboarding required",
         code: "AUTH_ONBOARDING_REQUIRED",
@@ -602,12 +560,7 @@ if (enableOnboardingGate) {
     }
   });
 }
-
-registerSystemRoutes(app, {
-  asyncHandler,
-  getBackendVersion,
-});
-
+registerSystemRoutes(app, { asyncHandler, getBackendVersion });
 registerDashboardRoutes(app, {
   prisma,
   requireAuth,
@@ -628,8 +581,20 @@ registerDashboardRoutes(app, {
   MAX_PAGE_SIZE,
   config,
   logAuditEvent,
+  internDrawingFiles: (files, userId, drawingId) =>
+    internDrawingFilesWithPrisma(files, userId, drawingId, prisma),
+  revalidateDrawingAccess: socketHandlers.revalidateDrawingAccess,
+  io,
 });
-
+registerFileRoutes(app, { prisma, requireAuth, optionalAuth, asyncHandler });
+registerStorageRoutes(app, {
+  prisma,
+  requireAuth,
+  asyncHandler,
+  parseJsonField,
+  invalidateDrawingsCache,
+  io,
+});
 registerImportExportRoutes({
   app,
   prisma,
@@ -653,46 +618,94 @@ registerImportExportRoutes({
   MAX_IMPORT_DRAWING_BYTES,
   MAX_IMPORT_TOTAL_EXTRACTED_BYTES,
 });
-
 app.use(errorHandler);
-
 export { app, httpServer };
-
-const isMain =
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  typeof require !== "undefined" && require.main === module;
-
-// Snapshot cleanup: delete snapshots older than 2 days (runs hourly)
-const SNAPSHOT_RETENTION_MS = 2 * 24 * 60 * 60 * 1000;
-setInterval(async () => {
-  try {
-    const cutoff = new Date(Date.now() - SNAPSHOT_RETENTION_MS);
-    const result = await prisma.drawingSnapshot.deleteMany({
-      where: { createdAt: { lt: cutoff } },
-    });
-    if (result.count > 0) {
-      console.log(`[Cleanup] Deleted ${result.count} old drawing snapshots`);
-    }
-  } catch (err) {
-    console.error("[Cleanup] Snapshot cleanup failed:", err);
-  }
-}, 60 * 60 * 1000);
-
+const isMain = typeof require !== "undefined" && require.main === module;
+const SNAPSHOT_RETENTION_MS = config.snapshotRetentionMs;
 if (isMain) {
-  httpServer.listen(PORT, async () => {
-    await initializeUploadDir();
-    try {
-      await issueBootstrapSetupCodeIfRequired({
-        prisma,
-        ttlMs: config.bootstrapSetupCodeTtlMs,
-        authMode: config.authMode,
-        reason: "startup",
+  const snapshotCleanupTimer = setInterval(
+    async () => {
+      try {
+        const cutoff = new Date(Date.now() - SNAPSHOT_RETENTION_MS);
+        const result = await prisma.drawingSnapshot.deleteMany({
+          where: { createdAt: { lt: cutoff } },
+        });
+        if (result.count > 0) {
+          console.log(
+            `[Cleanup] Deleted ${result.count} old drawing snapshots`,
+          );
+        }
+        await reclaimSqliteFreeSpace(prisma, config.databaseUrl ?? "");
+      } catch (err) {
+        console.error("[Cleanup] Snapshot cleanup failed:", err);
+      }
+    },
+    60 * 60 * 1000,
+  );
+  snapshotCleanupTimer.unref();
+  let shuttingDown = false;
+  const gracefulShutdown = (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[shutdown] Received ${signal}, shutting down gracefully`);
+    clearInterval(snapshotCleanupTimer);
+    const forceExit = setTimeout(() => {
+      console.error("[shutdown] Forced exit after timeout");
+      process.exit(1);
+    }, 10000);
+    forceExit.unref();
+    /* io.close() disconnects all sockets and closes the underlying httpServer. */ io.close(
+      () => {
+        void waitForSqliteMaintenance()
+          .then(() => prisma.$disconnect())
+          .catch((err) => {
+            console.error("[shutdown] prisma disconnect failed:", err);
+          })
+          .finally(() => {
+            clearTimeout(forceExit);
+            process.exit(0);
+          });
+      },
+    );
+  };
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+  void (async () => {
+    configureSecuritySettings({ maxDataUrlSize: config.fileUploadMaxBytes });
+    await configureSqlite();
+    startScheduledBackups({
+      prisma,
+      databaseUrl: config.databaseUrl,
+      schedule: config.backups.schedule,
+      backupDir: config.backups.dir,
+      retentionDays: config.backups.retentionDays,
+    });
+    httpServer.listen(PORT, config.listenHost, async () => {
+      await initializeUploadDir();
+      if (config.authMode === "disabled") {
+        const line = "!".repeat(72);
+        console.warn(
+          `\n${line}\n! AUTH_MODE=disabled: authentication is OFF. Every request runs as a\n! single shared local user and NO login is required. Do NOT expose this\n! instance to the public internet or any untrusted network.\n${line}\n`,
+        );
+      }
+      await runStorageDoctor({
+        config,
+        isS3Enabled,
+        probeBucket: () => checkBucketReachable(),
       });
-    } catch (error) {
-      console.error("Failed to issue bootstrap setup code:", error);
-    }
-    console.log(`Server running on port ${PORT}`);
-    console.log(`Environment: ${config.nodeEnv}`);
-    console.log(`Frontend URL: ${config.frontendUrl}`);
-  });
+      try {
+        await issueBootstrapSetupCodeIfRequired({
+          prisma,
+          ttlMs: config.bootstrapSetupCodeTtlMs,
+          authMode: config.authMode,
+          reason: "startup",
+        });
+      } catch (error) {
+        console.error("Failed to issue bootstrap setup code:", error);
+      }
+      console.log(`Server running on port ${PORT}`);
+      console.log(`Environment: ${config.nodeEnv}`);
+      console.log(`Frontend URL: ${config.frontendUrl}`);
+    });
+  })();
 }

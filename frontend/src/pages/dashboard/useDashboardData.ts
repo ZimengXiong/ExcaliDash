@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import * as api from '../../api';
-import type { DrawingSortField, SortDirection } from '../../api';
-import type { Collection, DrawingSummary } from '../../types';
-import { isLatestRequest, mergeUniqueDrawings } from './pagination';
+import { useCallback, useEffect, useRef, useState } from "react";
+import * as api from "../../api";
+import type { DrawingSortField, SortDirection } from "../../api";
+import type { Collection, DrawingSummary } from "../../types";
+import { isLatestRequest, mergeUniqueDrawings } from "./pagination";
 
 type SelectedCollectionId = string | null | undefined;
 
@@ -29,6 +29,7 @@ export const useDashboardData = ({
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const listRequestVersionRef = useRef(0);
+  const nextOffsetRef = useRef(0);
 
   const hasMore = drawings.length < totalCount;
 
@@ -55,11 +56,13 @@ export const useDashboardData = ({
         drawingsPromise,
         api.getCollections(),
       ]);
-      if (!isLatestRequest(requestVersion, listRequestVersionRef.current)) return;
+      if (!isLatestRequest(requestVersion, listRequestVersionRef.current))
+        return;
 
       if (drawingsResult.status === "fulfilled") {
         setDrawings(drawingsResult.value.drawings);
         setTotalCount(drawingsResult.value.totalCount);
+        nextOffsetRef.current = drawingsResult.value.drawings.length;
         onRefreshSuccess?.();
       } else {
         console.error("Failed to fetch drawings:", drawingsResult.reason);
@@ -71,7 +74,7 @@ export const useDashboardData = ({
         console.error("Failed to fetch collections:", collectionsResult.reason);
       }
     } catch (err) {
-      console.error('Failed to fetch data:', err);
+      console.error("Failed to fetch data:", err);
     } finally {
       if (isLatestRequest(requestVersion, listRequestVersionRef.current)) {
         setIsLoading(false);
@@ -95,21 +98,23 @@ export const useDashboardData = ({
       const drawingsRes = await (isSharedView
         ? api.getSharedDrawings(debouncedSearch, {
             limit: pageSize,
-            offset: drawings.length,
+            offset: nextOffsetRef.current,
             sortField,
             sortDirection,
           })
         : api.getDrawings(debouncedSearch, selectedCollectionId, {
             limit: pageSize,
-            offset: drawings.length,
+            offset: nextOffsetRef.current,
             sortField,
             sortDirection,
           }));
-      if (!isLatestRequest(requestVersion, listRequestVersionRef.current)) return;
+      if (!isLatestRequest(requestVersion, listRequestVersionRef.current))
+        return;
       setDrawings((prev) => mergeUniqueDrawings(prev, drawingsRes.drawings));
       setTotalCount(drawingsRes.totalCount);
+      nextOffsetRef.current += drawingsRes.drawings.length;
     } catch (err) {
-      console.error('Failed to fetch more data:', err);
+      console.error("Failed to fetch more data:", err);
     } finally {
       setIsFetchingMore(false);
     }
@@ -120,7 +125,6 @@ export const useDashboardData = ({
     debouncedSearch,
     selectedCollectionId,
     pageSize,
-    drawings.length,
     sortField,
     sortDirection,
   ]);

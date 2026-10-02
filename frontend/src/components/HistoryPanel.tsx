@@ -1,10 +1,13 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, RotateCcw, Eye, Clock } from "lucide-react";
+import { X, RotateCcw, Clock, ChevronDown } from "lucide-react";
 import * as api from "../api";
+import clsx from "clsx";
 
 type Props = {
   drawingId: string;
+  anchorRef?: React.RefObject<HTMLElement>;
+  getCurrentVersion: () => number | null;
   isOpen: boolean;
   onClose: () => void;
   onRestore: (snapshot: api.DrawingSnapshotFull) => void;
@@ -12,9 +15,7 @@ type Props = {
 };
 
 function timeAgo(dateStr: string): string {
-  const seconds = Math.floor(
-    (Date.now() - new Date(dateStr).getTime()) / 1000
-  );
+  const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
   if (seconds < 60) return "just now";
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m ago`;
@@ -26,6 +27,8 @@ function timeAgo(dateStr: string): string {
 
 export const HistoryPanel: React.FC<Props> = ({
   drawingId,
+  anchorRef,
+  getCurrentVersion,
   isOpen,
   onClose,
   onRestore,
@@ -35,10 +38,21 @@ export const HistoryPanel: React.FC<Props> = ({
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
-  const [previewData, setPreviewData] = useState<api.DrawingSnapshotFull | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewData, setPreviewData] =
+    useState<api.DrawingSnapshotFull | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [confirmRestore, setConfirmRestore] = useState<string | null>(null);
+  const previewRequestSequence = useRef(0);
+  const isOpenRef = useRef(isOpen);
+  isOpenRef.current = isOpen;
+  const [position, setPosition] = useState<{
+    left?: number;
+    right?: number;
+    top: number;
+  }>({
+    right: 12,
+    top: 76,
+  });
 
   const loadHistory = useCallback(async () => {
     setLoading(true);
@@ -54,6 +68,7 @@ export const HistoryPanel: React.FC<Props> = ({
   }, [drawingId]);
 
   useEffect(() => {
+    previewRequestSequence.current += 1;
     if (isOpen) {
       loadHistory();
       setPreviewId(null);
@@ -61,28 +76,67 @@ export const HistoryPanel: React.FC<Props> = ({
       setConfirmRestore(null);
     } else {
       // Panel closed — restore current canvas
-      if (previewId) onPreview(null);
+      if (previewId) {
+        setPreviewId(null);
+        setPreviewData(null);
+        onPreview(null);
+      }
     }
+    return () => {
+      previewRequestSequence.current += 1;
+    };
   }, [isOpen, loadHistory]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const updatePosition = () => {
+      const anchor = anchorRef?.current;
+      if (!anchor) {
+        setPosition({ right: 12, top: 76 });
+        return;
+      }
+      const rect = anchor.getBoundingClientRect();
+      setPosition({
+        left: Math.max(12, Math.min(rect.left, window.innerWidth - 372)),
+        top: rect.bottom + 8,
+      });
+    };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    return () => window.removeEventListener("resize", updatePosition);
+  }, [anchorRef, isOpen]);
 
   const handlePreview = async (snapshotId: string) => {
     if (previewId === snapshotId) {
       // Toggle off — restore current canvas
+      previewRequestSequence.current += 1;
       setPreviewId(null);
       setPreviewData(null);
       onPreview(null);
       return;
     }
+    const requestSequence = ++previewRequestSequence.current;
     setPreviewId(snapshotId);
-    setPreviewLoading(true);
     try {
       const data = await api.getDrawingSnapshot(drawingId, snapshotId);
+      if (
+        !isOpenRef.current ||
+        previewRequestSequence.current !== requestSequence
+      ) {
+        return;
+      }
       setPreviewData(data);
       onPreview(data);
     } catch {
+      if (
+        !isOpenRef.current ||
+        previewRequestSequence.current !== requestSequence
+      ) {
+        return;
+      }
+      setPreviewId(null);
       setPreviewData(null);
-    } finally {
-      setPreviewLoading(false);
+      onPreview(null);
     }
   };
 
@@ -98,6 +152,10 @@ export const HistoryPanel: React.FC<Props> = ({
       if (!data || data.id !== snapshotId) {
         data = await api.getDrawingSnapshot(drawingId, snapshotId);
       }
+      const version = getCurrentVersion();
+      if (version === null) {
+        throw new Error("Drawing is still loading. Please try again.");
+      }
       await api.restoreDrawingSnapshot(drawingId, snapshotId);
       onRestore(data);
       onClose();
@@ -112,127 +170,114 @@ export const HistoryPanel: React.FC<Props> = ({
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[90] flex justify-end">
+    <>
       <div
-        className="absolute inset-0 bg-neutral-900/20 backdrop-blur-sm"
+        data-testid="history-dismiss-layer"
+        className={clsx(
+          "fixed inset-0 z-[150] bg-transparent",
+          previewData && "pointer-events-none",
+        )}
         onClick={onClose}
+        aria-hidden="true"
       />
-
-      <div className="relative w-full max-w-sm bg-white dark:bg-neutral-900 border-l-2 border-black dark:border-neutral-700 shadow-[-4px_0px_0px_0px_rgba(0,0,0,0.1)] animate-in slide-in-from-right duration-200 flex flex-col h-full">
+      <div
+        className="ui-card fixed z-[160] flex max-h-[min(32rem,calc(100vh-5.75rem))] w-[min(360px,calc(100vw-24px))] flex-col overflow-hidden animate-in fade-in slide-in-from-top-3 duration-200"
+        style={position}
+        role="dialog"
+        aria-modal="false"
+        aria-label="Version history"
+      >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-700">
-          <div className="flex items-center gap-2">
-            <Clock size={20} className="text-indigo-600 dark:text-indigo-400" />
-            <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
-              Version History
-            </h2>
-            {totalCount > 0 && (
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300">
-                {totalCount}
-              </span>
-            )}
+        <div className="flex items-center gap-3 border-b-2 border-slate-100 px-4 py-3.5 dark:border-neutral-800">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border-2 border-slate-800 bg-indigo-400 text-slate-900 dark:border-neutral-700 dark:bg-indigo-400 dark:text-black">
+            <Clock size={17} />
           </div>
+          <h2 className="text-base font-bold text-slate-900 dark:text-white">
+            Version history
+          </h2>
+          {totalCount > 0 && (
+            <span className="rounded-full border-2 border-slate-800 bg-white px-2 py-0.5 text-[11px] font-semibold dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-200">
+              {totalCount}
+            </span>
+          )}
           <button
             onClick={onClose}
-            className="p-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-lg transition-colors"
+            aria-label="Close version history"
+            className="ui-icon-button ml-auto h-8 w-8 border-transparent bg-transparent shadow-none hover:border-slate-200 dark:bg-transparent dark:hover:border-neutral-700"
           >
-            <X size={18} className="text-neutral-500" />
+            <X size={18} />
           </button>
         </div>
 
         {/* Snapshot list */}
-        <div className="flex-1 overflow-y-auto p-3">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {loading ? (
-            <div className="flex items-center justify-center py-12 text-neutral-400">
-              <span className="text-sm">Loading history...</span>
+            <div className="flex items-center justify-center py-12 text-slate-400">
+              <span className="text-sm font-semibold">Loading history…</span>
             </div>
           ) : snapshots.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-neutral-400 gap-2">
+            <div className="flex flex-col items-center justify-center gap-2 py-12 text-slate-400">
               <Clock size={32} />
-              <span className="text-sm font-medium">No history yet</span>
-              <span className="text-xs text-center">
-                Version history is created automatically when you save changes.
+              <span className="text-sm font-semibold">No history yet</span>
+              <span className="text-center text-xs font-medium">
+                Versions are saved automatically as you edit.
               </span>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="divide-y divide-slate-100 dark:divide-neutral-800">
               {snapshots.map((snap) => (
                 <div
                   key={snap.id}
-                  className={`rounded-xl border-2 transition-all duration-200 ${
-                    previewId === snap.id
-                      ? "border-indigo-400 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20"
-                      : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800"
-                  }`}
+                  onClick={() => handlePreview(snap.id)}
+                  className={clsx(
+                    "flex cursor-pointer select-none items-center justify-between gap-3 border-l-4 border-transparent px-4 py-3.5 transition-colors hover:bg-indigo-50/60 dark:hover:bg-neutral-800/40",
+                    previewId === snap.id &&
+                      "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20",
+                  )}
                 >
-                  <div className="p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-slate-900 dark:text-white">
                         Version {snap.version}
                       </span>
-                      <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 dark:bg-neutral-800 dark:text-neutral-400">
                         {timeAgo(snap.createdAt)}
                       </span>
                     </div>
-                    <div className="text-xs text-neutral-400 dark:text-neutral-500 mb-2">
+                    <div className="mt-1 text-[11px] font-medium text-slate-400 dark:text-neutral-500">
                       {new Date(snap.createdAt).toLocaleString()}
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handlePreview(snap.id)}
-                        className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 ${
-                          previewId === snap.id
-                            ? "bg-indigo-600 text-white border-indigo-600"
-                            : "bg-neutral-50 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-600"
-                        }`}
-                      >
-                        <Eye size={14} />
-                        {previewId === snap.id ? "Hide" : "Preview"}
-                      </button>
-                      <button
-                        onClick={() => handleRestore(snap.id)}
-                        disabled={restoring}
-                        className={`flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-all duration-200 ${
-                          confirmRestore === snap.id
-                            ? "bg-amber-500 text-white border-amber-500 animate-pulse"
-                            : "bg-neutral-50 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-600"
-                        } disabled:opacity-50`}
-                      >
-                        <RotateCcw size={14} />
-                        {confirmRestore === snap.id
-                          ? "Confirm?"
-                          : restoring
-                          ? "Restoring..."
-                          : "Restore"}
-                      </button>
                     </div>
                   </div>
 
-                  {/* Preview info */}
-                  {previewId === snap.id && (
-                    <div className="border-t border-neutral-200 dark:border-neutral-700 p-3">
-                      {previewLoading ? (
-                        <span className="text-xs text-neutral-400">
-                          Loading preview...
-                        </span>
-                      ) : previewData ? (
-                        <div className="text-xs text-neutral-500 dark:text-neutral-400 space-y-1">
-                          <div>
-                            <span className="font-semibold">Elements:</span>{" "}
-                            {Array.isArray(previewData.elements)
-                              ? previewData.elements.filter(
-                                  (e) => !(e as Record<string, unknown>).isDeleted
-                                ).length
-                              : 0}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-red-400">
-                          Failed to load preview
-                        </span>
-                      )}
-                    </div>
-                  )}
+                  <div
+                    className="shrink-0 flex items-center gap-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {previewId === snap.id ? (
+                      <button
+                        onClick={() => handleRestore(snap.id)}
+                        disabled={restoring}
+                        className={clsx(
+                          "ui-button-primary px-2.5 py-1 text-xs",
+                          confirmRestore === snap.id
+                            ? "bg-amber-400 text-black hover:bg-amber-300 dark:bg-amber-400 dark:text-black"
+                            : "",
+                        )}
+                      >
+                        <RotateCcw size={12} strokeWidth={2.5} />
+                        {confirmRestore === snap.id
+                          ? "Confirm?"
+                          : restoring
+                            ? "Restoring…"
+                            : "Restore"}
+                      </button>
+                    ) : (
+                      <ChevronDown
+                        size={16}
+                        className="text-slate-350 dark:text-neutral-700"
+                      />
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -240,13 +285,13 @@ export const HistoryPanel: React.FC<Props> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-3 border-t border-neutral-200 dark:border-neutral-700">
-          <p className="text-xs text-neutral-400 dark:text-neutral-500 text-center">
+        <div className="border-t-2 border-slate-100 px-4 py-3 dark:border-neutral-800">
+          <p className="text-center text-xs font-semibold text-slate-400 dark:text-neutral-500">
             Versions are kept for 2 days
           </p>
         </div>
       </div>
-    </div>,
-    document.body
+    </>,
+    document.body,
   );
 };

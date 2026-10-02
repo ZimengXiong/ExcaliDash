@@ -1,17 +1,24 @@
 import { z } from "zod";
+import {
+  buildPasswordPolicyMessage,
+  config,
+  validatePasswordAgainstPolicy,
+} from "../config";
 
-const strongPasswordMessage =
-  "Password must be at least 12 characters and include upper, lower, number, and symbol";
+const passwordPolicyMessage = () =>
+  buildPasswordPolicyMessage(config.passwordPolicy);
 
-const strongPasswordPattern =
-  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{12,100}$/;
-
-const passwordSchema = z
-  .string()
-  .min(12, { message: strongPasswordMessage })
-  .max(100, { message: "Password must be at most 100 characters long" })
-  .refine((value) => strongPasswordPattern.test(value), { message: strongPasswordMessage });
-
+const passwordSchema = z.string().superRefine((value, ctx) => {
+  const validationMessage = validatePasswordAgainstPolicy(
+    value,
+    config.passwordPolicy,
+  );
+  if (!validationMessage) return;
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    message: validationMessage,
+  });
+});
 export const registerSchema = z.object({
   username: z.string().trim().min(3).max(50).optional(),
   email: z.string().email().toLowerCase().trim(),
@@ -52,24 +59,26 @@ export const authOnboardingChoiceSchema = z.object({
   enableAuth: z.boolean(),
 });
 
-export const adminCreateUserSchema = z.object({
-  username: z.string().trim().min(3).max(50).optional(),
-  email: z.string().email().toLowerCase().trim(),
-  password: passwordSchema.optional(),
-  oidcOnly: z.boolean().optional(),
-  name: z.string().trim().min(1).max(100),
-  role: z.enum(["ADMIN", "USER"]).optional(),
-  mustResetPassword: z.boolean().optional(),
-  isActive: z.boolean().optional(),
-}).superRefine((data, ctx) => {
-  if (!data.oidcOnly && !data.password) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["password"],
-      message: strongPasswordMessage,
-    });
-  }
-});
+export const adminCreateUserSchema = z
+  .object({
+    username: z.string().trim().min(3).max(50).optional(),
+    email: z.string().email().toLowerCase().trim(),
+    password: passwordSchema.optional(),
+    oidcOnly: z.boolean().optional(),
+    name: z.string().trim().min(1).max(100),
+    role: z.enum(["ADMIN", "USER"]).optional(),
+    mustResetPassword: z.boolean().optional(),
+    isActive: z.boolean().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (!data.oidcOnly && !data.password) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["password"],
+        message: passwordPolicyMessage(),
+      });
+    }
+  });
 
 export const adminUpdateUserSchema = z.object({
   username: z.string().trim().min(3).max(50).nullable().optional(),
@@ -90,7 +99,11 @@ export const impersonateSchema = z
 
 export const loginRateLimitUpdateSchema = z.object({
   enabled: z.boolean(),
-  windowMs: z.number().int().min(10_000).max(24 * 60 * 60 * 1000),
+  windowMs: z
+    .number()
+    .int()
+    .min(10_000)
+    .max(24 * 60 * 60 * 1000),
   max: z.number().int().min(1).max(10_000),
 });
 
@@ -124,3 +137,19 @@ export const changePasswordSchema = z.object({
 export const mustResetPasswordSchema = z.object({
   newPassword: passwordSchema,
 });
+
+export const apiKeyCreateSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  scopes: z.array(z.string()).optional(),
+});
+
+export const userPreferencesSchema = z
+  .object({
+    theme: z.enum(["light", "dark"]).optional(),
+    dashboardSortField: z.enum(["name", "createdAt", "updatedAt"]).optional(),
+    dashboardSortDirection: z.enum(["asc", "desc"]).optional(),
+    language: z.string().trim().min(1).max(35).optional(),
+    gridStep: z.number().int().min(1).max(100).optional(),
+    editorAutoHide: z.boolean().optional(),
+  })
+  .strict();

@@ -1,0 +1,297 @@
+name: excalidash-lab
+
+x-backend-build: &backend-build
+  build:
+    context: .
+    dockerfile: backend/Dockerfile
+
+x-frontend-build: &frontend-build
+  build:
+    context: .
+    dockerfile: frontend/Dockerfile
+
+x-backend-common: &backend-common
+  <<: *backend-build
+  environment: &backend-common-env
+    DATABASE_URL: file:/app/prisma/dev.db
+    PORT: "8000"
+    NODE_ENV: production
+    TRUST_PROXY: "false"
+    UPDATE_CHECK_OUTBOUND: "false"
+    JWT_SECRET: lab-jwt-secret-32-chars-minimum-value
+    CSRF_SECRET: lab-csrf-secret-32-chars-minimum-value
+    BACKUP_SCHEDULE: "*/30 * * * *"
+    BACKUP_DIR: /app/backups
+    BACKUP_RETENTION_DAYS: "2"
+  restart: unless-stopped
+  healthcheck:
+    test:
+      [
+        "CMD",
+        "node",
+        "-e",
+        "require('http').get('http://127.0.0.1:8000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))",
+      ]
+    interval: 10s
+    timeout: 5s
+    retries: 12
+    start_period: 20s
+
+x-frontend-common: &frontend-common
+  <<: *frontend-build
+  restart: unless-stopped
+  healthcheck:
+    test:
+      [
+        "CMD",
+        "wget",
+        "--quiet",
+        "--tries=1",
+        "--spider",
+        "http://127.0.0.1:8080",
+      ]
+    interval: 10s
+    timeout: 5s
+    retries: 12
+    start_period: 10s
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.5
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin123!
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: "18080"
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HOSTNAME_STRICT: "false"
+    ports:
+      - "18080:8080"
+    volumes:
+      - ./local/oidc/realm-excalidash-local.json:/opt/keycloak/data/import/realm-excalidash.json:ro
+    networks:
+      - lab-oidc
+    restart: unless-stopped
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:3.85
+    command:
+      [
+        "server",
+        "-dir=/data",
+        "-master.port=9333",
+        "-volume.port=8080",
+        "-filer.port=8888",
+        "-s3",
+        "-s3.port=8333",
+      ]
+    ports:
+      - "19333:9333"
+      - "18888:8888"
+      - "18333:8333"
+    volumes:
+      - lab-seaweedfs-data:/data
+    networks:
+      - lab-storage
+    restart: unless-stopped
+
+  seaweedfs-init:
+    image: amazon/aws-cli:2.15.57
+    depends_on:
+      - seaweedfs
+    environment:
+      AWS_ACCESS_KEY_ID: lab-access-key
+      AWS_SECRET_ACCESS_KEY: lab-secret-key
+      AWS_DEFAULT_REGION: us-east-1
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "for i in $$(seq 1 60); do
+        aws --endpoint-url http://seaweedfs:8333 s3api list-buckets >/dev/null 2>&1 && break;
+        sleep 1;
+      done;
+      aws --endpoint-url http://seaweedfs:8333 s3api create-bucket --bucket excalidash-lab >/dev/null 2>&1 || true;
+      aws --endpoint-url http://seaweedfs:8333 s3api list-buckets"
+    networks:
+      - lab-storage
+    restart: "no"
+
+  backend-basic:
+    <<: *backend-common
+    environment:
+      <<: *backend-common-env
+      AUTH_MODE: local
+      FRONTEND_URL: http://localhost:1101
+    volumes:
+      - lab-backend-basic-data:/app/prisma
+      - lab-backend-basic-backups:/app/backups
+    networks:
+      - lab-basic
+
+  frontend-basic:
+    <<: *frontend-common
+    ports:
+      - "1101:80"
+    environment:
+      BACKEND_URL: backend-basic:8000
+    depends_on:
+      - backend-basic
+    networks:
+      - lab-basic
+
+  backend-basic-seaweed:
+    <<: *backend-common
+    environment:
+      <<: *backend-common-env
+      AUTH_MODE: local
+      FRONTEND_URL: http://localhost:1102
+      S3_BUCKET: excalidash-lab
+      S3_REGION: us-east-1
+      S3_ENDPOINT: http://seaweedfs:8333
+      S3_FORCE_PATH_STYLE: "true"
+      S3_PUBLIC_URL: http://localhost:18333/excalidash-lab
+      S3_KEY_PREFIX: excalidash
+      AWS_ACCESS_KEY_ID: lab-access-key
+      AWS_SECRET_ACCESS_KEY: lab-secret-key
+    volumes:
+      - lab-backend-basic-seaweed-data:/app/prisma
+      - lab-backend-basic-seaweed-backups:/app/backups
+    depends_on:
+      - seaweedfs-init
+    networks:
+      - lab-basic-seaweed
+      - lab-storage
+
+  frontend-basic-seaweed:
+    <<: *frontend-common
+    ports:
+      - "1102:80"
+    environment:
+      BACKEND_URL: backend-basic-seaweed:8000
+    depends_on:
+      - backend-basic-seaweed
+    networks:
+      - lab-basic-seaweed
+
+  backend-oidc:
+    <<: *backend-common
+    environment:
+      <<: *backend-common-env
+      NODE_ENV: development
+      AUTH_MODE: oidc_enforced
+      FRONTEND_URL: http://localhost:1103
+      OIDC_PROVIDER_NAME: Keycloak
+      OIDC_ISSUER_URL: http://localhost:18080/realms/excalidash
+      OIDC_DISCOVERY_URL: http://keycloak:8080/realms/excalidash
+      OIDC_CLIENT_ID: excalidash
+      OIDC_CLIENT_SECRET: excalidash-secret
+      OIDC_REDIRECT_URI: http://localhost:1103/api/auth/oidc/callback
+      OIDC_ADMIN_GROUPS: excalidash-admins
+      OIDC_REQUIRE_EMAIL_VERIFIED: "false"
+    volumes:
+      - lab-backend-oidc-data:/app/prisma
+      - lab-backend-oidc-backups:/app/backups
+    depends_on:
+      - keycloak
+    networks:
+      - lab-oidc-app
+      - lab-oidc
+
+  frontend-oidc:
+    <<: *frontend-common
+    ports:
+      - "1103:80"
+    environment:
+      BACKEND_URL: backend-oidc:8000
+    depends_on:
+      - backend-oidc
+    networks:
+      - lab-oidc-app
+
+  backend-hybrid:
+    <<: *backend-common
+    environment:
+      <<: *backend-common-env
+      NODE_ENV: development
+      AUTH_MODE: hybrid
+      FRONTEND_URL: http://localhost:1104
+      OIDC_PROVIDER_NAME: Keycloak
+      OIDC_ISSUER_URL: http://localhost:18080/realms/excalidash
+      OIDC_DISCOVERY_URL: http://keycloak:8080/realms/excalidash
+      OIDC_CLIENT_ID: excalidash
+      OIDC_CLIENT_SECRET: excalidash-secret
+      OIDC_REDIRECT_URI: http://localhost:1104/api/auth/oidc/callback
+      OIDC_ADMIN_GROUPS: excalidash-admins
+      OIDC_REQUIRE_EMAIL_VERIFIED: "false"
+    volumes:
+      - lab-backend-hybrid-data:/app/prisma
+      - lab-backend-hybrid-backups:/app/backups
+    depends_on:
+      - keycloak
+    networks:
+      - lab-hybrid-app
+      - lab-oidc
+
+  frontend-hybrid:
+    <<: *frontend-common
+    ports:
+      - "1104:80"
+    environment:
+      BACKEND_URL: backend-hybrid:8000
+    depends_on:
+      - backend-hybrid
+    networks:
+      - lab-hybrid-app
+
+  backend-trusted-proxy:
+    <<: *backend-common
+    environment:
+      <<: *backend-common-env
+      AUTH_MODE: local
+      FRONTEND_URL: http://localhost:1105
+      TRUST_PROXY: "true"
+    volumes:
+      - lab-backend-trusted-proxy-data:/app/prisma
+      - lab-backend-trusted-proxy-backups:/app/backups
+    networks:
+      - lab-trusted-proxy
+
+  frontend-trusted-proxy:
+    <<: *frontend-common
+    ports:
+      - "1105:80"
+    environment:
+      BACKEND_URL: backend-trusted-proxy:8000
+    depends_on:
+      - backend-trusted-proxy
+    networks:
+      - lab-trusted-proxy
+
+networks:
+  lab-basic:
+    driver: bridge
+  lab-basic-seaweed:
+    driver: bridge
+  lab-storage:
+    driver: bridge
+  lab-oidc:
+    driver: bridge
+  lab-oidc-app:
+    driver: bridge
+  lab-hybrid-app:
+    driver: bridge
+  lab-trusted-proxy:
+    driver: bridge
+
+volumes:
+  lab-backend-basic-data:
+  lab-backend-basic-backups:
+  lab-backend-basic-seaweed-data:
+  lab-backend-basic-seaweed-backups:
+  lab-backend-oidc-data:
+  lab-backend-oidc-backups:
+  lab-backend-hybrid-data:
+  lab-backend-hybrid-backups:
+  lab-backend-trusted-proxy-data:
+  lab-backend-trusted-proxy-backups:
+  lab-seaweedfs-data:

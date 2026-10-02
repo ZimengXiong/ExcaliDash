@@ -1,24 +1,36 @@
 import { PrismaClient } from "../generated/client";
 import { getEffectiveRegistrationEnabled } from "./accessPolicy";
 
-type AuthMode = "local" | "hybrid" | "oidc_enforced";
+type AuthMode = "local" | "hybrid" | "oidc_enforced" | "disabled";
 
-type AuthUser = {
-  id: string;
-  username?: string | null;
-  email: string;
-  name: string;
-  role?: string;
-  mustResetPassword?: boolean;
-  impersonatorId?: string;
-} | null | undefined;
+type PasswordPolicyPayload = {
+  minLength: number;
+  maxLength: number;
+  requireUppercase: boolean;
+  requireLowercase: boolean;
+  requireNumber: boolean;
+  requireSymbol: boolean;
+};
+
+type AuthUser =
+  | {
+      id: string;
+      username?: string | null;
+      email: string;
+      name: string;
+      role?: string;
+      mustResetPassword?: boolean;
+      impersonatorId?: string;
+    }
+  | null
+  | undefined;
 
 export const getAuthOnboardingStatus = async (
   prisma: PrismaClient,
   systemConfig: {
     authEnabled: boolean;
     authOnboardingCompleted: boolean;
-  }
+  },
 ) => {
   const [activeUsers, drawingsCount, collectionsCount] = await Promise.all([
     prisma.user.count({ where: { isActive: true } }),
@@ -41,7 +53,7 @@ export const getAuthOnboardingStatus = async (
 
 export const ensureBootstrapUserExists = async (
   prisma: PrismaClient,
-  bootstrapUserId: string
+  bootstrapUserId: string,
 ): Promise<void> => {
   const bootstrap = await prisma.user.findUnique({
     where: { id: bootstrapUserId },
@@ -71,6 +83,7 @@ export const buildAuthStatusPayload = ({
   oidcJitProvisioningEnabled,
   onboarding,
   bootstrapRequired,
+  passwordPolicy,
   user,
 }: {
   authMode: AuthMode;
@@ -89,9 +102,11 @@ export const buildAuthStatusPayload = ({
     mode: "migration" | "fresh";
   };
   bootstrapRequired: boolean;
+  passwordPolicy: PasswordPolicyPayload;
   user: AuthUser;
 }) => {
-  const onboardingRequired = authMode === "local" ? onboarding.needsChoice : false;
+  const onboardingRequired =
+    authMode === "local" ? onboarding.needsChoice : false;
   const onboardingMode = authMode === "local" ? onboarding.mode : null;
   const exposedUser = effectiveAuthEnabled ? user : null;
 
@@ -105,12 +120,16 @@ export const buildAuthStatusPayload = ({
     oidcProvider: oidc.providerName,
     oidcJitProvisioningEnabled,
     registrationEnabled: effectiveAuthEnabled
-      ? getEffectiveRegistrationEnabled(authMode, systemConfig.registrationEnabled)
+      ? getEffectiveRegistrationEnabled(
+          authMode,
+          systemConfig.registrationEnabled,
+        )
       : false,
     bootstrapRequired: effectiveAuthEnabled ? bootstrapRequired : false,
     authOnboardingRequired: onboardingRequired,
     authOnboardingMode: onboardingMode,
     authOnboardingRecommended: onboardingRequired ? "enable" : null,
+    passwordPolicy,
     user: exposedUser
       ? {
           id: exposedUser.id,
@@ -160,5 +179,9 @@ export const getBootstrapRequired = ({
   bootstrapUser: { isActive: boolean } | null;
   activeUsers: number;
 }) =>
-  Boolean(authEnabled && !oidcEnforced && bootstrapUser && bootstrapUser.isActive === false) &&
-  activeUsers === 0;
+  Boolean(
+    authEnabled &&
+    !oidcEnforced &&
+    bootstrapUser &&
+    bootstrapUser.isActive === false,
+  ) && activeUsers === 0;

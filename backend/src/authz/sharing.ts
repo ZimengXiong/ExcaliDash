@@ -7,109 +7,18 @@ export type DrawingAccess = "none" | DrawingPermission | "owner";
 
 export type DrawingPrincipal = { kind: "user"; userId: string };
 
-export const normalizeDrawingPermission = (input: unknown): DrawingPermission | null => {
+export const normalizeDrawingPermission = (
+  input: unknown,
+): DrawingPermission | null => {
   if (input === "view" || input === "edit") return input;
   return null;
 };
 
-export const buildShareLinkToken = (): string => crypto.randomBytes(24).toString("base64url");
+export const buildShareLinkToken = (): string =>
+  crypto.randomBytes(24).toString("base64url");
 
-export const hashShareLinkToken = (token: string): string => hashTokenForStorage(token);
-
-const normalizePassphraseForHash = (value: string): string =>
-  value.trim().toLowerCase().replace(/\s+/g, " ");
-
-const SCRYPT_PREFIX = "scrypt";
-const DEFAULT_SCRYPT_N = 16384;
-const DEFAULT_SCRYPT_R = 8;
-const DEFAULT_SCRYPT_P = 1;
-const DEFAULT_SCRYPT_KEYLEN = 32;
-const DEFAULT_SCRYPT_SALT_BYTES = 16;
-const DEFAULT_SCRYPT_MAXMEM = 64 * 1024 * 1024;
-
-export const hashPassphrase = (value: string, pepper: string): string => {
-  const normalized = normalizePassphraseForHash(value);
-  const salt = crypto.randomBytes(DEFAULT_SCRYPT_SALT_BYTES);
-  const key = crypto.scryptSync(
-    `${pepper}|${normalized}`,
-    salt,
-    DEFAULT_SCRYPT_KEYLEN,
-    {
-      cost: DEFAULT_SCRYPT_N,
-      blockSize: DEFAULT_SCRYPT_R,
-      parallelization: DEFAULT_SCRYPT_P,
-      maxmem: DEFAULT_SCRYPT_MAXMEM,
-    }
-  );
-  return [
-    SCRYPT_PREFIX,
-    String(DEFAULT_SCRYPT_N),
-    String(DEFAULT_SCRYPT_R),
-    String(DEFAULT_SCRYPT_P),
-    salt.toString("base64url"),
-    key.toString("base64url"),
-  ].join("$");
-};
-
-export const verifyPassphraseHash = (
-  provided: string,
-  expected: string,
-  pepper: string
-): boolean => {
-  const normalized = normalizePassphraseForHash(provided);
-  const expectedText = (expected || "").trim();
-
-  // New format: scrypt$N$r$p$salt$hash
-  if (expectedText.startsWith(`${SCRYPT_PREFIX}$`)) {
-    const parts = expectedText.split("$");
-    if (parts.length !== 6) return false;
-    const n = Number(parts[1]);
-    const r = Number(parts[2]);
-    const p = Number(parts[3]);
-    const saltB64 = parts[4] || "";
-    const hashB64 = parts[5] || "";
-    if (!Number.isFinite(n) || n <= 0) return false;
-    if (!Number.isFinite(r) || r <= 0) return false;
-    if (!Number.isFinite(p) || p <= 0) return false;
-    if (!saltB64 || !hashB64) return false;
-
-    let salt: Buffer;
-    let expectedKey: Buffer;
-    try {
-      salt = Buffer.from(saltB64, "base64url");
-      expectedKey = Buffer.from(hashB64, "base64url");
-    } catch {
-      return false;
-    }
-    if (salt.length < 8) return false;
-    if (expectedKey.length < 16) return false;
-
-    const actualKey = crypto.scryptSync(
-      `${pepper}|${normalized}`,
-      salt,
-      expectedKey.length,
-      {
-        cost: n,
-        blockSize: r,
-        parallelization: p,
-        maxmem: DEFAULT_SCRYPT_MAXMEM,
-      }
-    );
-    if (actualKey.length !== expectedKey.length) return false;
-    return crypto.timingSafeEqual(actualKey, expectedKey);
-  }
-
-  // Legacy format: sha256 hex of `${pepper}|${normalized}` (no salt).
-  if (/^[0-9a-f]{64}$/i.test(expectedText)) {
-    const legacyHash = crypto.createHash("sha256").update(`${pepper}|${normalized}`, "utf8").digest("hex");
-    const expectedBuf = Buffer.from(expectedText, "hex");
-    const actualBuf = Buffer.from(legacyHash, "hex");
-    if (expectedBuf.length !== actualBuf.length) return false;
-    return crypto.timingSafeEqual(expectedBuf, actualBuf);
-  }
-
-  return false;
-};
+export const hashShareLinkToken = (token: string): string =>
+  hashTokenForStorage(token);
 
 export const getDrawingAccess = async (params: {
   prisma: PrismaClient;
@@ -125,7 +34,7 @@ export const getDrawingAccess = async (params: {
   if (params.principal?.kind === "user") {
     const drawing = await params.prisma.drawing.findUnique({
       where: { id: params.drawingId },
-      select: { userId: true },
+      select: { userId: true, collectionId: true },
     });
     if (!drawing) return "none";
     if (drawing.userId === params.principal.userId) return "owner";
@@ -140,6 +49,32 @@ export const getDrawingAccess = async (params: {
       select: { permission: true },
     });
     baseAccess = normalizeDrawingPermission(perm?.permission) ?? baseAccess;
+
+    // A drawing inherits the strongest access available from its collection.
+    // This matters when a direct drawing grant is weaker than the collection grant.
+    if (drawing.collectionId) {
+      const ownedCollection = await params.prisma.collection.findFirst({
+        where: {
+          id: drawing.collectionId,
+          userId: params.principal.userId,
+        },
+        select: { id: true },
+      });
+      if (ownedCollection) {
+        baseAccess = "owner";
+      } else {
+        const collectionShare = await params.prisma.collectionShare.findFirst({
+          where: {
+            collectionId: drawing.collectionId,
+            granteeUserId: params.principal.userId,
+          },
+          select: { role: true },
+        });
+        const collectionAccess =
+          normalizeDrawingPermission(collectionShare?.role) ?? "none";
+        baseAccess = maxAccess(baseAccess, collectionAccess);
+      }
+    }
   }
 
   // Google Docs-style link policy: applies regardless of whether the visitor is signed in.
@@ -155,15 +90,16 @@ export const getDrawingAccess = async (params: {
 };
 
 export const canViewDrawing = (
-  access: DrawingAccess
+  access: DrawingAccess,
 ): access is Exclude<DrawingAccess, "none"> => access !== "none";
 
 export const canEditDrawing = (
-  access: DrawingAccess
+  access: DrawingAccess,
 ): access is Extract<DrawingAccess, "edit" | "owner"> =>
   access === "edit" || access === "owner";
 
-export const isOwnerAccess = (access: DrawingAccess): boolean => access === "owner";
+export const isOwnerAccess = (access: DrawingAccess): boolean =>
+  access === "owner";
 
 const getActiveLinkShareAccess = async (params: {
   prisma: PrismaClient;

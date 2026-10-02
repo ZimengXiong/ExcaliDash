@@ -3,7 +3,7 @@ import crypto from "crypto";
 import jwt, { SignOptions } from "jsonwebtoken";
 import ms, { type StringValue } from "ms";
 import { Prisma, PrismaClient } from "./generated/client";
-import { config } from "./config";
+import { config, authModeEnablesAuth } from "./config";
 import {
   requireAuth as defaultRequireAuth,
   optionalAuth as defaultOptionalAuth,
@@ -17,6 +17,7 @@ import {
 } from "./security";
 import rateLimit, { MemoryStore } from "express-rate-limit";
 import { registerAccountRoutes } from "./auth/accountRoutes";
+import { createMailerFromConfig } from "./mail/resendMailer";
 import { registerAdminRoutes } from "./auth/adminRoutes";
 import { registerCoreRoutes } from "./auth/coreRoutes";
 import { registerOidcRoutes } from "./auth/oidcRoutes";
@@ -34,7 +35,7 @@ import {
   setAccessTokenCookie,
   setAuthCookies,
 } from "./auth/cookies";
-
+import { isNonBrowserApiKeyBearerRequest } from "./auth/apiKeys";
 interface JwtPayload {
   userId: string;
   email: string;
@@ -43,10 +44,8 @@ interface JwtPayload {
   authProvider?: "local" | "oidc";
   oidcGroups?: string[];
 }
-
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === "string");
-
 const isJwtPayload = (decoded: unknown): decoded is JwtPayload => {
   if (typeof decoded !== "object" || decoded === null) {
     return false;
@@ -57,7 +56,8 @@ const isJwtPayload = (decoded: unknown): decoded is JwtPayload => {
     payload.authProvider === "local" ||
     payload.authProvider === "oidc";
   const oidcGroupsOk =
-    typeof payload.oidcGroups === "undefined" || isStringArray(payload.oidcGroups);
+    typeof payload.oidcGroups === "undefined" ||
+    isStringArray(payload.oidcGroups);
   return (
     typeof payload.userId === "string" &&
     typeof payload.email === "string" &&
@@ -66,29 +66,23 @@ const isJwtPayload = (decoded: unknown): decoded is JwtPayload => {
     oidcGroupsOk
   );
 };
-
 const normalizeOrigins = (rawOrigins?: string): string[] => {
   const fallback = "http://localhost:6767";
   if (!rawOrigins || rawOrigins.trim().length === 0) {
     return [fallback];
   }
-
   const ensureProtocol = (origin: string) =>
     /^https?:\/\//i.test(origin) ? origin : `http://${origin}`;
-
   const removeTrailingSlash = (origin: string) =>
     origin.endsWith("/") ? origin.slice(0, -1) : origin;
-
   const parsed = rawOrigins
     .split(",")
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0)
     .map(ensureProtocol)
     .map(removeTrailingSlash);
-
   return parsed.length > 0 ? parsed : [fallback];
 };
-
 const allowedOrigins = normalizeOrigins(config.frontendUrl);
 const isDev = config.nodeEnv !== "production";
 const isLocalDevOrigin = (origin: string): boolean => {
@@ -97,60 +91,54 @@ const isLocalDevOrigin = (origin: string): boolean => {
     /^http:\/\/127\.0\.0\.1:\d+$/i.test(origin)
   );
 };
-
 const isAllowedAuthOrigin = (origin?: string): boolean => {
   if (!origin) return true;
   if (allowedOrigins.includes(origin)) return true;
   if (isDev && isLocalDevOrigin(origin)) return true;
   return false;
 };
-
 type CreateAuthRouterDeps = {
   prisma: PrismaClient;
   requireAuth: express.RequestHandler;
   optionalAuth: express.RequestHandler;
   authModeService: AuthModeService;
 };
-
-export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => {
+const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => {
   const { prisma, requireAuth, optionalAuth, authModeService } = deps;
   const router = express.Router();
-
   const ensureSystemConfig = authModeService.ensureSystemConfig;
-
   const ensureAuthEnabled = async (res: Response): Promise<boolean> => {
     const systemConfig = await ensureSystemConfig();
     const authEnabled =
-      config.authMode !== "local" ? true : systemConfig.authEnabled;
+      config.authMode !== "local"
+        ? authModeEnablesAuth(config.authMode)
+        : systemConfig.authEnabled;
     if (!authEnabled) {
-      res.status(404).json({
-        error: "Not found",
-        message: "Authentication is disabled",
-      });
+      res
+        .status(404)
+        .json({ error: "Not found", message: "Authentication is disabled" });
       return false;
     }
     return true;
   };
-
   type LoginRateLimitConfig = {
     enabled: boolean;
     windowMs: number;
     max: number;
   };
-
   const DEFAULT_LOGIN_RATE_LIMIT: LoginRateLimitConfig = {
     enabled: true,
     windowMs: 15 * 60 * 1000,
     max: 20,
   };
-
-  let loginRateLimitConfig: LoginRateLimitConfig = { ...DEFAULT_LOGIN_RATE_LIMIT };
+  let loginRateLimitConfig: LoginRateLimitConfig = {
+    ...DEFAULT_LOGIN_RATE_LIMIT,
+  };
   let loginAttemptLimiter: ReturnType<typeof rateLimit> | null = null;
   let loginLimiterInitPromise: Promise<void> | null = null;
   let loginIdentifierKeyIndex = new Map<string, Set<string>>();
-
   const parseLoginRateLimitConfig = (
-    systemConfig: Awaited<ReturnType<typeof ensureSystemConfig>>
+    systemConfig: Awaited<ReturnType<typeof ensureSystemConfig>>,
   ): LoginRateLimitConfig => {
     const enabled =
       typeof systemConfig.authLoginRateLimitEnabled === "boolean"
@@ -168,7 +156,6 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
         : DEFAULT_LOGIN_RATE_LIMIT.max;
     return { enabled, windowMs, max };
   };
-
   const resolveAuthIdentifier = (req: Request): string | null => {
     const body = (req.body || {}) as Record<string, unknown>;
     const raw =
@@ -180,19 +167,23 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
     const trimmed = raw.trim().toLowerCase();
     return trimmed.length > 0 ? trimmed.slice(0, 255) : null;
   };
-
   const resolveRateLimitIp = (req: Request): string =>
     (req.ip || req.connection.remoteAddress || "unknown").slice(0, 255);
-
-  const trackIdentifierRateLimitKey = (identifier: string, key: string): void => {
-    if (!loginIdentifierKeyIndex.has(identifier) && loginIdentifierKeyIndex.size >= 5000) {
+  const trackIdentifierRateLimitKey = (
+    identifier: string,
+    key: string,
+  ): void => {
+    if (
+      !loginIdentifierKeyIndex.has(identifier) &&
+      loginIdentifierKeyIndex.size >= 5000
+    ) {
       const oldestIdentifier = loginIdentifierKeyIndex.keys().next().value;
       if (typeof oldestIdentifier === "string") {
         loginIdentifierKeyIndex.delete(oldestIdentifier);
       }
     }
-
-    const existing = loginIdentifierKeyIndex.get(identifier) ?? new Set<string>();
+    const existing =
+      loginIdentifierKeyIndex.get(identifier) ?? new Set<string>();
     if (existing.size >= 50) {
       const oldestKey = existing.values().next().value;
       if (typeof oldestKey === "string") {
@@ -202,7 +193,6 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
     existing.add(key);
     loginIdentifierKeyIndex.set(identifier, existing);
   };
-
   const buildLoginAttemptLimiter = (cfg: LoginRateLimitConfig) => {
     const store = new MemoryStore();
     loginIdentifierKeyIndex = new Map<string, Set<string>>();
@@ -215,10 +205,7 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
       },
       standardHeaders: true,
       legacyHeaders: false,
-      validate: {
-        trustProxy: false,
-        xForwardedForHeader: false,
-      },
+      validate: { trustProxy: false, xForwardedForHeader: false },
       store,
       keyGenerator: (req) => {
         const identifier = resolveAuthIdentifier(req as Request);
@@ -231,16 +218,13 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
         return `login-ip:${ip}`;
       },
     });
-
     loginAttemptLimiter = limiter;
   };
-
   const initLoginAttemptLimiter = async () => {
     const systemConfig = await ensureSystemConfig();
     loginRateLimitConfig = parseLoginRateLimitConfig(systemConfig);
     buildLoginAttemptLimiter(loginRateLimitConfig);
   };
-
   const ensureLoginAttemptLimiter = async () => {
     if (loginAttemptLimiter) return;
     if (!loginLimiterInitPromise) {
@@ -250,20 +234,20 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
     }
     await loginLimiterInitPromise;
   };
-
   const applyLoginRateLimitConfig = (
     systemConfig: Pick<
       Awaited<ReturnType<typeof ensureSystemConfig>>,
-      "authLoginRateLimitEnabled" | "authLoginRateLimitWindowMs" | "authLoginRateLimitMax"
-    >
+      | "authLoginRateLimitEnabled"
+      | "authLoginRateLimitWindowMs"
+      | "authLoginRateLimitMax"
+    >,
   ): LoginRateLimitConfig => {
     loginRateLimitConfig = parseLoginRateLimitConfig(
-      systemConfig as Awaited<ReturnType<typeof ensureSystemConfig>>
+      systemConfig as Awaited<ReturnType<typeof ensureSystemConfig>>,
     );
     buildLoginAttemptLimiter(loginRateLimitConfig);
     return loginRateLimitConfig;
   };
-
   const resetLoginAttemptKey = async (identifier: string): Promise<void> => {
     await ensureLoginAttemptLimiter();
     const normalizedIdentifier = identifier.trim().toLowerCase();
@@ -278,22 +262,24 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
       }
       loginIdentifierKeyIndex.delete(normalizedIdentifier);
     } catch (error) {
-      if (process.env.NODE_ENV === "development") {
+      if (config.isDev) {
         console.debug("Rate limit reset skipped:", error);
       }
     }
   };
-
   const loginAttemptRateLimiter = async (
     req: Request,
     res: Response,
-    next: express.NextFunction
+    next: express.NextFunction,
   ) => {
     await ensureLoginAttemptLimiter();
     if (!loginRateLimitConfig.enabled) return next();
-    return (loginAttemptLimiter as ReturnType<typeof rateLimit>)(req, res, next);
+    return (loginAttemptLimiter as ReturnType<typeof rateLimit>)(
+      req,
+      res,
+      next,
+    );
   };
-
   const accountActionRateLimiter = rateLimit({
     windowMs: 5 * 60 * 1000,
     max: 60,
@@ -303,56 +289,51 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
     },
     standardHeaders: true,
     legacyHeaders: false,
-    validate: {
-      trustProxy: false,
-      xForwardedForHeader: false,
-    },
+    validate: { trustProxy: false, xForwardedForHeader: false },
   });
-
   const generateTempPassword = (): string => {
     const buf = crypto.randomBytes(18);
     return buf.toString("base64").replace(/[+/=]/g, "").slice(0, 24);
   };
-
   const findUserByIdentifier = async (identifier: string) => {
     const trimmed = identifier.trim();
     if (trimmed.length === 0) return null;
-
     const looksLikeEmail = trimmed.includes("@");
     if (looksLikeEmail) {
       return prisma.user.findUnique({
         where: { email: trimmed.toLowerCase() },
       });
     }
-
     return prisma.user.findFirst({
-      where: {
-        OR: [{ username: trimmed }, { email: trimmed.toLowerCase() }],
-      },
+      where: { OR: [{ username: trimmed }, { email: trimmed.toLowerCase() }] },
     });
   };
-
   const requireAdmin = (
     req: Request,
-    res: Response
+    res: Response,
   ): req is Request & { user: NonNullable<Request["user"]> } => {
     if (!req.user) {
-      res.status(401).json({ error: "Unauthorized", message: "User not authenticated" });
+      res
+        .status(401)
+        .json({ error: "Unauthorized", message: "User not authenticated" });
       return false;
     }
     if (req.user.role !== "ADMIN") {
-      res.status(403).json({ error: "Forbidden", message: "Admin access required" });
+      res
+        .status(403)
+        .json({ error: "Forbidden", message: "Admin access required" });
       return false;
     }
     return true;
   };
-
   const requireCsrf = (req: Request, res: Response): boolean => {
+    if (isNonBrowserApiKeyBearerRequest(req)) {
+      return true;
+    }
     const origin = req.headers["origin"];
     const referer = req.headers["referer"];
     const originValue = Array.isArray(origin) ? origin[0] : origin;
     const refererValue = Array.isArray(referer) ? referer[0] : referer;
-
     if (originValue) {
       if (!isAllowedAuthOrigin(originValue)) {
         res.status(403).json({
@@ -371,11 +352,9 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
         return false;
       }
     }
-
     const headerName = getCsrfTokenHeader();
     const tokenHeader = req.headers[headerName];
     const token = Array.isArray(tokenHeader) ? tokenHeader[0] : tokenHeader;
-
     if (!token) {
       res.status(403).json({
         error: "CSRF token missing",
@@ -383,9 +362,10 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
       });
       return false;
     }
-
     const clientIds = getCsrfValidationClientIds(req);
-    const isValidToken = clientIds.some((clientId) => validateCsrfToken(clientId, token));
+    const isValidToken = clientIds.some((clientId) =>
+      validateCsrfToken(clientId, token),
+    );
     if (!isValidToken) {
       res.status(403).json({
         error: "CSRF token invalid",
@@ -393,16 +373,11 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
       });
       return false;
     }
-
     return true;
   };
-
   const countActiveAdmins = async () => {
-    return prisma.user.count({
-      where: { role: "ADMIN", isActive: true },
-    });
+    return prisma.user.count({ where: { role: "ADMIN", isActive: true } });
   };
-
   const generateTokens = (
     userId: string,
     email: string,
@@ -410,7 +385,7 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
       impersonatorId?: string;
       authProvider?: "local" | "oidc";
       oidcGroups?: string[];
-    }
+    },
   ) => {
     const authProvider = options?.authProvider ?? "local";
     const sanitizedOidcGroups =
@@ -419,11 +394,10 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
             new Set(
               (options?.oidcGroups ?? [])
                 .map((group) => group.trim())
-                .filter((group) => group.length > 0)
-            )
+                .filter((group) => group.length > 0),
+            ),
           ).slice(0, 100)
         : undefined;
-
     const tokenPayload = {
       userId,
       email,
@@ -431,7 +405,6 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
       authProvider,
       oidcGroups: sanitizedOidcGroups,
     };
-
     const signOptions: SignOptions = {
       expiresIn: config.jwtAccessExpiresIn as StringValue,
       jwtid: crypto.randomUUID(),
@@ -439,9 +412,8 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
     const accessToken = jwt.sign(
       { ...tokenPayload, type: "access" },
       config.jwtSecret,
-      signOptions
+      signOptions,
     );
-
     const refreshSignOptions: SignOptions = {
       expiresIn: config.jwtRefreshExpiresIn as StringValue,
       jwtid: crypto.randomUUID(),
@@ -449,35 +421,30 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
     const refreshToken = jwt.sign(
       { ...tokenPayload, type: "refresh" },
       config.jwtSecret,
-      refreshSignOptions
+      refreshSignOptions,
     );
-
     return { accessToken, refreshToken };
   };
-
   const resolveExpiresAt = (expiresIn: string, fallbackMs: number): Date => {
     const parsed = ms(expiresIn as StringValue);
-    const ttlMs = typeof parsed === "number" && parsed > 0 ? parsed : fallbackMs;
+    const ttlMs =
+      typeof parsed === "number" && parsed > 0 ? parsed : fallbackMs;
     return new Date(Date.now() + ttlMs);
   };
-
   const isMissingRefreshTokenTableError = (error: unknown): boolean => {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === "P2021") {
+      if ((error as { code?: string }).code === "P2021") {
         return true;
       }
     }
-
     const message =
       typeof error === "object" && error && "message" in error
         ? String((error as any).message)
         : "";
     return /no such table:\s*RefreshToken/i.test(message);
   };
-
   const getRefreshTokenExpiresAt = (): Date =>
     resolveExpiresAt(config.jwtRefreshExpiresIn, 7 * 24 * 60 * 60 * 1000);
-
   registerOidcRoutes({
     router,
     prisma,
@@ -490,7 +457,7 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
     isMissingRefreshTokenTableError,
     config,
   });
-
+  const mailer = createMailerFromConfig(config.mail);
   registerCoreRoutes({
     router,
     prisma,
@@ -513,9 +480,9 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
     setAuthCookies,
     setAccessTokenCookie,
     clearAuthCookies,
-    readRefreshTokenFromRequest: (req) => readCookie(req, REFRESH_TOKEN_COOKIE_NAME),
+    readRefreshTokenFromRequest: (req) =>
+      readCookie(req, REFRESH_TOKEN_COOKIE_NAME),
   });
-
   registerAdminRoutes({
     router,
     prisma,
@@ -538,8 +505,8 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
     setAuthCookies,
     requireCsrf,
   });
-
   registerAccountRoutes({
+    mailer,
     router,
     prisma,
     requireAuth,
@@ -553,15 +520,12 @@ export const createAuthRouter = (deps: CreateAuthRouterDeps): express.Router => 
     setAuthCookies,
     requireCsrf,
   });
-
   return router;
 };
-
 const authRouter = createAuthRouter({
   prisma: defaultPrisma,
   requireAuth: defaultRequireAuth,
   optionalAuth: defaultOptionalAuth,
   authModeService: defaultAuthModeService,
 });
-
 export default authRouter;

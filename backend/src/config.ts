@@ -4,31 +4,102 @@
 import dotenv from "dotenv";
 import crypto from "crypto";
 import path from "path";
+import {
+  type PasswordPolicyConfig,
+  buildPasswordPolicyMessage,
+  resolvePasswordPolicyConfig,
+  validatePasswordAgainstPolicy,
+} from "./config/passwordPolicy";
+import { validateProductionConfig } from "./config/production";
+import {
+  resolveFileUploadMaxMb,
+  validateS3Configuration,
+} from "./config/storageValidation";
+import {
+  readBoolean,
+  readCsv,
+  readNumber,
+  readOptionalString,
+  readRaw,
+  readString,
+} from "./config/env";
+import {
+  type LinkShareConfig,
+  type UpdateCheckConfig,
+  parseDrawingsCacheTtlMs,
+  parseTrustProxy,
+  resolveLinkShareConfig,
+  resolveUpdateCheckConfig,
+} from "./config/derived";
+import { type MailConfig, resolveMailConfig } from "./config/mail";
+
+export { buildPasswordPolicyMessage, validatePasswordAgainstPolicy };
 
 dotenv.config();
 
+interface S3Config {
+  bucket: string | null;
+  region: string;
+  endpoint: string | null;
+  publicUrl: string | null;
+  forcePathStyle: boolean;
+  keyPrefix: string;
+  accessKeyId: string | null;
+  secretAccessKey: string | null;
+}
+
+interface BackupConfig {
+  schedule: string | null;
+  dir: string;
+  retentionDays: number;
+}
+
 interface Config {
   port: number;
+  listenHost: string;
   nodeEnv: string;
+  isDev: boolean;
+  isProduction: boolean;
   databaseUrl?: string;
   frontendUrl?: string;
+  trustProxy: boolean | number;
+  drawingsCacheTtlMs: number;
   authMode: AuthMode;
   jwtSecret: string;
   jwtAccessExpiresIn: string;
   jwtRefreshExpiresIn: string;
   rateLimitMaxRequests: number;
+  rateLimitWindowMs: number;
   csrfMaxRequests: number;
+  csrfRateLimitWindowMs: number;
+  snapshotRetentionMs: number;
+  uploadMaxBytes: number;
+  bodyLimitMb: number;
+  fileUploadMaxMb: number;
+  fileUploadMaxBytes: number;
   csrfSecret: string | null;
+  debugCsrf: boolean;
+  apiKeyHashPepper: string;
   oidc: OidcConfig;
   enablePasswordReset: boolean;
   enableRefreshTokenRotation: boolean;
   enableAuditLogging: boolean;
   enforceHttpsRedirect: boolean;
+  disableOnboardingGate: boolean;
   bootstrapSetupCodeTtlMs: number;
   bootstrapSetupCodeMaxAttempts: number;
+  passwordPolicy: PasswordPolicyConfig;
+  backups: BackupConfig;
+  s3: S3Config;
+  linkShare: LinkShareConfig;
+  updateCheck: UpdateCheckConfig;
+  mail: MailConfig;
 }
 
-export type AuthMode = "local" | "hybrid" | "oidc_enforced";
+export type AuthMode = "local" | "hybrid" | "oidc_enforced" | "disabled";
+// True only for env-enforced (OIDC-backed) modes; `local` uses the runtime toggle, `disabled` turns auth off.
+export const authModeEnablesAuth = (mode: AuthMode): boolean =>
+  mode === "hybrid" || mode === "oidc_enforced";
 
 interface OidcConfig {
   enabled: boolean;
@@ -41,10 +112,7 @@ interface OidcConfig {
   redirectUri: string | null;
   idTokenSignedResponseAlg: string | null;
   tokenEndpointAuthMethod:
-    | "none"
-    | "client_secret_basic"
-    | "client_secret_post"
-    | null;
+    "none" | "client_secret_basic" | "client_secret_post" | null;
   scopes: string;
   emailClaim: string;
   emailVerifiedClaim: string;
@@ -71,19 +139,8 @@ const ALLOWED_OIDC_ID_TOKEN_ALGS = new Set([
   "HS512",
 ]);
 
-const getOptionalEnv = (key: string, defaultValue: string): string => {
-  return process.env[key] || defaultValue;
-};
-
-const getOptionalTrimmedEnv = (key: string): string | null => {
-  const raw = process.env[key];
-  if (!raw) return null;
-  const trimmed = raw.trim();
-  return trimmed.length > 0 ? trimmed : null;
-};
-
 const getOptionalOidcSigningAlg = (key: string): string | null => {
-  const raw = process.env[key];
+  const raw = readRaw(key);
   if (!raw) return null;
   const normalized = raw.trim();
 
@@ -92,7 +149,7 @@ const getOptionalOidcSigningAlg = (key: string): string | null => {
   }
   if (!ALLOWED_OIDC_ID_TOKEN_ALGS.has(normalized)) {
     throw new Error(
-      `${key} must be one of: ${Array.from(ALLOWED_OIDC_ID_TOKEN_ALGS).join(", ")}`
+      `${key} must be one of: ${Array.from(ALLOWED_OIDC_ID_TOKEN_ALGS).join(", ")}`,
     );
   }
 
@@ -102,7 +159,7 @@ const getOptionalOidcSigningAlg = (key: string): string | null => {
 const getOptionalOidcTokenEndpointAuthMethod = (
   key: string,
 ): "none" | "client_secret_basic" | "client_secret_post" | null => {
-  const raw = process.env[key];
+  const raw = readRaw(key);
   if (!raw) return null;
   const normalized = raw.trim().toLowerCase();
   if (normalized.length === 0) return null;
@@ -118,17 +175,8 @@ const getOptionalOidcTokenEndpointAuthMethod = (
   );
 };
 
-const parseCsvEnvList = (key: string): string[] => {
-  const raw = process.env[key];
-  if (!raw) return [];
-  return raw
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0);
-};
-
 const resolveJwtSecret = (nodeEnv: string): string => {
-  const provided = process.env.JWT_SECRET;
+  const provided = readRaw("JWT_SECRET");
   if (provided && provided.trim().length > 0) {
     return provided;
   }
@@ -184,46 +232,29 @@ const resolveDatabaseUrl = (rawUrl?: string) => {
 
 process.env.DATABASE_URL = resolveDatabaseUrl(process.env.DATABASE_URL);
 
-const getOptionalBoolean = (key: string, defaultValue: boolean): boolean => {
-  const value = process.env[key];
-  if (!value) return defaultValue;
-  return value.toLowerCase() === "true" || value === "1";
-};
-
-const getRequiredEnvNumber = (key: string, defaultValue: number): number => {
-  const value = process.env[key];
-  if (!value) return defaultValue;
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error(
-      `Invalid value for environment variable ${key}: must be a positive number`,
-    );
-  }
-  return parsed;
-};
-
 const parseAuthMode = (rawValue: string | undefined): AuthMode => {
   const normalized = (rawValue || "local").trim().toLowerCase();
   if (
     normalized === "local" ||
     normalized === "hybrid" ||
-    normalized === "oidc_enforced"
+    normalized === "oidc_enforced" ||
+    normalized === "disabled"
   ) {
     return normalized;
   }
   throw new Error(
-    "Invalid AUTH_MODE. Expected one of: local, hybrid, oidc_enforced",
+    "Invalid AUTH_MODE. Expected one of: local, hybrid, oidc_enforced, disabled",
   );
 };
 
 const resolveOidcConfig = (authMode: AuthMode): OidcConfig => {
-  const issuerUrl = getOptionalTrimmedEnv("OIDC_ISSUER_URL");
-  const discoveryUrl = getOptionalTrimmedEnv("OIDC_DISCOVERY_URL");
-  const clientId = getOptionalTrimmedEnv("OIDC_CLIENT_ID");
-  const clientSecret = getOptionalTrimmedEnv("OIDC_CLIENT_SECRET");
-  const redirectUri = getOptionalTrimmedEnv("OIDC_REDIRECT_URI");
-  const groupsClaim = getOptionalEnv("OIDC_GROUPS_CLAIM", "groups").trim();
-  const adminGroups = parseCsvEnvList("OIDC_ADMIN_GROUPS");
+  const issuerUrl = readOptionalString("OIDC_ISSUER_URL");
+  const discoveryUrl = readOptionalString("OIDC_DISCOVERY_URL");
+  const clientId = readOptionalString("OIDC_CLIENT_ID");
+  const clientSecret = readOptionalString("OIDC_CLIENT_SECRET");
+  const redirectUri = readOptionalString("OIDC_REDIRECT_URI");
+  const groupsClaim = readString("OIDC_GROUPS_CLAIM", "groups").trim();
+  const adminGroups = readCsv("OIDC_ADMIN_GROUPS");
   const requiredWhenEnabled = {
     OIDC_ISSUER_URL: issuerUrl,
     OIDC_CLIENT_ID: clientId,
@@ -236,7 +267,7 @@ const resolveOidcConfig = (authMode: AuthMode): OidcConfig => {
     );
   }
 
-  const enabled = authMode !== "local";
+  const enabled = authModeEnablesAuth(authMode);
   const missingRequired = Object.entries(requiredWhenEnabled)
     .filter(([, value]) => !value)
     .map(([key]) => key);
@@ -252,7 +283,7 @@ const resolveOidcConfig = (authMode: AuthMode): OidcConfig => {
       adminGroups.length > 0;
     if (hasOidcVars) {
       console.warn(
-        "[config] AUTH_MODE=local; ignoring OIDC_* provider settings.",
+        `[config] AUTH_MODE=${authMode}; ignoring OIDC_* provider settings.`,
       );
     }
   }
@@ -263,16 +294,21 @@ const resolveOidcConfig = (authMode: AuthMode): OidcConfig => {
   const tokenEndpointAuthMethod = enabled
     ? getOptionalOidcTokenEndpointAuthMethod("OIDC_TOKEN_ENDPOINT_AUTH_METHOD")
     : null;
-  if (enabled && idTokenSignedResponseAlg && /^HS/i.test(idTokenSignedResponseAlg) && !clientSecret) {
+  if (
+    enabled &&
+    idTokenSignedResponseAlg &&
+    /^HS/i.test(idTokenSignedResponseAlg) &&
+    !clientSecret
+  ) {
     throw new Error(
-      "OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG using HS* requires OIDC_CLIENT_SECRET for a confidential client"
+      "OIDC_ID_TOKEN_SIGNED_RESPONSE_ALG using HS* requires OIDC_CLIENT_SECRET for a confidential client",
     );
   }
 
   return {
     enabled,
     enforced: authMode === "oidc_enforced",
-    providerName: getOptionalEnv("OIDC_PROVIDER_NAME", "OIDC"),
+    providerName: readString("OIDC_PROVIDER_NAME", "OIDC"),
     issuerUrl,
     discoveryUrl,
     clientId,
@@ -280,79 +316,97 @@ const resolveOidcConfig = (authMode: AuthMode): OidcConfig => {
     redirectUri,
     idTokenSignedResponseAlg,
     tokenEndpointAuthMethod,
-    scopes: getOptionalEnv("OIDC_SCOPES", "openid profile email"),
-    emailClaim: getOptionalEnv("OIDC_EMAIL_CLAIM", "email"),
-    emailVerifiedClaim: getOptionalEnv(
+    scopes: readString("OIDC_SCOPES", "openid profile email"),
+    emailClaim: readString("OIDC_EMAIL_CLAIM", "email"),
+    emailVerifiedClaim: readString(
       "OIDC_EMAIL_VERIFIED_CLAIM",
       "email_verified",
     ),
     groupsClaim,
     adminGroups,
-    requireEmailVerified: getOptionalBoolean(
-      "OIDC_REQUIRE_EMAIL_VERIFIED",
-      true,
-    ),
-    jitProvisioning: getOptionalBoolean("OIDC_JIT_PROVISIONING", true),
-    firstUserAdmin: getOptionalBoolean("OIDC_FIRST_USER_ADMIN", true),
+    requireEmailVerified: readBoolean("OIDC_REQUIRE_EMAIL_VERIFIED", true),
+    jitProvisioning: readBoolean("OIDC_JIT_PROVISIONING", true),
+    firstUserAdmin: readBoolean("OIDC_FIRST_USER_ADMIN", true),
   };
 };
 
-const resolvedAuthMode = parseAuthMode(process.env.AUTH_MODE);
+const resolveBackupConfig = (): BackupConfig => {
+  const backupDir =
+    readOptionalString("BACKUP_DIR") || path.resolve(__dirname, "../backups");
+  return {
+    schedule: readOptionalString("BACKUP_SCHEDULE"),
+    dir: backupDir,
+    retentionDays: readNumber("BACKUP_RETENTION_DAYS", 14),
+  };
+};
+
+const resolvedAuthMode = parseAuthMode(readRaw("AUTH_MODE"));
+const resolvedNodeEnv = readString("NODE_ENV", "development");
+validateS3Configuration();
+const fileUploadMaxMb = resolveFileUploadMaxMb();
+
+const resolveS3Config = (): S3Config => ({
+  bucket: readOptionalString("S3_BUCKET"),
+  region: readString("S3_REGION", "us-east-1"),
+  endpoint: readOptionalString("S3_ENDPOINT"),
+  publicUrl: readOptionalString("S3_PUBLIC_URL"),
+  forcePathStyle:
+    readString("S3_FORCE_PATH_STYLE", "false").toLowerCase() === "true",
+  keyPrefix: readRaw("S3_KEY_PREFIX")?.replace(/\/+$/, "") || "excalidash",
+  accessKeyId: readOptionalString("AWS_ACCESS_KEY_ID"),
+  secretAccessKey: readOptionalString("AWS_SECRET_ACCESS_KEY"),
+});
 
 export const config: Config = {
-  port: getRequiredEnvNumber("PORT", 8000),
-  nodeEnv: getOptionalEnv("NODE_ENV", "development"),
+  port: readNumber("PORT", 8000),
+  listenHost: readString("BACKEND_HOST", "0.0.0.0"),
+  nodeEnv: resolvedNodeEnv,
+  isDev: resolvedNodeEnv === "development",
+  isProduction: resolvedNodeEnv === "production",
   databaseUrl: process.env.DATABASE_URL,
-  frontendUrl: parseFrontendUrl(process.env.FRONTEND_URL),
+  frontendUrl: parseFrontendUrl(readRaw("FRONTEND_URL")),
+  trustProxy: parseTrustProxy(),
+  drawingsCacheTtlMs: parseDrawingsCacheTtlMs(),
   authMode: resolvedAuthMode,
-  jwtSecret: resolveJwtSecret(getOptionalEnv("NODE_ENV", "development")),
-  jwtAccessExpiresIn: getOptionalEnv("JWT_ACCESS_EXPIRES_IN", "15m"),
-  jwtRefreshExpiresIn: getOptionalEnv("JWT_REFRESH_EXPIRES_IN", "7d"),
-  rateLimitMaxRequests: getRequiredEnvNumber("RATE_LIMIT_MAX_REQUESTS", 1000),
-  csrfMaxRequests: getRequiredEnvNumber("CSRF_MAX_REQUESTS", 60),
-  csrfSecret: process.env.CSRF_SECRET || null,
+  jwtSecret: resolveJwtSecret(resolvedNodeEnv),
+  jwtAccessExpiresIn: readString("JWT_ACCESS_EXPIRES_IN", "15m"),
+  jwtRefreshExpiresIn: readString("JWT_REFRESH_EXPIRES_IN", "7d"),
+  rateLimitMaxRequests: readNumber("RATE_LIMIT_MAX_REQUESTS", 1000),
+  rateLimitWindowMs: readNumber("RATE_LIMIT_WINDOW_MS", 900000),
+  csrfMaxRequests: readNumber("CSRF_MAX_REQUESTS", 60),
+  csrfRateLimitWindowMs: readNumber("CSRF_RATE_LIMIT_WINDOW_MS", 60000),
+  snapshotRetentionMs:
+    readNumber("SNAPSHOT_RETENTION_DAYS", 2) * 24 * 60 * 60 * 1000,
+  uploadMaxBytes: readNumber("UPLOAD_MAX_MB", 100) * 1024 * 1024,
+  bodyLimitMb: readNumber("BODY_LIMIT_MB", 50),
+  fileUploadMaxMb,
+  fileUploadMaxBytes: fileUploadMaxMb * 1024 * 1024,
+  csrfSecret: readRaw("CSRF_SECRET") || null,
+  debugCsrf: readRaw("DEBUG_CSRF") === "true",
+  apiKeyHashPepper: readRaw("API_KEY_HASH_PEPPER") || "api-key-hash-pepper",
   oidc: resolveOidcConfig(resolvedAuthMode),
-  enablePasswordReset: getOptionalBoolean("ENABLE_PASSWORD_RESET", false),
-  enableRefreshTokenRotation: getOptionalBoolean(
+  enablePasswordReset: readBoolean("ENABLE_PASSWORD_RESET", false),
+  enableRefreshTokenRotation: readBoolean(
     "ENABLE_REFRESH_TOKEN_ROTATION",
     true,
   ),
-  enableAuditLogging: getOptionalBoolean("ENABLE_AUDIT_LOGGING", false),
-  enforceHttpsRedirect: getOptionalBoolean("ENFORCE_HTTPS_REDIRECT", true),
-  bootstrapSetupCodeTtlMs: getRequiredEnvNumber(
-    "BOOTSTRAP_SETUP_CODE_TTL_MS",
-    15 * 60 * 1000,
-  ),
-  bootstrapSetupCodeMaxAttempts: getRequiredEnvNumber(
+  enableAuditLogging: readBoolean("ENABLE_AUDIT_LOGGING", false),
+  enforceHttpsRedirect: readBoolean("ENFORCE_HTTPS_REDIRECT", true),
+  disableOnboardingGate: readRaw("DISABLE_ONBOARDING_GATE") === "true",
+  bootstrapSetupCodeTtlMs: readNumber("BOOTSTRAP_SETUP_CODE_TTL_MS", 900000),
+  bootstrapSetupCodeMaxAttempts: readNumber(
     "BOOTSTRAP_SETUP_CODE_MAX_ATTEMPTS",
     10,
   ),
+  passwordPolicy: resolvePasswordPolicyConfig(),
+  backups: resolveBackupConfig(),
+  s3: resolveS3Config(),
+  linkShare: resolveLinkShareConfig(),
+  updateCheck: resolveUpdateCheckConfig(),
+  mail: resolveMailConfig(),
 };
-
 if (config.nodeEnv === "production") {
-  const normalizedSecret = config.jwtSecret.trim();
-  const insecureJwtSecretPlaceholders = new Set([
-    "your-secret-key-change-in-production",
-    "change-this-secret-in-production-min-32-chars",
-  ]);
-
-  if (config.jwtSecret.length < 32) {
-    throw new Error(
-      "JWT_SECRET must be at least 32 characters long in production",
-    );
-  }
-  if (insecureJwtSecretPlaceholders.has(normalizedSecret)) {
-    throw new Error(
-      "JWT_SECRET must be changed from placeholder/default value in production",
-    );
-  }
-  if (
-    config.oidc.enabled &&
-    config.oidc.redirectUri &&
-    !/^https:\/\//i.test(config.oidc.redirectUri)
-  ) {
-    throw new Error("OIDC_REDIRECT_URI must be HTTPS in production");
-  }
+  validateProductionConfig(config);
 }
 
 console.log("Configuration validated successfully");

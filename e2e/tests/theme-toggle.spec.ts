@@ -1,8 +1,27 @@
 import { test, expect } from "@playwright/test";
 
+const themeToggle = (page: import("@playwright/test").Page) =>
+  page.getByRole("switch", { name: "Toggle dark mode" });
+
+const ensureDarkTheme = async (page: import("@playwright/test").Page) => {
+  const html = page.locator("html");
+  if (!(await html.evaluate((el) => el.classList.contains("dark")))) {
+    await themeToggle(page).click();
+    await expect(html).toHaveClass(/dark/);
+  }
+};
+
+const ensureLightTheme = async (page: import("@playwright/test").Page) => {
+  const html = page.locator("html");
+  if (await html.evaluate((el) => el.classList.contains("dark"))) {
+    await themeToggle(page).click();
+    await expect(html).not.toHaveClass(/dark/);
+  }
+};
+
 /**
  * E2E Tests for Theme Toggle functionality
- * 
+ *
  * Tests the dark/light theme feature:
  * - Toggle theme via Settings page
  * - Theme persists across page reloads
@@ -14,11 +33,13 @@ test.describe("Theme Toggle", () => {
     await page.goto("/settings");
     await page.waitForLoadState("networkidle");
 
-    const themeButton = page.getByRole("button", { name: /Dark Mode|Light Mode/i });
+    const themeButton = themeToggle(page);
     await expect(themeButton).toBeVisible();
 
     const html = page.locator("html");
-    const initialDark = await html.evaluate((el) => el.classList.contains("dark"));
+    const initialDark = await html.evaluate((el) =>
+      el.classList.contains("dark"),
+    );
 
     await themeButton.click();
     await page.waitForTimeout(500);
@@ -26,11 +47,10 @@ test.describe("Theme Toggle", () => {
     const newDark = await html.evaluate((el) => el.classList.contains("dark"));
     expect(newDark).toBe(!initialDark);
 
-    if (initialDark) {
-      await expect(themeButton).toContainText("Dark Mode");
-    } else {
-      await expect(themeButton).toContainText("Light Mode");
-    }
+    await expect(themeButton).toHaveAttribute(
+      "aria-checked",
+      String(!initialDark),
+    );
   });
 
   test("should persist theme across page navigation", async ({ page }) => {
@@ -38,15 +58,7 @@ test.describe("Theme Toggle", () => {
     await page.waitForLoadState("networkidle");
 
     const html = page.locator("html");
-    const themeButton = page.getByRole("button", { name: /Dark Mode|Light Mode/i });
-    
-    const isDark = await html.evaluate((el) => el.classList.contains("dark"));
-    if (!isDark) {
-      await themeButton.click();
-      await page.waitForTimeout(500);
-    }
-
-    await expect(html).toHaveClass(/dark/);
+    await ensureDarkTheme(page);
 
     await page.goto("/");
     await page.waitForLoadState("networkidle");
@@ -57,11 +69,7 @@ test.describe("Theme Toggle", () => {
     await page.waitForLoadState("networkidle");
 
     await expect(html).toHaveClass(/dark/);
-
-    const lightButton = page.getByRole("button", { name: /Light Mode/i });
-    if (await lightButton.isVisible()) {
-      await lightButton.click();
-    }
+    await ensureLightTheme(page);
   });
 
   test("should persist theme across page reload", async ({ page }) => {
@@ -69,13 +77,7 @@ test.describe("Theme Toggle", () => {
     await page.waitForLoadState("networkidle");
 
     const html = page.locator("html");
-    const themeButton = page.getByRole("button", { name: /Dark Mode|Light Mode/i });
-
-    const initialDark = await html.evaluate((el) => el.classList.contains("dark"));
-    if (!initialDark) {
-      await themeButton.click();
-      await page.waitForTimeout(500);
-    }
+    await ensureDarkTheme(page);
 
     await page.reload();
     await page.waitForLoadState("networkidle");
@@ -87,14 +89,7 @@ test.describe("Theme Toggle", () => {
     await page.goto("/settings");
     await page.waitForLoadState("networkidle");
 
-    const html = page.locator("html");
-    const themeButton = page.getByRole("button", { name: /Dark Mode|Light Mode/i });
-
-    const isDark = await html.evaluate((el) => el.classList.contains("dark"));
-    if (!isDark) {
-      await themeButton.click();
-      await page.waitForTimeout(500);
-    }
+    await ensureDarkTheme(page);
 
     await page.goto("/");
     await page.waitForLoadState("networkidle");
@@ -112,13 +107,7 @@ test.describe("Theme Toggle", () => {
     await page.waitForLoadState("networkidle");
 
     const html = page.locator("html");
-    const themeButton = page.getByRole("button", { name: /Dark Mode|Light Mode/i });
-
-    const isDark = await html.evaluate((el) => el.classList.contains("dark"));
-    if (isDark) {
-      await themeButton.click();
-      await page.waitForTimeout(500);
-    }
+    await ensureLightTheme(page);
 
     await page.goto("/");
     await page.waitForLoadState("networkidle");

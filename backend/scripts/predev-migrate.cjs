@@ -1,7 +1,6 @@
-/* eslint-disable no-console */
-const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const { runPrisma } = require("./provider-prisma.cjs");
 
 const backendRoot = path.resolve(__dirname, "..");
 
@@ -24,7 +23,10 @@ const resolveDatabaseUrl = (rawUrl) => {
 
   const absolutePath = path.isAbsolute(filePath)
     ? filePath
-    : path.resolve(hasLeadingPrismaDir ? backendRoot : prismaDir, normalizedRelative);
+    : path.resolve(
+        hasLeadingPrismaDir ? backendRoot : prismaDir,
+        normalizedRelative,
+      );
 
   return `file:${absolutePath}`;
 };
@@ -34,10 +36,9 @@ process.env.DATABASE_URL = databaseUrl;
 
 const nodeEnv = process.env.NODE_ENV || "development";
 
-const runCapture = (cmd) => {
+const runCapture = (args) => {
   try {
-    const stdout = execSync(cmd, {
-      cwd: backendRoot,
+    const stdout = runPrisma(args, {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, DATABASE_URL: databaseUrl },
@@ -61,9 +62,8 @@ const runCapture = (cmd) => {
   }
 };
 
-const run = (cmd) => {
-  execSync(cmd, {
-    cwd: backendRoot,
+const run = (args) => {
+  runPrisma(args, {
     stdio: "inherit",
     env: { ...process.env, DATABASE_URL: databaseUrl },
   });
@@ -118,14 +118,16 @@ const forceSingleUserDevMode = async () => {
       },
     });
 
-    console.log("[predev] Forced local development into single-user mode (no login required).");
+    console.log(
+      "[predev] Forced local development into single-user mode (no login required).",
+    );
   } finally {
     await prisma.$disconnect();
   }
 };
 
 const main = async () => {
-  const deploy = runCapture("npx prisma migrate deploy");
+  const deploy = runCapture(["migrate", "deploy"]);
   if (deploy.ok) {
     if (deploy.stdout) process.stdout.write(deploy.stdout);
   } else {
@@ -144,7 +146,7 @@ const main = async () => {
           `  If you need to preserve local data, restore the backup and baseline manually.`,
       );
 
-      run("npx prisma migrate reset --force --skip-seed");
+      run(["migrate", "reset", "--force", "--skip-seed"]);
     } else {
       throw deploy.error;
     }

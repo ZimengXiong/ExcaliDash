@@ -1,25 +1,21 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "0.5.0",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "npm@10.9.2",
   "scripts": {
     "dev": "node scripts/copy-excalidraw-assets.mjs --public && vite --port 6767",
     "build": "tsc -b && vite build && node scripts/copy-excalidraw-assets.mjs --dist",
-    "lint": "eslint .",
-    "preview": "vite preview",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "lint": "eslint . --max-warnings 0",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "@dnd-kit/core": "^6.3.1",
-    "@dnd-kit/utilities": "^3.2.2",
     "@excalidraw/excalidraw": "^0.18.1",
     "@types/lodash": "^4.17.20",
-    "axios": "^1.15.0",
+    "axios": "^1.20.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "jszip": "^3.10.1",
@@ -27,17 +23,12 @@
     "lucide-react": "^0.554.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^7.12.0",
+    "react-router-dom": "^7.17.0",
     "socket.io-client": "^4.8.1",
-    "sonner": "^2.0.7",
-    "tailwind-merge": "^3.4.0"
+    "sonner": "^2.0.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
-    "@playwright/test": "^1.57.0",
-    "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.0",
-    "@types/jsdom": "^27.0.0",
     "@types/node": "^24.10.0",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.1",
@@ -47,13 +38,20 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
-    "happy-dom": "^20.8.9",
-    "jsdom": "^27.2.0",
     "postcss": "^8.5.10",
     "tailwindcss": "^3.4.1",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.3",
-    "vite": "^7.3.2",
-    "vitest": "^4.0.15"
+    "vite": "^7.3.2"
+  },
+  "overrides": {
+    "@excalidraw/excalidraw": {
+      "nanoid": "3.3.18"
+    },
+    "@excalidraw/mermaid-to-excalidraw": {
+      "nanoid": "5.1.16",
+      "@mermaid-js/parser": "1.2.1"
+    },
+    "lodash-es": "4.18.1"
   }
 }
