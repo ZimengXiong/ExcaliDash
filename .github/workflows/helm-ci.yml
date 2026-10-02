@@ -1,0 +1,108 @@
+name: Helm Chart CI
+
+on:
+  push:
+    branches: [main]
+    paths: ['charts/**', '.github/workflows/helm-*.yml']
+  pull_request:
+    branches: [main]
+    paths: ['charts/**', '.github/workflows/helm-*.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  lint-template:
+    name: Lint and Template
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+
+      - name: Install kubeconform
+        run: |
+          KC_VERSION=v0.6.7
+          KC_SHA256=95f14e87aa28c09d5941f11bd024c1d02fdc0303ccaa23f61cef67bc92619d73
+          curl -fsSL -o kubeconform.tgz "https://github.com/yannh/kubeconform/releases/download/${KC_VERSION}/kubeconform-linux-amd64.tar.gz"
+          echo "${KC_SHA256}  kubeconform.tgz" | sha256sum -c -
+          tar xzf kubeconform.tgz kubeconform
+          sudo mv kubeconform /usr/local/bin/
+
+      - name: Helm lint
+        run: helm lint charts/excalidash -f charts/excalidash/ci/default-values.yaml
+
+      - name: Template and validate every ci scenario
+        run: |
+          for f in charts/excalidash/ci/*-values.yaml; do
+            echo "== $f"
+            helm template ci charts/excalidash -f "$f" | kubeconform -strict -summary -ignore-missing-schemas
+          done
+
+      - name: Bundled PostgreSQL is skipped when an external database is set
+        run: |
+          out=$(helm template ci charts/excalidash -f charts/excalidash/ci/postgres-external-values.yaml)
+          if echo "$out" | grep -q "kind: StatefulSet"; then
+            echo "bundled postgres rendered despite external database"; exit 1
+          fi
+          echo "$out" | grep -q "name: DATABASE_URL"
+
+      - name: No PostgreSQL objects by default
+        run: |
+          if helm template ci charts/excalidash -f charts/excalidash/ci/default-values.yaml | grep -q "kind: StatefulSet"; then
+            echo "unexpected StatefulSet"; exit 1
+          fi
+
+      - name: Rendering is deterministic (no generated secrets)
+        run: |
+          f=charts/excalidash/ci/postgres-bundled-values.yaml
+          diff <(helm template ci charts/excalidash -f "$f") <(helm template ci charts/excalidash -f "$f")
+
+      - name: Invalid configurations are rejected
+        run: charts/excalidash/ci/negative-tests.sh
+
+  install:
+    name: Install on kind
+    runs-on: ubuntu-latest
+    needs: lint-template
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+
+      - uses: helm/kind-action@v1
+
+      - name: Install (SQLite, default values)
+        run: |
+          helm install ci charts/excalidash -f charts/excalidash/ci/default-values.yaml --wait --timeout 8m
+          helm test ci --timeout 2m
+
+      - name: Diagnostics
+        if: failure()
+        run: |
+          kubectl get all,pvc
+          kubectl logs deploy/ci-excalidash-backend --tail=200 || true
+
+  install-bundled-postgres:
+    name: Install bundled PostgreSQL
+    runs-on: ubuntu-latest
+    needs: lint-template
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+
+      - uses: helm/kind-action@v1
+
+      - name: Install with bundled PostgreSQL
+        run: |
+          helm install ci charts/excalidash -f charts/excalidash/ci/postgres-bundled-values.yaml --wait --timeout 10m
+          helm test ci --timeout 2m
+          kubectl logs deploy/ci-excalidash-backend | grep -i postgresql
+
+      - name: Diagnostics
+        if: failure()
+        run: |
+          kubectl get all,pvc
+          kubectl logs deploy/ci-excalidash-backend --tail=200 || true
+          kubectl logs sts/ci-postgresql --tail=100 || true

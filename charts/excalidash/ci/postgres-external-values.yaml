@@ -1,0 +1,10 @@
+secrets:
+  jwtSecret: ci-jwt-secret-0123456789abcdef0123456789abcdef
+  csrfSecret: ci-csrf-secret-0123456789abcdef
+  apiKeyHashPepper: ci-pepper-0123456789abcdef0123456789
+# postgresql.enabled is left on on purpose: external DB must win and suppress the bundled one.
+postgresql:
+  enabled: true
+global:
+  externalDatabase:
+    url: postgresql://user:pass@db.example.com:5432/excalidash

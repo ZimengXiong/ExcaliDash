@@ -1,0 +1,102 @@
+name: Release Helm Chart
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      chart_version:
+        description: Chart version (semver, no leading v)
+        required: true
+      app_version:
+        description: Upstream image tag to deploy (defaults to chart_version)
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  UPSTREAM_BACKEND: zimengxiong/excalidash-backend
+  UPSTREAM_FRONTEND: zimengxiong/excalidash-frontend
+
+jobs:
+  release:
+    name: Package and push chart
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+
+      - name: Resolve versions
+        id: v
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_CHART_VERSION: ${{ inputs.chart_version }}
+          INPUT_APP_VERSION: ${{ inputs.app_version }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            CHART_VERSION="$INPUT_CHART_VERSION"
+            APP_VERSION="$INPUT_APP_VERSION"
+          else
+            CHART_VERSION="${GITHUB_REF_NAME#v}"
+            APP_VERSION="$CHART_VERSION"
+          fi
+          APP_VERSION="${APP_VERSION:-$CHART_VERSION}"
+          semver='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'
+          for v in "$CHART_VERSION" "$APP_VERSION"; do
+            [[ "$v" =~ $semver ]] || { echo "::error::'$v' is not a valid semver version"; exit 1; }
+          done
+          echo "chart=$CHART_VERSION" >> "$GITHUB_OUTPUT"
+          echo "app=$APP_VERSION" >> "$GITHUB_OUTPUT"
+          FILE_VERSION="$(tr -d '[:space:]' < VERSION)"
+          if [ "$FILE_VERSION" != "${CHART_VERSION%%-*}" ]; then
+            echo "::warning::VERSION file ($FILE_VERSION) differs from chart version $CHART_VERSION"
+          fi
+
+      - name: Verify upstream images exist
+        env:
+          APP_VERSION: ${{ steps.v.outputs.app }}
+        run: |
+          for img in "$UPSTREAM_BACKEND" "$UPSTREAM_FRONTEND"; do
+            docker manifest inspect "$img:$APP_VERSION" > /dev/null \
+              || { echo "::error::$img:$APP_VERSION not found on Docker Hub"; exit 1; }
+          done
+
+      - name: Lint
+        run: |
+          helm lint charts/excalidash -f charts/excalidash/ci/default-values.yaml
+          charts/excalidash/ci/negative-tests.sh
+
+      - name: Package
+        env:
+          CHART_VERSION: ${{ steps.v.outputs.chart }}
+          APP_VERSION: ${{ steps.v.outputs.app }}
+        run: |
+          helm package charts/excalidash --version "$CHART_VERSION" --app-version "$APP_VERSION"
+
+      - name: Push to GHCR
+        env:
+          CHART_VERSION: ${{ steps.v.outputs.chart }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          ACTOR: ${{ github.actor }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OWNER="$(echo "$REPO_OWNER" | tr '[:upper:]' '[:lower:]')"
+          echo "$GH_TOKEN" | helm registry login ghcr.io -u "$ACTOR" --password-stdin
+          helm push "excalidash-${CHART_VERSION}.tgz" "oci://ghcr.io/$OWNER/charts"
+
+      - name: Attach chart to GitHub Release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHART_VERSION: ${{ steps.v.outputs.chart }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "excalidash-${CHART_VERSION}.tgz" --clobber
+          else
+            echo "No GitHub Release for $GITHUB_REF_NAME; skipping attach."
+          fi

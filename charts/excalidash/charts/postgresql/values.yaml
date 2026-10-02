@@ -1,0 +1,45 @@
+# Rendered only when enabled=true AND no global.externalDatabase.url/existingSecret is set.
+enabled: false
+
+image:
+  repository: docker.io/library/postgres
+  tag: "17-alpine"
+  pullPolicy: IfNotPresent
+# Official postgres image (no login). Set imagePullSecrets only for a private mirror or to avoid
+# Docker Hub's anonymous pull limit.
+imagePullSecrets: []
+
+auth:
+  username: excalidash
+  database: excalidash
+  # Set exactly one of password / existingSecret; nothing is generated. Only A-Z a-z 0-9 . _ ~ - are
+  # allowed (the password is embedded in the backend's DATABASE_URL).
+  password: ""
+  existingSecret: ""
+  existingSecretPasswordKey: POSTGRES_PASSWORD
+
+persistence:
+  size: 5Gi
+  storageClass: ""
+
+# UID/GID of the alpine postgres user; fsGroup keeps the volume writable.
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 70
+  runAsGroup: 70
+  fsGroup: 70
+  seccompProfile:
+    type: RuntimeDefault
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}

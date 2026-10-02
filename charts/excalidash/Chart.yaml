@@ -1,0 +1,22 @@
+apiVersion: v2
+name: excalidash
+description: Self-hosted dashboard and organizer for Excalidraw drawings
+type: application
+version: 0.6.0
+appVersion: "0.6.0"
+icon: https://raw.githubusercontent.com/ZimengXiong/ExcaliDash/main/frontend/public/favicon.svg
+home: https://github.com/ZimengXiong/ExcaliDash
+sources:
+  - https://github.com/ZimengXiong/ExcaliDash
+keywords:
+  - excalidraw
+  - whiteboard
+  - drawing
+maintainers:
+  - name: ZimengXiong
+  - name: glazrtom
+dependencies:
+  - name: postgresql
+    version: 0.1.0
+    repository: ""
+    condition: postgresql.enabled

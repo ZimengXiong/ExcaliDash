@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "image": {
+      "type": "object",
+      "properties": {
+        "backend": { "$ref": "#/definitions/image" },
+        "frontend": { "$ref": "#/definitions/image" },
+        "pullPolicy": { "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "database": {
+      "type": "object",
+      "properties": { "provider": { "enum": ["sqlite", "postgresql"] } }
+    },
+    "backend": {
+      "type": "object",
+      "properties": {
+        "replicaCount": false,
+        "env": {
+          "type": "object",
+          "properties": {
+            "authMode": { "enum": ["local", "hybrid", "oidc_enforced"] },
+            "trustProxy": { "type": ["string", "integer", "boolean"] },
+            "frontendUrl": { "type": "string" }
+          }
+        }
+      }
+    },
+    "oidc": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "issuerUrl": { "type": "string" },
+        "clientId": { "type": "string" },
+        "redirectUri": { "type": "string" }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "existingSecret": { "type": "string" },
+        "jwtSecret": { "type": "string" },
+        "csrfSecret": { "type": "string" },
+        "apiKeyHashPepper": { "type": "string" },
+        "oidcClientSecret": { "type": "string" }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "size": { "type": "string" },
+        "accessModes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "backups": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "retentionDays": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "hosts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["host"],
+            "properties": { "host": { "type": "string" }, "path": { "type": "string" } }
+          }
+        },
+        "tls": { "type": "array" }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "properties": { "enabled": { "type": "boolean" } }
+    }
+  },
+  "definitions": {
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": { "type": "string" },
+        "tag": { "type": "string" },
+        "digest": { "type": "string", "pattern": "^(sha256:[a-f0-9]{64})?$" }
+      }
+    }
+  }
+}

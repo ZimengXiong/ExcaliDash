@@ -1,0 +1,16 @@
+{{- if include "postgresql.shouldRender" . }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "postgresql.fullname" . }}
+  labels:
+    {{- include "postgresql.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+  selector:
+    {{- include "postgresql.selectorLabels" . | nindent 4 }}
+{{- end }}

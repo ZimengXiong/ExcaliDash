@@ -1,0 +1,10 @@
+secrets:
+  jwtSecret: ci-jwt-secret-0123456789abcdef0123456789abcdef
+  csrfSecret: ci-csrf-secret-0123456789abcdef
+  apiKeyHashPepper: ci-pepper-0123456789abcdef0123456789
+postgresql:
+  enabled: true
+  auth:
+    password: ci-postgres-password
+networkPolicy:
+  enabled: true

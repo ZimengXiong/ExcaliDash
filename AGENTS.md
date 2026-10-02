@@ -145,6 +145,7 @@ Understand runtime first, then touch code with local tests if requested.
 - `backend/`: Express API, Prisma schema, auth, sockets, scripts, Docker runtime.
 - `frontend/`: React UI, API client wiring, Vite config/build pipeline.
 - `e2e/`: Playwright tests and compose-based test runner.
+- `charts/excalidash/`: Helm chart (SQLite, external or bundled PostgreSQL); CI in `.github/workflows/helm-ci.yml`, release to GHCR on `v*` tags in `.github/workflows/helm-release.yml`.
 - `docker-compose.yml`: local compose setup for source builds.
 - `docker-compose.prod.yml`: production-style compose using published images.
 - `Makefile`: repo-wide orchestration commands.

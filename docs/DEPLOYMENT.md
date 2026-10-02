@@ -379,3 +379,16 @@ For Unraid or other Docker templates, map the host directory to container path `
 </details>
 
 
+
+## Kubernetes (Helm)
+
+A Helm chart lives in `charts/excalidash` and is published to GHCR on every `v*` tag:
+
+```bash
+helm install excalidash oci://ghcr.io/ZimengXiong/charts/excalidash --version <VERSION>
+```
+
+It supports SQLite (PVC), an external PostgreSQL (`global.externalDatabase.*`), or an optional bundled PostgreSQL
+(`postgresql.enabled=true`, skipped automatically when an external database is configured). See
+[`charts/excalidash/README.md`](../charts/excalidash/README.md) for ingress annotations, OIDC and secret handling.
+

@@ -1,0 +1,21 @@
+ExcaliDash {{ .Chart.AppVersion }} installed as "{{ .Release.Name }}".
+
+{{- if .Values.ingress.enabled }}
+URL: {{ include "excalidash.frontendUrl" . | default "(see ingress hosts)" }}
+{{- else }}
+Reach the UI:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "excalidash.fullname" . }}-frontend 6767:80
+  then open http://localhost:6767
+{{- end }}
+
+First-run setup code:
+  kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "excalidash.fullname" . }}-backend | grep "BOOTSTRAP SETUP"
+
+Database: {{ include "excalidash.dbMode" . }}
+{{- if and .Values.postgresql.enabled (or .Values.global.externalDatabase.url .Values.global.externalDatabase.existingSecret) }}
+WARNING: postgresql.enabled=true is ignored because global.externalDatabase is set; the bundled PostgreSQL was not deployed.
+{{- end }}
+Trusted proxy hops (TRUST_PROXY): {{ include "excalidash.trustProxy" . }}
+{{- if and .Values.ingress.enabled (not (hasKey .Values.ingress.annotations "nginx.ingress.kubernetes.io/proxy-body-size")) }}
+NOTE: no proxy-body-size annotation set; ingress-nginx defaults to 1m while ExcaliDash accepts up to 50M uploads.
+{{- end }}

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: postgresql
+description: Minimal PostgreSQL StatefulSet based on the official postgres image
+type: application
+version: 0.1.0
+appVersion: "17"

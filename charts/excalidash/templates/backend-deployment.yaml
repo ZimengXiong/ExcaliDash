@@ -1,0 +1,238 @@
+{{- include "excalidash.validate" . }}
+{{- $mode := include "excalidash.dbMode" . }}
+{{- $feUrl := include "excalidash.frontendUrl" . }}
+{{- $secret := include "excalidash.secretName" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "excalidash.fullname" . }}-backend
+  labels:
+    {{- include "excalidash.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  # Fixed at 1: no Socket.IO adapter, in-memory caches, startup migrations and (SQLite) an RWO volume.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "excalidash.selectorLabels" (dict "ctx" . "component" "backend") | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.backend.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "excalidash.selectorLabels" (dict "ctx" . "component" "backend") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "excalidash.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if eq $mode "bundled" }}
+      initContainers:
+        - name: wait-for-postgres
+          # Reuse the backend image (has sh + busybox nc) so no extra registry credentials are needed.
+          image: {{ include "excalidash.backendImage" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - until nc -z {{ include "excalidash.pgHost" . }} 5432; do echo waiting for postgres; sleep 2; done
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 32Mi}
+      {{- end }}
+      containers:
+        - name: backend
+          image: {{ include "excalidash.backendImage" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.backend.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: PORT
+              value: "8000"
+            - name: NODE_ENV
+              value: production
+            - name: AUTH_MODE
+              value: {{ .Values.backend.env.authMode | quote }}
+            - name: TRUST_PROXY
+              value: {{ include "excalidash.trustProxy" . | quote }}
+            {{- if $feUrl }}
+            - name: FRONTEND_URL
+              value: {{ $feUrl | quote }}
+            {{- end }}
+            {{- with .Values.backend.env.enforceHttpsRedirect }}
+            - name: ENFORCE_HTTPS_REDIRECT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.backend.env.enableAuditLogging }}
+            - name: ENABLE_AUDIT_LOGGING
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.backend.env.updateCheckOutbound }}
+            - name: UPDATE_CHECK_OUTBOUND
+              value: {{ . | quote }}
+            {{- end }}
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: JWT_SECRET
+            - name: CSRF_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: CSRF_SECRET
+            - name: API_KEY_HASH_PEPPER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: API_KEY_HASH_PEPPER
+            {{- if eq $mode "sqlite" }}
+            - name: DATABASE_PROVIDER
+              value: sqlite
+            - name: DATABASE_URL
+              value: file:/app/prisma/dev.db
+            {{- else if eq $mode "bundled" }}
+            - name: DATABASE_PROVIDER
+              value: postgresql
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "excalidash.pgSecretName" . }}
+                  key: {{ .Values.postgresql.auth.existingSecretPasswordKey }}
+            - name: DATABASE_URL
+              value: {{ printf "postgresql://%s:$(PGPASSWORD)@%s:5432/%s" .Values.postgresql.auth.username (include "excalidash.pgHost" .) .Values.postgresql.auth.database | quote }}
+            {{- else }}
+            - name: DATABASE_PROVIDER
+              value: postgresql
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.global.externalDatabase.existingSecret }}
+                  name: {{ .Values.global.externalDatabase.existingSecret }}
+                  key: {{ .Values.global.externalDatabase.existingSecretKey }}
+                  {{- else }}
+                  name: {{ include "excalidash.databaseSecretName" . }}
+                  key: DATABASE_URL
+                  {{- end }}
+            {{- end }}
+            {{- if .Values.oidc.enabled }}
+            - name: OIDC_PROVIDER_NAME
+              value: {{ .Values.oidc.providerName | quote }}
+            - name: OIDC_ISSUER_URL
+              value: {{ .Values.oidc.issuerUrl | quote }}
+            - name: OIDC_CLIENT_ID
+              value: {{ .Values.oidc.clientId | quote }}
+            - name: OIDC_REDIRECT_URI
+              value: {{ include "excalidash.oidcRedirectUri" . | quote }}
+            {{- with .Values.oidc.discoveryUrl }}
+            - name: OIDC_DISCOVERY_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.oidc.scopes }}
+            - name: OIDC_SCOPES
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.oidc.requireEmailVerified }}
+            - name: OIDC_REQUIRE_EMAIL_VERIFIED
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.oidc.jitProvisioning }}
+            - name: OIDC_JIT_PROVISIONING
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.oidc.firstUserAdmin }}
+            - name: OIDC_FIRST_USER_ADMIN
+              value: {{ . | quote }}
+            {{- end }}
+            {{- if or .Values.secrets.oidcClientSecret .Values.secrets.existingSecret }}
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secret }}
+                  key: OIDC_CLIENT_SECRET
+                  optional: true
+            {{- end }}
+            {{- end }}
+            {{- if .Values.backups.enabled }}
+            - name: BACKUP_SCHEDULE
+              value: {{ .Values.backups.schedule | quote }}
+            - name: BACKUP_DIR
+              value: /app/backups
+            - name: BACKUP_RETENTION_DAYS
+              value: {{ .Values.backups.retentionDays | quote }}
+            {{- end }}
+            {{- with .Values.backend.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.backend.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          # Boot runs prisma generate + migrations before the server listens.
+          startupProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 5
+          # TCP only: /health queries the database, and a DB blip must not restart-loop the pod.
+          livenessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 30
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /app/prisma
+            {{- if .Values.backups.enabled }}
+            - name: backups
+              mountPath: /app/backups
+            {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (printf "%s-data" (include "excalidash.fullname" .)) }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if .Values.backups.enabled }}
+        - name: backups
+          persistentVolumeClaim:
+            claimName: {{ .Values.backups.persistence.existingClaim | default (printf "%s-backups" (include "excalidash.fullname" .)) }}
+        {{- end }}
+      {{- with .Values.backend.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

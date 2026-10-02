@@ -1,0 +1,16 @@
+secrets:
+  jwtSecret: ci-jwt-secret-0123456789abcdef0123456789abcdef
+  csrfSecret: ci-csrf-secret-0123456789abcdef
+  apiKeyHashPepper: ci-pepper-0123456789abcdef0123456789
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 50m
+  hosts:
+    - host: excalidash.example.com
+  tls:
+    - secretName: excalidash-tls
+      hosts: [excalidash.example.com]
+networkPolicy:
+  enabled: true

@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "excalidash.fullname" . }}-test
+  labels:
+    {{- include "excalidash.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: curl
+      image: curlimages/curl:8.11.1
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+      command:
+        - sh
+        - -c
+        - curl -fsS http://{{ include "excalidash.fullname" . }}-frontend/ >/dev/null && curl -fsS http://{{ include "excalidash.fullname" . }}-frontend/api/health
+      resources:
+        requests: {cpu: 10m, memory: 32Mi}
+        limits: {memory: 32Mi}

@@ -1,0 +1,43 @@
+{{- if .Values.networkPolicy.enabled }}
+# The backend is only reachable through the frontend nginx proxy.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "excalidash.fullname" . }}-backend
+  labels:
+    {{- include "excalidash.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "excalidash.selectorLabels" (dict "ctx" . "component" "backend") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "excalidash.selectorLabels" (dict "ctx" . "component" "frontend") | nindent 14 }}
+      ports:
+        - port: 8000
+{{- if eq (include "excalidash.dbMode" .) "bundled" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "excalidash.pgHost" . }}
+  labels:
+    {{- include "excalidash.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgresql
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "excalidash.selectorLabels" (dict "ctx" . "component" "backend") | nindent 14 }}
+      ports:
+        - port: 5432
+{{- end }}
+{{- end }}

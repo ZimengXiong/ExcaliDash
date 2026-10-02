@@ -1,0 +1,17 @@
+ingress:
+  enabled: true
+  hosts:
+    - host: excalidash.example.com
+  tls:
+    - secretName: excalidash-tls
+      hosts: [excalidash.example.com]
+backend:
+  env:
+    authMode: hybrid
+oidc:
+  enabled: true
+  providerName: Authentik
+  issuerUrl: https://auth.example.com/application/o/excalidash/
+  clientId: excalidash
+secrets:
+  existingSecret: excalidash-secrets

@@ -1,0 +1,152 @@
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  backend:
+    repository: zimengxiong/excalidash-backend
+    tag: ""            # defaults to .Chart.AppVersion
+    digest: ""         # optional sha256:...; takes precedence over tag
+  frontend:
+    repository: zimengxiong/excalidash-frontend
+    tag: ""
+    digest: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+global:
+  # External PostgreSQL. When url or existingSecret is set, the bundled postgresql
+  # subchart is never rendered (even if postgresql.enabled=true). Set url OR existingSecret, not both.
+  externalDatabase:
+    url: ""                    # postgresql://user:pass@host:5432/db
+    existingSecret: ""         # Secret holding the connection string
+    existingSecretKey: DATABASE_URL
+
+database:
+  # sqlite (default, PVC-backed) or postgresql. Bundled/external Postgres implies postgresql.
+  provider: sqlite
+
+# Bundled PostgreSQL based on the official postgres image (subchart, rendered only when enabled).
+# Set exactly one of postgresql.auth.password / postgresql.auth.existingSecret (no generated passwords).
+postgresql:
+  enabled: false
+
+backend:
+  # Always a single replica (not configurable): no Socket.IO adapter, in-memory caches and
+  # an RWO volume / startup migrations make horizontal scaling unsafe.
+  env:
+    authMode: local            # local | hybrid | oidc_enforced
+    # Proxy hops in front of the backend. Empty = derived: 1 (frontend nginx) without ingress,
+    # 2 (ingress + frontend nginx) with ingress.enabled. Set explicitly to override ("false", "3", ...).
+    trustProxy: ""
+    frontendUrl: ""            # public URL(s); derived from ingress when empty
+    enforceHttpsRedirect: ""   # set "false" if the ingress already enforces HTTPS
+    enableAuditLogging: ""
+    updateCheckOutbound: ""
+  extraEnv: []
+  extraEnvFrom: []
+  podAnnotations: {}
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  # The entrypoint starts as root (chown, prisma generate) then drops to uid 1001.
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+      add: ["CHOWN", "FOWNER", "DAC_OVERRIDE", "SETUID", "SETGID"]
+  resources:
+    requests:
+      cpu: 50m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+frontend:
+  replicaCount: 1
+  podAnnotations: {}
+  podSecurityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  # nginx master runs as root and drops to the nginx user for workers.
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+      add: ["CHOWN", "SETUID", "SETGID", "NET_BIND_SERVICE"]
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 64Mi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+oidc:
+  enabled: false
+  providerName: OIDC
+  issuerUrl: ""
+  discoveryUrl: ""
+  clientId: ""
+  redirectUri: ""              # defaults to <frontendUrl>/api/auth/oidc/callback
+  scopes: ""
+  requireEmailVerified: ""
+  jitProvisioning: ""
+  firstUserAdmin: ""
+
+secrets:
+  # No secrets are generated (lookup/random values rotate under Argo CD and `helm template`).
+  # Provide EXACTLY ONE of:
+  #  a) existingSecret: a Secret with JWT_SECRET, CSRF_SECRET, API_KEY_HASH_PEPPER and, for
+  #     confidential OIDC clients, OIDC_CLIENT_SECRET;
+  #  b) all of jwtSecret (>= 32 chars), csrfSecret and apiKeyHashPepper inline.
+  # apiKeyHashPepper must never change once API keys exist (it would invalidate them).
+  existingSecret: ""
+  jwtSecret: ""
+  csrfSecret: ""
+  apiKeyHashPepper: ""
+  oidcClientSecret: ""         # inline mode only; with existingSecret put OIDC_CLIENT_SECRET in the Secret
+
+persistence:                   # /app/prisma: SQLite DB + persisted secret files
+  enabled: true
+  existingClaim: ""
+  storageClass: ""
+  accessModes: [ReadWriteOnce]
+  size: 1Gi
+  annotations:
+    helm.sh/resource-policy: keep
+
+backups:                       # scheduled SQLite backups
+  enabled: false
+  schedule: "0 0 4 * * *"
+  retentionDays: 14
+  persistence:
+    existingClaim: ""
+    storageClass: ""
+    size: 1Gi
+
+ingress:
+  enabled: false
+  className: ""
+  # Suggested for ingress-nginx (websockets + large drawings):
+  #   nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+  #   nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  #   nginx.ingress.kubernetes.io/proxy-body-size: 50m
+  annotations: {}
+  hosts: []                    # [{host: excalidash.example.com, path: /}]
+  tls: []
+
+# Restrict pod ingress: backend only from the frontend, bundled PostgreSQL only from the backend.
+networkPolicy:
+  enabled: false
+
+serviceAccount:
+  create: false
+  name: ""
+  annotations: {}
