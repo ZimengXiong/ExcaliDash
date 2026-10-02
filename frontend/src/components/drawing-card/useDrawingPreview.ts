@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Drawing, DrawingSummary } from "../../types";
 import {
   normalizePreviewSvg,
@@ -47,50 +47,32 @@ export const useDrawingPreview = (
   const [previewSvg, setPreviewSvg] = useState<string | null>(
     normalizePreviewSvg(drawing.preview) ?? null,
   );
-  const [fullData, setFullData] = useState<HydratedDrawingData | null>(null);
-
+  // Parent renders create new callbacks as sibling previews finish. Updating
+  // the notification target must not cancel and restart every pending request.
   const onPreviewGeneratedRef = useRef(onPreviewGenerated);
   onPreviewGeneratedRef.current = onPreviewGenerated;
 
-  const fullDataRef = useRef(fullData);
-  fullDataRef.current = fullData;
-
-  const fullDataPromiseRef = useRef<Promise<HydratedDrawingData> | null>(null);
-  const drawingIdRef = useRef(drawing.id);
-  drawingIdRef.current = drawing.id;
-
-  useEffect(() => {
-    setFullData(null);
-    fullDataPromiseRef.current = null;
-  }, [drawing.id]);
-
-  const ensureFullData = useCallback(async (): Promise<HydratedDrawingData> => {
-    if (fullDataRef.current) {
-      return fullDataRef.current;
-    }
-    if (fullDataPromiseRef.current) {
-      return fullDataPromiseRef.current;
-    }
-    const currentDrawingId = drawingIdRef.current;
-    const promise = api
-      .getDrawing(currentDrawingId)
-      .then((fullDrawing) => {
-        const payload: HydratedDrawingData = {
+  // Each drawing revision owns its promise. Old exports retain their own data,
+  // and late responses cannot overwrite the next revision's cache.
+  const ensureFullData = useMemo(() => {
+    let promise: Promise<HydratedDrawingData> | null = null;
+    return (): Promise<HydratedDrawingData> => {
+      promise ??= api
+        .getDrawing(drawing.id)
+        .then((fullDrawing) => ({
           elements: fullDrawing.elements || [],
           appState: fullDrawing.appState || {},
           files: fullDrawing.files || {},
-        };
-        setFullData(payload);
-        fullDataPromiseRef.current = null;
-        return payload;
-      })
-      .catch((error) => {
-        fullDataPromiseRef.current = null;
-        throw error;
-      });
-    fullDataPromiseRef.current = promise;
-    return promise;
-  }, []);
+        }))
+        .catch((error) => {
+          promise = null;
+          throw error;
+        });
+      return promise;
+    };
+    // Version changes invalidate the cache even though the API takes only an ID.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawing.id, drawing.version]);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,8 +97,9 @@ export const useDrawingPreview = (
           return;
         }
       } catch {
-        if (cancelled) return;
-        // Ignore and fall through to client-side generation below.
+        // An unavailable preview service does not mean the preview is absent.
+        // In particular, don't amplify rate limiting with full-drawing fetches.
+        return;
       }
       try {
         const data = await ensureFullData();
