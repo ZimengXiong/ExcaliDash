@@ -202,30 +202,6 @@
     min-width: 0;
     max-width: 100%;
   }
-  .docs-review-open .VPHero {
-    padding: 100px 32px 40px;
-  }
-  .docs-review-open .VPHero .container {
-    flex-direction: column;
-    text-align: left;
-    gap: 28px;
-  }
-  .docs-review-open .VPHero .main {
-    order: 1;
-    max-width: 100%;
-  }
-  .docs-review-open .VPHero .image {
-    order: 2;
-  }
-  .docs-review-open .VPHero .text {
-    font-size: 44px;
-  }
-  .docs-review-open .VPFeatures {
-    padding-inline: 32px;
-  }
-  .docs-review-open .VPFeatures .item {
-    width: 50%;
-  }
   .docs-review-open .VPHome .vp-doc.container {
     padding-inline: 32px;
   }

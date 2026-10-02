@@ -2,7 +2,7 @@
 
 Common settings are listed below. See `backend/src/config/registry/` for all variables, defaults, and validation rules.
 
-## Core server
+## Core
 
 | Variable       | Default       | Purpose                                                              |
 | -------------- | ------------- | -------------------------------------------------------------------- |
@@ -23,7 +23,7 @@ Common settings are listed below. See `backend/src/config/registry/` for all var
 | `FILE_UPLOAD_MAX_MB`      | `100`                          | Per-image upload limit                             |
 | `BODY_LIMIT_MB`           | `50`                           | Scene request body and Socket.IO buffer limit      |
 
-The frontend image limits HTTP request bodies to 50 MB in `frontend/nginx.conf.template`. Increasing a backend limit alone does not increase the proxy limit.
+The frontend image limits HTTP request bodies to 50 MB in `frontend/nginx.conf.template`.
 
 ## Authentication
 
@@ -59,13 +59,3 @@ See [backup configuration](/deploy/docker#persist-and-back-up-data) for a Compos
 ## Email and password reset
 
 Set `ENABLE_PASSWORD_RESET=true`, select `MAIL_TRANSPORT`, and configure either SMTP or Resend credentials. `MAIL_FROM` controls the visible sender.
-
-## Regenerate the backend example
-
-When the typed registry changes:
-
-```bash
-npm --prefix backend run gen:env
-```
-
-Commit the updated `backend/.env.example` with the registry change.
