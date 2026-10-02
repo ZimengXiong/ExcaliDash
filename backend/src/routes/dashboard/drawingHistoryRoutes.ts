@@ -131,6 +131,26 @@ export const registerDrawingHistoryRoutes = (
       if (!snapshot)
         return res.status(404).json({ error: "Snapshot not found" });
 
+      const requestedVersion: unknown = req.body?.version;
+      if (
+        requestedVersion !== undefined &&
+        (typeof requestedVersion !== "number" ||
+          !Number.isSafeInteger(requestedVersion) ||
+          requestedVersion < 1)
+      ) {
+        return res.status(400).json({ error: "Invalid drawing version" });
+      }
+      if (
+        requestedVersion !== undefined &&
+        requestedVersion !== drawing.version
+      ) {
+        return res.status(409).json({
+          error:
+            "Drawing changed since it was loaded. Reload before restoring.",
+          code: "VERSION_CONFLICT",
+        });
+      }
+
       // Decode before creating the reversible backup. A corrupt compressed
       // snapshot must not mutate history and then fail during the restore.
       const restoredElements = decodeSnapshotField(snapshot.elements);
