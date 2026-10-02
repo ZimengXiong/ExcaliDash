@@ -8,7 +8,6 @@ const { runPrisma } = require("./provider-prisma.cjs");
 
 const BOOTSTRAP_USER_ID = "bootstrap-admin";
 const DEFAULT_SYSTEM_CONFIG_ID = "default";
-const backendRoot = path.resolve(__dirname, "..");
 
 const resolveDatabaseUrl = (rawUrl) => {
   const backendRoot = path.resolve(__dirname, "..");
