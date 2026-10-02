@@ -2,10 +2,28 @@ import { Request, Response } from "express";
 import { logAuditEvent } from "../utils/audit";
 import { getEffectiveOidcJitProvisioning } from "./accessPolicy";
 import type { RegisterAdminRoutesDeps } from "./adminRoutes";
-import { loginRateLimitResetSchema, loginRateLimitUpdateSchema, oidcJitProvisioningToggleSchema, registrationToggleSchema } from "./schemas";
+import {
+  loginRateLimitResetSchema,
+  loginRateLimitUpdateSchema,
+  oidcJitProvisioningToggleSchema,
+  registrationToggleSchema,
+} from "./schemas";
 
 export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
-  const { router, prisma, requireAuth, ensureAuthEnabled, ensureSystemConfig, parseLoginRateLimitConfig, applyLoginRateLimitConfig, resetLoginAttemptKey, requireAdmin, config, defaultSystemConfigId, requireCsrf } = deps;
+  const {
+    router,
+    prisma,
+    requireAuth,
+    ensureAuthEnabled,
+    ensureSystemConfig,
+    parseLoginRateLimitConfig,
+    applyLoginRateLimitConfig,
+    resetLoginAttemptKey,
+    requireAdmin,
+    config,
+    defaultSystemConfigId,
+    requireCsrf,
+  } = deps;
   router.post(
     "/registration/toggle",
     requireAuth,
@@ -15,13 +33,11 @@ export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
         if (!requireCsrf(req, res)) return;
         if (!requireAdmin(req, res)) return;
         if (config.authMode === "oidc_enforced") {
-          return res
-            .status(409)
-            .json({
-              error: "Conflict",
-              message:
-                "Local self-sign-up is unavailable in OIDC enforced mode. Use invited users and the OIDC auto-provisioning setting instead.",
-            });
+          return res.status(409).json({
+            error: "Conflict",
+            message:
+              "Local self-sign-up is unavailable in OIDC enforced mode. Use invited users and the OIDC auto-provisioning setting instead.",
+          });
         }
         const parsed = registrationToggleSchema.safeParse(req.body);
         if (!parsed.success) {
@@ -40,12 +56,10 @@ export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
         res.json({ registrationEnabled: updated.registrationEnabled });
       } catch (error) {
         console.error("Registration toggle error:", error);
-        res
-          .status(500)
-          .json({
-            error: "Internal server error",
-            message: "Failed to update registration setting",
-          });
+        res.status(500).json({
+          error: "Internal server error",
+          message: "Failed to update registration setting",
+        });
       }
     },
   );
@@ -64,12 +78,10 @@ export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
         }
         const parsed = oidcJitProvisioningToggleSchema.safeParse(req.body);
         if (!parsed.success) {
-          return res
-            .status(400)
-            .json({
-              error: "Bad request",
-              message: "Invalid OIDC provisioning payload",
-            });
+          return res.status(400).json({
+            error: "Bad request",
+            message: "Invalid OIDC provisioning payload",
+          });
         }
         const updated = await prisma.systemConfig.upsert({
           where: { id: defaultSystemConfigId },
@@ -90,12 +102,10 @@ export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
         });
       } catch (error) {
         console.error("OIDC JIT provisioning toggle error:", error);
-        res
-          .status(500)
-          .json({
-            error: "Internal server error",
-            message: "Failed to update OIDC provisioning setting",
-          });
+        res.status(500).json({
+          error: "Internal server error",
+          message: "Failed to update OIDC provisioning setting",
+        });
       }
     },
   );
@@ -111,12 +121,10 @@ export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
         res.json({ config: cfg });
       } catch (error) {
         console.error("Get login rate limit config error:", error);
-        res
-          .status(500)
-          .json({
-            error: "Internal server error",
-            message: "Failed to fetch login rate limit config",
-          });
+        res.status(500).json({
+          error: "Internal server error",
+          message: "Failed to fetch login rate limit config",
+        });
       }
     },
   );
@@ -130,12 +138,10 @@ export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
         if (!requireAdmin(req, res)) return;
         const parsed = loginRateLimitUpdateSchema.safeParse(req.body);
         if (!parsed.success) {
-          return res
-            .status(400)
-            .json({
-              error: "Validation error",
-              message: "Invalid rate limit config",
-            });
+          return res.status(400).json({
+            error: "Validation error",
+            message: "Invalid rate limit config",
+          });
         }
         const updated = await prisma.systemConfig.update({
           where: { id: defaultSystemConfigId },
@@ -159,12 +165,10 @@ export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
         res.json({ config: nextConfig });
       } catch (error) {
         console.error("Update login rate limit config error:", error);
-        res
-          .status(500)
-          .json({
-            error: "Internal server error",
-            message: "Failed to update login rate limit config",
-          });
+        res.status(500).json({
+          error: "Internal server error",
+          message: "Failed to update login rate limit config",
+        });
       }
     },
   );
@@ -178,12 +182,10 @@ export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
         if (!requireAdmin(req, res)) return;
         const parsed = loginRateLimitResetSchema.safeParse(req.body);
         if (!parsed.success) {
-          return res
-            .status(400)
-            .json({
-              error: "Validation error",
-              message: "Invalid reset payload",
-            });
+          return res.status(400).json({
+            error: "Validation error",
+            message: "Invalid reset payload",
+          });
         }
         const identifier = parsed.data.identifier.trim().toLowerCase();
         await resetLoginAttemptKey(identifier);
@@ -200,12 +202,10 @@ export const registerAdminSettingsRoutes = (deps: RegisterAdminRoutesDeps) => {
         res.json({ ok: true });
       } catch (error) {
         console.error("Reset login rate limit error:", error);
-        res
-          .status(500)
-          .json({
-            error: "Internal server error",
-            message: "Failed to reset login rate limit",
-          });
+        res.status(500).json({
+          error: "Internal server error",
+          message: "Failed to reset login rate limit",
+        });
       }
     },
   );

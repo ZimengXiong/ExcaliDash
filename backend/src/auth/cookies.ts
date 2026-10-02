@@ -18,11 +18,11 @@ const parseDurationToMs = (value: string, fallbackMs: number): number => {
 
 const ACCESS_TOKEN_COOKIE_MAX_AGE_MS = parseDurationToMs(
   config.jwtAccessExpiresIn,
-  DEFAULT_ACCESS_TTL_MS
+  DEFAULT_ACCESS_TTL_MS,
 );
 const REFRESH_TOKEN_COOKIE_MAX_AGE_MS = parseDurationToMs(
   config.jwtRefreshExpiresIn,
-  DEFAULT_REFRESH_TTL_MS
+  DEFAULT_REFRESH_TTL_MS,
 );
 
 const canTrustProxyHeaders = (req: Request): boolean => {
@@ -37,7 +37,9 @@ const requestUsesHttps = (req: Request): boolean => {
   if (req.secure) return true;
   if (!canTrustProxyHeaders(req)) return false;
   const forwardedProto = req.headers["x-forwarded-proto"];
-  const raw = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto;
+  const raw = Array.isArray(forwardedProto)
+    ? forwardedProto[0]
+    : forwardedProto;
   const firstHop = String(raw || "")
     .split(",")[0]
     .trim()
@@ -57,7 +59,7 @@ const baseCookieOptions = (req: Request) => ({
 export const setAuthCookies = (
   req: Request,
   res: Response,
-  tokens: { accessToken: string; refreshToken: string }
+  tokens: { accessToken: string; refreshToken: string },
 ): void => {
   res.cookie(ACCESS_TOKEN_COOKIE_NAME, tokens.accessToken, {
     ...baseCookieOptions(req),
@@ -72,7 +74,7 @@ export const setAuthCookies = (
 export const setAccessTokenCookie = (
   req: Request,
   res: Response,
-  accessToken: string
+  accessToken: string,
 ): void => {
   res.cookie(ACCESS_TOKEN_COOKIE_NAME, accessToken, {
     ...baseCookieOptions(req),
@@ -87,7 +89,7 @@ export const clearAuthCookies = (req: Request, res: Response): void => {
 };
 
 export const parseCookieHeader = (
-  cookieHeader: string | undefined
+  cookieHeader: string | undefined,
 ): Record<string, string> => {
   if (!cookieHeader) return {};
 

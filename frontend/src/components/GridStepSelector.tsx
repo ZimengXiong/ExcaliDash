@@ -1,5 +1,5 @@
-import React from 'react';
-import { useI18n } from '@excalidraw/excalidraw';
+import React from "react";
+import { useI18n } from "@excalidraw/excalidraw";
 
 /** Excalidraw's built-in default number of cells between bold grid lines. */
 export const DEFAULT_GRID_STEP = 5;
@@ -28,7 +28,7 @@ export const GridStepSelector: React.FC<GridStepSelectorProps> = ({
   onChange,
 }) => {
   const { t } = useI18n();
-  const label = t('labels.gridStep', null, 'Grid step');
+  const label = t("labels.gridStep", null, "Grid step");
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const parsed = Number.parseInt(e.target.value, 10);
@@ -39,11 +39,11 @@ export const GridStepSelector: React.FC<GridStepSelectorProps> = ({
   return (
     <div
       style={{
-        padding: '4px 8px',
-        display: 'flex',
-        alignItems: 'center',
+        padding: "4px 8px",
+        display: "flex",
+        alignItems: "center",
         gap: 8,
-        width: '100%',
+        width: "100%",
       }}
     >
       <span style={{ fontSize: 13, flexShrink: 0 }}>{label}</span>
@@ -58,11 +58,11 @@ export const GridStepSelector: React.FC<GridStepSelectorProps> = ({
           flex: 1,
           minWidth: 0,
           fontSize: 13,
-          padding: '2px 4px',
+          padding: "2px 4px",
           borderRadius: 4,
-          border: '1px solid var(--color-surface-mid)',
-          background: 'var(--color-surface-low)',
-          color: 'var(--color-on-surface)',
+          border: "1px solid var(--color-surface-mid)",
+          background: "var(--color-surface-low)",
+          color: "var(--color-on-surface)",
         }}
         aria-label={label}
       />

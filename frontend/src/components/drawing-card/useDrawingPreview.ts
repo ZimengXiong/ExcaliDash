@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Drawing, DrawingSummary } from "../../types";
-import { previewHasEmbeddedImages } from "../../utils/previewSvg";
+import {
+  normalizePreviewSvg,
+  isDefaultPreviewBackground,
+  previewHasEmbeddedImages,
+} from "../../utils/previewSvg";
 import * as api from "../../api";
 
 export type HydratedDrawingData = {
@@ -38,11 +42,15 @@ const normalizeImageElementsForPreview = (
 export const useDrawingPreview = (
   drawing: DrawingSummary,
   onPreviewGenerated?: (id: string, preview: string) => void,
+  loadPreview = true,
 ) => {
   const [previewSvg, setPreviewSvg] = useState<string | null>(
-    drawing.preview ?? null,
+    normalizePreviewSvg(drawing.preview) ?? null,
   );
   const [fullData, setFullData] = useState<HydratedDrawingData | null>(null);
+
+  const onPreviewGeneratedRef = useRef(onPreviewGenerated);
+  onPreviewGeneratedRef.current = onPreviewGenerated;
 
   const fullDataRef = useRef(fullData);
   fullDataRef.current = fullData;
@@ -86,8 +94,11 @@ export const useDrawingPreview = (
 
   useEffect(() => {
     let cancelled = false;
+    setPreviewSvg(normalizePreviewSvg(drawing.preview) ?? null);
     if (drawing.preview) {
-      setPreviewSvg(drawing.preview);
+      return;
+    }
+    if (!loadPreview) {
       return;
     }
     const generatePreview = async () => {
@@ -100,7 +111,7 @@ export const useDrawingPreview = (
         if (cancelled) return;
         if (stored) {
           setPreviewSvg(stored);
-          onPreviewGenerated?.(drawing.id, stored);
+          onPreviewGeneratedRef.current?.(drawing.id, stored);
           return;
         }
       } catch {
@@ -122,7 +133,10 @@ export const useDrawingPreview = (
           ),
           appState: {
             ...data.appState,
-            exportBackground: true,
+            exportWithDarkMode: false,
+            exportBackground: !isDefaultPreviewBackground(
+              data.appState.viewBackgroundColor,
+            ),
             viewBackgroundColor: data.appState.viewBackgroundColor || "#ffffff",
           },
           files: data.files || {},
@@ -130,9 +144,9 @@ export const useDrawingPreview = (
         });
 
         if (cancelled) return;
-        const previewHtml = svg.outerHTML;
+        const previewHtml = normalizePreviewSvg(svg.outerHTML) || svg.outerHTML;
         setPreviewSvg(previewHtml);
-        onPreviewGenerated?.(drawing.id, previewHtml);
+        onPreviewGeneratedRef.current?.(drawing.id, previewHtml);
       } catch (e) {
         if (!cancelled) {
           console.error("Failed to generate preview", e);
@@ -143,7 +157,7 @@ export const useDrawingPreview = (
     return () => {
       cancelled = true;
     };
-  }, [drawing.id, drawing.preview, ensureFullData, onPreviewGenerated]);
+  }, [drawing.id, drawing.preview, ensureFullData, loadPreview]);
 
   const buildExportDrawing = useCallback(async (): Promise<Drawing> => {
     const data = await ensureFullData();

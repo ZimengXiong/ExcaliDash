@@ -45,7 +45,10 @@ export const resolveLinkShareConfig = (): LinkShareConfig => ({
     "LINK_SHARE_VIEW_DEFAULT_TTL_MS",
     30 * 24 * 60 * 60 * 1000,
   ),
-  maxTtlMs: parseLinkShareTtl("LINK_SHARE_MAX_TTL_MS", 90 * 24 * 60 * 60 * 1000),
+  maxTtlMs: parseLinkShareTtl(
+    "LINK_SHARE_MAX_TTL_MS",
+    90 * 24 * 60 * 60 * 1000,
+  ),
 });
 
 export const resolveUpdateCheckConfig = (): UpdateCheckConfig => {

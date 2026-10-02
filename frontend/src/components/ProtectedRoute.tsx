@@ -1,8 +1,8 @@
-import React, { useEffect } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { startOidcSignIn } from '../api';
-import { AuthStatusErrorPanel } from './AuthStatusErrorPanel';
+import React, { useEffect } from "react";
+import { Navigate, useLocation } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { startOidcSignIn } from "../api";
+import { AuthStatusErrorPanel } from "./AuthStatusErrorPanel";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -29,14 +29,22 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-600 dark:text-gray-400">Redirecting to sign-in...</div>
+        <div className="text-gray-600 dark:text-gray-400">
+          Redirecting to sign-in...
+        </div>
       </div>
     );
   };
 
   if (loading || authEnabled === null) {
     if (authStatusError) {
-      return <AuthStatusErrorPanel message={authStatusError} onRetry={retryAuthStatus} fullScreen />;
+      return (
+        <AuthStatusErrorPanel
+          message={authStatusError}
+          onRetry={retryAuthStatus}
+          fullScreen
+        />
+      );
     }
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -45,7 +53,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     );
   }
 
-  if (authOnboardingRequired && location.pathname !== '/auth-setup') {
+  if (authOnboardingRequired && location.pathname !== "/auth-setup") {
     return <Navigate to="/auth-setup" replace />;
   }
 
@@ -67,14 +75,19 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     if (location.pathname.startsWith("/editor/")) {
       const id = location.pathname.slice("/editor/".length).split("/")[0] || "";
       if (id) {
-        return <Navigate to={`/shared/${id}${location.search}${location.hash}`} replace />;
+        return (
+          <Navigate
+            to={`/shared/${id}${location.search}${location.hash}`}
+            replace
+          />
+        );
       }
     }
 
     return <Navigate to="/login" replace />;
   }
 
-  if (user?.mustResetPassword && location.pathname !== '/login') {
+  if (user?.mustResetPassword && location.pathname !== "/login") {
     return <Navigate to="/login?mustReset=1" replace />;
   }
 

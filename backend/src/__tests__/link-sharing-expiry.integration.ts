@@ -99,7 +99,7 @@ describe("Link Sharing - Expiry Resolution", () => {
     ownerToken = jwt.sign(
       { userId: ownerUser.id, email: ownerUser.email, type: "access" },
       config.jwtSecret,
-      signOptions
+      signOptions,
     );
 
     ownerAgent = request.agent(app);
@@ -186,7 +186,9 @@ describe("Link Sharing - Expiry Resolution", () => {
       expiresAt: new Date(Date.now() - HOUR_MS).toISOString(),
     });
     expect(past.status).toBe(400);
-    expect(past.body.message).toBe("Expiry must be at least 1 minute in the future");
+    expect(past.body.message).toBe(
+      "Expiry must be at least 1 minute in the future",
+    );
 
     const invalid = await postLinkShare(drawing.id, "view", {
       expiresAt: "not-a-date",

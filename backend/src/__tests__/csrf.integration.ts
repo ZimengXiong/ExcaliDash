@@ -55,9 +55,8 @@ describe("CSRF - stateless HMAC tokens", () => {
   });
 
   it("revokeCsrfToken is a no-op for stateless tokens (does not break callers)", async () => {
-    const { createCsrfToken, validateCsrfToken, revokeCsrfToken } = await import(
-      "../security"
-    );
+    const { createCsrfToken, validateCsrfToken, revokeCsrfToken } =
+      await import("../security");
 
     const clientId = "client-revoke";
     const token = createCsrfToken(clientId);
@@ -128,22 +127,22 @@ describe("CSRF - referer origin parsing", () => {
     const { getOriginFromReferer } = await import("../security");
 
     expect(getOriginFromReferer("https://example.com/path?x=1")).toBe(
-      "https://example.com"
+      "https://example.com",
     );
     expect(getOriginFromReferer("http://localhost:5173/some/page")).toBe(
-      "http://localhost:5173"
+      "http://localhost:5173",
     );
   });
 
   it("does not allow prefix tricks (origin must be parsed)", async () => {
     const { getOriginFromReferer } = await import("../security");
 
-    expect(
-      getOriginFromReferer("https://example.com.evil.com/anything")
-    ).toBe("https://example.com.evil.com");
+    expect(getOriginFromReferer("https://example.com.evil.com/anything")).toBe(
+      "https://example.com.evil.com",
+    );
 
     expect(getOriginFromReferer("https://example.com@evil.com/anything")).toBe(
-      "https://evil.com"
+      "https://evil.com",
     );
   });
 
@@ -156,5 +155,3 @@ describe("CSRF - referer origin parsing", () => {
     expect(getOriginFromReferer(null)).toBeNull();
   });
 });
-
-

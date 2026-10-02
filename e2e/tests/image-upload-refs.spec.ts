@@ -1,5 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { API_URL, createDrawing, deleteDrawing, getDrawing } from "./helpers/api";
+import {
+  API_URL,
+  createDrawing,
+  deleteDrawing,
+  getDrawing,
+} from "./helpers/api";
 
 /**
  * E2E Browser Tests for image-upload ref behavior.
@@ -129,13 +134,30 @@ test.describe("Image upload - metadata-only scene saves", () => {
           {
             id: `r_${Math.random().toString(36).slice(2)}`,
             type: "rectangle",
-            x: 300, y: 300, width: 10, height: 10, angle: 0,
-            strokeColor: "#1e1e1e", backgroundColor: "transparent",
-            fillStyle: "solid", strokeWidth: 1, strokeStyle: "solid",
-            roundness: null, roughness: 0, opacity: 100,
-            groupIds: [], frameId: null, seed: 2, version: 1,
-            versionNonce: 2, isDeleted: false, boundElements: null,
-            link: null, locked: false, index: "a2", updated: Date.now(),
+            x: 300,
+            y: 300,
+            width: 10,
+            height: 10,
+            angle: 0,
+            strokeColor: "#1e1e1e",
+            backgroundColor: "transparent",
+            fillStyle: "solid",
+            strokeWidth: 1,
+            strokeStyle: "solid",
+            roundness: null,
+            roughness: 0,
+            opacity: 100,
+            groupIds: [],
+            frameId: null,
+            seed: 2,
+            version: 1,
+            versionNonce: 2,
+            isDeleted: false,
+            boundElements: null,
+            link: null,
+            locked: false,
+            index: "a2",
+            updated: Date.now(),
           },
         ],
       });
