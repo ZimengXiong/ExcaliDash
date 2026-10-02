@@ -1,0 +1,35 @@
+{
+  "name": "excalidash",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "npm@10.9.2",
+  "scripts": {
+    "install:all": "npm --prefix backend ci && npm --prefix frontend ci && npm --prefix e2e ci",
+    "build": "npm --prefix backend run build && npm --prefix frontend run build",
+    "test": "npm run test:integration && npm run test:e2e && npm run test:e2e:auth",
+    "test:integration": "npm --prefix backend test",
+    "test:e2e": "npm --prefix e2e test",
+    "test:e2e:auth": "npm --prefix e2e run test:auth",
+    "lint": "eslint backend/src backend/scripts e2e scripts --max-warnings 0 && npm --prefix frontend run lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check:version": "node scripts/check-version.cjs",
+    "check:env": "node scripts/check-env-boundary.cjs",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs",
+    "marketing:docs": "node scripts/marketing-docs-images.mjs",
+    "check": "npm run format:check && npm run lint && npm run check:version && npm run check:env"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "eslint": "^9.39.1",
+    "globals": "^16.5.0",
+    "prettier": "^3.9.0",
+    "typescript-eslint": "^8.46.3",
+    "vitepress": "^1.6.4"
+  }
+}

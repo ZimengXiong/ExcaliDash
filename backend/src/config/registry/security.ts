@@ -37,7 +37,6 @@ export const securityEnv: readonly EnvVarSpec[] = [
     default: "60000",
     doc: "CSRF-token issuance rate-limit window in milliseconds (default 1 minute); pairs with CSRF_MAX_REQUESTS.",
   },
-
   {
     name: "ENFORCE_HTTPS_REDIRECT",
     group: "Security",

@@ -34,7 +34,8 @@ export const registerDrawingListRoutes = (
 
   const clampLimit = (raw: string | undefined): number => {
     const parsed = raw ? Number.parseInt(raw, 10) : undefined;
-    if (parsed === undefined || !Number.isFinite(parsed)) return DEFAULT_PAGE_SIZE;
+    if (parsed === undefined || !Number.isFinite(parsed))
+      return DEFAULT_PAGE_SIZE;
     return Math.min(Math.max(parsed, 1), MAX_PAGE_SIZE);
   };
   const clampOffset = (raw: string | undefined): number => {
@@ -226,7 +227,11 @@ export const registerDrawingListRoutes = (
       const principal = await getRequestPrincipal(req);
       const { id } = req.params;
 
-      const access = await getDrawingAccess({ prisma, principal, drawingId: id });
+      const access = await getDrawingAccess({
+        prisma,
+        principal,
+        drawingId: id,
+      });
       if (!canViewDrawing(access)) {
         if (respondWithAuthErrorIfPresent(req, res)) return;
         return res.status(404).json({
@@ -254,7 +259,10 @@ export const registerDrawingListRoutes = (
         return res.status(304).end();
       }
 
-      return res.json({ preview: drawing.preview ?? null, updatedAt: updatedAtMs });
+      return res.json({
+        preview: drawing.preview ?? null,
+        updatedAt: updatedAtMs,
+      });
     }),
   );
 
@@ -393,5 +401,4 @@ export const registerDrawingListRoutes = (
       });
     }),
   );
-
 };

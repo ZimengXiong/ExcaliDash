@@ -2,11 +2,24 @@ import type { EnvVarSpec } from "./types";
 
 export const serverEnv: readonly EnvVarSpec[] = [
   {
+    name: "APP_BUILD_LABEL",
+    group: "Server",
+    kind: "string",
+    doc: "CI-derived backend build identity. Official images set this automatically; VERSION remains the source for the base version.",
+  },
+  {
     name: "PORT",
     group: "Server",
     kind: "number",
     default: "8000",
     doc: "TCP port the backend HTTP server listens on.",
+  },
+  {
+    name: "BACKEND_HOST",
+    group: "Server",
+    kind: "string",
+    default: "0.0.0.0",
+    doc: "Backend listen address. Use 127.0.0.1 for private local previews; containers normally need 0.0.0.0.",
   },
   {
     name: "NODE_ENV",

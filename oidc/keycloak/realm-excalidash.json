@@ -17,14 +17,8 @@
       "secret": "excalidash-dev-secret",
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": true,
-      "redirectUris": [
-        "http://localhost:5173/*",
-        "http://localhost:6767/*"
-      ],
-      "webOrigins": [
-        "http://localhost:5173",
-        "http://localhost:6767"
-      ]
+      "redirectUris": ["http://localhost:5173/*", "http://localhost:6767/*"],
+      "webOrigins": ["http://localhost:5173", "http://localhost:6767"]
     }
   ]
 }

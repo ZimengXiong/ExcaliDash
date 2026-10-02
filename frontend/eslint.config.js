@@ -15,6 +15,23 @@ export default tseslint.config(
     ],
   },
   {
+    files: ["*.{js,mjs}", "scripts/**/*.mjs"],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      ecmaVersion: 2022,
+      globals: globals.node,
+    },
+  },
+  {
+    files: ["*.cjs"],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      ecmaVersion: 2022,
+      globals: globals.node,
+      sourceType: "commonjs",
+    },
+  },
+  {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],
     languageOptions: {
@@ -31,7 +48,22 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       "react-hooks/set-state-in-effect": "off",
-      "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
+      "react-refresh/only-export-components": [
+        "warn",
+        {
+          allowConstantExport: true,
+          allowExportNames: [
+            "clampGridStep",
+            "getInitialLangCode",
+            "getSelectionBounds",
+            "useAuth",
+            "usePreference",
+            "usePreferences",
+            "useTheme",
+            "useUpload",
+          ],
+        },
+      ],
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": [
         "warn",
@@ -39,12 +71,4 @@ export default tseslint.config(
       ],
     },
   },
-  {
-    files: ["**/*.{test,spec}.{ts,tsx}"],
-    languageOptions: {
-      globals: {
-        ...globals.vitest,
-      },
-    },
-  }
 );
