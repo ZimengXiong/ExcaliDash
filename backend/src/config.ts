@@ -32,6 +32,7 @@ import {
   resolveUpdateCheckConfig,
 } from "./config/derived";
 import { type MailConfig, resolveMailConfig } from "./config/mail";
+import { resolveOidcClientSecret } from "./config/oidcSecret";
 
 export { buildPasswordPolicyMessage, validatePasswordAgainstPolicy };
 
@@ -251,7 +252,7 @@ const resolveOidcConfig = (authMode: AuthMode): OidcConfig => {
   const issuerUrl = readOptionalString("OIDC_ISSUER_URL");
   const discoveryUrl = readOptionalString("OIDC_DISCOVERY_URL");
   const clientId = readOptionalString("OIDC_CLIENT_ID");
-  const clientSecret = readOptionalString("OIDC_CLIENT_SECRET");
+  const clientSecret = resolveOidcClientSecret();
   const redirectUri = readOptionalString("OIDC_REDIRECT_URI");
   const groupsClaim = readString("OIDC_GROUPS_CLAIM", "groups").trim();
   const adminGroups = readCsv("OIDC_ADMIN_GROUPS");
