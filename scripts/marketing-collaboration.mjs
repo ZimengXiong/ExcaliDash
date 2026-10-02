@@ -2,7 +2,15 @@ import { resolve } from "node:path";
 
 // Independent real browser sessions; presence and cursors travel through the
 // application's normal Socket.IO room. No screenshot overlays or mocked users.
-export async function captureCollaboration(browser, base, gallery, manifest) {
+export async function captureCollaboration(
+  browser,
+  base,
+  gallery,
+  manifest,
+  { theme = "dark", titles } = {},
+) {
+  if (!["dark", "light"].includes(theme))
+    throw new Error("Invalid capture theme");
   const people = [
     { id: "demo-alex", name: "Alex Morgan", color: "#a78bfa" },
     { id: "demo-maya", name: "Maya Chen", color: "#38bdf8" },
@@ -17,14 +25,15 @@ export async function captureCollaboration(browser, base, gallery, manifest) {
       const context = await browser.newContext({
         viewport: { width: 1600, height: 1050 },
         deviceScaleFactor: 2,
+        colorScheme: theme,
       });
       contexts.push(context);
       await context.addInitScript(
-        ({ person, ids }) => {
+        ({ person, ids, theme }) => {
           localStorage.setItem("excalidash-user-id", JSON.stringify(person));
           localStorage.setItem(
             "excalidash-preferences",
-            JSON.stringify({ theme: "dark" }),
+            JSON.stringify({ theme }),
           );
           for (const id of ids)
             localStorage.setItem(
@@ -32,15 +41,18 @@ export async function captureCollaboration(browser, base, gallery, manifest) {
               "false",
             );
         },
-        { person, ids: manifest.map((drawing) => drawing.id) },
+        { person, ids: manifest.map((drawing) => drawing.id), theme },
       );
       pages.push(await context.newPage());
     }
-    for (const [name, title] of [
+    for (const [captureName, title] of [
       ["10-live-deployment-review", "Blue-green deployment"],
       ["11-live-pipeline-workshop", "Real-time data pipelines"],
     ]) {
+      if (titles && !titles.includes(title)) continue;
+      const name = theme === "dark" ? captureName : `${captureName}-light`;
       const drawing = manifest.find((item) => item.title === title);
+      if (!drawing) throw new Error(`Missing sample drawing: ${title}`);
       await Promise.all(
         pages.map(async (page) => {
           await page.goto(`${base}/editor/${drawing.id}`);
@@ -89,7 +101,7 @@ export async function captureCollaboration(browser, base, gallery, manifest) {
         animations: "disabled",
       });
       captures.push(name);
-      console.log(`Captured ${name} with four live sessions`);
+      console.log(`Captured ${name} (${theme}) with four live sessions`);
     }
     return captures;
   } finally {
