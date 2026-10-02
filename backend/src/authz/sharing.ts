@@ -34,7 +34,7 @@ export const getDrawingAccess = async (params: {
   if (params.principal?.kind === "user") {
     const drawing = await params.prisma.drawing.findUnique({
       where: { id: params.drawingId },
-      select: { userId: true },
+      select: { userId: true, collectionId: true },
     });
     if (!drawing) return "none";
     if (drawing.userId === params.principal.userId) return "owner";
@@ -50,40 +50,29 @@ export const getDrawingAccess = async (params: {
     });
     baseAccess = normalizeDrawingPermission(perm?.permission) ?? baseAccess;
 
-    // Check collection-level share if no direct drawing permission found
-    // Check collection-level access if no direct drawing permission found
-    if (baseAccess === "none") {
-      const drawing = await params.prisma.drawing.findUnique({
-        where: { id: params.drawingId },
-        select: { collectionId: true, userId: true },
+    // A drawing inherits the strongest access available from its collection.
+    // This matters when a direct drawing grant is weaker than the collection grant.
+    if (drawing.collectionId) {
+      const ownedCollection = await params.prisma.collection.findFirst({
+        where: {
+          id: drawing.collectionId,
+          userId: params.principal.userId,
+        },
+        select: { id: true },
       });
-      if (drawing?.collectionId) {
-        // Check if user owns the collection (guest created drawing in owner's collection)
-        const ownedCollection = await params.prisma.collection.findFirst({
+      if (ownedCollection) {
+        baseAccess = "owner";
+      } else {
+        const collectionShare = await params.prisma.collectionShare.findFirst({
           where: {
-            id: drawing.collectionId,
-            userId: params.principal.userId,
+            collectionId: drawing.collectionId,
+            granteeUserId: params.principal.userId,
           },
-          select: { id: true },
+          select: { role: true },
         });
-        if (ownedCollection) {
-          baseAccess = "owner";
-        } else {
-          // Check if user has a collection share entry
-          const collectionShare = await params.prisma.collectionShare.findFirst(
-            {
-              where: {
-                collectionId: drawing.collectionId,
-                granteeUserId: params.principal.userId,
-              },
-              select: { role: true },
-            },
-          );
-          if (collectionShare) {
-            baseAccess =
-              normalizeDrawingPermission(collectionShare.role) ?? baseAccess;
-          }
-        }
+        const collectionAccess =
+          normalizeDrawingPermission(collectionShare?.role) ?? "none";
+        baseAccess = maxAccess(baseAccess, collectionAccess);
       }
     }
   }

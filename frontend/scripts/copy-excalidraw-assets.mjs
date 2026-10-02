@@ -14,13 +14,11 @@ const EXCALIDRAW_DIST_DIR = path.join(
   "node_modules",
   "@excalidraw",
   "excalidraw",
-  "dist"
+  "dist",
 );
 
 // src relative to EXCALIDRAW_DIST_DIR  →  dest name inside the target root
-const ASSET_COPIES = [
-  { src: path.join("prod", "fonts"), dest: "fonts" },
-];
+const ASSET_COPIES = [{ src: path.join("prod", "fonts"), dest: "fonts" }];
 
 const copyDir = async (src, dest) => {
   await fs.rm(dest, { recursive: true, force: true });
@@ -56,7 +54,9 @@ const main = async () => {
 
       await copyDir(src, dest);
 
-      console.log(`[copy-excalidraw-assets] Copied ${srcRel} -> ${targetName}/${destName}`);
+      console.log(
+        `[copy-excalidraw-assets] Copied ${srcRel} -> ${targetName}/${destName}`,
+      );
     }
   }
 };

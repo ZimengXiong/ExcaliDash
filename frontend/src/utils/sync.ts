@@ -1,6 +1,6 @@
 export const reconcileElements = (
   localElements: readonly any[],
-  remoteElements: readonly any[]
+  remoteElements: readonly any[],
 ): any[] => {
   const localMap = new Map<string, any>();
 
@@ -100,9 +100,10 @@ export const reconcileElements = (
 
 export const applyElementOrder = (
   elements: readonly any[],
-  elementOrder: readonly string[] | undefined | null
+  elementOrder: readonly string[] | undefined | null,
 ): any[] => {
-  if (!Array.isArray(elementOrder) || elementOrder.length === 0) return [...elements];
+  if (!Array.isArray(elementOrder) || elementOrder.length === 0)
+    return [...elements];
 
   const byId = new Map<string, any>();
   for (const el of elements) {

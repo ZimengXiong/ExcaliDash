@@ -63,7 +63,11 @@ describe("API key authentication", () => {
     });
     userId = user.id;
 
-    const apiKeyFixture = await createApiKeyFixture(prisma, userId, "Obsidian automation");
+    const apiKeyFixture = await createApiKeyFixture(
+      prisma,
+      userId,
+      "Obsidian automation",
+    );
     apiKeyToken = apiKeyFixture.token;
     apiKeyId = apiKeyFixture.id;
 
@@ -77,7 +81,11 @@ describe("API key authentication", () => {
       },
       select: { id: true },
     });
-    const adminApiKeyFixture = await createApiKeyFixture(prisma, adminUser.id, "Admin automation");
+    const adminApiKeyFixture = await createApiKeyFixture(
+      prisma,
+      adminUser.id,
+      "Admin automation",
+    );
     adminApiKeyToken = adminApiKeyFixture.token;
   });
 
@@ -135,6 +143,44 @@ describe("API key authentication", () => {
       .send({ granteeUserId: "user-2", permission: "view" });
 
     expect(response.status).toBe(403);
+  });
+
+  it("does not expose removed agent routes to account-wide keys", async () => {
+    for (const route of ["summary", "elements", "ops"]) {
+      const response = await request(app)
+        .get(`/drawings/drawing-1/${route}`)
+        .set("Authorization", `Bearer ${apiKeyToken}`);
+
+      expect(response.status).toBe(404);
+    }
+    const response = await request(app)
+      .post("/drawings/drawing-1/ops")
+      .set("Authorization", `Bearer ${apiKeyToken}`)
+      .send({ ops: [] });
+    expect(response.status).toBe(404);
+  });
+
+  it("never promotes legacy drawing-scoped keys to account access", async () => {
+    const drawing = await prisma.drawing.create({
+      data: {
+        name: "Legacy token drawing",
+        userId,
+        elements: "[]",
+        appState: "{}",
+      },
+    });
+    const fixture = await createApiKeyFixture(prisma, userId, "Legacy agent");
+    await prisma.apiKey.update({
+      where: { id: fixture.id },
+      data: { drawingId: drawing.id },
+    });
+
+    const response = await request(app)
+      .get("/drawings")
+      .set("Authorization", `Bearer ${fixture.token}`);
+
+    expect(response.status).toBe(403);
+    expect(response.body.message).toContain("Drawing-scoped tokens");
   });
 
   it("stores only hashed API keys and metadata", async () => {

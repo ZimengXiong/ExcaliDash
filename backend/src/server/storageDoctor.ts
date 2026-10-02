@@ -86,7 +86,9 @@ export const parseDatabaseTarget = (databaseUrl?: string): DatabaseTarget => {
  * Build the STORAGE summary as an array of plain content lines (no box
  * borders). Pure: given the same deps it always returns the same lines.
  */
-export const buildStorageSummary = (deps: BuildStorageSummaryDeps): string[] => {
+export const buildStorageSummary = (
+  deps: BuildStorageSummaryDeps,
+): string[] => {
   const { config, s3Enabled, probe } = deps;
   const lines: string[] = [];
 
@@ -98,7 +100,9 @@ export const buildStorageSummary = (deps: BuildStorageSummaryDeps): string[] => 
     lines.push(`  Bucket:      ${config.s3.bucket}`);
     lines.push(`  Region:      ${config.s3.region}`);
     lines.push(`  Endpoint:    ${config.s3.endpoint ?? "AWS default"}`);
-    lines.push(`  Public URL:  ${config.s3.publicUrl ?? "(virtual-hosted-style)"}`);
+    lines.push(
+      `  Public URL:  ${config.s3.publicUrl ?? "(virtual-hosted-style)"}`,
+    );
     lines.push(`  Path style:  ${config.s3.forcePathStyle ? "on" : "off"}`);
 
     if (probe && probe.ok) {
@@ -127,7 +131,9 @@ export const buildStorageSummary = (deps: BuildStorageSummaryDeps): string[] => 
     lines.push("  Image blobs are stored in the database (DrawingFile.data).");
   }
 
-  lines.push(`Limits:        FILE_UPLOAD_MAX_MB=${config.fileUploadMaxMb} (per image), BODY_LIMIT_MB=${config.bodyLimitMb} (scene JSON)`);
+  lines.push(
+    `Limits:        FILE_UPLOAD_MAX_MB=${config.fileUploadMaxMb} (per image), BODY_LIMIT_MB=${config.bodyLimitMb} (scene JSON)`,
+  );
 
   const schedule = config.backups.schedule;
   lines.push(
@@ -146,7 +152,13 @@ const renderStorageBox = (title: string, lines: string[]): string => {
   const width = Math.max(title.length, ...lines.map((l) => l.length)) + 2;
   const top = `+${"-".repeat(width)}+`;
   const pad = (text: string) => `| ${text.padEnd(width - 1)}|`;
-  return [top, pad(title), pad("-".repeat(title.length)), ...lines.map(pad), top].join("\n");
+  return [
+    top,
+    pad(title),
+    pad("-".repeat(title.length)),
+    ...lines.map(pad),
+    top,
+  ].join("\n");
 };
 
 /** Full dependency surface for the wired-up doctor. */
@@ -162,7 +174,9 @@ export interface RunStorageDoctorDeps {
  * Run the doctor: probe S3 when enabled, render the box, print it once.
  * Never throws — a probe failure becomes a WARNING line, not a crash.
  */
-export const runStorageDoctor = async (deps: RunStorageDoctorDeps): Promise<void> => {
+export const runStorageDoctor = async (
+  deps: RunStorageDoctorDeps,
+): Promise<void> => {
   const logger = deps.logger ?? console;
   const s3Enabled = deps.isS3Enabled();
 
