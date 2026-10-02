@@ -18,6 +18,11 @@ import {
   isSuspiciousEmptySnapshot,
 } from "./shared";
 
+// How often we poll the Excalidraw API for late-added files (e.g. pasted images
+// that never surface through onChange). Kept well above 1s: compression is now
+// memoized, so a tighter interval only burns main-thread cycles for no gain.
+const FILES_POLL_INTERVAL_MS = 2500;
+
 type CanvasHandlerRefs = {
   excalidrawAPI: MutableRefObject<any>;
   hasHydratedInitialScene: MutableRefObject<boolean>;
@@ -92,8 +97,7 @@ export const useEditorCanvasHandlers = ({
       if (isUnmountingRef.current) return;
       if (isSyncingRef.current) return;
       latestAppStateRef.current = appState;
-      const currentFiles =
-        files || excalidrawAPIRef.current?.getFiles() || {};
+      const currentFiles = files || excalidrawAPIRef.current?.getFiles() || {};
       if (Object.keys(currentFiles).length > 0) {
         latestFilesRef.current = currentFiles;
       }
@@ -219,16 +223,11 @@ export const useEditorCanvasHandlers = ({
     if (!drawingId || !isReady) return;
     const interval = window.setInterval(() => {
       if (isUnmountingRef.current) return;
-      if (isUnmountingRef.current) return;
       if (isSyncingRef.current) return;
       if (!excalidrawAPIRef.current) return;
       const nextFiles = excalidrawAPIRef.current.getFiles?.() || {};
       const didEmit = emitFilesDeltaIfNeeded(nextFiles);
-      if (
-        didEmit &&
-        latestAppStateRef.current &&
-        debouncedSaveRef.current
-      ) {
+      if (didEmit && latestAppStateRef.current && debouncedSaveRef.current) {
         hasSceneChangesSinceLoadRef.current = true;
         lastLocalChangeAtRef.current = Date.now();
         debouncedSaveRef.current(
@@ -239,7 +238,7 @@ export const useEditorCanvasHandlers = ({
         );
         debouncedSavePreview(drawingId);
       }
-    }, 1000);
+    }, FILES_POLL_INTERVAL_MS);
     return () => window.clearInterval(interval);
   }, [
     debouncedSavePreview,

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import type { NavigateFunction } from "react-router-dom";
 import * as api from "../../api";
 import type { Collection, DrawingSummary } from "../../types";
@@ -53,7 +53,9 @@ export const useDashboardDrawingActions = ({
     (collection) => collection.id === selectedCollectionId,
   );
   const isSharedCollection = !!(
-    currentCollection && currentCollection.isOwner === false
+    selectedCollectionId !== "trash" &&
+    currentCollection &&
+    currentCollection.isOwner === false
   );
 
   const handleViewerActionError = (message: string) =>
@@ -115,11 +117,8 @@ export const useDashboardDrawingActions = ({
     });
   };
 
-  const handleDeleteDrawing = async (id: string) => {
-    if (isTrashView) {
-      setDrawingToDelete(id);
-      return;
-    }
+  // Drop a single drawing from the current list + selection (optimistic).
+  const removeDrawingFromList = (id: string) => {
     setDrawings((current) => {
       const next = current.filter((drawing) => drawing.id !== id);
       if (next.length !== current.length) setTotalCount((count) => count - 1);
@@ -130,6 +129,14 @@ export const useDashboardDrawingActions = ({
       next.delete(id);
       return next;
     });
+  };
+
+  const handleDeleteDrawing = async (id: string) => {
+    if (isTrashView) {
+      setDrawingToDelete(id);
+      return;
+    }
+    removeDrawingFromList(id);
     try {
       await api.updateDrawing(id, { collectionId: "trash" });
     } catch (err) {
@@ -142,16 +149,7 @@ export const useDashboardDrawingActions = ({
     setDrawingToDelete(null);
     try {
       await api.deleteDrawing(id);
-      setDrawings((current) => {
-        const next = current.filter((drawing) => drawing.id !== id);
-        if (next.length !== current.length) setTotalCount((count) => count - 1);
-        return next;
-      });
-      setSelectedIds((current) => {
-        const next = new Set(current);
-        next.delete(id);
-        return next;
-      });
+      removeDrawingFromList(id);
     } catch (err) {
       console.error("Failed to delete drawing", err);
       refreshData();
@@ -219,6 +217,17 @@ export const useDashboardDrawingActions = ({
       );
     } catch (err) {
       console.error("Failed bulk move", err);
+      refreshData();
+    }
+  };
+
+  const handleHideSharedDrawing = async (id: string) => {
+    // Optimistically drop the shared drawing from the recipient's list.
+    removeDrawingFromList(id);
+    try {
+      await api.setSharedDrawingHidden(id, true);
+    } catch (err) {
+      console.error("Failed to hide shared drawing", err);
       refreshData();
     }
   };
@@ -339,13 +348,16 @@ export const useDashboardDrawingActions = ({
     if (preview) event.dataTransfer.setDragImage(preview, 80, 50);
   };
 
-  const handlePreviewGenerated = (id: string, preview: string) => {
-    setDrawings((current) =>
-      current.map((drawing) =>
-        drawing.id === id ? { ...drawing, preview } : drawing,
-      ),
-    );
-  };
+  const handlePreviewGenerated = useCallback(
+    (id: string, preview: string) => {
+      setDrawings((current) =>
+        current.map((drawing) =>
+          drawing.id === id ? { ...drawing, preview } : drawing,
+        ),
+      );
+    },
+    [setDrawings],
+  );
 
   return {
     drawingToDelete,
@@ -365,6 +377,7 @@ export const useDashboardDrawingActions = ({
     handleImportDrawings,
     handleRenameDrawing,
     handleDeleteDrawing,
+    handleHideSharedDrawing,
     executePermanentDelete,
     handleBulkDeleteClick,
     executeBulkPermanentDelete,

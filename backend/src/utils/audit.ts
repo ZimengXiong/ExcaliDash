@@ -5,7 +5,9 @@ import { prisma } from "../db/prisma";
 
 let prismaProvider: () => typeof prisma = () => prisma;
 
-export const setAuditPrismaProvider = (provider: (() => typeof prisma) | null): void => {
+export const setAuditPrismaProvider = (
+  provider: (() => typeof prisma) | null,
+): void => {
   prismaProvider = provider ?? (() => prisma);
 };
 
@@ -53,8 +55,12 @@ export const logAuditEvent = async (data: AuditLogData): Promise<void> => {
       },
     });
   } catch (error) {
-    if (process.env.NODE_ENV === "development") {
-      console.debug("Audit logging skipped (feature disabled or table missing):", error);
+    const { config } = await import("../config");
+    if (config.isDev) {
+      console.debug(
+        "Audit logging skipped (feature disabled or table missing):",
+        error,
+      );
     }
   }
 };
@@ -65,7 +71,7 @@ export const logAuditEvent = async (data: AuditLogData): Promise<void> => {
  */
 export const getAuditLogs = async (
   userId?: string,
-  limit: number = 100
+  limit: number = 100,
 ): Promise<AuditLogResult[]> => {
   try {
     const { config } = await import("../config");
@@ -100,8 +106,12 @@ export const getAuditLogs = async (
       })(),
     }));
   } catch (error) {
-    if (process.env.NODE_ENV === "development") {
-      console.debug("Failed to retrieve audit logs (feature disabled or table missing):", error);
+    const { config } = await import("../config");
+    if (config.isDev) {
+      console.debug(
+        "Failed to retrieve audit logs (feature disabled or table missing):",
+        error,
+      );
     }
     return [];
   }

@@ -19,7 +19,19 @@ export const registerDrawingSharingRoutes = (
     logAuditEvent,
     resolveDefaultTtlMs,
     resolveMaxTtlMs,
+    revalidateDrawingAccess,
   } = context;
+
+  // Kick any connected collaborators whose access to this drawing just changed.
+  // Best-effort: never let a socket failure break the sharing HTTP response.
+  const revokeLiveAccess = async (drawingId: string): Promise<void> => {
+    if (!revalidateDrawingAccess) return;
+    try {
+      await revalidateDrawingAccess(drawingId);
+    } catch (err) {
+      console.error("Failed to revalidate live drawing access:", err);
+    }
+  };
   // Owner-only: resolve users by name/email in the context of a drawing you own (reduces enumeration risk).
   app.get(
     "/drawings/:id/share-resolve",
@@ -203,6 +215,7 @@ export const registerDrawingSharingRoutes = (
         where: { id: permId, drawingId: id },
       });
       invalidateDrawingsCache();
+      await revokeLiveAccess(id);
 
       if (config.enableAuditLogging) {
         await logAuditEvent({
@@ -254,8 +267,9 @@ export const registerDrawingSharingRoutes = (
 
       let expiresAt: Date | null;
       if (hasExpiresAtKey && rawExpiresAt === null) {
-        expiresAt =
-          permission === "view" ? null : new Date(now + effectiveDefaultTtlMs);
+        // Explicit null expiry means "never auto-disable" for both view and edit
+        // links. Only non-null values are subject to the max-TTL cap below.
+        expiresAt = null;
       } else {
         const requestedExpiresAt =
           typeof rawExpiresAt === "string" && rawExpiresAt.trim().length > 0
@@ -362,6 +376,7 @@ export const registerDrawingSharingRoutes = (
         where: { id: shareId, drawingId: id, revokedAt: null },
         data: { revokedAt: new Date() },
       });
+      await revokeLiveAccess(id);
 
       if (config.enableAuditLogging) {
         await logAuditEvent({

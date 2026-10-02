@@ -2,7 +2,8 @@ import { APIRequestContext, expect } from "@playwright/test";
 
 const DEFAULT_BACKEND_PORT = 8000;
 
-export const API_URL = process.env.API_URL || `http://localhost:${DEFAULT_BACKEND_PORT}`;
+export const API_URL =
+  process.env.API_URL || `http://localhost:${DEFAULT_BACKEND_PORT}`;
 
 type CsrfTokenResponse = {
   token: string;
@@ -22,12 +23,16 @@ const fetchCsrfInfo = async (request: APIRequestContext): Promise<CsrfInfo> => {
   if (!response.ok()) {
     const text = await response.text();
     throw new Error(
-      `Failed to fetch CSRF token: ${response.status()} ${text || "(empty response)"}`
+      `Failed to fetch CSRF token: ${response.status()} ${text || "(empty response)"}`,
     );
   }
 
   const data = (await response.json()) as CsrfTokenResponse;
-  if (!data || typeof data.token !== "string" || data.token.trim().length === 0) {
+  if (
+    !data ||
+    typeof data.token !== "string" ||
+    data.token.trim().length === 0
+  ) {
     throw new Error("Failed to fetch CSRF token: missing token in response");
   }
 
@@ -59,7 +64,9 @@ const getCsrfInfo = async (request: APIRequestContext): Promise<CsrfInfo> => {
   return promise;
 };
 
-const refreshCsrfInfo = async (request: APIRequestContext): Promise<CsrfInfo> => {
+const refreshCsrfInfo = async (
+  request: APIRequestContext,
+): Promise<CsrfInfo> => {
   const promise = fetchCsrfInfo(request)
     .then((info) => {
       csrfInfoByRequest.set(request, info);
@@ -74,7 +81,7 @@ const refreshCsrfInfo = async (request: APIRequestContext): Promise<CsrfInfo> =>
 };
 
 export async function getCsrfHeaders(
-  request: APIRequestContext
+  request: APIRequestContext,
 ): Promise<Record<string, string>> {
   const info = await getCsrfInfo(request);
   return { [info.headerName]: info.token };
@@ -82,7 +89,7 @@ export async function getCsrfHeaders(
 
 const withCsrfHeaders = async (
   request: APIRequestContext,
-  headers: Record<string, string> = {}
+  headers: Record<string, string> = {},
 ): Promise<Record<string, string>> => ({
   ...headers,
   ...(await getCsrfHeaders(request)),
@@ -133,10 +140,12 @@ const defaultDrawingPayload = () => ({
 
 export async function createDrawing(
   request: APIRequestContext,
-  overrides: CreateDrawingOptions = {}
+  overrides: CreateDrawingOptions = {},
 ): Promise<DrawingRecord> {
   const payload = { ...defaultDrawingPayload(), ...overrides };
-  const headers = await withCsrfHeaders(request, { "Content-Type": "application/json" });
+  const headers = await withCsrfHeaders(request, {
+    "Content-Type": "application/json",
+  });
 
   let response = await request.post(`${API_URL}/drawings`, {
     headers,
@@ -163,7 +172,7 @@ export async function createDrawing(
 
 export async function getDrawing(
   request: APIRequestContext,
-  id: string
+  id: string,
 ): Promise<DrawingRecord> {
   const response = await request.get(`${API_URL}/drawings/${id}`);
   expect(response.ok()).toBe(true);
@@ -173,9 +182,11 @@ export async function getDrawing(
 export async function updateDrawing(
   request: APIRequestContext,
   id: string,
-  data: Partial<DrawingRecord>
+  data: Partial<DrawingRecord>,
 ): Promise<DrawingRecord> {
-  const headers = await withCsrfHeaders(request, { "Content-Type": "application/json" });
+  const headers = await withCsrfHeaders(request, {
+    "Content-Type": "application/json",
+  });
 
   let response = await request.put(`${API_URL}/drawings/${id}`, {
     headers,
@@ -195,7 +206,9 @@ export async function updateDrawing(
 
   if (!response.ok()) {
     const text = await response.text();
-    throw new Error(`Failed to update drawing ${id}: ${response.status()} ${text}`);
+    throw new Error(
+      `Failed to update drawing ${id}: ${response.status()} ${text}`,
+    );
   }
 
   return (await response.json()) as DrawingRecord;
@@ -203,7 +216,7 @@ export async function updateDrawing(
 
 export async function deleteDrawing(
   request: APIRequestContext,
-  id: string
+  id: string,
 ): Promise<void> {
   const headers = await withCsrfHeaders(request);
   let response = await request.delete(`${API_URL}/drawings/${id}`, { headers });
@@ -219,42 +232,45 @@ export async function deleteDrawing(
   if (!response.ok()) {
     if (response.status() !== 404) {
       const text = await response.text();
-      throw new Error(`Failed to delete drawing ${id}: ${response.status()} ${text}`);
+      throw new Error(
+        `Failed to delete drawing ${id}: ${response.status()} ${text}`,
+      );
     }
   }
 }
 
 export async function listDrawings(
   request: APIRequestContext,
-  options: ListDrawingsOptions = {}
+  options: ListDrawingsOptions = {},
 ): Promise<DrawingRecord[]> {
   const params = new URLSearchParams();
   if (options.search) params.set("search", options.search);
   if (options.collectionId !== undefined) {
     params.set(
       "collectionId",
-      options.collectionId === null ? "null" : String(options.collectionId)
+      options.collectionId === null ? "null" : String(options.collectionId),
     );
   }
   if (options.includeData) params.set("includeData", "true");
 
   const query = params.toString();
   const response = await request.get(
-    `${API_URL}/drawings${query ? `?${query}` : ""}`
+    `${API_URL}/drawings${query ? `?${query}` : ""}`,
   );
   expect(response.ok()).toBe(true);
   const payload = (await response.json()) as
-    | DrawingRecord[]
-    | { drawings?: DrawingRecord[] };
+    DrawingRecord[] | { drawings?: DrawingRecord[] };
   if (Array.isArray(payload)) return payload;
   return Array.isArray(payload.drawings) ? payload.drawings : [];
 }
 
 export async function createCollection(
   request: APIRequestContext,
-  name: string
+  name: string,
 ): Promise<CollectionRecord> {
-  const headers = await withCsrfHeaders(request, { "Content-Type": "application/json" });
+  const headers = await withCsrfHeaders(request, {
+    "Content-Type": "application/json",
+  });
 
   let response = await request.post(`${API_URL}/collections`, {
     headers,
@@ -277,7 +293,7 @@ export async function createCollection(
 }
 
 export async function listCollections(
-  request: APIRequestContext
+  request: APIRequestContext,
 ): Promise<CollectionRecord[]> {
   const response = await request.get(`${API_URL}/collections`);
   expect(response.ok()).toBe(true);
@@ -286,10 +302,12 @@ export async function listCollections(
 
 export async function deleteCollection(
   request: APIRequestContext,
-  id: string
+  id: string,
 ): Promise<void> {
   const headers = await withCsrfHeaders(request);
-  let response = await request.delete(`${API_URL}/collections/${id}`, { headers });
+  let response = await request.delete(`${API_URL}/collections/${id}`, {
+    headers,
+  });
 
   if (!response.ok() && response.status() === 403) {
     await refreshCsrfInfo(request);
@@ -302,7 +320,9 @@ export async function deleteCollection(
   if (!response.ok()) {
     if (response.status() !== 404) {
       const text = await response.text();
-      throw new Error(`Failed to delete collection ${id}: ${response.status()} ${text}`);
+      throw new Error(
+        `Failed to delete collection ${id}: ${response.status()} ${text}`,
+      );
     }
   }
 }
