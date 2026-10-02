@@ -37,7 +37,7 @@ export const SidebarContextMenu: React.FC<SidebarContextMenuProps> = ({
     }}
   >
     <div
-      className="absolute bg-white dark:bg-neutral-800 rounded-lg border-2 border-black dark:border-neutral-700 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] py-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-100"
+      className="ui-menu absolute w-52 animate-in fade-in zoom-in-95 duration-100"
       style={{ top: contextMenu.y, left: contextMenu.x }}
       onClick={(e) => e.stopPropagation()}
     >
@@ -48,7 +48,7 @@ export const SidebarContextMenu: React.FC<SidebarContextMenuProps> = ({
               onShareCollection(contextMenu.id!);
               onClose();
             }}
-            className="w-full px-3 py-2 text-sm text-left text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-2"
+            className="ui-menu-item"
           >
             <Share2 size={14} /> Share Collection
           </button>
@@ -60,16 +60,17 @@ export const SidebarContextMenu: React.FC<SidebarContextMenuProps> = ({
               if (collection) onRenameCollection(collection);
               onClose();
             }}
-            className="w-full px-3 py-2 text-sm text-left text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-2"
+            className="ui-menu-item"
           >
             <Edit2 size={14} /> Rename Collection
           </button>
+          <div className="ui-menu-separator" />
           <button
             onClick={() => {
               onDeleteCollection(contextMenu.id!);
               onClose();
             }}
-            className="w-full px-3 py-2 text-sm text-left text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30 flex items-center gap-2"
+            className="ui-menu-item ui-menu-item-danger"
           >
             <Trash2 size={14} /> Delete Collection
           </button>
@@ -80,7 +81,7 @@ export const SidebarContextMenu: React.FC<SidebarContextMenuProps> = ({
             onCreateCollection();
             onClose();
           }}
-          className="w-full px-3 py-2 text-sm text-left text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-2"
+          className="ui-menu-item"
         >
           <Plus size={14} /> New Collection
         </button>

@@ -259,6 +259,7 @@ export const Dashboard: React.FC = () => {
           onToggleSelection={selection.handleToggleSelection}
           onRename={actions.handleRenameDrawing}
           onDelete={actions.handleDeleteDrawing}
+          onHide={actions.handleHideSharedDrawing}
           onDuplicate={actions.handleDuplicateDrawing}
           onMoveToCollection={actions.handleMoveToCollection}
           onOpenDrawing={(id) => navigate(`/editor/${id}`)}

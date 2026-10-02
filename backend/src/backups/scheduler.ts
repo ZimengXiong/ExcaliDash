@@ -21,6 +21,10 @@ type ParsedCron = {
   daysOfMonth: CronPart;
   months: CronPart;
   daysOfWeek: CronPart;
+  // Track whether the day fields were restricted (not "*") so we can apply the
+  // standard cron rule: OR the two day fields when both are constrained.
+  daysOfMonthRestricted: boolean;
+  daysOfWeekRestricted: boolean;
 };
 
 const parseDatabasePath = (databaseUrl?: string): string | null => {
@@ -45,7 +49,8 @@ const parseCronPart = (raw: string, min: number, max: number): CronPart => {
 
     const [rangeToken, stepToken] = trimmed.split("/");
     const step = stepToken ? Number(stepToken) : 1;
-    if (!Number.isInteger(step) || step <= 0) throw new Error(`Invalid cron step: ${trimmed}`);
+    if (!Number.isInteger(step) || step <= 0)
+      throw new Error(`Invalid cron step: ${trimmed}`);
 
     if (rangeToken === "*") {
       addRange(min, max, step);
@@ -56,7 +61,13 @@ const parseCronPart = (raw: string, min: number, max: number): CronPart => {
       const [startRaw, endRaw] = rangeToken.split("-");
       const start = Number(startRaw);
       const end = Number(endRaw);
-      if (!Number.isInteger(start) || !Number.isInteger(end) || start < min || end > max || start > end) {
+      if (
+        !Number.isInteger(start) ||
+        !Number.isInteger(end) ||
+        start < min ||
+        end > max ||
+        start > end
+      ) {
         throw new Error(`Invalid cron range: ${trimmed}`);
       }
       addRange(start, end, step);
@@ -74,7 +85,7 @@ const parseCronPart = (raw: string, min: number, max: number): CronPart => {
   return values;
 };
 
-const parseCronSchedule = (raw: string): ParsedCron => {
+export const parseCronSchedule = (raw: string): ParsedCron => {
   const parts = raw.trim().split(/\s+/);
   const normalized = parts.length === 5 ? ["0", ...parts] : parts;
   if (normalized.length !== 6) {
@@ -88,28 +99,44 @@ const parseCronSchedule = (raw: string): ParsedCron => {
     daysOfMonth: parseCronPart(normalized[3], 1, 31),
     months: parseCronPart(normalized[4], 1, 12),
     daysOfWeek: parseCronPart(normalized[5], 0, 7),
+    daysOfMonthRestricted: normalized[3] !== "*",
+    daysOfWeekRestricted: normalized[5] !== "*",
   };
 };
 
-const cronMatches = (cron: ParsedCron, date: Date): boolean => {
+export const cronMatches = (cron: ParsedCron, date: Date): boolean => {
   const day = date.getDay();
+  const domMatch = cron.daysOfMonth.has(date.getDate());
+  const dowMatch =
+    cron.daysOfWeek.has(day) || (day === 0 && cron.daysOfWeek.has(7));
+  // Standard cron: when both day-of-month and day-of-week are restricted the
+  // job runs if EITHER matches; otherwise the constrained field applies.
+  const dayMatch =
+    cron.daysOfMonthRestricted && cron.daysOfWeekRestricted
+      ? domMatch || dowMatch
+      : domMatch && dowMatch;
   return (
     cron.seconds.has(date.getSeconds()) &&
     cron.minutes.has(date.getMinutes()) &&
     cron.hours.has(date.getHours()) &&
-    cron.daysOfMonth.has(date.getDate()) &&
     cron.months.has(date.getMonth() + 1) &&
-    (cron.daysOfWeek.has(day) || (day === 0 && cron.daysOfWeek.has(7)))
+    dayMatch
   );
 };
 
-const pruneOldBackups = async (backupDir: string, retentionDays: number): Promise<void> => {
+const pruneOldBackups = async (
+  backupDir: string,
+  retentionDays: number,
+): Promise<void> => {
   if (!Number.isFinite(retentionDays) || retentionDays <= 0) return;
   const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
   const entries = await fs.promises.readdir(backupDir, { withFileTypes: true });
   await Promise.allSettled(
     entries
-      .filter((entry) => entry.isFile() && /^excalidash-sqlite-.*\.db$/.test(entry.name))
+      .filter(
+        (entry) =>
+          entry.isFile() && /^excalidash-sqlite-.*\.db$/.test(entry.name),
+      )
       .map(async (entry) => {
         const filePath = path.join(backupDir, entry.name);
         const stat = await fs.promises.stat(filePath);
@@ -126,7 +153,9 @@ export const createSqliteBackup = async ({
 }: Omit<BackupSchedulerOptions, "schedule">): Promise<string | null> => {
   const databasePath = parseDatabasePath(databaseUrl);
   if (!databasePath) {
-    console.warn("[backup] Scheduled backups currently support SQLite file: DATABASE_URL values only.");
+    console.warn(
+      "[backup] Scheduled backups currently support SQLite file: DATABASE_URL values only.",
+    );
     return null;
   }
 
@@ -135,8 +164,14 @@ export const createSqliteBackup = async ({
   await fs.promises.mkdir(backupDir, { recursive: true, mode: 0o700 });
   await prisma.$executeRawUnsafe("PRAGMA wal_checkpoint(PASSIVE)");
 
-  const target = path.join(backupDir, `excalidash-sqlite-${timestampForFilename(new Date())}.db`);
-  const source = new Database(databasePath, { readonly: true, fileMustExist: true });
+  const target = path.join(
+    backupDir,
+    `excalidash-sqlite-${timestampForFilename(new Date())}.db`,
+  );
+  const source = new Database(databasePath, {
+    readonly: true,
+    fileMustExist: true,
+  });
   try {
     await source.backup(target);
   } finally {
@@ -148,14 +183,19 @@ export const createSqliteBackup = async ({
   return target;
 };
 
-export const startScheduledBackups = (options: BackupSchedulerOptions): (() => void) | null => {
+export const startScheduledBackups = (
+  options: BackupSchedulerOptions,
+): (() => void) | null => {
   if (!options.schedule) return null;
 
   let cron: ParsedCron;
   try {
     cron = parseCronSchedule(options.schedule);
   } catch (error) {
-    console.error("[backup] Invalid BACKUP_SCHEDULE; scheduled backups disabled:", error);
+    console.error(
+      "[backup] Invalid BACKUP_SCHEDULE; scheduled backups disabled:",
+      error,
+    );
     return null;
   }
 
@@ -179,6 +219,8 @@ export const startScheduledBackups = (options: BackupSchedulerOptions): (() => v
 
   const interval = setInterval(tick, 1000);
   interval.unref();
-  console.log(`[backup] Scheduled SQLite backups enabled (${options.schedule}) -> ${options.backupDir}`);
+  console.log(
+    `[backup] Scheduled SQLite backups enabled (${options.schedule}) -> ${options.backupDir}`,
+  );
   return () => clearInterval(interval);
 };

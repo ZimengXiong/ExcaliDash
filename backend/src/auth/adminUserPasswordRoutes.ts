@@ -1,10 +1,24 @@
 import bcrypt from "bcrypt";
 import { Request, Response } from "express";
 import { logAuditEvent } from "../utils/audit";
+import { config as appConfig } from "../config";
 import type { RegisterAdminRoutesDeps } from "./adminRoutes";
 
-export const registerAdminUserPasswordRoutes = (deps: RegisterAdminRoutesDeps) => {
-  const { router, prisma, requireAuth, accountActionRateLimiter, ensureAuthEnabled, requireAdmin, generateTempPassword, resetLoginAttemptKey, config, requireCsrf } = deps;
+export const registerAdminUserPasswordRoutes = (
+  deps: RegisterAdminRoutesDeps,
+) => {
+  const {
+    router,
+    prisma,
+    requireAuth,
+    accountActionRateLimiter,
+    ensureAuthEnabled,
+    requireAdmin,
+    generateTempPassword,
+    resetLoginAttemptKey,
+    config,
+    requireCsrf,
+  } = deps;
   router.post(
     "/users/:id/reset-password",
     requireAuth,
@@ -15,12 +29,10 @@ export const registerAdminUserPasswordRoutes = (deps: RegisterAdminRoutesDeps) =
         if (!requireCsrf(req, res)) return;
         if (!requireAdmin(req, res)) return;
         if (req.user.impersonatorId) {
-          return res
-            .status(403)
-            .json({
-              error: "Forbidden",
-              message: "Password resets are not allowed while impersonating",
-            });
+          return res.status(403).json({
+            error: "Forbidden",
+            message: "Password resets are not allowed while impersonating",
+          });
         }
         const userId = String(req.params.id || "").trim();
         if (!userId) {
@@ -29,12 +41,10 @@ export const registerAdminUserPasswordRoutes = (deps: RegisterAdminRoutesDeps) =
             .json({ error: "Bad request", message: "Invalid user id" });
         }
         if (userId === req.user.id) {
-          return res
-            .status(409)
-            .json({
-              error: "Conflict",
-              message: "Use Profile -> Change Password for your own account",
-            });
+          return res.status(409).json({
+            error: "Conflict",
+            message: "Use Profile -> Change Password for your own account",
+          });
         }
         const target = await prisma.user.findUnique({
           where: { id: userId },
@@ -64,7 +74,7 @@ export const registerAdminUserPasswordRoutes = (deps: RegisterAdminRoutesDeps) =
             data: { revoked: true },
           });
         } catch {
-          if (process.env.NODE_ENV === "development") {
+          if (appConfig.isDev) {
             console.debug(
               "Refresh token revocation skipped (feature disabled or table missing)",
             );
@@ -92,12 +102,11 @@ export const registerAdminUserPasswordRoutes = (deps: RegisterAdminRoutesDeps) =
         });
       } catch (error) {
         console.error("Reset password error:", error);
-        res
-          .status(500)
-          .json({
-            error: "Internal server error",
-            message: "Failed to reset password",
-          });
+        res.status(500).json({
+          error: "Internal server error",
+          message: "Failed to reset password",
+        });
       }
     },
-  );};
+  );
+};

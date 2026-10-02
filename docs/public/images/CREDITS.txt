@@ -1,0 +1,129 @@
+excalidraw/excalidraw-libraries
+Revision: 297a349eaff859e678f78d4dbc8e68df5fce42e5
+License: MIT
+https://raw.githubusercontent.com/excalidraw/excalidraw-libraries/297a349eaff859e678f78d4dbc8e68df5fce42e5/LICENSE
+
+MIT License
+
+Copyright (c) 2020 Excalidraw
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+--------------------
+
+Prakash-sa/system-design-ultimatum
+Revision: 018c1244c9273cbb62f4fa174a15e2fffc89c509
+License: CC BY 4.0 (diagrams)
+https://raw.githubusercontent.com/Prakash-sa/system-design-ultimatum/018c1244c9273cbb62f4fa174a15e2fffc89c509/LICENSE.md
+
+# License
+
+This repository contains both source code and educational content.
+
+## Source Code
+
+Source code in `build-site.js`, `assets/`, and GitHub workflow files is licensed under the MIT License.
+
+MIT License
+
+Copyright (c) 2026 Prakash Saini
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files, to deal in the software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the software, and to permit persons to whom the software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+## Educational Content
+
+Original diagrams, markdown notes, and other educational content contributed to this repository are licensed under the Creative Commons Attribution 4.0 International License (CC BY 4.0), unless a file says otherwise.
+
+License summary: https://creativecommons.org/licenses/by/4.0/
+
+## Third-Party Material
+
+Third-party names, trademarks, logos, and source references remain the property of their respective owners. Public references are included for attribution and educational context only. This repository does not grant additional rights to third-party material.
+
+By contributing, you confirm that you have the right to submit your contribution under these terms.
+
+
+
+--------------------
+
+vemuruadi/excalidraw-redis-grafana
+Revision: 8f51501158d4bfa3f3dbd089a0aade9359d12ecb
+License: MIT
+https://raw.githubusercontent.com/vemuruadi/excalidraw-redis-grafana/8f51501158d4bfa3f3dbd089a0aade9359d12ecb/LICENSE
+
+MIT License
+
+Copyright (c) 2021 Mikhail Volkov
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+--------------------
+
+aretecode/system-design-templates-excalidraw
+Revision: 8dafdf3dea3f5a04688b9226a7c0d83a7eb33071
+License: MIT
+https://raw.githubusercontent.com/aretecode/system-design-templates-excalidraw/8dafdf3dea3f5a04688b9226a7c0d83a7eb33071/LICENSE
+
+MIT License
+
+Copyright (c) 2021 James Wiens
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+Per-image source and modifications: sources.json
+CC BY 4.0: https://creativecommons.org/licenses/by/4.0/

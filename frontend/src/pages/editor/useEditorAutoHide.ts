@@ -1,21 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-export const useEditorAutoHide = (drawingId: string | undefined) => {
+export const useEditorAutoHide = (
+  drawingId: string | undefined,
+  defaultEnabled = true,
+) => {
   const storageKey = useMemo(
     () => (drawingId ? `excalidash:editor:${drawingId}:autoHideEnabled` : null),
     [drawingId],
   );
 
   const getStoredAutoHideEnabled = useCallback((): boolean => {
-    if (!storageKey) return true;
+    if (!storageKey) return defaultEnabled;
     try {
       const raw = window.localStorage.getItem(storageKey);
-      if (raw === null) return true;
-      return raw === "1" || raw === "true";
+      if (raw === "1" || raw === "true") return true;
+      if (raw === "0" || raw === "false") return false;
+      return defaultEnabled;
     } catch {
-      return true;
+      return defaultEnabled;
     }
-  }, [storageKey]);
+  }, [defaultEnabled, storageKey]);
 
   const [autoHideEnabled, setAutoHideEnabled] = useState(
     getStoredAutoHideEnabled,

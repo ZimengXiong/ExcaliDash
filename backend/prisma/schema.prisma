@@ -28,6 +28,7 @@ model User {
   refreshTokens       RefreshToken[]
   apiKeys             ApiKey[]
   auditLogs           AuditLog[]
+  chatGptConnection   ChatGptConnection?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 }
@@ -45,8 +46,38 @@ model SystemConfig {
   bootstrapSetupCodeIssuedAt DateTime?
   bootstrapSetupCodeExpiresAt DateTime?
   bootstrapSetupCodeFailedAttempts Int @default(0)
+  // Legacy AI data is retained for non-destructive upgrades; dev has no AI routes.
+  aiProvider                 String?
+  aiBaseUrl                  String?
+  aiModel                    String?
+  aiApiKeyEncrypted          String?
+  // Admin kill-switch for the per-user ChatGPT subscription provider. Null means enabled.
+  aiChatgptEnabled           Boolean?
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt
+}
+
+model ChatGptConnection {
+  userId                String   @id
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId             String
+  accessTokenEncrypted  String
+  refreshTokenEncrypted String
+  expiresAt             BigInt
+  accountEmail          String?
+  planType              String?
+  needsReconnect        Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+model ChatGptAuthState {
+  state        String   @id
+  userId       String
+  codeVerifier String
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
 }
 
 model Collection {
@@ -77,6 +108,7 @@ model Drawing {
   permissions  DrawingPermission[]
   linkShares   DrawingLinkShare[]
   snapshots    DrawingSnapshot[]
+  agentKeys    ApiKey[]
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
@@ -105,6 +137,9 @@ model DrawingPermission {
   granteeUserId   String
   granteeUser     User     @relation(fields: [granteeUserId], references: [id], onDelete: Cascade)
   permission      String
+  // Per-recipient flag so a grantee can hide a shared drawing from their own
+  // "Shared with me" list without affecting the owner or other recipients.
+  hidden          Boolean  @default(false)
   createdByUserId String
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -186,6 +221,8 @@ model ApiKey {
   tokenHash  String    @unique
   prefix     String
   scopes     String    @default("drawings:read,drawings:write,collections:read,collections:write")
+  drawingId  String?
+  drawing    Drawing?  @relation(fields: [drawingId], references: [id], onDelete: Cascade)
   lastUsedAt DateTime?
   revokedAt  DateTime?
   createdAt  DateTime  @default(now())
@@ -193,6 +230,7 @@ model ApiKey {
 
   @@index([userId, createdAt])
   @@index([keyId, revokedAt])
+  @@index([drawingId])
 }
 
 model AuditLog {
@@ -224,18 +262,25 @@ model AuthIdentity {
   @@index([userId])
 }
 
-/// Per-(drawing, fileId) S3 object record. Excalidraw fileIds are content
+/// Per-(drawing, fileId) image blob record. Excalidraw fileIds are content
 /// hashes that legitimately repeat across drawings, so the primary key
 /// includes drawingId to keep each reference accounted for separately.
-model S3File {
+///
+/// Two storage backends share this one table:
+///   - storage = "db": bytes live in `data` (sqlite BLOB / postgres BYTEA).
+///   - storage = "s3": bytes live in S3 at `s3Key`; `data` is null.
+/// (drawingId, fileId) is content-addressed and immutable, so uploads are
+/// idempotent — no version/merge concerns for blobs.
+model DrawingFile {
   drawingId String
   fileId    String   // Excalidraw fileId (same id used in Drawing.files)
-  userId    String   // owner who uploaded the file
-  s3Key     String   // full object key, e.g. "excalidash/userId/drawingId/fileId.png"
   mimeType  String
+  sizeBytes Int      @default(0)
+  storage   String   // "db" | "s3"
+  s3Key     String?  // set when storage = "s3"; full object key
+  data      Bytes?   // set when storage = "db"; raw image bytes
   createdAt DateTime @default(now())
 
   @@id([drawingId, fileId])
-  @@index([userId])
   @@index([drawingId])
 }
