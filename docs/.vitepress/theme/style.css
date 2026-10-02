@@ -95,6 +95,18 @@ body {
   backdrop-filter: blur(14px);
 }
 
+.Layout .VPNavBar .divider {
+  display: none;
+}
+
+.Layout .VPNavBarTitle.has-sidebar .title {
+  border-bottom: 0;
+}
+
+.Layout:not(.canvas-home) .VPLocalNav {
+  border-bottom: 0;
+}
+
 .VPNavBarTitle .title {
   font-weight: 800;
   letter-spacing: -0.035em;
@@ -114,11 +126,58 @@ body {
   font-weight: 700;
 }
 
-.VPHero .name {
+.VPHome {
+  container-type: inline-size;
+}
+
+body .Layout.canvas-home {
+  --home-view-height: 100dvh;
+  position: relative;
+  height: var(--home-view-height);
+  min-height: 0;
+  overflow: clip;
+}
+
+.Layout.canvas-home .VPNav {
+  position: absolute;
+  inset: 0 0 auto;
+}
+
+.Layout.canvas-home .VPContent.is-home {
+  height: 100%;
+  min-height: 0;
+  flex-shrink: 1;
+  margin: 0;
+  padding-top: var(--vp-nav-height);
+}
+
+.Layout.canvas-home .VPHome {
+  height: 100%;
+  margin: 0;
+}
+
+@media (max-width: 959px) {
+  .docs-review-open .Layout.canvas-home {
+    --home-view-height: 52dvh;
+    padding-bottom: 0;
+  }
+}
+
+.canvas-home .VPHero,
+.canvas-home .VPHomeFeatures {
+  display: none;
+}
+
+.VPHome .VPHero.has-image {
+  padding: calc(var(--vp-nav-height) + 48px) clamp(24px, 4cqi, 64px) 40px;
+}
+
+.Layout .VPHome .VPHero.has-image .name {
   width: fit-content;
   font-family: "Excalifont", cursive;
-  font-size: clamp(42px, 6vw, 68px);
+  font-size: clamp(40px, 5cqi, 60px);
   font-weight: 400;
+  line-height: 1.15;
   letter-spacing: -0.02em;
   transform: rotate(-1deg);
 }
@@ -133,48 +192,69 @@ body {
     center / 100% 100% no-repeat;
 }
 
-.VPHero .text {
+.Layout .VPHome .VPHero.has-image .text {
   max-width: 720px;
   color: var(--vp-c-text-1);
-  font-size: clamp(42px, 6vw, 68px);
+  font-size: clamp(32px, 4cqi, 52px);
   font-weight: 700;
   letter-spacing: -0.045em;
   line-height: 1.08;
 }
 
-.VPHero .tagline {
+.Layout .VPHome .VPHero.has-image .tagline {
   max-width: 600px;
   color: var(--vp-c-text-2);
   font-size: 19px;
   line-height: 1.65;
 }
 
-.VPHero.has-image .container {
+/* Outrank VitePress's scoped styles, which can load after this stylesheet.
+   Screenshots must stay in flow, not use the default floating-logo layout. */
+.Layout .VPHome .VPHero.has-image .container {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 1200px;
   gap: 40px;
   align-items: center;
+  text-align: center;
 }
 
-.VPHero.has-image .main {
+.Layout .VPHome .VPHero.has-image .main {
+  order: 1;
   width: 100%;
   min-width: 0;
-  flex: 1 1 0;
+  max-width: 680px;
+  justify-self: center;
 }
 
-.VPHero .image {
+.Layout .VPHome .VPHero.has-image .name,
+.Layout .VPHome .VPHero.has-image .text,
+.Layout .VPHome .VPHero.has-image .tagline {
+  margin-inline: auto;
+}
+
+.Layout .VPHome .VPHero.has-image .actions {
+  justify-content: center;
+}
+
+.VPHome .VPHero.has-image .image {
+  order: 2;
   width: 100%;
   min-width: 0;
+  min-height: 0;
   margin: 0;
-  flex: 1 1 0;
 }
 
-.VPHero .image-container {
+.VPHome .VPHero.has-image .image-container {
+  display: block;
   width: 100%;
   height: auto;
   max-width: 640px;
+  margin-inline: auto;
   transform: none;
 }
 
-.VPHero .image-src {
+.VPHome .VPHero.has-image .image-src {
   position: static;
   display: block;
   transform: none;
@@ -188,13 +268,26 @@ body {
   filter: none;
 }
 
-@media (max-width: 959px) {
-  .VPHero.has-image .main {
-    order: 1;
+/* Respond to the docs pane's width, not the full browser + review editor. */
+@container (min-width: 1000px) {
+  .Layout .VPHome .VPHero.has-image .container {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    gap: 48px;
+    text-align: left;
   }
 
-  .VPHero .image {
-    order: 2;
+  .Layout .VPHome .VPHero.has-image .name,
+  .Layout .VPHome .VPHero.has-image .text,
+  .Layout .VPHome .VPHero.has-image .tagline {
+    margin-inline: 0;
+  }
+
+  .Layout .VPHome .VPHero.has-image .actions {
+    justify-content: flex-start;
+  }
+
+  .VPHome .VPHero.has-image .image-container {
+    max-width: none;
   }
 }
 
@@ -204,6 +297,14 @@ body {
   font-weight: 600 !important;
   border-width: 1px !important;
   border-radius: 10px !important;
+}
+
+.VPHome .VPHero .actions .VPButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-block: 12px;
+  line-height: 1.4;
 }
 
 .VPButton.alt {
@@ -217,8 +318,34 @@ body {
   background: var(--vp-c-text-1) !important;
 }
 
-.VPFeatures {
-  padding-top: 52px !important;
+.VPHome .VPFeatures {
+  padding: 24px clamp(24px, 4cqi, 64px) 0;
+}
+
+.VPHome .VPFeatures .container {
+  max-width: 1200px;
+}
+
+.VPHome .VPFeatures .items {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.VPHome .VPFeatures .items .item {
+  width: auto;
+  min-width: 0;
+}
+
+@container (min-width: 640px) {
+  .VPHome .VPFeatures .items {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 1000px) {
+  .VPHome .VPFeatures .items {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .VPFeature {
@@ -244,8 +371,9 @@ body {
   transform: translateY(-2px);
 }
 
-.VPFeature .icon {
+.VPHome .VPFeature .icon {
   display: inline-grid;
+  align-self: flex-start;
   width: auto;
   min-width: 42px;
   height: 34px;
