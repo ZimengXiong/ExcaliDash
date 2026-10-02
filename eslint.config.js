@@ -36,11 +36,21 @@ export default tseslint.config(
     },
   },
   {
-    files: ["backend/scripts/**/*.cjs", "scripts/**/*.cjs", "scripts/**/*.js"],
+    files: ["backend/scripts/**/*.cjs", "scripts/**/*.cjs"],
+    extends: [js.configs.recommended],
     languageOptions: {
       ecmaVersion: 2022,
       globals: globals.node,
       sourceType: "commonjs",
+    },
+  },
+  {
+    files: ["scripts/**/*.{js,mjs}"],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      ecmaVersion: 2022,
+      globals: { ...globals.node, ...globals.browser },
+      sourceType: "module",
     },
   },
 );
