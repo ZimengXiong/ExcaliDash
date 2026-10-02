@@ -1,16 +1,26 @@
 import { test, expect } from "@playwright/test";
 import { createDrawing, deleteDrawing } from "./helpers/api";
 
-test("native two-finger gestures pan while modified wheel zooms", async ({ page, request }) => {
-  const drawing = await createDrawing(request, { name: `Navigation ${Date.now()}` });
+test("native two-finger gestures pan while modified wheel zooms", async ({
+  page,
+  request,
+}) => {
+  const drawing = await createDrawing(request, {
+    name: `Navigation ${Date.now()}`,
+  });
   try {
     await page.goto(`/editor/${drawing.id}`);
     const canvas = page.locator(".excalidraw canvas").first();
     await expect(canvas).toBeVisible();
-    const state = () => page.evaluate(() => {
-      const app = (window as any).__EXCALIDASH_EXCALIDRAW_API__?.getAppState();
-      return app ? { x: app.scrollX, y: app.scrollY, zoom: app.zoom.value } : null;
-    });
+    const state = () =>
+      page.evaluate(() => {
+        const app = (
+          window as any
+        ).__EXCALIDASH_EXCALIDRAW_API__?.getAppState();
+        return app
+          ? { x: app.scrollX, y: app.scrollY, zoom: app.zoom.value }
+          : null;
+      });
     await expect.poll(state).not.toBeNull();
     await canvas.hover();
     const before = (await state())!;
@@ -32,7 +42,9 @@ test("native two-finger gestures pan while modified wheel zooms", async ({ page,
     await page.keyboard.down("Control");
     try {
       await page.mouse.wheel(0, -48);
-      await expect.poll(async () => (await state())!.zoom).not.toBe(before.zoom);
+      await expect
+        .poll(async () => (await state())!.zoom)
+        .not.toBe(before.zoom);
     } finally {
       await page.keyboard.up("Control");
     }
