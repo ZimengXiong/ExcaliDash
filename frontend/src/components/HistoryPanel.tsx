@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { X, RotateCcw, Clock, ChevronDown } from "lucide-react";
 import * as api from "../api";
 import clsx from "clsx";
+import { getApiErrorMessage } from "../utils/getApiErrorMessage";
 
 type Props = {
   drawingId: string;
@@ -41,6 +42,7 @@ export const HistoryPanel: React.FC<Props> = ({
   const [previewData, setPreviewData] =
     useState<api.DrawingSnapshotFull | null>(null);
   const [restoring, setRestoring] = useState(false);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
   const [confirmRestore, setConfirmRestore] = useState<string | null>(null);
   const previewRequestSequence = useRef(0);
   const isOpenRef = useRef(isOpen);
@@ -74,6 +76,7 @@ export const HistoryPanel: React.FC<Props> = ({
       setPreviewId(null);
       setPreviewData(null);
       setConfirmRestore(null);
+      setRestoreError(null);
     } else {
       // Panel closed — restore current canvas
       if (previewId) {
@@ -146,6 +149,7 @@ export const HistoryPanel: React.FC<Props> = ({
       return;
     }
     setRestoring(true);
+    setRestoreError(null);
     try {
       // Fetch full snapshot if not already loaded
       let data = previewData;
@@ -156,11 +160,16 @@ export const HistoryPanel: React.FC<Props> = ({
       if (version === null) {
         throw new Error("Drawing is still loading. Please try again.");
       }
-      await api.restoreDrawingSnapshot(drawingId, snapshotId);
+      await api.restoreDrawingSnapshot(drawingId, snapshotId, version);
       onRestore(data);
       onClose();
-    } catch {
-      // ignore
+    } catch (error) {
+      setRestoreError(
+        getApiErrorMessage(
+          error,
+          "Unable to restore this version. Please try again.",
+        ),
+      );
     } finally {
       setRestoring(false);
       setConfirmRestore(null);
@@ -286,6 +295,14 @@ export const HistoryPanel: React.FC<Props> = ({
 
         {/* Footer */}
         <div className="border-t-2 border-slate-100 px-4 py-3 dark:border-neutral-800">
+          {restoreError && (
+            <p
+              role="alert"
+              className="mb-2 text-sm text-rose-700 dark:text-rose-300"
+            >
+              {restoreError}
+            </p>
+          )}
           <p className="text-center text-xs font-semibold text-slate-400 dark:text-neutral-500">
             Versions are kept for 2 days
           </p>

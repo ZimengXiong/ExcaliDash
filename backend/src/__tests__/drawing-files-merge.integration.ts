@@ -1,3 +1,5 @@
+import { configureSecuritySettings, resetSecuritySettings } from "../security";
+import { encodeSnapshotField } from "../snapshots/snapshotCodec";
 /**
  * Regression tests for the file save-merge pipeline (backlog B2).
  *
@@ -16,7 +18,6 @@ import { StringValue } from "ms";
 import { PrismaClient } from "../generated/client";
 import { config } from "../config";
 import { getTestPrisma, setupTestDb, cleanupTestDb } from "./testUtils";
-import { configureSecuritySettings, resetSecuritySettings } from "../security";
 
 describe("Drawing file save-merge (B2)", () => {
   const userAgent = "vitest-merge";
@@ -195,6 +196,122 @@ describe("Drawing file save-merge (B2)", () => {
     expect(snapshots[0].version).toBe(3);
     const snapFiles = JSON.parse(snapshots[0].files) as Record<string, any>;
     expect(Object.keys(snapFiles)).toEqual(["file-a"]);
+  });
+
+  it("rejects stale history restores without mutating the drawing or snapshots", async () => {
+    const drawing = await createDrawing(owner.id, {}, 5);
+    const snapshot = await prisma.drawingSnapshot.create({
+      data: {
+        drawingId: drawing.id,
+        version: 1,
+        elements: "[]",
+        appState: "{}",
+        files: "{}",
+      },
+    });
+    const response = await agent
+      .post(`/drawings/${drawing.id}/history/${snapshot.id}/restore`)
+      .set("User-Agent", userAgent)
+      .set(csrfHeaderName, csrfToken)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ version: 4 });
+    expect(response.status).toBe(409);
+    expect(response.body.code).toBe("VERSION_CONFLICT");
+    expect(
+      (await prisma.drawing.findUniqueOrThrow({ where: { id: drawing.id } }))
+        .version,
+    ).toBe(5);
+    expect(
+      await prisma.drawingSnapshot.count({ where: { drawingId: drawing.id } }),
+    ).toBe(1);
+  });
+
+  it("restores the matching history revision and backs up the current one atomically", async () => {
+    const drawing = await createDrawing(owner.id, {}, 5);
+    const snapshot = await prisma.drawingSnapshot.create({
+      data: {
+        drawingId: drawing.id,
+        version: 1,
+        elements: "[]",
+        appState: '{"viewBackgroundColor":"#abcdef"}',
+        files: "{}",
+      },
+    });
+    const response = await agent
+      .post(`/drawings/${drawing.id}/history/${snapshot.id}/restore`)
+      .set("User-Agent", userAgent)
+      .set(csrfHeaderName, csrfToken)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ version: 5 });
+    expect(response.status).toBe(200);
+    expect(response.body.version).toBe(6);
+    expect(response.body.appState.viewBackgroundColor).toBe("#abcdef");
+    expect(
+      await prisma.drawingSnapshot.count({ where: { drawingId: drawing.id } }),
+    ).toBe(2);
+  });
+
+  it("reads compressed history through the API and preserves it across a restore", async () => {
+    const drawing = await createDrawing(owner.id, {});
+    const historicalState = {
+      viewBackgroundColor: "#abcdef",
+      selectedElementIds: {},
+      customData: "x".repeat(2000),
+    };
+    const snapshot = await prisma.drawingSnapshot.create({
+      data: {
+        drawingId: drawing.id,
+        version: 1,
+        elements: encodeSnapshotField("[]"),
+        appState: encodeSnapshotField(JSON.stringify(historicalState)),
+        files: encodeSnapshotField("{}"),
+      },
+    });
+    expect(snapshot.appState.startsWith("br1:")).toBe(true);
+    const read = await request(app)
+      .get(`/drawings/${drawing.id}/history/${snapshot.id}`)
+      .set("Authorization", `Bearer ${ownerToken}`);
+    expect(read.status).toBe(200);
+    expect(read.body.appState).toEqual(historicalState);
+    const restore = await agent
+      .post(`/drawings/${drawing.id}/history/${snapshot.id}/restore`)
+      .set("User-Agent", userAgent)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .set(csrfHeaderName, csrfToken)
+      .send({ version: drawing.version });
+    expect(restore.status).toBe(200);
+    expect(restore.body.appState).toEqual(historicalState);
+    expect(
+      (await prisma.drawing.findUniqueOrThrow({ where: { id: drawing.id } }))
+        .appState,
+    ).toBe(JSON.stringify(historicalState));
+  });
+
+  it("rejects corrupt compressed history without creating a backup or changing the drawing", async () => {
+    const drawing = await createDrawing(owner.id, {});
+    const snapshot = await prisma.drawingSnapshot.create({
+      data: {
+        drawingId: drawing.id,
+        version: 1,
+        elements: "br1:not-brotli",
+        appState: "{}",
+        files: "{}",
+      },
+    });
+    const restore = await agent
+      .post(`/drawings/${drawing.id}/history/${snapshot.id}/restore`)
+      .set("User-Agent", userAgent)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .set(csrfHeaderName, csrfToken)
+      .send({ version: drawing.version });
+    expect(restore.status).toBe(500);
+    expect(
+      await prisma.drawingSnapshot.count({ where: { drawingId: drawing.id } }),
+    ).toBe(1);
+    expect(
+      (await prisma.drawing.findUniqueOrThrow({ where: { id: drawing.id } }))
+        .version,
+    ).toBe(drawing.version);
   });
 
   it("rejects oversized image saves without replacing existing image data", async () => {
