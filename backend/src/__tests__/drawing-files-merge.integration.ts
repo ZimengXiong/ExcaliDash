@@ -231,7 +231,14 @@ describe("Drawing file save-merge (B2)", () => {
         files: { image: fileEntry("image", dataURL) },
       });
       expect(response.status).toBe(200);
-      expect((await readFiles(drawing.id)).image.dataURL).toBe(dataURL);
+      expect((await readFiles(drawing.id)).image.dataURL).toBe(
+        `/api/files/${drawing.id}/image`,
+      );
+      const image = await prisma.drawingFile.findUniqueOrThrow({
+        where: { drawingId_fileId: { drawingId: drawing.id, fileId: "image" } },
+      });
+      expect(image.sizeBytes).toBe(128);
+      expect(Buffer.from(image.data!)).toEqual(Buffer.alloc(128));
     } finally {
       resetSecuritySettings();
     }
