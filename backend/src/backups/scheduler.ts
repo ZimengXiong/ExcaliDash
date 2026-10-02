@@ -162,7 +162,7 @@ export const createSqliteBackup = async ({
   // Backups contain a full copy of the database (password hashes, API-key
   // hashes, OIDC secrets), so restrict the directory and files to the owner.
   await fs.promises.mkdir(backupDir, { recursive: true, mode: 0o700 });
-  await prisma.$executeRawUnsafe("PRAGMA wal_checkpoint(PASSIVE)");
+  await prisma.$queryRawUnsafe("PRAGMA wal_checkpoint(PASSIVE)");
 
   const target = path.join(
     backupDir,
