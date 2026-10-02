@@ -38,7 +38,9 @@ export const validateS3Configuration = (): void => {
     ["AWS_ACCESS_KEY_ID", readOptionalString("AWS_ACCESS_KEY_ID")],
     ["AWS_SECRET_ACCESS_KEY", readOptionalString("AWS_SECRET_ACCESS_KEY")],
   ];
-  const set = s3Adjacent.filter(([, value]) => Boolean(value)).map(([name]) => name);
+  const set = s3Adjacent
+    .filter(([, value]) => Boolean(value))
+    .map(([name]) => name);
   if (keyPrefix && keyPrefix !== "excalidash") {
     set.push("S3_KEY_PREFIX");
   }

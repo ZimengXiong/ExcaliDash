@@ -53,7 +53,9 @@ export const buildFilesDiff = ({
   storedRecords: StoredFileRecord[];
   s3Objects: S3ObjectRecord[];
 }) => {
-  const recordMap = new Map(storedRecords.map((record) => [record.fileId, record]));
+  const recordMap = new Map(
+    storedRecords.map((record) => [record.fileId, record]),
+  );
   const s3ObjectMap = new Map(
     s3Objects.map((object) => [fileIdFromS3Key(object.key), object] as const),
   );

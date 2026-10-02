@@ -1,4 +1,5 @@
 import type { Drawing } from "../types";
+import { rehydrateFilesForExport } from "./rehydrateFiles";
 
 export interface ExportData {
   type: "excalidraw";
@@ -12,10 +13,11 @@ export interface ExportData {
 /**
  * Export a drawing to a .excalidraw file and trigger download
  */
-export const exportDrawingToFile = (
+export const exportDrawingToFile = async (
   drawing: Drawing,
-  filename?: string
-): void => {
+  filename?: string,
+): Promise<void> => {
+  const files = await rehydrateFilesForExport(drawing.files || {}, drawing.id);
   const exportData: ExportData = {
     type: "excalidraw",
     version: 2,
@@ -23,11 +25,15 @@ export const exportDrawingToFile = (
     elements: drawing.elements || [],
     appState: {
       gridSize: drawing.appState?.gridSize ?? null,
-      ...(drawing.appState?.gridStep != null && { gridStep: drawing.appState.gridStep }),
-      ...(drawing.appState?.gridModeEnabled != null && { gridModeEnabled: drawing.appState.gridModeEnabled }),
+      ...(drawing.appState?.gridStep != null && {
+        gridStep: drawing.appState.gridStep,
+      }),
+      ...(drawing.appState?.gridModeEnabled != null && {
+        gridModeEnabled: drawing.appState.gridModeEnabled,
+      }),
       viewBackgroundColor: drawing.appState?.viewBackgroundColor ?? "#ffffff",
     },
-    files: drawing.files || {},
+    files,
   };
 
   const blob = new Blob([JSON.stringify(exportData, null, 2)], {
@@ -47,12 +53,14 @@ export const exportDrawingToFile = (
 /**
  * Export drawing from Editor with current state
  */
-export const exportFromEditor = (
+export const exportFromEditor = async (
+  drawingId: string,
   name: string,
   elements: readonly any[],
   appState: any,
-  files: Record<string, any>
-): void => {
+  files: Record<string, any>,
+): Promise<void> => {
+  const embeddedFiles = await rehydrateFilesForExport(files, drawingId);
   const exportData: ExportData = {
     type: "excalidraw",
     version: 2,
@@ -61,10 +69,12 @@ export const exportFromEditor = (
     appState: {
       gridSize: appState?.gridSize ?? null,
       ...(appState?.gridStep != null && { gridStep: appState.gridStep }),
-      ...(appState?.gridModeEnabled != null && { gridModeEnabled: appState.gridModeEnabled }),
+      ...(appState?.gridModeEnabled != null && {
+        gridModeEnabled: appState.gridModeEnabled,
+      }),
       viewBackgroundColor: appState?.viewBackgroundColor ?? "#ffffff",
     },
-    files: files || {},
+    files: embeddedFiles,
   };
 
   const blob = new Blob([JSON.stringify(exportData, null, 2)], {
