@@ -40,14 +40,12 @@ export const useDashboardData = ({
       const isSharedView = selectedCollectionId === "shared";
       const drawingsPromise = isSharedView
         ? api.getSharedDrawings(debouncedSearch, {
-            includePreview: true,
             limit: pageSize,
             offset: 0,
             sortField,
             sortDirection,
           })
         : api.getDrawings(debouncedSearch, selectedCollectionId, {
-            includePreview: true,
             limit: pageSize,
             offset: 0,
             sortField,
@@ -99,14 +97,12 @@ export const useDashboardData = ({
       const isSharedView = selectedCollectionId === "shared";
       const drawingsRes = await (isSharedView
         ? api.getSharedDrawings(debouncedSearch, {
-            includePreview: true,
             limit: pageSize,
             offset: nextOffsetRef.current,
             sortField,
             sortDirection,
           })
         : api.getDrawings(debouncedSearch, selectedCollectionId, {
-            includePreview: true,
             limit: pageSize,
             offset: nextOffsetRef.current,
             sortField,

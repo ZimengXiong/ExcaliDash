@@ -1,0 +1,14 @@
+.git
+**/node_modules
+**/dist
+**/coverage
+**/generated
+**/playwright-report
+**/test-results
+**/package-lock.json
+backend/prisma/migrations
+backend/prisma/*.db*
+frontend/public/excalidraw-assets
+frontend/public/excalidraw-assets-dev
+frontend/public/fonts
+LICENSE

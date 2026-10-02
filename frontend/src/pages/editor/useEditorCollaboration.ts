@@ -3,7 +3,12 @@ import type { MutableRefObject, RefObject } from "react";
 import { io, type Socket } from "socket.io-client";
 import { toast } from "sonner";
 import type { UserIdentity } from "../../utils/identity";
+import {
+  filesNeedRehydration,
+  rehydrateFilesFromUrls,
+} from "../../utils/rehydrateFiles";
 import { buildRemoteSceneUpdate } from "./shared";
+import { attachCanvasZoomForwarding } from "./canvasZoomForwarding";
 
 interface Peer extends UserIdentity {
   isActive: boolean;
@@ -30,6 +35,24 @@ const getSocketUrl = () =>
     : import.meta.env.VITE_API_URL ||
       import.meta.env.VITE_DEV_BACKEND_URL ||
       "http://localhost:8000";
+
+type RoomJoinSocket = Pick<Socket, "connected" | "emit" | "on" | "off">;
+
+export const bindRoomJoin = (
+  socket: RoomJoinSocket,
+  drawingId: string,
+  user: UserIdentity,
+  onJoined: (payload: any) => void,
+): (() => void) => {
+  const joinRoom = () => {
+    socket.emit("join-room", { drawingId, user }, onJoined);
+  };
+
+  socket.on("connect", joinRoom);
+  if (socket.connected) joinRoom();
+
+  return () => socket.off("connect", joinRoom);
+};
 
 export const useEditorCollaboration = ({
   drawingId,
@@ -59,10 +82,9 @@ export const useEditorCollaboration = ({
   const pendingRemoteElementOrderRef = useRef<string[] | null>(null);
   const remoteFlushScheduledRef = useRef(false);
   const remoteFlushRafIdRef = useRef<number | null>(null);
-
   useEffect(() => {
     setSocketMe(me);
-  }, [me.id, me.name, me.initials, me.color]);
+  }, [me]);
 
   useEffect(() => {
     socketMeRef.current = socketMe;
@@ -87,7 +109,7 @@ export const useEditorCollaboration = ({
         (window as any).__EXCALIDASH_SOCKET_STATUS__ = { connected: false };
       });
     }
-    socket.emit("join-room", { drawingId, user: me }, (payload: any) => {
+    const detachRoomJoin = bindRoomJoin(socket, drawingId, me, (payload) => {
       const serverUser = payload?.user;
       if (!serverUser || typeof serverUser.id !== "string") return;
       const next: UserIdentity = {
@@ -257,10 +279,23 @@ export const useEditorCollaboration = ({
           }
         }
         if (files && typeof files === "object") {
-          pendingRemoteFilesRef.current = {
-            ...pendingRemoteFilesRef.current,
-            ...files,
+          // A peer on S3 storage may broadcast `/api/files/...` (or public S3)
+          // references; re-inline them before Excalidraw renders the image.
+          // Already-inline data: URLs stay on the synchronous path.
+          const stage = (incoming: Record<string, any>) => {
+            pendingRemoteFilesRef.current = {
+              ...pendingRemoteFilesRef.current,
+              ...incoming,
+            };
           };
+          if (filesNeedRehydration(files)) {
+            void rehydrateFilesFromUrls(files).then((hydrated) => {
+              stage(hydrated);
+              scheduleRemoteFlush();
+            });
+          } else {
+            stage(files);
+          }
         }
         if (Array.isArray(elementOrder) && elementOrder.length > 0) {
           pendingRemoteElementOrderRef.current = elementOrder;
@@ -286,43 +321,13 @@ export const useEditorCollaboration = ({
     window.addEventListener("blur", onBlur);
     document.addEventListener("mouseenter", onMouseEnter);
     document.addEventListener("mouseleave", onMouseLeave);
-    const container = editorContainerRef.current;
-    const handleWheel = (event: WheelEvent) => {
-      const target = event.target as HTMLElement | null;
-      if (!target) return;
-      const isCanvas = target.tagName?.toLowerCase() === "canvas";
-      const isEditorUi =
-        target.closest(".layer-ui__wrapper") !== null ||
-        target.closest(".App-menu") !== null;
-      if (
-        isCanvas &&
-        !isEditorUi &&
-        !event.ctrlKey &&
-        !event.metaKey &&
-        !(event as any)._isFakeZoom
-      ) {
-        event.preventDefault();
-        event.stopPropagation();
-        const zoomEvent = new WheelEvent("wheel", {
-          bubbles: true,
-          cancelable: true,
-          clientX: event.clientX,
-          clientY: event.clientY,
-          deltaX: event.deltaX,
-          deltaY: event.deltaY,
-          deltaMode: event.deltaMode,
-          ctrlKey: true,
-        });
-        (zoomEvent as any)._isFakeZoom = true;
-        target.dispatchEvent(zoomEvent);
-      }
-    };
-    container?.addEventListener("wheel", handleWheel, {
-      capture: true,
-      passive: false,
-    });
+    const detachCanvasZoom = attachCanvasZoomForwarding(
+      editorContainerRef.current,
+    );
+    const pendingRemoteElements = pendingRemoteElementsRef.current;
     return () => {
-      container?.removeEventListener("wheel", handleWheel, { capture: true });
+      detachRoomJoin();
+      detachCanvasZoom();
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("mouseenter", onMouseEnter);
@@ -338,7 +343,7 @@ export const useEditorCollaboration = ({
         remoteFlushRafIdRef.current = null;
       }
       remoteFlushScheduledRef.current = false;
-      pendingRemoteElementsRef.current.clear();
+      pendingRemoteElements.clear();
       pendingRemoteFilesRef.current = {};
       pendingRemoteElementOrderRef.current = null;
       cancelAnimationFrame(animationFrameId.current);
