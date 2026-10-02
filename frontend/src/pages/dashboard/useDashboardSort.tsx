@@ -1,7 +1,10 @@
 import React from "react";
 import { Calendar, Clock, FileText } from "lucide-react";
 import type { DrawingSortField, SortDirection } from "../../api";
-import { usePreference, usePreferences } from "../../context/PreferencesContext";
+import {
+  usePreference,
+  usePreferences,
+} from "../../context/PreferencesContext";
 
 const DEFAULT_SORT_FIELD: DrawingSortField = "updatedAt";
 const DEFAULT_SORT_DIRECTION: SortDirection = "desc";

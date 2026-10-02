@@ -241,11 +241,7 @@ export const useEditorSceneLoader = ({
             }
           }
         };
-        void rehydrateFilesProgressive(
-          files,
-          handleFileReady,
-          () => cancelled,
-        );
+        void rehydrateFilesProgressive(files, handleFileReady, () => cancelled);
       } catch (err) {
         if (cancelled) return;
         console.error("Failed to load drawing", err);

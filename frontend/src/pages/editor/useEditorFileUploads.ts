@@ -37,7 +37,10 @@ const dataUrlToBytes = (
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
       return { bytes, mimeType };
     }
-    return { bytes: new TextEncoder().encode(decodeURIComponent(payload)), mimeType };
+    return {
+      bytes: new TextEncoder().encode(decodeURIComponent(payload)),
+      mimeType,
+    };
   } catch {
     return null;
   }
@@ -49,12 +52,15 @@ const runWithConcurrency = async (
   limit: number,
 ): Promise<void> => {
   let cursor = 0;
-  const workers = Array.from({ length: Math.min(limit, tasks.length) }, async () => {
-    while (cursor < tasks.length) {
-      const task = tasks[cursor++];
-      await task();
-    }
-  });
+  const workers = Array.from(
+    { length: Math.min(limit, tasks.length) },
+    async () => {
+      while (cursor < tasks.length) {
+        const task = tasks[cursor++];
+        await task();
+      }
+    },
+  );
   await Promise.all(workers);
 };
 
@@ -80,9 +86,10 @@ export const useEditorFileUploads = ({
   const scanNow = useCallback(async () => {
     if (!drawingId || !isFileUploadSupported()) return;
     const editor = excalidrawAPI.current;
-    const files = (editor?.getFiles?.() ||
-      latestFiles.current ||
-      {}) as Record<string, any>;
+    const files = (editor?.getFiles?.() || latestFiles.current || {}) as Record<
+      string,
+      any
+    >;
 
     const candidateIds = Object.keys(files).filter((id) => {
       const file = files[id];

@@ -149,7 +149,11 @@ describe("Drawing file save-merge (B2)", () => {
       },
     });
     expect(row?.storage).toBe("db");
-    expect(Buffer.from(row!.data as Uint8Array).equals(Buffer.from("NEW=", "base64"))).toBe(true);
+    expect(
+      Buffer.from(row!.data as Uint8Array).equals(
+        Buffer.from("NEW=", "base64"),
+      ),
+    ).toBe(true);
   });
 
   it("does not let a blank (tombstoned) incoming entry erase existing content", async () => {

@@ -80,7 +80,9 @@ describe("Auth onboarding decision", () => {
       },
     });
 
-    const response = await request(app).get("/auth/status").set("User-Agent", userAgent);
+    const response = await request(app)
+      .get("/auth/status")
+      .set("User-Agent", userAgent);
 
     expect(response.status).toBe(200);
     expect(response.body?.authEnabled).toBe(false);
@@ -104,14 +106,18 @@ describe("Auth onboarding decision", () => {
     expect(choiceResponse.body?.authEnabled).toBe(false);
     expect(choiceResponse.body?.authOnboardingCompleted).toBe(true);
 
-    const statusResponse = await request(app).get("/auth/status").set("User-Agent", userAgent);
+    const statusResponse = await request(app)
+      .get("/auth/status")
+      .set("User-Agent", userAgent);
     expect(statusResponse.status).toBe(200);
     expect(statusResponse.body?.authOnboardingRequired).toBe(false);
   });
 
   it("enables auth and bootstrap flow from onboarding choice", async () => {
     await prisma.drawing.deleteMany({});
-    await prisma.collection.deleteMany({ where: { id: { not: `trash:${BOOTSTRAP_USER_ID}` } } });
+    await prisma.collection.deleteMany({
+      where: { id: { not: `trash:${BOOTSTRAP_USER_ID}` } },
+    });
     await prisma.systemConfig.update({
       where: { id: "default" },
       data: { authEnabled: false, authOnboardingCompleted: false },
@@ -128,7 +134,9 @@ describe("Auth onboarding decision", () => {
     expect(choiceResponse.body?.bootstrapRequired).toBe(true);
     expect(choiceResponse.body?.authOnboardingCompleted).toBe(true);
 
-    const statusResponse = await request(app).get("/auth/status").set("User-Agent", userAgent);
+    const statusResponse = await request(app)
+      .get("/auth/status")
+      .set("User-Agent", userAgent);
     expect(statusResponse.status).toBe(200);
     expect(statusResponse.body?.authEnabled).toBe(true);
     expect(statusResponse.body?.bootstrapRequired).toBe(true);
@@ -170,7 +178,9 @@ describe("Auth onboarding decision", () => {
 
     expect(bootstrapResponse.status).toBe(201);
     expect(bootstrapResponse.body?.bootstrapped).toBe(true);
-    expect(bootstrapResponse.body?.user?.email).toBe("bootstrap-admin@test.local");
+    expect(bootstrapResponse.body?.user?.email).toBe(
+      "bootstrap-admin@test.local",
+    );
     expect(bootstrapResponse.body?.accessToken).toBeUndefined();
     expect(bootstrapResponse.body?.refreshToken).toBeUndefined();
   });
