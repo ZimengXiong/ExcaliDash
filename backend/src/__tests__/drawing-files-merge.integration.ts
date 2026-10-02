@@ -16,6 +16,7 @@ import { StringValue } from "ms";
 import { PrismaClient } from "../generated/client";
 import { config } from "../config";
 import { getTestPrisma, setupTestDb, cleanupTestDb } from "./testUtils";
+import { configureSecuritySettings, resetSecuritySettings } from "../security";
 
 describe("Drawing file save-merge (B2)", () => {
   const userAgent = "vitest-merge";
@@ -194,6 +195,36 @@ describe("Drawing file save-merge (B2)", () => {
     expect(snapshots[0].version).toBe(3);
     const snapFiles = JSON.parse(snapshots[0].files) as Record<string, any>;
     expect(Object.keys(snapFiles)).toEqual(["file-a"]);
+  });
+
+  it("rejects oversized image saves without replacing existing image data", async () => {
+    const original = fileEntry("file-a");
+    const drawing = await createDrawing(owner.id, { "file-a": original });
+    configureSecuritySettings({ maxDataUrlSize: 128 });
+    try {
+      const response = await put(drawing.id, {
+        version: drawing.version,
+        files: { "file-a": fileEntry("file-a", `data:image/png;base64,${Buffer.alloc(129).toString("base64")}`) },
+      });
+      expect(response.status).toBe(413);
+      expect(await readFiles(drawing.id)).toEqual({ "file-a": original });
+      expect((await prisma.drawing.findUniqueOrThrow({ where: { id: drawing.id } })).version).toBe(drawing.version);
+    } finally {
+      resetSecuritySettings();
+    }
+  });
+
+  it("accepts the exact decoded-byte image limit even when base64 is longer", async () => {
+    const drawing = await createDrawing(owner.id, {});
+    const dataURL = `data:image/png;base64,${Buffer.alloc(128).toString("base64")}`;
+    configureSecuritySettings({ maxDataUrlSize: 128 });
+    try {
+      const response = await put(drawing.id, { files: { image: fileEntry("image", dataURL) } });
+      expect(response.status).toBe(200);
+      expect((await readFiles(drawing.id)).image.dataURL).toBe(dataURL);
+    } finally {
+      resetSecuritySettings();
+    }
   });
 
   it("returns 409 on a stale version and does not merge", async () => {
