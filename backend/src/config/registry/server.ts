@@ -9,6 +9,13 @@ export const serverEnv: readonly EnvVarSpec[] = [
     doc: "TCP port the backend HTTP server listens on.",
   },
   {
+    name: "BACKEND_HOST",
+    group: "Server",
+    kind: "string",
+    default: "0.0.0.0",
+    doc: "Backend listen address. Use 127.0.0.1 for private local previews; containers normally need 0.0.0.0.",
+  },
+  {
     name: "NODE_ENV",
     group: "Server",
     kind: "enum",

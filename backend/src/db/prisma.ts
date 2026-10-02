@@ -1,15 +1,14 @@
 import { PrismaClient } from "../generated/client";
 import type { config as AppConfig } from "../config";
+import { enableIncrementalAutoVacuum } from "./sqliteMaintenance";
 
 // Load config lazily. A static import would eagerly evaluate the config module
 // the moment this module is imported, snapshotting the environment before tests
 // (e.g. audit.test.ts) get a chance to set feature-flag env vars in beforeAll.
 const getConfig = (): typeof AppConfig =>
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   (require("../config") as { config: typeof AppConfig }).config;
 
 declare global {
-  // eslint-disable-next-line no-var
   var __excalidashPrisma: PrismaClient | undefined;
 }
 
@@ -57,6 +56,7 @@ export async function configureSqlite(): Promise<void> {
     // across application crashes, and only loses the last commit(s) on an
     // OS/power crash, in exchange for far fewer fsyncs under write load.
     await prismaClient.$queryRaw`PRAGMA synchronous = NORMAL;`;
+    await enableIncrementalAutoVacuum(prismaClient, databaseUrl);
   } catch (err) {
     // Surface real failures (e.g. permission, corrupted db) instead of swallowing.
     console.warn("[prisma] Failed to configure SQLite PRAGMAs:", err);

@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Drawing, DrawingSummary } from "../../types";
-import { previewHasEmbeddedImages } from "../../utils/previewSvg";
+import {
+  normalizePreviewSvg,
+  isDefaultPreviewBackground,
+  previewHasEmbeddedImages,
+} from "../../utils/previewSvg";
 import * as api from "../../api";
 
 export type HydratedDrawingData = {
@@ -38,17 +42,15 @@ const normalizeImageElementsForPreview = (
 export const useDrawingPreview = (
   drawing: DrawingSummary,
   onPreviewGenerated?: (id: string, preview: string) => void,
+  loadPreview = true,
 ) => {
   const [previewSvg, setPreviewSvg] = useState<string | null>(
-    drawing.preview ?? null,
+    normalizePreviewSvg(drawing.preview) ?? null,
   );
   const [fullData, setFullData] = useState<HydratedDrawingData | null>(null);
-  // Parent renders create new callbacks as sibling previews finish. Updating
-  // the notification target must not cancel and restart every pending request.
+
   const onPreviewGeneratedRef = useRef(onPreviewGenerated);
-  useEffect(() => {
-    onPreviewGeneratedRef.current = onPreviewGenerated;
-  }, [onPreviewGenerated]);
+  onPreviewGeneratedRef.current = onPreviewGenerated;
 
   const fullDataRef = useRef(fullData);
   fullDataRef.current = fullData;
@@ -92,8 +94,11 @@ export const useDrawingPreview = (
 
   useEffect(() => {
     let cancelled = false;
+    setPreviewSvg(normalizePreviewSvg(drawing.preview) ?? null);
     if (drawing.preview) {
-      setPreviewSvg(drawing.preview);
+      return;
+    }
+    if (!loadPreview) {
       return;
     }
     const generatePreview = async () => {
@@ -110,9 +115,8 @@ export const useDrawingPreview = (
           return;
         }
       } catch {
-        // An unavailable preview service does not mean the preview is absent.
-        // In particular, don't amplify rate limiting with full-drawing fetches.
-        return;
+        if (cancelled) return;
+        // Ignore and fall through to client-side generation below.
       }
       try {
         const data = await ensureFullData();
@@ -129,7 +133,10 @@ export const useDrawingPreview = (
           ),
           appState: {
             ...data.appState,
-            exportBackground: true,
+            exportWithDarkMode: false,
+            exportBackground: !isDefaultPreviewBackground(
+              data.appState.viewBackgroundColor,
+            ),
             viewBackgroundColor: data.appState.viewBackgroundColor || "#ffffff",
           },
           files: data.files || {},
@@ -137,7 +144,7 @@ export const useDrawingPreview = (
         });
 
         if (cancelled) return;
-        const previewHtml = svg.outerHTML;
+        const previewHtml = normalizePreviewSvg(svg.outerHTML) || svg.outerHTML;
         setPreviewSvg(previewHtml);
         onPreviewGeneratedRef.current?.(drawing.id, previewHtml);
       } catch (e) {
@@ -150,7 +157,7 @@ export const useDrawingPreview = (
     return () => {
       cancelled = true;
     };
-  }, [drawing.id, drawing.preview, ensureFullData]);
+  }, [drawing.id, drawing.preview, ensureFullData, loadPreview]);
 
   const buildExportDrawing = useCallback(async (): Promise<Drawing> => {
     const data = await ensureFullData();

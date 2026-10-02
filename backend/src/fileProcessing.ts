@@ -88,7 +88,9 @@ export const internDrawingFiles = async (
       // Reject path-traversal candidates rather than silently storing them
       // under a forged key. Drop from output so the bad entry never reaches
       // the database either.
-      console.warn(`[files] Skipping file with invalid id: ${JSON.stringify(fileId)}`);
+      console.warn(
+        `[files] Skipping file with invalid id: ${JSON.stringify(fileId)}`,
+      );
       delete result[fileId];
       return;
     }
@@ -127,7 +129,13 @@ export const internDrawingFiles = async (
           s3Key,
           data: null,
         },
-        update: { storage: "s3", s3Key, data: null, mimeType: decoded.mimeType, sizeBytes },
+        update: {
+          storage: "s3",
+          s3Key,
+          data: null,
+          mimeType: decoded.mimeType,
+          sizeBytes,
+        },
       });
 
       result[fileId] = { ...file, dataURL: accessUrl };

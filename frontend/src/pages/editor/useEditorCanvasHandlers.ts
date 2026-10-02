@@ -97,8 +97,7 @@ export const useEditorCanvasHandlers = ({
       if (isUnmountingRef.current) return;
       if (isSyncingRef.current) return;
       latestAppStateRef.current = appState;
-      const currentFiles =
-        files || excalidrawAPIRef.current?.getFiles() || {};
+      const currentFiles = files || excalidrawAPIRef.current?.getFiles() || {};
       if (Object.keys(currentFiles).length > 0) {
         latestFilesRef.current = currentFiles;
       }
@@ -228,11 +227,7 @@ export const useEditorCanvasHandlers = ({
       if (!excalidrawAPIRef.current) return;
       const nextFiles = excalidrawAPIRef.current.getFiles?.() || {};
       const didEmit = emitFilesDeltaIfNeeded(nextFiles);
-      if (
-        didEmit &&
-        latestAppStateRef.current &&
-        debouncedSaveRef.current
-      ) {
+      if (didEmit && latestAppStateRef.current && debouncedSaveRef.current) {
         hasSceneChangesSinceLoadRef.current = true;
         lastLocalChangeAtRef.current = Date.now();
         debouncedSaveRef.current(

@@ -49,7 +49,7 @@ describe("Storage management routes", () => {
       elements?: any[];
       files?: Record<string, any>;
       version?: number;
-    } = {}
+    } = {},
   ) => {
     return prisma.drawing.create({
       data: {
@@ -70,11 +70,7 @@ describe("Storage management routes", () => {
     created: Date.now(),
   });
 
-  const imageElement = (
-    elId: string,
-    fileId: string,
-    isDeleted = false
-  ) => ({
+  const imageElement = (elId: string, fileId: string, isDeleted = false) => ({
     id: elId,
     type: "image",
     x: 0,
@@ -103,9 +99,7 @@ describe("Storage management routes", () => {
     // CSRF middleware rejects unauth'd state-changing requests; obtain a
     // token once and reuse it on every mutating call.
     agent = request.agent(app);
-    const csrfRes = await agent
-      .get("/csrf-token")
-      .set("User-Agent", userAgent);
+    const csrfRes = await agent.get("/csrf-token").set("User-Agent", userAgent);
     csrfHeaderName = csrfRes.body.header;
     csrfToken = csrfRes.body.token;
   });

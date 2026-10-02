@@ -69,7 +69,14 @@ export const useDashboardSelection = ({
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragSelecting, dragStart, dragCurrent, drawings, selectedIds, setSelectedIds]);
+  }, [
+    isDragSelecting,
+    dragStart,
+    dragCurrent,
+    drawings,
+    selectedIds,
+    setSelectedIds,
+  ]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
