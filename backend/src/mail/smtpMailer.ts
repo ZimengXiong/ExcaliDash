@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import type { MailMessage, MailResult, Mailer } from "./mailer";
+import type { Mailer, MailMessage, MailResult } from "./mailer";
 
 export type SmtpMailerOptions = {
   host: string;
@@ -11,13 +11,6 @@ export type SmtpMailerOptions = {
   replyTo?: string | null;
 };
 
-/**
- * SMTP-backed mailer.
- *
- * Most self-hosters already run a mail server or have a relay from their
- * provider, so SMTP keeps delivery inside infrastructure they control instead
- * of adding another processor to the data path.
- */
 export const createSmtpMailer = ({
   host,
   port,
@@ -31,6 +24,9 @@ export const createSmtpMailer = ({
     host,
     port,
     secure,
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
     ...(user && password ? { auth: { user, pass: password } } : {}),
   });
 
@@ -38,8 +34,6 @@ export const createSmtpMailer = ({
     enabled: true,
     async send(message: MailMessage): Promise<MailResult> {
       try {
-        // idempotencyKey is intentionally unused: SMTP has no equivalent, and
-        // a reset mail arriving twice is harmless compared to not arriving.
         const info = await transport.sendMail({
           from,
           to: message.to,
@@ -50,8 +44,10 @@ export const createSmtpMailer = ({
         });
         return { delivered: true, id: info.messageId ?? null };
       } catch (cause) {
-        const reason = cause instanceof Error ? cause.message : String(cause);
-        return { delivered: false, reason };
+        return {
+          delivered: false,
+          reason: cause instanceof Error ? cause.message : String(cause),
+        };
       }
     },
   };

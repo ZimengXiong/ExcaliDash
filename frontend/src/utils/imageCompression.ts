@@ -1,3 +1,8 @@
+import {
+  readImageCompressionEnabled,
+  readImageCompressionThresholdMb,
+} from "./imageCompressionSettings";
+
 export type ExcalidrawFileRecord = {
   id?: string;
   dataURL?: string;
@@ -14,7 +19,6 @@ export type CompressionResult = {
   changed: boolean;
 };
 
-const DEFAULT_MIN_DATA_URL_LENGTH = 350_000;
 const DEFAULT_MAX_DIMENSION = 2800;
 const DEFAULT_MIN_IMPROVEMENT_RATIO = 0.9;
 
@@ -41,7 +45,11 @@ const loadImageFromDataUrl = (dataURL: string): Promise<HTMLImageElement> =>
     image.src = dataURL;
   });
 
-const clampDimension = (width: number, height: number, maxDimension: number) => {
+const clampDimension = (
+  width: number,
+  height: number,
+  maxDimension: number,
+) => {
   const safeWidth = Math.max(1, Math.round(width));
   const safeHeight = Math.max(1, Math.round(height));
   const largest = Math.max(safeWidth, safeHeight);
@@ -59,7 +67,7 @@ const clampDimension = (width: number, height: number, maxDimension: number) => 
 const drawToCanvas = (
   image: HTMLImageElement,
   width: number,
-  height: number
+  height: number,
 ): HTMLCanvasElement => {
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -79,24 +87,19 @@ const getTargetMimeType = (originalMimeType: string): string => {
   return "image/webp";
 };
 
-const COMPRESSION_ENABLED_KEY = "excalidash-image-compression";
-
-const isCompressionEnabled = (): boolean => {
-  if (typeof window === "undefined") return true;
-  const raw = window.localStorage?.getItem?.(COMPRESSION_ENABLED_KEY);
-  return raw !== "false";
+const estimateDataUrlBytes = (dataURL: string): number => {
+  const separator = dataURL.indexOf(",");
+  if (separator < 0) return dataURL.length;
+  const payload = dataURL.slice(separator + 1).replace(/\s/g, "");
+  const padding = payload.endsWith("==") ? 2 : payload.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((payload.length * 3) / 4) - padding);
 };
 
 const maybeCompressDataUrl = async (
   inputDataURL: string,
   sourceMimeType: string,
-  options?: {
-    minDataUrlLength?: number;
-    maxDimension?: number;
-    minImprovementRatio?: number;
-  }
 ): Promise<CompressionResult> => {
-  if (!isCompressionEnabled()) {
+  if (!readImageCompressionEnabled()) {
     return {
       dataURL: inputDataURL,
       mimeType: sourceMimeType,
@@ -106,9 +109,7 @@ const maybeCompressDataUrl = async (
     };
   }
 
-  const minDataUrlLength = options?.minDataUrlLength ?? DEFAULT_MIN_DATA_URL_LENGTH;
-  const maxDimension = options?.maxDimension ?? DEFAULT_MAX_DIMENSION;
-  const minImprovementRatio = options?.minImprovementRatio ?? DEFAULT_MIN_IMPROVEMENT_RATIO;
+  const minBytes = readImageCompressionThresholdMb() * 1024 * 1024;
 
   if (!isDataImageUrl(inputDataURL)) {
     return {
@@ -120,7 +121,11 @@ const maybeCompressDataUrl = async (
     };
   }
 
-  const effectiveMimeType = (sourceMimeType || getMimeTypeFromDataUrl(inputDataURL) || "").toLowerCase();
+  const effectiveMimeType = (
+    sourceMimeType ||
+    getMimeTypeFromDataUrl(inputDataURL) ||
+    ""
+  ).toLowerCase();
   if (!canCompressMimeType(effectiveMimeType)) {
     return {
       dataURL: inputDataURL,
@@ -131,7 +136,7 @@ const maybeCompressDataUrl = async (
     };
   }
 
-  if (inputDataURL.length < minDataUrlLength) {
+  if (estimateDataUrlBytes(inputDataURL) < minBytes) {
     return {
       dataURL: inputDataURL,
       mimeType: effectiveMimeType,
@@ -144,7 +149,11 @@ const maybeCompressDataUrl = async (
   const image = await loadImageFromDataUrl(inputDataURL);
   const baseWidth = image.naturalWidth || image.width || 1;
   const baseHeight = image.naturalHeight || image.height || 1;
-  const { width, height } = clampDimension(baseWidth, baseHeight, maxDimension);
+  const { width, height } = clampDimension(
+    baseWidth,
+    baseHeight,
+    DEFAULT_MAX_DIMENSION,
+  );
   const canvas = drawToCanvas(image, width, height);
   const targetMimeType = getTargetMimeType(effectiveMimeType);
 
@@ -153,12 +162,16 @@ const maybeCompressDataUrl = async (
 
   for (const quality of qualityCandidates) {
     const next = canvas.toDataURL(targetMimeType, quality);
-    if (next.length < best.length) {
+    // Browsers return "data:," when a canvas cannot be encoded (for example
+    // after exceeding implementation limits). Never replace an image with it.
+    if (isDataImageUrl(next) && next.length < best.length) {
       best = next;
     }
   }
 
-  const improvedEnough = best.length <= Math.floor(inputDataURL.length * minImprovementRatio);
+  const improvedEnough =
+    best.length <=
+    Math.floor(inputDataURL.length * DEFAULT_MIN_IMPROVEMENT_RATIO);
   if (!improvedEnough) {
     return {
       dataURL: inputDataURL,
@@ -169,9 +182,15 @@ const maybeCompressDataUrl = async (
     };
   }
 
+  // Trust the MIME actually encoded in the output, not the type we requested.
+  // Firefox (and some other browsers) can silently fall back to PNG while
+  // returning a `data:image/webp` request unchanged, so labeling the record
+  // with `targetMimeType` would corrupt the stored mimeType.
+  const actualMimeType = getMimeTypeFromDataUrl(best) || targetMimeType;
+
   return {
     dataURL: best,
-    mimeType: targetMimeType,
+    mimeType: actualMimeType,
     width,
     height,
     changed: true,
@@ -183,15 +202,41 @@ export const compressDroppedImagePayload = async (args: {
   mimeType: string;
 }) => maybeCompressDataUrl(args.dataURL, args.mimeType);
 
+// Remember dataURLs we have already processed so the per-second save poll does
+// not re-encode the same (unchanged or already-compressed) image on every tick.
+// Keys are the dataURL strings themselves, which are already referenced by the
+// live file records, so this only stores extra pointers, not extra image bytes.
+const MAX_COMPRESSION_MEMO_ENTRIES = 512;
+const processedDataUrls = new Set<string>();
+
+const rememberProcessedDataUrl = (dataURL: string): void => {
+  if (processedDataUrls.size >= MAX_COMPRESSION_MEMO_ENTRIES) {
+    processedDataUrls.clear();
+  }
+  processedDataUrls.add(dataURL);
+};
+
+let memoSettings = "";
+
+// Exposed for tests; also useful to drop stale entries between drawings.
+export const resetImageCompressionMemo = (): void => {
+  processedDataUrls.clear();
+};
+
 export const compressExcalidrawFiles = async (
-  files: Record<string, ExcalidrawFileRecord>
+  files: Record<string, ExcalidrawFileRecord>,
 ): Promise<{
   files: Record<string, ExcalidrawFileRecord>;
   changed: boolean;
   changedIds: string[];
 }> => {
   const entries = Object.entries(files || {});
-  if (entries.length === 0) {
+  const settings = `${readImageCompressionEnabled()}:${readImageCompressionThresholdMb()}`;
+  if (settings !== memoSettings) {
+    resetImageCompressionMemo();
+    memoSettings = settings;
+  }
+  if (entries.length === 0 || !readImageCompressionEnabled()) {
     return { files, changed: false, changedIds: [] };
   }
 
@@ -202,17 +247,29 @@ export const compressExcalidrawFiles = async (
   for (const [id, fileRecord] of entries) {
     const dataURL = fileRecord?.dataURL;
     const mimeType =
-      (typeof fileRecord?.mimeType === "string" ? fileRecord.mimeType : getMimeTypeFromDataUrl(String(dataURL || ""))) ||
-      "";
+      (typeof fileRecord?.mimeType === "string"
+        ? fileRecord.mimeType
+        : getMimeTypeFromDataUrl(String(dataURL || ""))) || "";
 
-    if (!isDataImageUrl(dataURL) || !canCompressMimeType(mimeType.toLowerCase())) {
+    if (
+      !isDataImageUrl(dataURL) ||
+      !canCompressMimeType(mimeType.toLowerCase())
+    ) {
       continue;
     }
 
+    // Skip images we have already attempted (failed, not worth compressing, or
+    // whose compressed output we produced) to stop the futile per-second loop.
+    if (processedDataUrls.has(dataURL)) continue;
+
     try {
       const compressed = await maybeCompressDataUrl(dataURL, mimeType);
+      rememberProcessedDataUrl(dataURL);
       if (!compressed.changed) continue;
 
+      // The output is our best effort; memoize it so it is not re-encoded once
+      // it flows back through the poll after addFiles().
+      rememberProcessedDataUrl(compressed.dataURL);
       changed = true;
       changedIds.push(id);
       next[id] = {
@@ -221,7 +278,9 @@ export const compressExcalidrawFiles = async (
         mimeType: compressed.mimeType,
       };
     } catch {
-      // Keep original image data on compression failure.
+      // Keep original image data on compression failure, but remember it so a
+      // decode/encode error is not retried on every subsequent save tick.
+      rememberProcessedDataUrl(dataURL);
     }
   }
 
