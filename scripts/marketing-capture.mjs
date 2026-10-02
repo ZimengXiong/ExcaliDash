@@ -463,9 +463,13 @@ try {
       }),
     ),
   );
-  captures.push(
-    ...(await captureCollaboration(browser, base, gallery, manifest)),
-  );
+  for (const theme of ["dark", "light"]) {
+    captures.push(
+      ...(await captureCollaboration(browser, base, gallery, manifest, {
+        theme,
+      })),
+    );
+  }
   await buildGallery(gallery, captures);
 } finally {
   await browser.close();
