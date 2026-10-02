@@ -5,8 +5,22 @@ import type { RegisterAdminRoutesDeps } from "./adminRoutes";
 import { impersonateSchema } from "./schemas";
 import { hashTokenForStorage } from "./tokenSecurity";
 
-export const registerAdminImpersonationRoutes = (deps: RegisterAdminRoutesDeps) => {
-  const { router, prisma, requireAuth, accountActionRateLimiter, ensureAuthEnabled, findUserByIdentifier, generateTokens, getRefreshTokenExpiresAt, config, setAuthCookies, requireCsrf } = deps;
+export const registerAdminImpersonationRoutes = (
+  deps: RegisterAdminRoutesDeps,
+) => {
+  const {
+    router,
+    prisma,
+    requireAuth,
+    accountActionRateLimiter,
+    ensureAuthEnabled,
+    findUserByIdentifier,
+    generateTokens,
+    getRefreshTokenExpiresAt,
+    config,
+    setAuthCookies,
+    requireCsrf,
+  } = deps;
   const resolveImpersonationAdmin = async (req: Request, res: Response) => {
     if (!req.user) {
       res
@@ -73,12 +87,10 @@ export const registerAdminImpersonationRoutes = (deps: RegisterAdminRoutesDeps) 
         });
       } catch (error) {
         console.error("List impersonation targets error:", error);
-        res
-          .status(500)
-          .json({
-            error: "Internal server error",
-            message: "Failed to list impersonation targets",
-          });
+        res.status(500).json({
+          error: "Internal server error",
+          message: "Failed to list impersonation targets",
+        });
       }
     },
   );
@@ -94,12 +106,10 @@ export const registerAdminImpersonationRoutes = (deps: RegisterAdminRoutesDeps) 
         if (!actingAdmin) return;
         const parsed = impersonateSchema.safeParse(req.body);
         if (!parsed.success) {
-          return res
-            .status(400)
-            .json({
-              error: "Bad request",
-              message: "Invalid impersonation payload",
-            });
+          return res.status(400).json({
+            error: "Bad request",
+            message: "Invalid impersonation payload",
+          });
         }
         const target = parsed.data.userId
           ? await prisma.user.findUnique({ where: { id: parsed.data.userId } })
@@ -110,13 +120,11 @@ export const registerAdminImpersonationRoutes = (deps: RegisterAdminRoutesDeps) 
             .json({ error: "Not found", message: "User not found" });
         }
         if (target.id === actingAdmin.id) {
-          return res
-            .status(409)
-            .json({
-              error: "Conflict",
-              message:
-                "Already using the admin account. Use stop impersonation to return.",
-            });
+          return res.status(409).json({
+            error: "Conflict",
+            message:
+              "Already using the admin account. Use stop impersonation to return.",
+          });
         }
         if (!target.isActive) {
           return res
@@ -172,12 +180,11 @@ export const registerAdminImpersonationRoutes = (deps: RegisterAdminRoutesDeps) 
         });
       } catch (error) {
         console.error("Impersonation error:", error);
-        res
-          .status(500)
-          .json({
-            error: "Internal server error",
-            message: "Failed to impersonate user",
-          });
+        res.status(500).json({
+          error: "Internal server error",
+          message: "Failed to impersonate user",
+        });
       }
     },
-  );};
+  );
+};

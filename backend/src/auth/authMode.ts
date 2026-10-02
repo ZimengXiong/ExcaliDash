@@ -13,7 +13,7 @@ export type AuthModeService = ReturnType<typeof createAuthModeService>;
 
 export const createAuthModeService = (
   prisma: PrismaClient,
-  options?: { authEnabledTtlMs?: number }
+  options?: { authEnabledTtlMs?: number },
 ) => {
   const authEnabledTtlMs = options?.authEnabledTtlMs ?? 5000;
   let authEnabledCache: AuthEnabledCache | null = null;
@@ -65,13 +65,19 @@ export const createAuthModeService = (
     }
 
     const now = Date.now();
-    if (authEnabledCache && now - authEnabledCache.fetchedAt < authEnabledTtlMs) {
+    if (
+      authEnabledCache &&
+      now - authEnabledCache.fetchedAt < authEnabledTtlMs
+    ) {
       return authEnabledCache.value;
     }
 
     const existingSystemConfig = await getSystemConfigAuthEnabled();
     if (existingSystemConfig) {
-      authEnabledCache = { value: existingSystemConfig.authEnabled, fetchedAt: now };
+      authEnabledCache = {
+        value: existingSystemConfig.authEnabled,
+        fetchedAt: now,
+      };
       return existingSystemConfig.authEnabled;
     }
 

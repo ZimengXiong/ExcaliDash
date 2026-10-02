@@ -32,7 +32,7 @@ const ExcalidrawEditor: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { theme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const { user } = useAuth();
   const [accessLevel, setAccessLevel] = useState<
     "none" | "view" | "edit" | "owner"
@@ -45,11 +45,19 @@ const ExcalidrawEditor: React.FC = () => {
   const [isSceneLoading, setIsSceneLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isSavingOnLeave, setIsSavingOnLeave] = useState(false);
-  const { autoHideEnabled, setAutoHideEnabled } = useEditorAutoHide(id);
+  const [editorAutoHide] = usePreference("editorAutoHide", true);
+  const { autoHideEnabled, setAutoHideEnabled } = useEditorAutoHide(
+    id,
+    editorAutoHide,
+  );
   const [isShareOpen, setIsShareOpen] = useState(false);
-  const [langCode, setLangCode] = usePreference("language", getInitialLangCode());
+  const [langCode, setLangCode] = usePreference(
+    "language",
+    getInitialLangCode(),
+  );
   const [gridStep, setGridStep] = usePreference("gridStep", DEFAULT_GRID_STEP);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const historyButtonRef = useRef<HTMLButtonElement>(null);
   const previewBackup = useRef<{
     elements: readonly any[];
     appState: any;
@@ -121,6 +129,7 @@ const ExcalidrawEditor: React.FC = () => {
       me,
       isReady,
       excalidrawAPI,
+      editorContainerRef,
       lastSyncedFilesRef,
       lastSyncedElementOrderSigRef,
       latestElementsRef,
@@ -329,6 +338,8 @@ const ExcalidrawEditor: React.FC = () => {
         editorContainerRef={editorContainerRef}
         initialData={initialData}
         isHeaderVisible={isHeaderVisible}
+        isHistoryOpen={isHistoryOpen}
+        historyButtonRef={historyButtonRef}
         isRenaming={isRenaming}
         isSavingOnLeave={isSavingOnLeave}
         isSceneLoading={isSceneLoading}
@@ -354,18 +365,20 @@ const ExcalidrawEditor: React.FC = () => {
         gridStep={gridStep}
         onSetGridStep={setGridStep}
         onShareOpen={() => setIsShareOpen(true)}
+        isShareOpen={isShareOpen}
+        onCloseShare={() => setIsShareOpen(false)}
         onHistoryOpen={() => setIsHistoryOpen(true)}
         onToggleAutoHide={handleToggleAutoHide}
+        onToggleTheme={toggleTheme}
       />
       <EditorDialogs
         drawingId={id}
-        drawingName={drawingName}
+        historyButtonRef={historyButtonRef}
+        getCurrentVersion={() => currentDrawingVersionRef.current}
         excalidrawAPIRef={excalidrawAPI}
         isHistoryOpen={isHistoryOpen}
-        isShareOpen={isShareOpen}
         previewBackupRef={previewBackup}
         onCloseHistory={() => setIsHistoryOpen(false)}
-        onCloseShare={() => setIsShareOpen(false)}
       />
     </>
   );

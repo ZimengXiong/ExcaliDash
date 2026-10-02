@@ -1,4 +1,4 @@
-const { parentPort, workerData } = require('worker_threads');
+const { parentPort, workerData } = require("worker_threads");
 
 if (!parentPort) throw new Error("Must be run in a worker thread");
 
@@ -20,9 +20,9 @@ const openReadonlyDb = (filePath) => {
 try {
   const { filePath } = workerData;
   const { db } = openReadonlyDb(filePath);
-  
+
   const result = db.prepare("PRAGMA integrity_check;").get();
-  
+
   db.close();
   parentPort.postMessage(result.integrity_check === "ok");
 } catch (error) {

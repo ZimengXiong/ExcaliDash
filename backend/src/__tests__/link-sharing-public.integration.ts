@@ -17,7 +17,7 @@ describe("Link Sharing - Public By Drawing ID", () => {
     jwt.sign(
       { userId: user.id, email: user.email, type: "refresh" },
       config.jwtSecret,
-      { expiresIn: config.jwtRefreshExpiresIn as StringValue }
+      { expiresIn: config.jwtRefreshExpiresIn as StringValue },
     );
 
   let prisma: PrismaClient;
@@ -115,7 +115,7 @@ describe("Link Sharing - Public By Drawing ID", () => {
     ownerToken = jwt.sign(
       { userId: ownerUser.id, email: ownerUser.email, type: "access" },
       config.jwtSecret,
-      signOptions
+      signOptions,
     );
 
     ownerAgent = request.agent(app);
@@ -161,7 +161,7 @@ describe("Link Sharing - Public By Drawing ID", () => {
       .set("User-Agent", userAgent)
       .set(
         "Cookie",
-        `${ACCESS_TOKEN_COOKIE_NAME}=${createRefreshToken(ownerUser)}`
+        `${ACCESS_TOKEN_COOKIE_NAME}=${createRefreshToken(ownerUser)}`,
       );
 
     expect(response.status).toBe(200);
@@ -178,7 +178,7 @@ describe("Link Sharing - Public By Drawing ID", () => {
       .set("User-Agent", userAgent)
       .set(
         "Cookie",
-        `${REFRESH_TOKEN_COOKIE_NAME}=${createRefreshToken(ownerUser)}`
+        `${REFRESH_TOKEN_COOKIE_NAME}=${createRefreshToken(ownerUser)}`,
       );
 
     expect(response.status).toBe(200);
@@ -213,7 +213,7 @@ describe("Link Sharing - Public By Drawing ID", () => {
       .set("User-Agent", userAgent)
       .set(
         "Cookie",
-        `${ACCESS_TOKEN_COOKIE_NAME}=${createRefreshToken(ownerUser)}`
+        `${ACCESS_TOKEN_COOKIE_NAME}=${createRefreshToken(ownerUser)}`,
       )
       .set(anonCsrfHeaderName, anonCsrfToken)
       .send({ name: "Edited With Stale Cookie" });
@@ -234,7 +234,7 @@ describe("Link Sharing - Public By Drawing ID", () => {
       .set("User-Agent", userAgent)
       .set(
         "Cookie",
-        `${REFRESH_TOKEN_COOKIE_NAME}=${createRefreshToken(ownerUser)}`
+        `${REFRESH_TOKEN_COOKIE_NAME}=${createRefreshToken(ownerUser)}`,
       )
       .set(anonCsrfHeaderName, anonCsrfToken)
       .send({ name: "Edited With Refresh Cookie" });
@@ -252,7 +252,7 @@ describe("Link Sharing - Public By Drawing ID", () => {
       .set("User-Agent", userAgent)
       .set(
         "Cookie",
-        `${ACCESS_TOKEN_COOKIE_NAME}=${createRefreshToken(ownerUser)}`
+        `${ACCESS_TOKEN_COOKIE_NAME}=${createRefreshToken(ownerUser)}`,
       );
 
     expect(response.status).toBe(401);
@@ -267,7 +267,7 @@ describe("Link Sharing - Public By Drawing ID", () => {
       .set("User-Agent", userAgent)
       .set(
         "Cookie",
-        `${REFRESH_TOKEN_COOKIE_NAME}=${createRefreshToken(ownerUser)}`
+        `${REFRESH_TOKEN_COOKIE_NAME}=${createRefreshToken(ownerUser)}`,
       );
 
     expect(response.status).toBe(401);
@@ -284,7 +284,7 @@ describe("Link Sharing - Public By Drawing ID", () => {
       .set("User-Agent", userAgent)
       .set(
         "Cookie",
-        `${ACCESS_TOKEN_COOKIE_NAME}=${createRefreshToken(ownerUser)}`
+        `${ACCESS_TOKEN_COOKIE_NAME}=${createRefreshToken(ownerUser)}`,
       )
       .set(anonCsrfHeaderName, anonCsrfToken)
       .send({ name: "Should Fail" });

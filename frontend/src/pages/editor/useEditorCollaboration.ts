@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { MutableRefObject } from "react";
+import type { MutableRefObject, RefObject } from "react";
 import { io, type Socket } from "socket.io-client";
 import { toast } from "sonner";
 import type { UserIdentity } from "../../utils/identity";
-import { filesNeedRehydration, rehydrateFilesFromUrls } from "../../utils/rehydrateFiles";
+import {
+  filesNeedRehydration,
+  rehydrateFilesFromUrls,
+} from "../../utils/rehydrateFiles";
 import { buildRemoteSceneUpdate } from "./shared";
+import { attachCanvasZoomForwarding } from "./canvasZoomForwarding";
 
 interface Peer extends UserIdentity {
   isActive: boolean;
@@ -15,6 +19,7 @@ type UseEditorCollaborationInput = {
   me: UserIdentity;
   isReady: boolean;
   excalidrawAPI: MutableRefObject<any>;
+  editorContainerRef: RefObject<HTMLDivElement>;
   lastSyncedFilesRef: MutableRefObject<Record<string, any>>;
   lastSyncedElementOrderSigRef: MutableRefObject<string>;
   latestElementsRef: MutableRefObject<readonly any[]>;
@@ -31,11 +36,30 @@ const getSocketUrl = () =>
       import.meta.env.VITE_DEV_BACKEND_URL ||
       "http://localhost:8000";
 
+type RoomJoinSocket = Pick<Socket, "connected" | "emit" | "on" | "off">;
+
+export const bindRoomJoin = (
+  socket: RoomJoinSocket,
+  drawingId: string,
+  user: UserIdentity,
+  onJoined: (payload: any) => void,
+): (() => void) => {
+  const joinRoom = () => {
+    socket.emit("join-room", { drawingId, user }, onJoined);
+  };
+
+  socket.on("connect", joinRoom);
+  if (socket.connected) joinRoom();
+
+  return () => socket.off("connect", joinRoom);
+};
+
 export const useEditorCollaboration = ({
   drawingId,
   me,
   isReady,
   excalidrawAPI,
+  editorContainerRef,
   lastSyncedFilesRef,
   lastSyncedElementOrderSigRef,
   latestElementsRef,
@@ -58,10 +82,9 @@ export const useEditorCollaboration = ({
   const pendingRemoteElementOrderRef = useRef<string[] | null>(null);
   const remoteFlushScheduledRef = useRef(false);
   const remoteFlushRafIdRef = useRef<number | null>(null);
-
   useEffect(() => {
     setSocketMe(me);
-  }, [me.id, me.name, me.initials, me.color]);
+  }, [me]);
 
   useEffect(() => {
     socketMeRef.current = socketMe;
@@ -86,7 +109,7 @@ export const useEditorCollaboration = ({
         (window as any).__EXCALIDASH_SOCKET_STATUS__ = { connected: false };
       });
     }
-    socket.emit("join-room", { drawingId, user: me }, (payload: any) => {
+    const detachRoomJoin = bindRoomJoin(socket, drawingId, me, (payload) => {
       const serverUser = payload?.user;
       if (!serverUser || typeof serverUser.id !== "string") return;
       const next: UserIdentity = {
@@ -260,10 +283,16 @@ export const useEditorCollaboration = ({
           // references; re-inline them before Excalidraw renders the image.
           // Already-inline data: URLs stay on the synchronous path.
           const stage = (incoming: Record<string, any>) => {
-            pendingRemoteFilesRef.current = { ...pendingRemoteFilesRef.current, ...incoming };
+            pendingRemoteFilesRef.current = {
+              ...pendingRemoteFilesRef.current,
+              ...incoming,
+            };
           };
           if (filesNeedRehydration(files)) {
-            void rehydrateFilesFromUrls(files).then((hydrated) => { stage(hydrated); scheduleRemoteFlush(); });
+            void rehydrateFilesFromUrls(files).then((hydrated) => {
+              stage(hydrated);
+              scheduleRemoteFlush();
+            });
           } else {
             stage(files);
           }
@@ -276,7 +305,9 @@ export const useEditorCollaboration = ({
     );
     socket.on("drawing-server-update", (payload: { drawingId?: string }) => {
       if (!payload?.drawingId || payload.drawingId !== drawingId) return;
-      toast.info("Drawing storage changed on the server. Reloading the editor.");
+      toast.info(
+        "Drawing storage changed on the server. Reloading the editor.",
+      );
       window.location.reload();
     });
     const handleActivity = (isActive: boolean) => {
@@ -290,7 +321,13 @@ export const useEditorCollaboration = ({
     window.addEventListener("blur", onBlur);
     document.addEventListener("mouseenter", onMouseEnter);
     document.addEventListener("mouseleave", onMouseLeave);
+    const detachCanvasZoom = attachCanvasZoomForwarding(
+      editorContainerRef.current,
+    );
+    const pendingRemoteElements = pendingRemoteElementsRef.current;
     return () => {
+      detachRoomJoin();
+      detachCanvasZoom();
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("mouseenter", onMouseEnter);
@@ -306,7 +343,7 @@ export const useEditorCollaboration = ({
         remoteFlushRafIdRef.current = null;
       }
       remoteFlushScheduledRef.current = false;
-      pendingRemoteElementsRef.current.clear();
+      pendingRemoteElements.clear();
       pendingRemoteFilesRef.current = {};
       pendingRemoteElementOrderRef.current = null;
       cancelAnimationFrame(animationFrameId.current);
@@ -316,6 +353,7 @@ export const useEditorCollaboration = ({
     me,
     isReady,
     excalidrawAPI,
+    editorContainerRef,
     lastSyncedFilesRef,
     lastSyncedElementOrderSigRef,
     latestElementsRef,

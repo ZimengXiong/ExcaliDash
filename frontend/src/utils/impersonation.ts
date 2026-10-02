@@ -1,5 +1,5 @@
-export const USER_KEY = 'excalidash-user';
-export const IMPERSONATION_KEY = 'excalidash-impersonation';
+export const USER_KEY = "excalidash-user";
+export const IMPERSONATION_KEY = "excalidash-impersonation";
 
 export type ImpersonationState = {
   original: {
@@ -19,7 +19,7 @@ export type ImpersonationState = {
 };
 
 export const readImpersonationState = (): ImpersonationState | null => {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(IMPERSONATION_KEY);
     if (!raw) return null;
