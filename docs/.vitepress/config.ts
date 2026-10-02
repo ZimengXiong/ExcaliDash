@@ -31,7 +31,6 @@ export default defineConfig({
         items: [
           { text: "Quick start", link: "/guide/quick-start" },
           { text: "First run", link: "/guide/first-run" },
-          { text: "Your workspace", link: "/guide/workspace" },
           { text: "Authentication", link: "/guide/authentication" },
           { text: "Configuration", link: "/guide/configuration" },
         ],
@@ -42,17 +41,11 @@ export default defineConfig({
       },
       {
         text: "Develop",
-        items: [
-          { text: "Local development", link: "/develop/" },
-          { text: "Review the docs", link: "/develop/docs-review" },
-        ],
+        items: [{ text: "Local development", link: "/develop/" }],
       },
       {
         text: "Reference",
-        items: [
-          { text: "Environment", link: "/reference/environment" },
-          { text: "Architecture", link: "/reference/architecture" },
-        ],
+        items: [{ text: "Environment", link: "/reference/environment" }],
       },
     ],
     search: { provider: "local" },
