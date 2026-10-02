@@ -42,9 +42,10 @@ Complete [first-run setup](/guide/first-run). In **Admin**, select **New user** 
 
 6. Open ExcaliDash and sign in with the provider.
 
+Notes:
 `OIDC_JIT_PROVISIONING=true` creates accounts on first sign-in. `OIDC_FIRST_USER_ADMIN=true` grants administrator access to the first provisioned OIDC user. Both default to `true`.
 
-To require provider sign-in, change `AUTH_MODE` to `oidc_enforced` and restart the backend.
+To require provider sign-in, set `AUTH_MODE` to `oidc_enforced`.
 
 ## Troubleshoot provider sign-in
 
@@ -53,7 +54,5 @@ Check that the redirect URI matches exactly, including the scheme and path. Read
 ```bash
 docker compose -f docker-compose.prod.yml logs --tail=100 backend
 ```
-
-From a source checkout, set the same provider variables in `backend/.env` and run `npm --prefix backend run oidc:doctor`.
 
 See the [environment reference](/reference/environment#openid-connect) for related settings.

@@ -29,11 +29,11 @@ Create `compose.override.yml` with your public origin and the number of trusted 
 services:
   backend:
     environment:
-      FRONTEND_URL: https://draw.example.com
+      FRONTEND_URL: https://excalidash.alpacawebservices.com
       TRUST_PROXY: "1"
 ```
 
-Replace `https://draw.example.com` with your URL. The hop count must match your proxy chain. Your proxies must replace untrusted forwarding headers and forward WebSocket upgrades for `/socket.io/`.
+Replace `https://excalidash.alpacawebservices.com` with your URL. The hop count must match your proxy chain and your proxies must replace untrusted forwarding headers and forward WebSocket upgrades for `/socket.io/`.
 
 Apply the override:
 
@@ -41,11 +41,9 @@ Apply the override:
 docker compose -f docker-compose.prod.yml -f compose.override.yml up -d
 ```
 
-Use both `-f` flags for later commands if you use an override.
-
 ## Persist and back up data
 
-The `backend-data` volume holds SQLite data, image records, and generated signing secrets. Scheduled backups copy the SQLite database; save your signing secrets separately.
+The `backend-data` volume holds SQLite data, image records, and generated signing secrets. Scheduled backups copy the SQLite database. Please save your signing secrets separately.
 
 Add these entries to `compose.override.yml` to enable daily database backups at 04:00 in the container's timezone:
 
@@ -77,18 +75,3 @@ Check the backend logs for backup errors and test restoring a backup. For Postgr
 docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d
 ```
-
-Compose replaces changed containers while retaining named volumes. Check the service health and logs after every upgrade.
-
-Back up before upgrading. Selecting an older image does not undo database
-migrations or changes to stored data formats; a rollback may also require
-restoring the matching database backup.
-
-## Operational checklist
-
-- HTTPS is enforced at the edge.
-- Secrets are stable, unique, and stored outside version control.
-- Database and backup volumes are persistent.
-- Authentication behavior has been tested in a private session.
-- Upload-size limits match the reverse proxy limits.
-- A rollback image tag and a tested restore path are available.
