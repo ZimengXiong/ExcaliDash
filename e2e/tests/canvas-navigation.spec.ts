@@ -10,7 +10,7 @@ test("native two-finger gestures pan while modified wheel zooms", async ({
   });
   try {
     await page.goto(`/editor/${drawing.id}`);
-    const canvas = page.locator(".excalidraw canvas").first();
+    const canvas = page.locator("canvas.excalidraw__canvas.interactive");
     await expect(canvas).toBeVisible();
     const state = () =>
       page.evaluate(() => {
@@ -22,7 +22,7 @@ test("native two-finger gestures pan while modified wheel zooms", async ({
           : null;
       });
     await expect.poll(state).not.toBeNull();
-    await canvas.hover();
+    await canvas.hover({ timeout: 10000 });
     const before = (await state())!;
     await page.mouse.wheel(48, 0);
     await expect.poll(async () => (await state())!.x).not.toBe(before.x);
