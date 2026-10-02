@@ -2,7 +2,9 @@ import { Request } from "express";
 
 export const CSRF_CLIENT_COOKIE_NAME = "excalidash-csrf-client";
 
-export const parseCookies = (cookieHeader: string | undefined): Record<string, string> => {
+export const parseCookies = (
+  cookieHeader: string | undefined,
+): Record<string, string> => {
   if (!cookieHeader) return {};
   const cookies: Record<string, string> = {};
   for (const part of cookieHeader.split(";")) {

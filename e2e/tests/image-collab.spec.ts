@@ -1,5 +1,10 @@
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
-import { createDrawing, deleteDrawing, getDrawing, updateDrawing } from "./helpers/api";
+import {
+  createDrawing,
+  deleteDrawing,
+  getDrawing,
+  updateDrawing,
+} from "./helpers/api";
 
 /**
  * Regression tests for:
@@ -15,7 +20,9 @@ import { createDrawing, deleteDrawing, getDrawing, updateDrawing } from "./helpe
 const openEditorTab = async (context: BrowserContext, drawingId: string) => {
   const page = await context.newPage();
   await page.goto(`/editor/${drawingId}`);
-  await page.waitForSelector("[class*='excalidraw'], canvas", { timeout: 15000 });
+  await page.waitForSelector("[class*='excalidraw'], canvas", {
+    timeout: 15000,
+  });
   await page.waitForFunction(() => {
     return !!(window as any).__EXCALIDASH_EXCALIDRAW_API__;
   });
@@ -116,11 +123,14 @@ const waitForElementPresent = async (page: Page, elementId: string) => {
       return !!el && el.isDeleted !== true;
     },
     elementId,
-    { timeout: 15000 }
+    { timeout: 15000 },
   );
 };
 
-const waitForElementDeletedEverywhere = async (page: Page, elementId: string) => {
+const waitForElementDeletedEverywhere = async (
+  page: Page,
+  elementId: string,
+) => {
   await page.waitForFunction(
     (id) => {
       const api = (window as any).__EXCALIDASH_EXCALIDRAW_API__;
@@ -129,7 +139,7 @@ const waitForElementDeletedEverywhere = async (page: Page, elementId: string) =>
       return !!el && el.isDeleted === true;
     },
     elementId,
-    { timeout: 15000 }
+    { timeout: 15000 },
   );
 };
 
@@ -140,8 +150,7 @@ test.describe("Issue #25 - image sync + deletion across tabs", () => {
     for (const id of createdDrawingIds) {
       try {
         await deleteDrawing(request, id);
-      } catch {
-      }
+      } catch {}
     }
     createdDrawingIds.length = 0;
   });
@@ -192,7 +201,10 @@ test.describe("Issue #25 - image sync + deletion across tabs", () => {
       api.updateScene({
         appState: {
           ...appState,
-          selectedElementIds: { ...(appState.selectedElementIds || {}), [id]: true },
+          selectedElementIds: {
+            ...(appState.selectedElementIds || {}),
+            [id]: true,
+          },
         },
       });
     }, elementId);
@@ -209,7 +221,9 @@ test.describe("Issue #25 - image sync + deletion across tabs", () => {
         versionNonce: Math.floor(Math.random() * 2 ** 31),
         updated: Date.now(),
       };
-      api.updateScene({ elements: els.map((e: any) => (e.id === id ? updated : e)) });
+      api.updateScene({
+        elements: els.map((e: any) => (e.id === id ? updated : e)),
+      });
     }, elementId);
 
     await waitForElementDeletedEverywhere(page2, elementId);

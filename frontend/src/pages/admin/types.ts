@@ -3,7 +3,7 @@ export type AdminUser = {
   username: string | null;
   email: string;
   name: string;
-  role: 'ADMIN' | 'USER' | string;
+  role: "ADMIN" | "USER" | string;
   mustResetPassword: boolean;
   isActive: boolean;
   createdAt: string;

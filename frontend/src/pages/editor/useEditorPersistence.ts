@@ -1,15 +1,19 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { exportToSvg } from "@excalidraw/excalidraw";
 import debounce from "lodash/debounce";
 import { toast } from "sonner";
 import * as api from "../../api";
+import { reloadAndReconcile } from "./reconcileSave";
 import { compressExcalidrawFiles } from "../../utils/imageCompression";
+import { isDefaultPreviewBackground } from "../../utils/previewSvg";
 import {
+  applyUploadedFileRefs,
   getFilesDelta,
   getPersistedAppState,
   hasRenderableElements,
 } from "./shared";
+import type { UploadedFileRefs } from "./shared";
 
 class DrawingSaveConflictError extends Error {
   constructor(message = "Drawing version conflict") {
@@ -41,6 +45,7 @@ type PersistenceRefs = {
   latestFiles: MutableRefObject<any>;
   saveQueue: MutableRefObject<Promise<void>>;
   suspiciousBlankLoad: MutableRefObject<boolean>;
+  uploadedRefs: MutableRefObject<UploadedFileRefs>;
 };
 
 type UseEditorPersistenceParams = {
@@ -83,6 +88,8 @@ export const useEditorPersistence = ({
     | null
   >(null);
   const saveLibraryRef = useRef<((items: any[]) => Promise<void>) | null>(null);
+  const [autosaveFailing, setAutosaveFailing] = useState(false);
+  const autosaveFailureCountRef = useRef(0);
 
   saveDataRef.current = async (
     drawingId: string,
@@ -143,44 +150,68 @@ export const useEditorPersistence = ({
         }
         refs.latestFiles.current = persistableFiles;
         // Excalidraw may retain the original blob when addFiles receives an
-        // existing content-derived ID, so keep sync comparisons on that map.
+        // existing content-derived ID, so compare realtime changes against
+        // the file map that is still in the editor.
         refs.lastSyncedFiles.current = editorFilesBeforeCompression;
       }
+      // Swap inline bytes for a ref on any file already uploaded out-of-band so
+      // the PUT ships KB, not MB. Files not yet uploaded keep their inline
+      // dataURL and the server interns them — no data loss on an upload race.
+      const filesToPersist = applyUploadedFileRefs(
+        persistableFiles,
+        refs.uploadedRefs.current,
+      );
       const filesChangedSincePersist =
         Object.keys(
           getFilesDelta(
             refs.lastPersistedFiles.current || {},
-            persistableFiles || {},
+            filesToPersist || {},
           ),
         ).length > 0;
       const normalizedElementsForSave = Array.from(
-        normalizeImageElementStatus(persistableElements, persistableFiles),
+        normalizeImageElementStatus(persistableElements, filesToPersist),
       );
-      const persistScene = async (attempt: number): Promise<void> => {
+      const persistScene = async (
+        attempt: number,
+        elementsToSave: readonly any[],
+        filesToSave: Record<string, any>,
+        sendFiles: boolean,
+      ): Promise<void> => {
         try {
           const updated = await api.updateDrawing(drawingId, {
-            elements: normalizedElementsForSave,
+            elements: Array.from(elementsToSave),
             appState: persistableAppState,
-            ...(filesChangedSincePersist ? { files: persistableFiles } : {}),
+            ...(sendFiles ? { files: filesToSave } : {}),
             version: refs.currentDrawingVersion.current ?? undefined,
           });
           if (typeof updated.version === "number") {
             refs.currentDrawingVersion.current = updated.version;
           }
-          refs.lastPersistedElements.current = normalizedElementsForSave;
-          if (filesChangedSincePersist) {
-            refs.lastPersistedFiles.current = persistableFiles;
+          refs.lastPersistedElements.current = elementsToSave;
+          if (sendFiles) {
+            refs.lastPersistedFiles.current = filesToSave;
           }
         } catch (err) {
           if (api.isAxiosError(err) && err.response?.status === 409) {
-            const reportedVersion = Number(err.response?.data?.currentVersion);
-            const hasReportedVersion =
-              Number.isInteger(reportedVersion) && reportedVersion > 0;
-            if (hasReportedVersion) {
-              refs.currentDrawingVersion.current = reportedVersion;
-            }
-            if (attempt === 0 && hasReportedVersion) {
-              await persistScene(1);
+            if (attempt < 4) {
+              // Concurrent editors can collide again after reconciliation.
+              // Stagger retries, but always merge against the latest version
+              // rather than overwriting another participant's changes.
+              await new Promise((resolve) =>
+                setTimeout(resolve, 100 * 2 ** attempt + Math.random() * 150),
+              );
+              const reconciled = await reloadAndReconcile(
+                refs,
+                drawingId,
+                elementsToSave,
+                filesToSave,
+              );
+              await persistScene(
+                attempt + 1,
+                reconciled.elements,
+                reconciled.files,
+                true,
+              );
               return;
             }
             throw new DrawingSaveConflictError();
@@ -188,7 +219,12 @@ export const useEditorPersistence = ({
           throw err;
         }
       };
-      await persistScene(0);
+      await persistScene(
+        0,
+        normalizedElementsForSave,
+        filesToPersist,
+        filesChangedSincePersist,
+      );
     } catch (err) {
       if (err instanceof DrawingSaveConflictError) {
         toast.error("Drawing changed in another tab. Refresh to load latest.");
@@ -213,15 +249,26 @@ export const useEditorPersistence = ({
         .catch(() => undefined)
         .then(async () => {
           if (!saveDataRef.current) return;
-          if (suppressErrors) {
-            try {
-              await saveDataRef.current(drawingId, elements, appState, files);
-            } catch {
-              // Best-effort autosave errors are surfaced by explicit saves.
+          try {
+            await saveDataRef.current(drawingId, elements, appState, files);
+            // A successful save (autosave or explicit) clears the indicator.
+            if (autosaveFailureCountRef.current !== 0) {
+              autosaveFailureCountRef.current = 0;
+              setAutosaveFailing(false);
             }
-            return;
+          } catch (err) {
+            if (suppressErrors) {
+              // Best-effort autosave: after repeated failures raise a
+              // persistent unsaved-changes indicator instead of silently
+              // dropping every error.
+              autosaveFailureCountRef.current += 1;
+              if (autosaveFailureCountRef.current >= 2) {
+                setAutosaveFailing(true);
+              }
+              return;
+            }
+            throw err;
           }
-          await saveDataRef.current(drawingId, elements, appState, files);
         });
       return refs.saveQueue.current;
     },
@@ -268,7 +315,10 @@ export const useEditorPersistence = ({
         elements: normalizedSnapshot,
         appState: {
           ...appState,
-          exportBackground: true,
+          exportBackground: !isDefaultPreviewBackground(
+            appState.viewBackgroundColor,
+          ),
+          exportWithDarkMode: false,
           viewBackgroundColor: appState.viewBackgroundColor || "#ffffff",
         },
         files: currentFiles,
@@ -290,57 +340,65 @@ export const useEditorPersistence = ({
     }
   };
 
-  const debouncedSave = useCallback(
-    debounce((drawingId, elements, appState, files) => {
-      enqueueSceneSave(drawingId, elements, appState, files);
-    }, 1000),
+  const debouncedSave = useMemo(
+    () =>
+      debounce((drawingId, elements, appState, files) => {
+        enqueueSceneSave(drawingId, elements, appState, files);
+      }, 1000),
     [enqueueSceneSave],
   );
   refs.debouncedSave.current = debouncedSave;
 
-  const debouncedSavePreview = useCallback(
-    debounce((drawingId: string) => {
-      if (!savePreviewRef.current || !drawingId) return;
-      if (refs.isUnmounting.current || refs.isSyncing.current) return;
-      const expectedChangeAt = refs.lastLocalChangeAt.current;
-      const run = () => {
-        if (!savePreviewRef.current) return;
+  const debouncedSavePreview = useMemo(
+    () =>
+      debounce((drawingId: string) => {
+        if (!savePreviewRef.current || !drawingId) return;
         if (refs.isUnmounting.current || refs.isSyncing.current) return;
-        if (refs.lastLocalChangeAt.current !== expectedChangeAt) return;
-        const appState = refs.latestAppState.current;
-        if (!appState) return;
-        void savePreviewRef.current(
-          drawingId,
-          refs.latestElements.current,
-          appState,
-          refs.latestFiles.current || {},
-        );
-      };
-      const w = window as any;
-      if (typeof w.requestIdleCallback === "function") {
-        w.requestIdleCallback(run, { timeout: 2000 });
-      } else {
-        setTimeout(run, 0);
-      }
-    }, 30_000),
+        const expectedChangeAt = refs.lastLocalChangeAt.current;
+        const run = () => {
+          if (!savePreviewRef.current) return;
+          if (refs.isUnmounting.current || refs.isSyncing.current) return;
+          if (refs.lastLocalChangeAt.current !== expectedChangeAt) return;
+          const appState = refs.latestAppState.current;
+          if (!appState) return;
+          void savePreviewRef.current(
+            drawingId,
+            refs.latestElements.current,
+            appState,
+            refs.latestFiles.current || {},
+          );
+        };
+        const w = window as any;
+        if (typeof w.requestIdleCallback === "function") {
+          w.requestIdleCallback(run, { timeout: 2000 });
+        } else {
+          setTimeout(run, 0);
+        }
+      }, 30_000),
     [refs],
   );
 
-  const debouncedSaveLibrary = useCallback(
-    debounce((items: any[]) => {
-      if (saveLibraryRef.current) saveLibraryRef.current(items);
-    }, 1000),
+  const debouncedSaveLibrary = useMemo(
+    () =>
+      debounce((items: any[]) => {
+        if (saveLibraryRef.current) saveLibraryRef.current(items);
+      }, 1000),
     [],
   );
 
   useEffect(() => {
     return () => {
-      debouncedSave.cancel();
+      // Flush pending scene/library saves on unmount so a fast navigation
+      // away doesn't drop the user's last debounced edits. The preview is a
+      // regenerable thumbnail, so it is safe to cancel.
+      debouncedSave.flush();
+      debouncedSaveLibrary.flush();
       debouncedSavePreview.cancel();
     };
-  }, [debouncedSave, debouncedSavePreview]);
+  }, [debouncedSave, debouncedSaveLibrary, debouncedSavePreview]);
 
   return {
+    autosaveFailing,
     debouncedSave,
     debouncedSaveLibrary,
     debouncedSavePreview,

@@ -1,20 +1,29 @@
 {
   "name": "excalidash-e2e",
-  "version": "1.0.0",
+  "private": true,
   "description": "E2E browser tests for ExcaliDash",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "npm@10.9.2",
   "scripts": {
     "test": "playwright test",
+    "check": "tsc --noEmit",
+    "test:auth": "E2E_AUTH=true playwright test",
+    "screenshots:review": "E2E_AUTH=true UI_REVIEW_SCREENSHOTS=true playwright test tests/ui-review.spec.ts",
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug",
     "test:ui": "playwright test --ui",
-    "report": "playwright show-report",
-    "docker:build": "docker-compose -f docker-compose.e2e.yml build",
-    "docker:test": "docker-compose -f docker-compose.e2e.yml up --abort-on-container-exit --exit-code-from playwright",
-    "docker:test:headed": "HEADED=true docker-compose -f docker-compose.e2e.yml up --abort-on-container-exit --exit-code-from playwright",
-    "docker:down": "docker-compose -f docker-compose.e2e.yml down -v"
+    "report": "playwright show-report playwright-report/anonymous",
+    "report:auth": "playwright show-report playwright-report/authenticated",
+    "docker:build": "docker compose -f docker-compose.e2e.yml build",
+    "docker:test": "docker compose -f docker-compose.e2e.yml up --abort-on-container-exit --exit-code-from playwright",
+    "docker:test:headed": "HEADED=true docker compose -f docker-compose.e2e.yml up --abort-on-container-exit --exit-code-from playwright",
+    "docker:down": "docker compose -f docker-compose.e2e.yml down -v"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",
-    "@types/node": "^22.15.21"
+    "@types/node": "^22.15.21",
+    "typescript": "~5.9.3"
   }
 }
