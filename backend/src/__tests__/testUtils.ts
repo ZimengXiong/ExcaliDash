@@ -3,12 +3,25 @@
  */
 import { PrismaClient } from "../generated/client";
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { execSync } from "child_process";
+import { afterAll } from "vitest";
 
+const TEST_DB_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "excalidash-test-"));
 const TEST_DB_FILENAME = `test.${process.pid}.${Math.random().toString(16).slice(2)}.db`;
-const TEST_DB_PATH = path.resolve(__dirname, "../../prisma", TEST_DB_FILENAME);
-const DB_PUSH_LOCK_PATH = path.resolve(__dirname, "../../prisma/.test-db-push.lock");
+const TEST_DB_PATH = path.join(TEST_DB_DIR, TEST_DB_FILENAME);
+const DB_PUSH_LOCK_PATH = path.join(
+  os.tmpdir(),
+  "excalidash-test-db-push.lock",
+);
+
+const removeTestDbDir = () => {
+  fs.rmSync(TEST_DB_DIR, { recursive: true, force: true });
+};
+
+afterAll(removeTestDbDir);
+process.once("exit", removeTestDbDir);
 
 const sleepSync = (ms: number) => {
   const shared = new Int32Array(new SharedArrayBuffer(4));
@@ -37,12 +50,10 @@ const withDbPushLock = (fn: () => void) => {
   } finally {
     try {
       fs.closeSync(fd);
-    } catch {
-    }
+    } catch {}
     try {
       fs.unlinkSync(DB_PUSH_LOCK_PATH);
-    } catch {
-    }
+    } catch {}
   }
 };
 
@@ -67,7 +78,7 @@ export const getTestPrisma = () => {
 export const setupTestDb = () => {
   const databaseUrl = `file:${TEST_DB_PATH}`;
   process.env.DATABASE_URL = databaseUrl;
-  
+
   try {
     withDbPushLock(() => {
       execSync("npx prisma db push --skip-generate --force-reset", {
@@ -98,10 +109,13 @@ export const cleanupTestDb = async (prisma: PrismaClient) => {
 /**
  * Create a test user for testing
  */
-export const createTestUser = async (prisma: PrismaClient, email: string = "test@example.com") => {
+export const createTestUser = async (
+  prisma: PrismaClient,
+  email: string = "test@example.com",
+) => {
   const bcrypt = require("bcrypt");
   const passwordHash = await bcrypt.hash("testpassword", 10);
-  
+
   return await prisma.user.upsert({
     where: { email },
     update: {},
@@ -119,7 +133,7 @@ export const createTestUser = async (prisma: PrismaClient, email: string = "test
 export const initTestDb = async (prisma: PrismaClient) => {
   const testUser = await createTestUser(prisma);
   const trashCollectionId = `trash:${testUser.id}`;
-  
+
   const trash = await prisma.collection.findFirst({
     where: { id: trashCollectionId, userId: testUser.id },
   });
@@ -128,7 +142,7 @@ export const initTestDb = async (prisma: PrismaClient) => {
       data: { id: trashCollectionId, name: "Trash", userId: testUser.id },
     });
   }
-  
+
   return testUser;
 };
 
@@ -136,16 +150,19 @@ export const initTestDb = async (prisma: PrismaClient) => {
  * Generate a sample base64 PNG image data URL
  * This creates a small but valid PNG for testing
  */
-const generateSampleImageDataUrl = (size: "small" | "medium" | "large" = "small"): string => {
-  const smallPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
-  
+const generateSampleImageDataUrl = (
+  size: "small" | "medium" | "large" = "small",
+): string => {
+  const smallPng =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
+
   if (size === "small") {
     return `data:image/png;base64,${smallPng}`;
   }
-  
+
   const repetitions = size === "medium" ? 1000 : 10000;
   const paddedBase64 = smallPng.repeat(repetitions);
-  
+
   return `data:image/png;base64,${paddedBase64}`;
 };
 
@@ -154,7 +171,8 @@ const generateSampleImageDataUrl = (size: "small" | "medium" | "large" = "small"
  * This is specifically designed to catch the truncation bug from issue #17
  */
 export const generateLargeImageDataUrl = (): string => {
-  const baseImage = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
+  const baseImage =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
   const largeBase64 = baseImage.repeat(500);
   return `data:image/png;base64,${largeBase64}`;
 };
@@ -162,32 +180,40 @@ export const generateLargeImageDataUrl = (): string => {
 /**
  * Create a sample Excalidraw files object with embedded images
  */
-export const createSampleFilesObject = (imageCount: number = 1, size: "small" | "large" = "small") => {
+export const createSampleFilesObject = (
+  imageCount: number = 1,
+  size: "small" | "large" = "small",
+) => {
   const files: Record<string, any> = {};
-  
+
   for (let i = 0; i < imageCount; i++) {
     const fileId = `file-${i}-${Date.now()}`;
     files[fileId] = {
       id: fileId,
       mimeType: "image/png",
-      dataURL: size === "large" ? generateLargeImageDataUrl() : generateSampleImageDataUrl("small"),
+      dataURL:
+        size === "large"
+          ? generateLargeImageDataUrl()
+          : generateSampleImageDataUrl("small"),
       created: Date.now(),
       lastRetrieved: Date.now(),
     };
   }
-  
+
   return files;
 };
 
 /**
  * Create a minimal valid Excalidraw drawing payload
  */
-export const createTestDrawingPayload = (options: {
-  name?: string;
-  files?: Record<string, any> | null;
-  elements?: any[];
-  appState?: any;
-} = {}) => {
+export const createTestDrawingPayload = (
+  options: {
+    name?: string;
+    files?: Record<string, any> | null;
+    elements?: any[];
+    appState?: any;
+  } = {},
+) => {
   return {
     name: options.name ?? "Test Drawing",
     elements: options.elements ?? [
@@ -232,41 +258,49 @@ export const createTestDrawingPayload = (options: {
 /**
  * Compare two files objects to check if image data was preserved
  */
-export const compareFilesObjects = (original: Record<string, any>, received: Record<string, any>): {
+export const compareFilesObjects = (
+  original: Record<string, any>,
+  received: Record<string, any>,
+): {
   isEqual: boolean;
   differences: string[];
 } => {
   const differences: string[] = [];
-  
+
   const originalKeys = Object.keys(original);
   const receivedKeys = Object.keys(received);
-  
+
   if (originalKeys.length !== receivedKeys.length) {
-    differences.push(`Key count mismatch: original=${originalKeys.length}, received=${receivedKeys.length}`);
+    differences.push(
+      `Key count mismatch: original=${originalKeys.length}, received=${receivedKeys.length}`,
+    );
   }
-  
+
   for (const key of originalKeys) {
     if (!(key in received)) {
       differences.push(`Missing key: ${key}`);
       continue;
     }
-    
+
     const origFile = original[key];
     const recvFile = received[key];
-    
+
     if (origFile.dataURL !== recvFile.dataURL) {
       differences.push(
         `DataURL mismatch for ${key}: ` +
-        `original length=${origFile.dataURL?.length ?? 0}, ` +
-        `received length=${recvFile.dataURL?.length ?? 0}`
+          `original length=${origFile.dataURL?.length ?? 0}, ` +
+          `received length=${recvFile.dataURL?.length ?? 0}`,
       );
-      
-      if (recvFile.dataURL && origFile.dataURL?.startsWith(recvFile.dataURL.substring(0, 100))) {
+
+      if (
+        recvFile.dataURL &&
+        origFile.dataURL?.startsWith(recvFile.dataURL.substring(0, 100))
+      ) {
         differences.push(`TRUNCATION DETECTED: dataURL was cut short`);
       }
     }
   }
-  
+
   return {
     isEqual: differences.length === 0,
     differences,

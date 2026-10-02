@@ -30,7 +30,10 @@ const resolveDatabaseUrl = (rawUrl) => {
 
   const absolutePath = path.isAbsolute(filePath)
     ? filePath
-    : path.resolve(hasLeadingPrismaDir ? backendRoot : prismaDir, normalizedRelative);
+    : path.resolve(
+        hasLeadingPrismaDir ? backendRoot : prismaDir,
+        normalizedRelative,
+      );
 
   return `file:${absolutePath}`;
 };
@@ -47,7 +50,9 @@ const parseArgs = (argv) => {
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i];
     if (token === "--scenario") {
-      parsed.scenario = String(argv[i + 1] || "").trim().toLowerCase();
+      parsed.scenario = String(argv[i + 1] || "")
+        .trim()
+        .toLowerCase();
       i += 1;
       continue;
     }
@@ -97,10 +102,10 @@ const run = async () => {
 
   assertScenario(args.scenario);
 
-const nodeEnv = process.env.NODE_ENV || "development";
+  const nodeEnv = process.env.NODE_ENV || "development";
   if (nodeEnv === "production" && !args.allowProd) {
     throw new Error(
-      "Refusing to run in production. Pass --allow-production only if you explicitly intend this."
+      "Refusing to run in production. Pass --allow-production only if you explicitly intend this.",
     );
   }
 
@@ -140,13 +145,21 @@ const nodeEnv = process.env.NODE_ENV || "development";
         throw error;
       }
 
-      runPrisma(["migrate", "resolve", "--applied", "20260210153000_add_auth_onboarding_completed"], {
-        stdio: "pipe",
-        env: {
-          ...process.env,
-          DATABASE_URL: process.env.DATABASE_URL,
+      runPrisma(
+        [
+          "migrate",
+          "resolve",
+          "--applied",
+          "20260210153000_add_auth_onboarding_completed",
+        ],
+        {
+          stdio: "pipe",
+          env: {
+            ...process.env,
+            DATABASE_URL: process.env.DATABASE_URL,
+          },
         },
-      });
+      );
       runDeploy();
     }
   }
@@ -169,7 +182,9 @@ const nodeEnv = process.env.NODE_ENV || "development";
       }),
     };
 
-    console.log(`[simulate-auth-onboarding] DATABASE_URL=${process.env.DATABASE_URL}`);
+    console.log(
+      `[simulate-auth-onboarding] DATABASE_URL=${process.env.DATABASE_URL}`,
+    );
     console.log(`[simulate-auth-onboarding] NODE_ENV=${nodeEnv}`);
     console.log(`[simulate-auth-onboarding] scenario=${args.scenario}`);
     console.log("[simulate-auth-onboarding] before:", before);
@@ -306,7 +321,7 @@ const nodeEnv = process.env.NODE_ENV || "development";
     console.log("[simulate-auth-onboarding] after:", after);
     console.log(`[simulate-auth-onboarding] completed at ${nowIso()}`);
     console.log(
-      "[simulate-auth-onboarding] If your backend is already running, wait ~5 seconds (auth cache TTL) or restart before refreshing the UI."
+      "[simulate-auth-onboarding] If your backend is already running, wait ~5 seconds (auth cache TTL) or restart before refreshing the UI.",
     );
   } finally {
     await prisma.$disconnect().catch(() => {});

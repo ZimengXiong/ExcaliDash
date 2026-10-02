@@ -1,0 +1,202 @@
+[
+  {
+    "title": "Load balancing architecture",
+    "folder": "System design",
+    "id": "de3c6cab-2d15-4cb4-bd85-831a1b980391",
+    "source": "https://raw.githubusercontent.com/Prakash-sa/system-design-ultimatum/018c1244c9273cbb62f4fa174a15e2fffc89c509/%F0%9F%A7%A9%201.%20Foundational(Introductory)%20Design/Load%20Balancer.excalidraw",
+    "license": "CC BY 4.0 (diagrams)",
+    "modification": "Restored with Excalidraw; white export background."
+  },
+  {
+    "title": "DNS resolution",
+    "folder": "System design",
+    "id": "fa58771c-1800-444e-94d5-8d779580c5ce",
+    "source": "https://raw.githubusercontent.com/Prakash-sa/system-design-ultimatum/018c1244c9273cbb62f4fa174a15e2fffc89c509/%F0%9F%A7%A9%201.%20Foundational(Introductory)%20Design/DNS.excalidraw",
+    "license": "CC BY 4.0 (diagrams)",
+    "modification": "Restored with Excalidraw; white export background."
+  },
+  {
+    "title": "Database strategies",
+    "folder": "System design",
+    "id": "2bc9eca2-0d35-4250-8804-63ca245bdeca",
+    "source": "https://raw.githubusercontent.com/Prakash-sa/system-design-ultimatum/018c1244c9273cbb62f4fa174a15e2fffc89c509/%F0%9F%A7%A9%201.%20Foundational(Introductory)%20Design/Database%20Strategies.excalidraw",
+    "license": "CC BY 4.0 (diagrams)",
+    "modification": "Restored with Excalidraw; white export background."
+  },
+  {
+    "title": "Log aggregation",
+    "folder": "Data & observability",
+    "id": "0a7e8ff6-0c1a-4e68-889e-3220eaadc725",
+    "source": "https://raw.githubusercontent.com/Prakash-sa/system-design-ultimatum/018c1244c9273cbb62f4fa174a15e2fffc89c509/%F0%9F%A7%A0%207.%20Analytics%2C%20Streaming%2C%20and%20Data%20Pipelines/Log%20Aggregation.excalidraw",
+    "license": "CC BY 4.0 (diagrams)",
+    "modification": "Restored with Excalidraw; white export background."
+  },
+  {
+    "title": "Notification service",
+    "folder": "System design",
+    "id": "c0f98060-946f-4a50-bbba-4780ed36fdff",
+    "source": "https://raw.githubusercontent.com/Prakash-sa/system-design-ultimatum/018c1244c9273cbb62f4fa174a15e2fffc89c509/%F0%9F%92%AC%203.%20Social%20%26%20Communication%20Systems/Global%20Notification%20Service.excalidraw",
+    "license": "CC BY 4.0 (diagrams)",
+    "modification": "Restored with Excalidraw; white export background."
+  },
+  {
+    "title": "Messaging architecture",
+    "folder": "System design",
+    "id": "5cdbe56f-d757-45a4-9e29-831a70584d79",
+    "source": "https://raw.githubusercontent.com/Prakash-sa/system-design-ultimatum/018c1244c9273cbb62f4fa174a15e2fffc89c509/%F0%9F%92%AC%203.%20Social%20%26%20Communication%20Systems/Chat%20System(Messaging).excalidraw",
+    "license": "CC BY 4.0 (diagrams)",
+    "modification": "Restored with Excalidraw; white export background."
+  },
+  {
+    "title": "Blue-green deployment",
+    "folder": "Platform engineering",
+    "id": "212502f8-4740-42b7-9086-250f842764d3",
+    "source": "https://raw.githubusercontent.com/Prakash-sa/system-design-ultimatum/018c1244c9273cbb62f4fa174a15e2fffc89c509/%E2%98%81%EF%B8%8F%2011.%20Deployment%20Strategies/blue_green_deployment.excalidraw",
+    "license": "CC BY 4.0 (diagrams)",
+    "modification": "Restored with Excalidraw; white export background."
+  },
+  {
+    "title": "Canary rollout",
+    "folder": "Platform engineering",
+    "id": "cf1689f5-0ded-4996-b057-615533f97987",
+    "source": "https://raw.githubusercontent.com/Prakash-sa/system-design-ultimatum/018c1244c9273cbb62f4fa174a15e2fffc89c509/%E2%98%81%EF%B8%8F%2011.%20Deployment%20Strategies/canary_deployment.excalidraw",
+    "license": "CC BY 4.0 (diagrams)",
+    "modification": "Restored with Excalidraw; white export background."
+  },
+  {
+    "title": "Rolling deployment",
+    "folder": "Platform engineering",
+    "id": "41128448-e75e-4ec4-bcd6-5e0c8bcc9b49",
+    "source": "https://raw.githubusercontent.com/Prakash-sa/system-design-ultimatum/018c1244c9273cbb62f4fa174a15e2fffc89c509/%E2%98%81%EF%B8%8F%2011.%20Deployment%20Strategies/rolling_deployment.excalidraw",
+    "license": "CC BY 4.0 (diagrams)",
+    "modification": "Restored with Excalidraw; white export background."
+  },
+  {
+    "title": "Feature flag rollout",
+    "folder": "Platform engineering",
+    "id": "c66c9817-8327-454c-a51f-5f5f483aea0e",
+    "source": "https://raw.githubusercontent.com/Prakash-sa/system-design-ultimatum/018c1244c9273cbb62f4fa174a15e2fffc89c509/%E2%98%81%EF%B8%8F%2011.%20Deployment%20Strategies/feature_flag_deployment.excalidraw",
+    "license": "CC BY 4.0 (diagrams)",
+    "modification": "Restored with Excalidraw; white export background."
+  },
+  {
+    "title": "Real-time data pipelines",
+    "folder": "Data & observability",
+    "id": "705d1b17-aab5-452e-958e-19b1d47cdc52",
+    "source": "https://raw.githubusercontent.com/vemuruadi/excalidraw-redis-grafana/8f51501158d4bfa3f3dbd089a0aade9359d12ecb/drawings/real-time-data-pipelines.excalidraw",
+    "license": "MIT",
+    "modification": "Restored with Excalidraw; white export background."
+  },
+  {
+    "title": "Grafana dashboard",
+    "folder": "Data & observability",
+    "id": "f696a74d-1a6a-4e96-b7df-66dca0c22ac5",
+    "source": "https://raw.githubusercontent.com/vemuruadi/excalidraw-redis-grafana/8f51501158d4bfa3f3dbd089a0aade9359d12ecb/drawings/grafana-dashboard.excalidraw",
+    "license": "MIT",
+    "modification": "Restored with Excalidraw; white export background."
+  },
+  {
+    "title": "Redis + Grafana architecture",
+    "folder": "Data & observability",
+    "id": "5f8b41de-71f2-4213-812d-c2edb75f21ac",
+    "source": "https://raw.githubusercontent.com/vemuruadi/excalidraw-redis-grafana/8f51501158d4bfa3f3dbd089a0aade9359d12ecb/redis-grafana.excalidraw",
+    "license": "MIT",
+    "modification": "Restored with Excalidraw; white export background."
+  },
+  {
+    "title": "Customer journey workshop",
+    "folder": "Product discovery",
+    "id": "4e257afc-c184-41a9-ad24-39dcafc488a5",
+    "source": "https://raw.githubusercontent.com/excalidraw/excalidraw-libraries/297a349eaff859e678f78d4dbc8e68df5fce42e5/libraries/braweria/customer-journey-map.excalidrawlib",
+    "license": "MIT",
+    "modification": "First twelve library items arranged and scaled into an editable contact sheet."
+  },
+  {
+    "title": "Sprint planning board",
+    "folder": "Product discovery",
+    "id": "01a97b57-8bb9-4a38-8679-0a0fd6b99514",
+    "source": "https://raw.githubusercontent.com/excalidraw/excalidraw-libraries/297a349eaff859e678f78d4dbc8e68df5fce42e5/libraries/danimaniarqsoft/scrum-board.excalidrawlib",
+    "license": "MIT",
+    "modification": "First twelve library items arranged and scaled into an editable contact sheet."
+  },
+  {
+    "title": "Team retrospective",
+    "folder": "Product discovery",
+    "id": "2dcb253c-e03f-4c38-ab81-1f62801e11a2",
+    "source": "https://raw.githubusercontent.com/excalidraw/excalidraw-libraries/297a349eaff859e678f78d4dbc8e68df5fce42e5/libraries/ferminrp/post-it.excalidrawlib",
+    "license": "MIT",
+    "modification": "First twelve library items arranged and scaled into an editable contact sheet."
+  },
+  {
+    "title": "UX wireframe toolkit",
+    "folder": "Interface design",
+    "id": "70ec6792-90c7-4c58-a623-a7effdcb84c0",
+    "source": "https://raw.githubusercontent.com/excalidraw/excalidraw-libraries/297a349eaff859e678f78d4dbc8e68df5fce42e5/libraries/gabrielamacakova/basic-ux-wireframing-elements.excalidrawlib",
+    "license": "MIT",
+    "modification": "First twelve library items arranged and scaled into an editable contact sheet."
+  },
+  {
+    "title": "Mobile app patterns",
+    "folder": "Interface design",
+    "id": "65bfe497-e2bf-48c9-83e6-da181fcf7de9",
+    "source": "https://raw.githubusercontent.com/excalidraw/excalidraw-libraries/297a349eaff859e678f78d4dbc8e68df5fce42e5/libraries/excacomp/mobile-kit.excalidrawlib",
+    "license": "MIT",
+    "modification": "First twelve library items arranged and scaled into an editable contact sheet."
+  },
+  {
+    "title": "Web interface patterns",
+    "folder": "Interface design",
+    "id": "919a6eb1-cadf-4b9f-91d9-7f006f7bcbbf",
+    "source": "https://raw.githubusercontent.com/excalidraw/excalidraw-libraries/297a349eaff859e678f78d4dbc8e68df5fce42e5/libraries/excacomp/web-kit.excalidrawlib",
+    "license": "MIT",
+    "modification": "First twelve library items arranged and scaled into an editable contact sheet."
+  },
+  {
+    "title": "Analytics dashboard charts",
+    "folder": "Data & observability",
+    "id": "cc9274c8-b53d-4080-8883-ebdf2930e656",
+    "source": "https://raw.githubusercontent.com/excalidraw/excalidraw-libraries/297a349eaff859e678f78d4dbc8e68df5fce42e5/libraries/datavizfairy/dashboard-charts.excalidrawlib",
+    "license": "MIT",
+    "modification": "First twelve library items arranged and scaled into an editable contact sheet."
+  },
+  {
+    "title": "C4 architecture toolkit",
+    "folder": "Architecture library",
+    "id": "be450aed-493c-4420-ade6-ec93c8b4cf87",
+    "source": "https://raw.githubusercontent.com/excalidraw/excalidraw-libraries/297a349eaff859e678f78d4dbc8e68df5fce42e5/libraries/dmitry-burnyshev/c4-architecture.excalidrawlib",
+    "license": "MIT",
+    "modification": "First twelve library items arranged and scaled into an editable contact sheet."
+  },
+  {
+    "title": "Network topology",
+    "folder": "Architecture library",
+    "id": "40c3c62c-bb0d-49bb-80d8-aba6dd44f42e",
+    "source": "https://raw.githubusercontent.com/excalidraw/excalidraw-libraries/297a349eaff859e678f78d4dbc8e68df5fce42e5/libraries/dwelle/network-topology-icons.excalidrawlib",
+    "license": "MIT",
+    "modification": "First twelve library items arranged and scaled into an editable contact sheet."
+  },
+  {
+    "title": "Service architecture components",
+    "folder": "Architecture library",
+    "id": "f2d94dd2-8505-4cbf-a12a-249f8c87ecf0",
+    "source": "https://raw.githubusercontent.com/excalidraw/excalidraw-libraries/297a349eaff859e678f78d4dbc8e68df5fce42e5/libraries/anna-pastushko/architecture-diagram-components.excalidrawlib",
+    "license": "MIT",
+    "modification": "First twelve library items arranged and scaled into an editable contact sheet."
+  },
+  {
+    "title": "Decision flow patterns",
+    "folder": "Architecture library",
+    "id": "680517c0-1f20-4c75-a017-b9136bf7c524",
+    "source": "https://raw.githubusercontent.com/excalidraw/excalidraw-libraries/297a349eaff859e678f78d4dbc8e68df5fce42e5/libraries/aretecode/decision-flow-control.excalidrawlib",
+    "license": "MIT",
+    "modification": "First twelve library items arranged and scaled into an editable contact sheet."
+  },
+  {
+    "title": "System design workshop",
+    "folder": "Architecture library",
+    "id": "9ded1273-189e-479b-b5fb-5ef72e289df7",
+    "source": "https://raw.githubusercontent.com/aretecode/system-design-templates-excalidraw/8dafdf3dea3f5a04688b9226a7c0d83a7eb33071/src/system-design-template-emoji.excalidrawlib",
+    "license": "MIT",
+    "modification": "First twelve library items arranged and scaled into an editable contact sheet."
+  }
+]

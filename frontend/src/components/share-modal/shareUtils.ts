@@ -14,7 +14,7 @@ export const EXPIRY_OPTIONS_FOR_EDIT = EXPIRY_OPTIONS.filter(
 
 export const DEFAULT_EDIT_EXPIRY_OPTION = "7d";
 
-const toIsoFromDatetimeLocal = (value: string): string | undefined => {
+export const toIsoFromDatetimeLocal = (value: string): string | undefined => {
   const trimmed = (value || "").trim();
   if (!trimmed) return undefined;
   const date = new Date(trimmed);
@@ -62,8 +62,12 @@ export const calculateExpiresAt = (
 };
 
 export const formatAutoDisableText = (expiresAt: string | null): string => {
-  if (!expiresAt) return "External access does not auto-disable.";
+  if (!expiresAt) return "Link does not expire";
   const ts = Date.parse(String(expiresAt));
-  if (!Number.isFinite(ts)) return "External access will auto-disable.";
-  return `External access auto-disables on ${new Date(ts).toLocaleString()}.`;
+  if (!Number.isFinite(ts)) return "Link will expire";
+  const formatted = new Date(ts).toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+  return `Expires on ${formatted}`;
 };

@@ -2,8 +2,8 @@ import type { EnvVarSpec } from "./types";
 
 /**
  * Build-time variables consumed by the Vite frontend (not the backend).
- * Declared docsOnly so they appear only in docs/CONFIGURATION.md and are
- * never emitted into backend/.env.example or parsed by the backend.
+ * Declared docsOnly so they are never emitted into backend/.env.example or
+ * parsed by the backend. The metadata remains available to future docs tooling.
  */
 export const frontendEnv: readonly EnvVarSpec[] = [
   {

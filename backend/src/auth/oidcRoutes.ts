@@ -3,7 +3,15 @@ import { PrismaClient } from "../generated/client";
 import { generators } from "openid-client";
 import { createOidcClientFactory } from "./oidcClient";
 import { registerOidcCallbackRoute } from "./oidcCallbackRoute";
-import { getOidcErrorMessage, encodeFlowPayload, OIDC_FLOW_COOKIE_NAME, OIDC_FLOW_TTL_MS, OidcFlowPayload, requestUsesHttps, sanitizeReturnTo } from "./oidcRouteHelpers";
+import {
+  getOidcErrorMessage,
+  encodeFlowPayload,
+  OIDC_FLOW_COOKIE_NAME,
+  OIDC_FLOW_TTL_MS,
+  OidcFlowPayload,
+  requestUsesHttps,
+  sanitizeReturnTo,
+} from "./oidcRouteHelpers";
 
 export type RegisterOidcRoutesDeps = {
   router: express.Router;
@@ -46,10 +54,7 @@ export type RegisterOidcRoutesDeps = {
       redirectUri: string | null;
       idTokenSignedResponseAlg: string | null;
       tokenEndpointAuthMethod:
-        | "none"
-        | "client_secret_basic"
-        | "client_secret_post"
-        | null;
+        "none" | "client_secret_basic" | "client_secret_post" | null;
       scopes: string;
       emailClaim: string;
       emailVerifiedClaim: string;
