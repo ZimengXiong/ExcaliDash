@@ -99,7 +99,7 @@ describe("Link Sharing - Expiry Resolution", () => {
     ownerToken = jwt.sign(
       { userId: ownerUser.id, email: ownerUser.email, type: "access" },
       config.jwtSecret,
-      signOptions
+      signOptions,
     );
 
     ownerAgent = request.agent(app);
@@ -128,9 +128,31 @@ describe("Link Sharing - Expiry Resolution", () => {
     expect(stored).toBeLessThan(Date.now() + 31 * DAY_MS);
   });
 
-  it("uses the default expiry when edit expiresAt is explicitly null", async () => {
+  it("stores null expiry when edit expiresAt is explicitly null (never auto-disable)", async () => {
     const drawing = await createDrawing();
     const res = await createLinkShare(drawing.id, "edit", { expiresAt: null });
+    // A "never auto-disable" edit link must preserve null expiry, not coerce to
+    // the default (~7 day) TTL, so it stays valid indefinitely past that window.
+    expect(res.body.share.expiresAt).toBeNull();
+  });
+
+  it("keeps a null-expiry edit link valid well past the default edit TTL", async () => {
+    const drawing = await createDrawing();
+    const res = await createLinkShare(drawing.id, "edit", { expiresAt: null });
+    expect(res.body.share.expiresAt).toBeNull();
+
+    const stored = await prisma.drawingLinkShare.findUnique({
+      where: { id: res.body.share.id },
+      select: { expiresAt: true, revokedAt: true },
+    });
+    // Persisted row carries no expiry: it cannot lapse after the default window.
+    expect(stored?.expiresAt).toBeNull();
+    expect(stored?.revokedAt).toBeNull();
+  });
+
+  it("still uses the default expiry when edit expiresAt is omitted", async () => {
+    const drawing = await createDrawing();
+    const res = await createLinkShare(drawing.id, "edit");
     const stored = new Date(res.body.share.expiresAt as string).getTime();
     expect(stored).toBeGreaterThan(Date.now() + 6 * DAY_MS);
     expect(stored).toBeLessThan(Date.now() + 8 * DAY_MS);
@@ -164,7 +186,9 @@ describe("Link Sharing - Expiry Resolution", () => {
       expiresAt: new Date(Date.now() - HOUR_MS).toISOString(),
     });
     expect(past.status).toBe(400);
-    expect(past.body.message).toBe("Expiry must be at least 1 minute in the future");
+    expect(past.body.message).toBe(
+      "Expiry must be at least 1 minute in the future",
+    );
 
     const invalid = await postLinkShare(drawing.id, "view", {
       expiresAt: "not-a-date",

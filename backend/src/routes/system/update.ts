@@ -1,5 +1,6 @@
 import express from "express";
 import { compareSemver, parseSemver } from "../../utils/semver";
+import { config } from "../../config";
 import type { SystemRouteDeps } from "./index";
 
 type UpdateChannel = "stable" | "prerelease";
@@ -25,34 +26,25 @@ type UpdateResponse = {
 
 let UPDATE_CHECK_TTL_MS = 10 * 60 * 1000;
 
-let cache:
-  | {
-      channel: UpdateChannel;
-      fetchedAt: number;
-      etag: string | null;
-      response: Omit<UpdateResponse, "currentVersion">;
-    }
-  | null = null;
+let cache: {
+  channel: UpdateChannel;
+  fetchedAt: number;
+  etag: string | null;
+  response: Omit<UpdateResponse, "currentVersion">;
+} | null = null;
 
-export const parseChannel = (raw: unknown): UpdateChannel => {
+const parseChannel = (raw: unknown): UpdateChannel => {
   const normalized = typeof raw === "string" ? raw.trim().toLowerCase() : "";
   return normalized === "prerelease" ? "prerelease" : "stable";
 };
 
-export const envOutboundEnabled = (): boolean => {
-  const raw = (process.env.UPDATE_CHECK_OUTBOUND ?? "true").trim().toLowerCase();
-  return raw === "true" || raw === "1" || raw === "yes";
-};
+const envOutboundEnabled = (): boolean => config.updateCheck.outbound;
 
-export const envGithubToken = (): string | null => {
-  const raw = process.env.UPDATE_CHECK_GITHUB_TOKEN ?? process.env.GITHUB_TOKEN ?? "";
-  const trimmed = raw.trim();
-  return trimmed.length > 0 ? trimmed : null;
-};
+const envGithubToken = (): string | null => config.updateCheck.githubToken;
 
-export const pickLatestRelease = (
+const pickLatestRelease = (
   releases: GithubRelease[],
-  channel: UpdateChannel
+  channel: UpdateChannel,
 ): GithubRelease | null => {
   const candidates = releases
     .filter((r) => r && !r.draft)
@@ -68,7 +60,10 @@ export const pickLatestRelease = (
       const parsed = parseSemver(tag);
       return { r, parsed };
     })
-    .filter((x) => Boolean(x.parsed)) as Array<{ r: GithubRelease; parsed: NonNullable<ReturnType<typeof parseSemver>> }>;
+    .filter((x) => Boolean(x.parsed)) as Array<{
+    r: GithubRelease;
+    parsed: NonNullable<ReturnType<typeof parseSemver>>;
+  }>;
 
   if (candidates.length === 0) return null;
 
@@ -81,18 +76,24 @@ export const pickLatestRelease = (
   return best.r;
 };
 
-export const normalizeVersion = (raw: string): string | null => {
+const normalizeVersion = (raw: string): string | null => {
   const parsed = parseSemver(raw);
   if (!parsed) return null;
   const base = `${parsed.major}.${parsed.minor}.${parsed.patch}`;
-  return parsed.prerelease.length > 0 ? `${base}-${parsed.prerelease.join(".")}` : base;
+  return parsed.prerelease.length > 0
+    ? `${base}-${parsed.prerelease.join(".")}`
+    : base;
 };
 
 export const fetchLatest = async (
-  channel: UpdateChannel
+  channel: UpdateChannel,
 ): Promise<Omit<UpdateResponse, "currentVersion">> => {
   const now = Date.now();
-  if (cache && cache.channel === channel && now - cache.fetchedAt < UPDATE_CHECK_TTL_MS) {
+  if (
+    cache &&
+    cache.channel === channel &&
+    now - cache.fetchedAt < UPDATE_CHECK_TTL_MS
+  ) {
     return cache.response;
   }
 
@@ -121,7 +122,8 @@ export const fetchLatest = async (
     headers["If-None-Match"] = cache.etag;
   }
 
-  const url = "https://api.github.com/repos/ZimengXiong/ExcaliDash/releases?per_page=30";
+  const url =
+    "https://api.github.com/repos/ZimengXiong/ExcaliDash/releases?per_page=30";
   const resp = await fetch(url, { headers });
 
   if (resp.status === 304 && cache && cache.channel === channel) {
@@ -148,13 +150,16 @@ export const fetchLatest = async (
   const releases = Array.isArray(json) ? (json as GithubRelease[]) : [];
   const latest = pickLatestRelease(releases, channel);
 
-  const latestVersion = latest?.tag_name ? normalizeVersion(latest.tag_name) : null;
+  const latestVersion = latest?.tag_name
+    ? normalizeVersion(latest.tag_name)
+    : null;
   const response: Omit<UpdateResponse, "currentVersion"> = {
     channel,
     outboundEnabled: true,
     latestVersion,
     latestUrl: typeof latest?.html_url === "string" ? latest.html_url : null,
-    publishedAt: typeof latest?.published_at === "string" ? latest.published_at : null,
+    publishedAt:
+      typeof latest?.published_at === "string" ? latest.published_at : null,
     isUpdateAvailable: null, // computed once we know currentVersion
   };
 
@@ -164,7 +169,7 @@ export const fetchLatest = async (
 
 export const computeIsUpdateAvailable = (
   currentVersion: string | null,
-  latestVersion: string | null
+  latestVersion: string | null,
 ): boolean | null => {
   if (!currentVersion || !latestVersion) return null;
   const currentParsed = parseSemver(currentVersion);
@@ -181,7 +186,10 @@ export const __setUpdateTtlForTests = (ttlMs: number): void => {
   UPDATE_CHECK_TTL_MS = ttlMs;
 };
 
-export const registerUpdateRoutes = (app: express.Express, deps: SystemRouteDeps) => {
+export const registerUpdateRoutes = (
+  app: express.Express,
+  deps: SystemRouteDeps,
+) => {
   app.get(
     "/system/update",
     deps.asyncHandler(async (req, res) => {
@@ -190,7 +198,10 @@ export const registerUpdateRoutes = (app: express.Express, deps: SystemRouteDeps
 
       const latest = await fetchLatest(channel);
 
-      const isUpdateAvailable = computeIsUpdateAvailable(currentVersion, latest.latestVersion);
+      const isUpdateAvailable = computeIsUpdateAvailable(
+        currentVersion,
+        latest.latestVersion,
+      );
 
       const payload: UpdateResponse = {
         ...latest,
@@ -199,6 +210,6 @@ export const registerUpdateRoutes = (app: express.Express, deps: SystemRouteDeps
       };
 
       res.status(200).json(payload);
-    })
+    }),
   );
 };

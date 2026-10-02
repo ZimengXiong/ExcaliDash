@@ -32,9 +32,7 @@ export type RegisterAdminRoutesDeps = {
     req: Request,
     res: Response,
   ) => req is Request & { user: NonNullable<Request["user"]> };
-  findUserByIdentifier: (
-    identifier: string,
-  ) => Promise<{
+  findUserByIdentifier: (identifier: string) => Promise<{
     id: string;
     username: string | null;
     email: string;
@@ -58,7 +56,7 @@ export type RegisterAdminRoutesDeps = {
   ) => { accessToken: string; refreshToken: string };
   getRefreshTokenExpiresAt: () => Date;
   config: {
-    authMode: "local" | "hybrid" | "oidc_enforced";
+    authMode: "local" | "hybrid" | "oidc_enforced" | "disabled";
     enableAuditLogging: boolean;
     enableRefreshTokenRotation: boolean;
     oidc: { enabled: boolean; providerName: string; jitProvisioning: boolean };

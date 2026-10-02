@@ -90,7 +90,7 @@ export const FileDropOverlay: React.FC<FileDropOverlayProps> = ({
       Drop files to import
     </h3>
     <p className="text-slate-500 text-base sm:text-lg max-w-sm sm:max-w-md text-center px-4">
-      Drop .excalidraw or .json files here to add them to
+      Drop .excalidash files here to import them into
       <span className="font-bold text-indigo-600 mx-1">{viewTitle}</span>
     </p>
   </div>
@@ -111,6 +111,7 @@ type DrawingsGridProps = {
   onToggleSelection: (id: string, event: React.MouseEvent) => void;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
+  onHide: (id: string) => void;
   onDuplicate: (id: string) => void;
   onMoveToCollection: (id: string, collectionId: string | null) => void;
   onOpenDrawing: (id: string) => void;
@@ -134,6 +135,7 @@ export const DrawingsGrid: React.FC<DrawingsGridProps> = ({
   onToggleSelection,
   onRename,
   onDelete,
+  onHide,
   onDuplicate,
   onMoveToCollection,
   onOpenDrawing,
@@ -143,8 +145,13 @@ export const DrawingsGrid: React.FC<DrawingsGridProps> = ({
 }) => {
   if (isLoading && drawings.length === 0) {
     return (
-      <div className="flex justify-center items-center h-64 text-indigo-600">
+      <div
+        className="flex justify-center items-center h-64 text-indigo-600"
+        role="status"
+        aria-label="Loading drawings"
+      >
         <Loader2 size={32} className="animate-spin" />
+        <span className="sr-only">Loading drawings</span>
       </div>
     );
   }
@@ -182,7 +189,7 @@ export const DrawingsGrid: React.FC<DrawingsGridProps> = ({
           {search && (
             <button
               onClick={onClearSearch}
-              className="mt-4 text-indigo-600 dark:text-indigo-400 font-medium hover:underline text-sm"
+              className="ui-button-secondary mt-4"
             >
               Clear search
             </button>
@@ -208,6 +215,7 @@ export const DrawingsGrid: React.FC<DrawingsGridProps> = ({
               }
               onRename={onRename}
               onDelete={onDelete}
+              onHide={isSharedView ? onHide : undefined}
               onDuplicate={onDuplicate}
               onMoveToCollection={onMoveToCollection}
               onClick={(id, event) => {

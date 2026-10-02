@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 const fs = require("fs");
 const path = require("path");
 const { runPrisma } = require("./provider-prisma.cjs");
@@ -24,7 +23,10 @@ const resolveDatabaseUrl = (rawUrl) => {
 
   const absolutePath = path.isAbsolute(filePath)
     ? filePath
-    : path.resolve(hasLeadingPrismaDir ? backendRoot : prismaDir, normalizedRelative);
+    : path.resolve(
+        hasLeadingPrismaDir ? backendRoot : prismaDir,
+        normalizedRelative,
+      );
 
   return `file:${absolutePath}`;
 };
@@ -116,7 +118,9 @@ const forceSingleUserDevMode = async () => {
       },
     });
 
-    console.log("[predev] Forced local development into single-user mode (no login required).");
+    console.log(
+      "[predev] Forced local development into single-user mode (no login required).",
+    );
   } finally {
     await prisma.$disconnect();
   }
@@ -139,7 +143,7 @@ const main = async () => {
         `[predev] Prisma migrate baseline required (P3005). Resetting local SQLite database.\n` +
           `  DATABASE_URL=${databaseUrl}\n` +
           (backupPath ? `  Backup: ${backupPath}\n` : "") +
-        `  If you need to preserve local data, restore the backup and baseline manually.`,
+          `  If you need to preserve local data, restore the backup and baseline manually.`,
       );
 
       run(["migrate", "reset", "--force", "--skip-seed"]);
