@@ -279,6 +279,10 @@ jobs:
       image-tag: ${{ needs.release-metadata.outputs.image-tag }}
 
     steps:
+      - name: Check out image checks
+        if: needs.release-metadata.outputs.publish == 'true'
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
       - name: Verify published images
         if: needs.release-metadata.outputs.publish == 'true'
         shell: bash
@@ -290,6 +294,14 @@ jobs:
               | ($architectures | index("amd64") != null) and ($architectures | index("arm64") != null)
             '
           done
+
+      - name: Check offline production startup before promotion
+        if: needs.release-metadata.outputs.publish == 'true'
+        shell: bash
+        run: |
+          image="${DOCKERHUB_USERNAME}/excalidash-backend:${{ needs.release-metadata.outputs.image-tag }}"
+          docker pull "$image"
+          node scripts/check-image-startup.mjs "$image"
 
       - name: Promote verified image pair
         if: needs.release-metadata.outputs.publish == 'true'
