@@ -3,6 +3,10 @@ title: Self-hosted Excalidraw Authentication and OIDC
 description: Configure local accounts or OpenID Connect for your self-hosted Excalidraw workspace, including sign-in modes and OIDC troubleshooting.
 ---
 
+<script setup>
+import { userManagementSlides, passwordResetSlides } from "../.vitepress/theme/screenshot-flows";
+</script>
+
 # Authentication
 
 Choose how people sign in with `AUTH_MODE`:
@@ -20,9 +24,7 @@ Use `disabled` only in an isolated, trusted environment. Every visitor has the s
 
 Complete [first-run setup](/guide/first-run). In **Admin**, select **New user** to create an account. Registration settings control whether people can create their own accounts.
 
-<ThemeScreenshot light="/images/screenshots/admin-light.png" dark="/images/screenshots/admin.png" alt="Admin access controls with registration settings and user management" />
-
-<ThemeScreenshot light="/images/screenshots/new-user-light.png" dark="/images/screenshots/new-user.png" alt="New User form open in Admin" />
+<ScreenshotCarousel label="Admin registration settings and New User form" :slides="userManagementSlides" />
 
 ## Create an account
 
@@ -40,22 +42,7 @@ Enter your email address and password, then select **Sign in**. If you use OpenI
 
 The administrator must enable password reset and configure email delivery. See the [email settings](/reference/environment#email-and-password-reset).
 
-1. On the sign-in page, select **Forgot your password?**.
-2. Enter your account's email address and request a reset link.
-
-<ThemeScreenshot light="/images/screenshots/password-reset-light.png" dark="/images/screenshots/password-reset.png" alt="Reset password form for requesting an email link" />
-
-The confirmation avoids revealing whether an account exists. If a matching account can receive mail, check its inbox for the reset link.
-
-<ThemeScreenshot light="/images/screenshots/password-reset-sent-light.png" dark="/images/screenshots/password-reset-sent.png" alt="Password reset request confirmation" />
-
-3. Open the reset link, enter your new password twice, and submit it.
-
-<ThemeScreenshot light="/images/screenshots/password-reset-confirm-light.png" dark="/images/screenshots/password-reset-confirm.png" alt="Set new password form opened from a valid reset link" />
-
-4. After the success message, sign in with your new password.
-
-<ThemeScreenshot light="/images/screenshots/password-reset-success-light.png" dark="/images/screenshots/password-reset-success.png" alt="Password successfully reset confirmation" />
+<ScreenshotCarousel label="Request a reset link and set a new password" :slides="passwordResetSlides" />
 
 ## Configure OpenID Connect
 

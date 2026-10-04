@@ -3,6 +3,10 @@ title: "Self-host Excalidraw: Quick Start"
 description: Install ExcaliDash with Docker Compose, create your administrator account, and start a self-hosted Excalidraw workspace.
 ---
 
+<script setup>
+import { setupSlides } from "../.vitepress/theme/screenshot-flows";
+</script>
+
 # Quick start
 
 Run ExcaliDash with Docker Compose.
@@ -31,11 +35,11 @@ Run ExcaliDash with Docker Compose.
 3. Open `http://localhost:6767`.
 4. [Create the administrator account](/guide/first-run#create-the-administrator).
 
-<ThemeScreenshot light="/images/screenshots/auth-setup-light.png" dark="/images/screenshots/auth-setup.png" alt="Authentication setup shown when opening a fresh instance" />
+## Set up your administrator account
 
-After creating your account, **All Drawings** is your starting point. The example below shows a workspace populated with sample drawings and collections.
+Use the arrows to follow the complete first-run flow, from choosing authentication to opening your first drawing. Each screenshot follows this page's light or dark theme.
 
-<ThemeScreenshot light="/images/workspace-light.png" dark="/images/workspace.png" alt="All Drawings dashboard with drawings organized into collections" />
+<ScreenshotCarousel label="First-run setup from authentication to your first drawing" :slides="setupSlides" />
 
 ## Check the services
 

@@ -3,6 +3,10 @@ title: "ExcaliDash Screenshots: Dashboard, Editor, and Collaboration"
 description: See ExcaliDash screenshots of the Excalidraw dashboard, collections, editor, real-time collaboration, and tablet and mobile layouts.
 ---
 
+<script setup>
+import { setupSlides, passwordResetSlides } from "../.vitepress/theme/screenshot-flows";
+</script>
+
 # Screenshots
 
 Explore the ExcaliDash workspace, editor, and real-time collaboration. Select any screenshot to open the full-size image.
@@ -69,17 +73,11 @@ Collaborate on a larger pipeline diagram with multiple people in the editor.
 
 <ThemeScreenshot light="/images/screenshots/live-pipeline-workshop-light.png" dark="/images/screenshots/live-pipeline-workshop.png" alt="Live pipeline workshop — Collaborate on a larger pipeline diagram with multiple people in the editor." />
 
-## First-run authentication
+## Fresh instance setup
 
-Choose authentication when opening a fresh instance.
+Follow the real setup flow, including the initially empty workspace and first blank drawing.
 
-<ThemeScreenshot light="/images/screenshots/auth-setup-light.png" dark="/images/screenshots/auth-setup.png" alt="First-run authentication — Choose authentication when opening a fresh instance." />
-
-## First administrator account
-
-Create the initial administrator using the one-time setup code.
-
-<ThemeScreenshot light="/images/screenshots/signup-light.png" dark="/images/screenshots/signup.png" alt="First administrator account — Create the initial administrator using the one-time setup code." />
+<ScreenshotCarousel label="Complete fresh-instance setup" :slides="setupSlides" />
 
 ## Create an account
 
@@ -93,29 +91,11 @@ Sign in with a local email address and password.
 
 <ThemeScreenshot light="/images/screenshots/signin-light.png" dark="/images/screenshots/signin.png" alt="Sign in — Sign in with a local email address and password." />
 
-## Request a password reset
+## Reset your password
 
-Request an email link from Forgot your password.
+Follow the request, email-link, new-password, and success screens.
 
-<ThemeScreenshot light="/images/screenshots/password-reset-light.png" dark="/images/screenshots/password-reset.png" alt="Request a password reset — Request an email link from Forgot your password." />
-
-## Reset request confirmation
-
-See the confirmation after requesting a reset link.
-
-<ThemeScreenshot light="/images/screenshots/password-reset-sent-light.png" dark="/images/screenshots/password-reset-sent.png" alt="Reset request confirmation — See the confirmation after requesting a reset link." />
-
-## Choose a new password
-
-Open a valid reset link to set a new password.
-
-<ThemeScreenshot light="/images/screenshots/password-reset-confirm-light.png" dark="/images/screenshots/password-reset-confirm.png" alt="Choose a new password — Open a valid reset link to set a new password." />
-
-## Password reset complete
-
-See the success state after submitting a new password.
-
-<ThemeScreenshot light="/images/screenshots/password-reset-success-light.png" dark="/images/screenshots/password-reset-success.png" alt="Password reset complete — See the success state after submitting a new password." />
+<ScreenshotCarousel label="Password reset walkthrough" :slides="passwordResetSlides" />
 
 ## Drawing sharing
 
