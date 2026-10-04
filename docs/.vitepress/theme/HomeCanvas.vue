@@ -120,10 +120,9 @@ const imageUrl = (
 <style scoped>
 .drawing-home {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
   gap: clamp(16px, 3dvh, 32px);
-  height: calc(var(--home-view-height, 100dvh) - var(--vp-nav-height));
-  min-height: 620px;
+  min-height: calc(var(--home-view-height, 100dvh) - var(--vp-nav-height));
   max-width: 1440px;
   margin: 0 auto;
   padding: clamp(16px, 3dvh, 32px) clamp(24px, 4cqi, 64px);
@@ -133,7 +132,6 @@ const imageUrl = (
   display: grid;
   gap: 12px;
   align-items: center;
-  transform: translateY(clamp(20px, 5dvh, 56px));
 }
 
 h1 {
@@ -230,7 +228,7 @@ h1 svg {
   position: relative;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: minmax(0, 1fr) repeat(3, auto);
+  grid-template-rows: auto repeat(3, auto);
   min-height: 0;
   gap: clamp(12px, 2dvh, 24px);
 }
@@ -241,19 +239,18 @@ h1 svg {
   place-items: center;
   grid-template-rows: auto auto;
   align-content: center;
-  gap: 22px;
-  container-type: size;
+  gap: 8px;
   grid-column: 1 / -1;
   width: 100%;
-  height: 100%;
-  min-height: 0;
   min-width: 0;
-  margin: 0 4px 8px;
+  margin: 0;
 }
 
 .scene-stack {
   position: relative;
-  width: min(90%, calc((100cqh - 100px) * 32 / 21));
+  width: 90%;
+  /* Reserve space for both fixed offsets and the rotated card corners. */
+  margin-block: calc(6% + 8px);
   aspect-ratio: 32 / 21;
   isolation: isolate;
 }
