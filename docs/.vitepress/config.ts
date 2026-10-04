@@ -3,7 +3,33 @@ import { docsReviewPlugin } from "./review/plugin.mjs";
 
 export default defineConfig({
   title: "ExcaliDash",
-  description: "A self-hosted home for your Excalidraw drawings.",
+  description:
+    "Self-host Excalidraw with saved drawings, collections, real-time collaboration, and version history. Deploy ExcaliDash with Docker Compose.",
+  sitemap: { hostname: "https://excalidash.xyz" },
+  transformHead({ pageData }) {
+    if (pageData.relativePath === "404.md") return [];
+    const path = pageData.relativePath
+      .replace(/index\.md$/, "")
+      .replace(/\.md$/, "");
+    const url = `https://excalidash.xyz/${path}`;
+    const title = pageData.frontmatter.title || pageData.title;
+    return [
+      ["link", { rel: "canonical", href: url }],
+      ["meta", { property: "og:type", content: "website" }],
+      ["meta", { property: "og:site_name", content: "ExcaliDash" }],
+      ["meta", { property: "og:title", content: title }],
+      ["meta", { property: "og:description", content: pageData.description }],
+      ["meta", { property: "og:url", content: url }],
+      [
+        "meta",
+        {
+          property: "og:image",
+          content: "https://excalidash.xyz/images/workspace.png",
+        },
+      ],
+      ["meta", { name: "twitter:card", content: "summary_large_image" }],
+    ];
+  },
   cleanUrls: true,
   lastUpdated: true,
   vite: {
@@ -33,6 +59,8 @@ export default defineConfig({
           { text: "First run", link: "/guide/first-run" },
           { text: "Authentication", link: "/guide/authentication" },
           { text: "Configuration", link: "/guide/configuration" },
+          { text: "Collaboration", link: "/guide/collaboration" },
+          { text: "Storage and backups", link: "/guide/storage-backups" },
         ],
       },
       {

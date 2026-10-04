@@ -1,3 +1,8 @@
+---
+title: Self-hosted Excalidraw Authentication and OIDC
+description: Configure local accounts or OpenID Connect for your self-hosted Excalidraw workspace, including sign-in modes and OIDC troubleshooting.
+---
+
 # Authentication
 
 Choose how people sign in with `AUTH_MODE`:

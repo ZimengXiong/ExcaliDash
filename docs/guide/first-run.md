@@ -1,3 +1,8 @@
+---
+title: Set Up Your ExcaliDash Workspace
+description: Create your ExcaliDash administrator account, invite users, and organize your first Excalidraw drawings into collections.
+---
+
 # First run
 
 Create the administrator account before inviting other users. The default authentication mode is `local`.

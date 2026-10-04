@@ -133,9 +133,7 @@ body {
 body .Layout.canvas-home {
   --home-view-height: 100dvh;
   position: relative;
-  height: var(--home-view-height);
-  min-height: 0;
-  overflow: clip;
+  min-height: var(--home-view-height);
 }
 
 .Layout.canvas-home .VPNav {
@@ -144,15 +142,12 @@ body .Layout.canvas-home {
 }
 
 .Layout.canvas-home .VPContent.is-home {
-  height: 100%;
   min-height: 0;
-  flex-shrink: 1;
   margin: 0;
   padding-top: var(--vp-nav-height);
 }
 
 .Layout.canvas-home .VPHome {
-  height: 100%;
   margin: 0;
 }
 
@@ -533,4 +528,10 @@ body .Layout.canvas-home {
   .quick-links {
     grid-template-columns: 1fr;
   }
+}
+
+.Layout.canvas-home .VPHome .vp-doc.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 48px clamp(24px, 4vw, 64px) 80px;
 }

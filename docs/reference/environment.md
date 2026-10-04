@@ -1,3 +1,8 @@
+---
+title: ExcaliDash Environment Variables
+description: Reference ExcaliDash environment variables for databases, authentication, OpenID Connect, backups, and server configuration.
+---
+
 # Environment reference
 
 Common settings are listed below. See `backend/src/config/registry/` for all variables, defaults, and validation rules.

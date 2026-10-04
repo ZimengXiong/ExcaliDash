@@ -5,7 +5,8 @@ sharing, history, backups, and local or OpenID Connect authentication.
 
 [![ExcaliDash dashboard](docs/public/images/workspace.png)](https://excalidash.xyz)
 
-Read the documentation at [excalidash.xyz](https://excalidash.xyz).
+[Self-host Excalidraw with Docker Compose](https://excalidash.xyz/deploy/docker),
+or read the documentation at [excalidash.xyz](https://excalidash.xyz).
 
 ## Quick start
 

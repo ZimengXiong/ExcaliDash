@@ -1,3 +1,8 @@
+---
+title: "Self-host Excalidraw: Quick Start"
+description: Install ExcaliDash with Docker Compose, create your administrator account, and start a self-hosted Excalidraw workspace.
+---
+
 # Quick start
 
 Run ExcaliDash with Docker Compose.

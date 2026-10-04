@@ -1,6 +1,36 @@
-# Deploy with Docker Compose
+---
+title: How to Self-host Excalidraw with Docker Compose
+description: Deploy ExcaliDash for self-hosted Excalidraw with saved drawings and collaboration. Configure Docker, HTTPS, persistent storage, backups, and upgrades.
+---
 
-Deploy the frontend and backend with a persistent SQLite database. Complete the [quick start](/guide/quick-start) first.
+# How to self-host Excalidraw with Docker Compose
+
+ExcaliDash gives the Excalidraw editor a self-hosted workspace with saved drawings, collections, real-time collaboration, and version history. This guide deploys the ExcaliDash frontend and backend with a persistent SQLite database. ExcaliDash is an independent project built around Excalidraw.
+
+## Before you start
+
+Install Docker Engine or Docker Desktop and Docker Compose v2. You also need Git and an available host port `6767`. For access over the internet, prepare a domain and an HTTPS reverse proxy.
+
+## Install ExcaliDash
+
+Clone the repository and start the production stack:
+
+```bash
+git clone https://github.com/ZimengXiong/ExcaliDash.git
+cd ExcaliDash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Open `http://localhost:6767`. On a remote server, use the server's address instead of `localhost`. Follow [first-run setup](/guide/first-run#create-the-administrator) to create the administrator account. Keep local authentication enabled, or [configure OpenID Connect](/guide/authentication).
+
+Check that the services are running:
+
+```bash
+docker compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml logs --tail=100
+```
+
+Create a drawing, make an edit, then close and reopen it to check storage. To check collaboration, share the drawing with a second account with editing permission and open it in a second session. See the [collaboration guide](/guide/collaboration).
 
 ## Select an image version
 
@@ -29,11 +59,11 @@ Create `compose.override.yml` with your public origin and the number of trusted 
 services:
   backend:
     environment:
-      FRONTEND_URL: https://excalidash.alpacawebservices.com
+      FRONTEND_URL: https://draw.example.com
       TRUST_PROXY: "1"
 ```
 
-Replace `https://excalidash.alpacawebservices.com` with your URL. The hop count must match your proxy chain and your proxies must replace untrusted forwarding headers and forward WebSocket upgrades for `/socket.io/`.
+Replace `https://draw.example.com` with your URL. The hop count must match your proxy chain and your proxies must replace untrusted forwarding headers and forward WebSocket upgrades for `/socket.io/`.
 
 Apply the override:
 
@@ -88,3 +118,25 @@ Check the backend logs for backup errors and test restoring a backup. For Postgr
 docker compose -f docker-compose.prod.yml pull
 docker compose -f docker-compose.prod.yml up -d
 ```
+
+## Troubleshoot your deployment
+
+### The site does not open
+
+Check `docker compose -f docker-compose.prod.yml ps` and the service logs. Ensure port `6767` is available and reachable from the machine you are using. `localhost` always means the machine where you open the URL.
+
+### Collaboration does not connect
+
+Confirm that your proxy forwards WebSocket upgrades for `/socket.io/` to the frontend and that `FRONTEND_URL` matches the origin you use to open the app. Set `TRUST_PROXY` to match your trusted proxy chain. Check that the invited account has editing permission.
+
+### Data or backup permission errors
+
+Use a Docker named volume for the default data directory. If you use a host bind mount, ensure the backend user (UID 1001) can write to it. For the backup volume, use the initialization command above.
+
+## Stop without deleting your data
+
+```bash
+docker compose -f docker-compose.prod.yml down
+```
+
+The named data volume remains. Adding `--volumes` deletes it, including your stored drawings. Read the [storage and backup guide](/guide/storage-backups) before removing volumes or migrating servers.

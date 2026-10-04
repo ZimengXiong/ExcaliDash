@@ -1,3 +1,8 @@
+---
+title: Configure Your Self-hosted Excalidraw Workspace
+description: Configure ExcaliDash for your server, with environment settings for storage, authentication, and deployment.
+---
+
 # Configuration
 
 Configure ExcaliDash with environment variables.

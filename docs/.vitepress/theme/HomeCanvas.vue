@@ -8,18 +8,21 @@ const imageUrl = (theme: "light" | "dark") =>
 </script>
 
 <template>
-  <main v-if="frontmatter.pageClass === 'canvas-home'" class="drawing-home">
+  <section v-if="frontmatter.pageClass === 'canvas-home'" class="drawing-home">
     <header class="drawing-heading">
       <h1>
-        {{ frontmatter.hero.name }}
+        {{ frontmatter.canvasHero.name }}
+        <span class="drawing-headline">{{
+          frontmatter.canvasHero.headline
+        }}</span>
         <svg viewBox="0 0 600 20" aria-hidden="true">
           <path d="M8 12 Q235 3 591 8 M209 17 Q393 12 581 14" />
         </svg>
       </h1>
-      <p class="drawing-tagline">{{ frontmatter.hero.tagline }}</p>
+      <p class="drawing-tagline">{{ frontmatter.canvasHero.tagline }}</p>
       <div class="drawing-actions">
         <a
-          v-for="action in frontmatter.hero.actions"
+          v-for="action in frontmatter.canvasHero.actions"
           :key="action.link"
           :href="withBase(action.link)"
           :class="['drawing-action', action.theme]"
@@ -65,7 +68,7 @@ const imageUrl = (theme: "light" | "dark") =>
       </figure>
 
       <article
-        v-for="(feature, index) in frontmatter.features"
+        v-for="(feature, index) in frontmatter.canvasFeatures"
         :key="feature.title"
         :class="['drawing-note', `note-${index + 1}`]"
       >
@@ -76,7 +79,7 @@ const imageUrl = (theme: "light" | "dark") =>
         <p>{{ feature.details }}</p>
       </article>
     </section>
-  </main>
+  </section>
 </template>
 
 <style scoped>
@@ -84,8 +87,8 @@ const imageUrl = (theme: "light" | "dark") =>
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: clamp(16px, 3dvh, 32px);
-  height: 100%;
-  min-height: 0;
+  height: calc(var(--home-view-height, 100dvh) - var(--vp-nav-height));
+  min-height: 620px;
   max-width: 1440px;
   margin: 0 auto;
   padding: clamp(16px, 3dvh, 32px) clamp(24px, 4cqi, 64px);
@@ -119,6 +122,14 @@ h1 svg {
   stroke: var(--violet);
   stroke-width: 3;
   stroke-linecap: round;
+}
+
+.drawing-headline {
+  display: block;
+  margin-top: 12px;
+  font-size: clamp(22px, 3cqi, 36px);
+  line-height: 1.25;
+  letter-spacing: -0.03em;
 }
 
 .drawing-tagline {
@@ -393,7 +404,15 @@ h1 svg {
     font-size: clamp(28px, 5cqi, 48px);
   }
 
-  .docs-review-open .drawing-tagline {
+  .docs-review-open .drawing-headline {
+    display: block;
+    margin-top: 12px;
+    font-size: clamp(22px, 3cqi, 36px);
+    line-height: 1.25;
+    letter-spacing: -0.03em;
+  }
+
+  .drawing-tagline {
     display: none;
   }
 
