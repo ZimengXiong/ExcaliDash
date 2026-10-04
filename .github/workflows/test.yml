@@ -19,8 +19,38 @@ env:
   DOCKERHUB_USERNAME: zimengxiong
 
 jobs:
+  changes:
+    name: Detect application changes
+    runs-on: ubuntu-24.04
+    outputs:
+      application: ${{ steps.paths.outputs.application }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+      - name: Separate docs changes from application changes
+        id: paths
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          application=true
+          if [ "$EVENT_NAME" != workflow_dispatch ] && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            application=false
+            while IFS= read -r -d '' path; do
+              case "$path" in
+                docs/*|README.md|vercel.json|.github/workflows/test.yml) ;;
+                *) application=true; break ;;
+              esac
+            done < <(git diff --name-only -z "$BASE_SHA" "$HEAD_SHA")
+          fi
+          echo "application=$application" >> "$GITHUB_OUTPUT"
+
   backend-tests:
     name: Backend Integration Tests
+    needs: changes
+    if: needs.changes.outputs.application == 'true'
     runs-on: ubuntu-24.04
 
     steps:
@@ -86,6 +116,8 @@ jobs:
 
   e2e-tests:
     name: E2E (${{ matrix.mode }})
+    needs: changes
+    if: needs.changes.outputs.application == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
@@ -137,7 +169,8 @@ jobs:
 
   release-metadata:
     name: Release Metadata
-    needs: [backend-tests, repo-checks, e2e-tests]
+    needs: [changes, backend-tests, repo-checks, e2e-tests]
+    if: needs.changes.outputs.application == 'true'
     runs-on: ubuntu-24.04
     outputs:
       stable: ${{ steps.metadata.outputs.stable }}
