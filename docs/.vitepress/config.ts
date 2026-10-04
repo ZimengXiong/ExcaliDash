@@ -73,7 +73,10 @@ export default defineConfig({
       },
       {
         text: "Reference",
-        items: [{ text: "Environment", link: "/reference/environment" }],
+        items: [
+          { text: "Environment", link: "/reference/environment" },
+          { text: "Screenshots", link: "/reference/screenshots" },
+        ],
       },
     ],
     search: { provider: "local" },
