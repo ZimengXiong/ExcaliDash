@@ -3,16 +3,21 @@ import { defineAsyncComponent, onMounted, onUnmounted, ref, watch } from "vue";
 import DefaultTheme from "vitepress/theme";
 import HomeCanvas from "./HomeCanvas.vue";
 
-const ReviewPanel = import.meta.env.DEV
-  ? defineAsyncComponent(() => import("./DocsReview.vue"))
+const feedbackEnabled = import.meta.env.VITE_DOCS_FEEDBACK === "1";
+const FeedbackPanel = feedbackEnabled
+  ? defineAsyncComponent(() => import("./PageFeedback.vue"))
   : null;
+const ReviewPanel =
+  import.meta.env.DEV && !feedbackEnabled
+    ? defineAsyncComponent(() => import("./DocsReview.vue"))
+    : null;
 const open = ref(import.meta.env.DEV);
 
 function applyLayout() {
   document.documentElement.classList.toggle("docs-review-open", open.value);
 }
 onMounted(() => {
-  if (!import.meta.env.DEV) return;
+  if (!import.meta.env.DEV || feedbackEnabled) return;
   try {
     open.value = localStorage.getItem("docs-review-open") !== "false";
   } catch {
@@ -38,6 +43,7 @@ onUnmounted(() =>
     <template #home-hero-before><HomeCanvas /></template>
   </DefaultTheme.Layout>
   <ClientOnly>
-    <ReviewPanel v-if="ReviewPanel" :open="open" @toggle="open = !open" />
+    <FeedbackPanel v-if="FeedbackPanel" />
+    <ReviewPanel v-else-if="ReviewPanel" :open="open" @toggle="open = !open" />
   </ClientOnly>
 </template>
