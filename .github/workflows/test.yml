@@ -117,7 +117,6 @@ jobs:
   e2e-tests:
     name: E2E (${{ matrix.mode }})
     needs: changes
-    if: needs.changes.outputs.application == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
@@ -127,8 +126,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        if: needs.changes.outputs.application == 'true'
 
       - name: Setup Node.js
+        if: needs.changes.outputs.application == 'true'
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: "20"
@@ -139,6 +140,7 @@ jobs:
             e2e/package-lock.json
 
       - name: Install dependencies and generate Prisma client
+        if: needs.changes.outputs.application == 'true'
         run: |
           npm --prefix backend ci
           npm --prefix frontend ci
@@ -146,20 +148,23 @@ jobs:
           cd backend && npx prisma generate
 
       - name: Install Chromium
+        if: needs.changes.outputs.application == 'true'
         working-directory: e2e
         run: npx playwright install chromium --with-deps
 
       - name: Typecheck browser tests
+        if: needs.changes.outputs.application == 'true'
         run: npm --prefix e2e run check
 
       - name: Run real browser and API journeys
+        if: needs.changes.outputs.application == 'true'
         run: npm --prefix e2e test
         env:
           E2E_AUTH: ${{ matrix.mode == 'authenticated' && 'true' || 'false' }}
 
       - name: Upload browser diagnostics
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        if: always()
+        if: always() && needs.changes.outputs.application == 'true'
         with:
           name: playwright-${{ matrix.mode }}
           path: |
