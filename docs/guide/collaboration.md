@@ -15,17 +15,23 @@ ExcaliDash lets people edit Excalidraw drawings together while storing them on y
 4. Have the invited person open the drawing from their shared workspace.
 5. Open the same drawing at the same time to work together. Editing access allows collaborators to change the drawing; viewing access allows them to read it.
 
+<ThemeScreenshot light="/images/screenshots/share-drawing-light.png" dark="/images/screenshots/share-drawing.png" alt="Share dialog open with account search and access controls" />
+
 Live cursors and presence help you see who is working on the drawing.
 
-![Excalidraw drawing with collaborator cursors and presence](/images/collaboration.png)
+<ThemeScreenshot light="/images/collaboration-light.png" dark="/images/collaboration-dark.png" alt="Live deployment drawing with collaborator avatars and named cursors" />
 
 ## Share collections
 
-Collections group related drawings. Share a collection with other accounts and select their access level to work on a set of drawings together. Keep access scoped to the people who need it.
+Collections group related drawings. Right-click a collection in the sidebar and select **Share Collection**. Share the collection with other accounts and select their access level to work on a set of drawings together. Keep access scoped to the people who need it.
+
+<ThemeScreenshot light="/images/screenshots/share-collection-light.png" dark="/images/screenshots/share-collection.png" alt="Share Collection dialog open for Platform engineering" />
 
 ## Share a link
 
-The drawing's sharing controls also support link access. Choose viewing or editing permission and an expiration when available, then copy the link. Anyone who receives an enabled link can use the access it grants, subject to your instance's sharing policy. Revoke the link when that access is no longer needed.
+In the drawing's **Share** controls, open **Link access** to choose **Restricted** or **Anyone with the link**. Choose viewing or editing permission and an expiration when available, then copy the link. Anyone who receives an enabled link can use the access it grants, subject to your instance's sharing policy. Revoke the link when that access is no longer needed.
+
+<ThemeScreenshot light="/images/screenshots/share-link-light.png" dark="/images/screenshots/share-link.png" alt="Drawing Share dialog with Link access choices open" />
 
 ## Configure your reverse proxy
 

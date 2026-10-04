@@ -40,14 +40,14 @@ canvasFeatures:
     details: Import, export, and back up your ExcaliDash library.
 
 canvasImages:
+  - label: All Drawings
+    light: /images/workspace-light.png
+    dark: /images/workspace.png
+    alt: ExcaliDash dashboard with drawing previews, collections, and search
   - label: Collaboration
     light: /images/collaboration-light.png
     dark: /images/collaboration-dark.png
     alt: Four collaborators reviewing a deployment diagram, with live named cursors and presence avatars
-  - label: Dashboard
-    light: /images/workspace.png
-    dark: /images/workspace.png
-    alt: ExcaliDash dashboard with drawing previews, collections, and search
 ---
 
 ## Your drawings, on your server

@@ -23,6 +23,8 @@ docker compose -f docker-compose.prod.yml up -d
 
 Open `http://localhost:6767`. On a remote server, use the server's address instead of `localhost`. Follow [first-run setup](/guide/first-run#create-the-administrator) to create the administrator account. Keep local authentication enabled, or [configure OpenID Connect](/guide/authentication).
 
+<ThemeScreenshot light="/images/screenshots/signup-light.png" dark="/images/screenshots/signup.png" alt="First administrator registration after starting the deployment" />
+
 Check that the services are running:
 
 ```bash
@@ -31,6 +33,8 @@ docker compose -f docker-compose.prod.yml logs --tail=100
 ```
 
 Create a drawing, make an edit, then close and reopen it to check storage. To check collaboration, share the drawing with a second account with editing permission and open it in a second session. See the [collaboration guide](/guide/collaboration).
+
+<ThemeScreenshot light="/images/screenshots/share-drawing-light.png" dark="/images/screenshots/share-drawing.png" alt="Share controls opened after deploying and creating a sample drawing" />
 
 ## Select an image version
 

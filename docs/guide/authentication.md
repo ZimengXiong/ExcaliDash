@@ -20,6 +20,43 @@ Use `disabled` only in an isolated, trusted environment. Every visitor has the s
 
 Complete [first-run setup](/guide/first-run). In **Admin**, select **New user** to create an account. Registration settings control whether people can create their own accounts.
 
+<ThemeScreenshot light="/images/screenshots/admin-light.png" dark="/images/screenshots/admin.png" alt="Admin access controls with registration settings and user management" />
+
+<ThemeScreenshot light="/images/screenshots/new-user-light.png" dark="/images/screenshots/new-user.png" alt="New User form open in Admin" />
+
+## Create an account
+
+If the administrator has enabled registration, select **create a new account** on the sign-in page. Enter your name, email, password, and password confirmation, then select **Create account**. The one-time setup code is only needed when creating the first administrator.
+
+<ThemeScreenshot light="/images/screenshots/registration-light.png" dark="/images/screenshots/registration.png" alt="Create account form for regular user registration" />
+
+## Sign in
+
+Enter your email address and password, then select **Sign in**. If you use OpenID Connect, follow the provider sign-in option configured for your instance.
+
+<ThemeScreenshot light="/images/screenshots/signin-light.png" dark="/images/screenshots/signin.png" alt="Local email and password sign-in page" />
+
+## Reset your password
+
+The administrator must enable password reset and configure email delivery. See the [email settings](/reference/environment#email-and-password-reset).
+
+1. On the sign-in page, select **Forgot your password?**.
+2. Enter your account's email address and request a reset link.
+
+<ThemeScreenshot light="/images/screenshots/password-reset-light.png" dark="/images/screenshots/password-reset.png" alt="Reset password form for requesting an email link" />
+
+The confirmation avoids revealing whether an account exists. If a matching account can receive mail, check its inbox for the reset link.
+
+<ThemeScreenshot light="/images/screenshots/password-reset-sent-light.png" dark="/images/screenshots/password-reset-sent.png" alt="Password reset request confirmation" />
+
+3. Open the reset link, enter your new password twice, and submit it.
+
+<ThemeScreenshot light="/images/screenshots/password-reset-confirm-light.png" dark="/images/screenshots/password-reset-confirm.png" alt="Set new password form opened from a valid reset link" />
+
+4. After the success message, sign in with your new password.
+
+<ThemeScreenshot light="/images/screenshots/password-reset-success-light.png" dark="/images/screenshots/password-reset-success.png" alt="Password successfully reset confirmation" />
+
 ## Configure OpenID Connect
 
 1. In your identity provider, create an OpenID Connect client.

@@ -52,4 +52,10 @@ cd frontend
 npm run dev
 ```
 
-Open `http://localhost:6767`.
+Open `http://localhost:6767`. A fresh database shows the authentication setup screen.
+
+<ThemeScreenshot light="/images/screenshots/auth-setup-light.png" dark="/images/screenshots/auth-setup.png" alt="Authentication setup after starting the local frontend and backend" />
+
+Complete [first-run setup](/guide/first-run), then create or open a drawing. This example editor contains a sample deployment diagram.
+
+<ThemeScreenshot light="/images/screenshots/deployment-editor-light.png" dark="/images/screenshots/deployment-editor.png" alt="Excalidraw editor running locally with a sample deployment drawing" />

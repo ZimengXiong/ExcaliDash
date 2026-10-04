@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { useData, withBase } from "vitepress";
 import { ref } from "vue";
-import marketingVersions from "../../public/images/marketing-versions.json";
+import imageVersions from "../../public/images/image-versions.json";
 
 const { frontmatter } = useData();
 const activeImage = ref(0);
 const imageUrl = (
   image: { light: string; dark: string },
   theme: "light" | "dark",
-) => `${withBase(image[theme])}?v=${marketingVersions[theme]}`;
+) =>
+  `${withBase(image[theme])}?v=${(imageVersions as Record<string, string>)[image[theme]] || "1"}`;
 </script>
 
 <template>
@@ -48,7 +49,11 @@ const imageUrl = (
             v-for="(image, index) in frontmatter.canvasImages"
             :key="image.label"
             type="button"
-            :class="['scene-frame', { 'scene-front': activeImage === index }]"
+            :class="[
+              'scene-frame',
+              `scene-position-${index}`,
+              { 'scene-front': activeImage === index },
+            ]"
             :aria-label="`Show ${image.label} screenshot`"
             :aria-pressed="activeImage === index"
             @click="activeImage = index"
@@ -75,7 +80,10 @@ const imageUrl = (
             <span class="drawing-corner bottom" aria-hidden="true" />
           </button>
         </div>
-        <figcaption class="scene-caption">
+        <figcaption
+          class="scene-caption"
+          :style="{ '--caption-angle': activeImage === 0 ? '-2deg' : '3deg' }"
+        >
           <div class="scene-switcher" aria-label="Choose a screenshot">
             <button
               v-for="(image, index) in frontmatter.canvasImages"
@@ -90,6 +98,7 @@ const imageUrl = (
           <a :href="withBase('/reference/screenshots')"
             >View more screenshots →</a
           >
+          <p class="scene-theme-note">Try toggling dark mode!!</p>
         </figcaption>
       </figure>
 
@@ -230,8 +239,9 @@ h1 svg {
   position: relative;
   display: grid;
   place-items: center;
-  grid-template-rows: minmax(0, 1fr) auto;
-  gap: 12px;
+  grid-template-rows: auto auto;
+  align-content: center;
+  gap: 22px;
   container-type: size;
   grid-column: 1 / -1;
   width: 100%;
@@ -243,7 +253,7 @@ h1 svg {
 
 .scene-stack {
   position: relative;
-  width: min(90%, calc((100cqh - 70px) * 32 / 21));
+  width: min(90%, calc((100cqh - 100px) * 32 / 21));
   aspect-ratio: 32 / 21;
   isolation: isolate;
 }
@@ -255,16 +265,56 @@ h1 svg {
   padding: 0;
   background: var(--vp-c-bg);
   cursor: pointer;
-  transform: translate(4%, 4%) rotate(3deg);
-  transition: transform 250ms ease;
+  z-index: 0;
+  animation: scene-nudge 6s ease-in-out infinite;
   border: 1px solid var(--vp-c-border);
   border-radius: 5px;
   box-shadow: 0 16px 40px rgb(0 0 0 / 12%);
 }
 
+.scene-position-0 {
+  --scene-x: -3%;
+  --scene-y: -3%;
+  --scene-angle: -2deg;
+  transform: translate(var(--scene-x), var(--scene-y))
+    rotate(var(--scene-angle));
+}
+
+.scene-position-1 {
+  --scene-x: 4%;
+  --scene-y: 4%;
+  --scene-angle: 3deg;
+  transform: translate(var(--scene-x), var(--scene-y))
+    rotate(var(--scene-angle));
+}
+
 .scene-frame.scene-front {
   z-index: 1;
-  transform: translate(-3%, -3%) rotate(-2deg);
+  animation: none;
+}
+
+.scene-stack:hover .scene-frame,
+.scene-stack:focus-within .scene-frame {
+  animation: none;
+}
+
+@keyframes scene-nudge {
+  0%,
+  80%,
+  100% {
+    transform: translate(var(--scene-x), var(--scene-y))
+      rotate(var(--scene-angle));
+  }
+  84%,
+  92% {
+    transform: translate(var(--scene-x), var(--scene-y))
+      rotate(calc(var(--scene-angle) + 1deg));
+  }
+  88%,
+  96% {
+    transform: translate(var(--scene-x), var(--scene-y))
+      rotate(calc(var(--scene-angle) - 1deg));
+  }
 }
 
 .scene-frame:focus-visible {
@@ -273,12 +323,20 @@ h1 svg {
 }
 
 .scene-caption {
+  transform: rotate(var(--caption-angle, -2deg));
   position: relative;
   z-index: 2;
   display: grid;
   justify-items: center;
   gap: 6px;
   font-size: 12px;
+}
+
+.scene-theme-note {
+  font:
+    14px "Excalifont",
+    cursive;
+  color: var(--vp-c-text-2);
 }
 
 .scene-switcher {
@@ -519,6 +577,7 @@ h1 svg {
   .drawing-scene img,
   .scene-frame {
     transition: none;
+    animation: none;
   }
 }
 </style>

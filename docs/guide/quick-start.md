@@ -31,6 +31,12 @@ Run ExcaliDash with Docker Compose.
 3. Open `http://localhost:6767`.
 4. [Create the administrator account](/guide/first-run#create-the-administrator).
 
+<ThemeScreenshot light="/images/screenshots/auth-setup-light.png" dark="/images/screenshots/auth-setup.png" alt="Authentication setup shown when opening a fresh instance" />
+
+After creating your account, **All Drawings** is your starting point. The example below shows a workspace populated with sample drawings and collections.
+
+<ThemeScreenshot light="/images/workspace-light.png" dark="/images/workspace.png" alt="All Drawings dashboard with drawings organized into collections" />
+
 ## Check the services
 
 ```bash

@@ -20,11 +20,13 @@ Create the administrator account before inviting other users. The default authen
 `AUTH_MODE=disabled` gives every visitor the same identity and access.
 :::
 
+<ThemeScreenshot light="/images/screenshots/auth-setup-light.png" dark="/images/screenshots/auth-setup.png" alt="First-run authentication choice with Enable Authentication and Continue Without Auth" />
+
 ## Create the administrator
 
 For the default `local` mode:
 
-1. Open your ExcaliDash URL and select **Create account**.
+1. Open your ExcaliDash URL. If prompted to choose an authentication mode, select **Enable Authentication**, then **Create account**.
 2. If the form asks for a one-time setup code, read the backend logs:
 
    ```bash
@@ -36,9 +38,13 @@ For the default `local` mode:
 3. Enter the code, your account details, and create a password.
 4. Select **Create account**. Use this account to manage the instance.
 
+<ThemeScreenshot light="/images/screenshots/signup-light.png" dark="/images/screenshots/signup.png" alt="Create the first administrator account with the one-time setup code" />
+
 Setup codes expire after 15 minutes by default.
 
 To add an account, open **Admin** and select **New user**. To let people register themselves, enable registration in **Admin**.
+
+<ThemeScreenshot light="/images/screenshots/new-user-light.png" dark="/images/screenshots/new-user.png" alt="Admin New User form with name, email, password, and role fields" />
 
 For OpenID Connect (OIDC), [configure the provider](/guide/authentication#configure-openid-connect) before signing in. `OIDC_FIRST_USER_ADMIN=true` makes the first provisioned OIDC user an administrator.
 
@@ -46,11 +52,13 @@ For OpenID Connect (OIDC), [configure the provider](/guide/authentication#config
 
 Create drawings and organize them into collections.
 
-![Dark-mode drawing dashboard with collections](/images/workspace.png)
+<ThemeScreenshot light="/images/workspace-light.png" dark="/images/workspace.png" alt="All Drawings dashboard with drawings organized into collections" />
 
 Select **Share** to grant access. Collaborators appear as avatars and named cursors.
 
-![Four live sessions reviewing a deployment diagram](/images/collaboration.png)
+<ThemeScreenshot light="/images/screenshots/share-drawing-light.png" dark="/images/screenshots/share-drawing.png" alt="Drawing Share controls open for adding people and choosing access" />
+
+<ThemeScreenshot light="/images/collaboration-light.png" dark="/images/collaboration-dark.png" alt="Live deployment drawing with collaborator avatars and named cursors" />
 
 [Sample drawing credits](/images/CREDITS.txt).
 

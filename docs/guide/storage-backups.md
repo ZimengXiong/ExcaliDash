@@ -17,11 +17,23 @@ Deleting the volume, including with `docker compose down --volumes`, removes its
 
 Use collections to group drawings and search your workspace to find them again. ExcaliDash supports drawing import and export in `.excalidraw` format, plus library export and import for moving your drawings between instances.
 
+Open **Settings** from the account menu. Under **Export backup**, select **Export** to download your library backup.
+
+<ThemeScreenshot light="/images/screenshots/settings-light.png" dark="/images/screenshots/settings.png" alt="Settings with Export backup controls visible" />
+
+To import a library backup, expand **Advanced** in Settings, then select **Choose file** under **Import backup**. Select your `.excalidash` backup and review the confirmation before choosing **Import**.
+
+<ThemeScreenshot light="/images/screenshots/advanced-settings-light.png" dark="/images/screenshots/advanced-settings.png" alt="Advanced Settings expanded with Import backup and Legacy import controls" />
+
+<ThemeScreenshot light="/images/screenshots/import-backup-light.png" dark="/images/screenshots/import-backup.png" alt="Import backup confirmation after selecting a real library backup" />
+
 Keep an exported copy before a migration. A library export is useful for moving drawings; it does not replace a database backup for restoring the full server configuration and accounts.
 
 ## Restore an earlier drawing
 
-Open a drawing's version history to browse recent snapshots and restore an earlier state. History helps recover from edits, but lives with the workspace data. Keep backups separately to recover after losing the database or server.
+In an open drawing, select **Version History**, then select a snapshot to preview it. Use the restore control to return to that state. History helps recover from edits, but lives with the workspace data. Keep backups separately to recover after losing the database or server.
+
+<ThemeScreenshot light="/images/screenshots/drawing-history-light.png" dark="/images/screenshots/drawing-history.png" alt="Version History open with a snapshot selected and restore controls visible" />
 
 ## Schedule SQLite backups
 

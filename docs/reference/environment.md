@@ -41,6 +41,10 @@ The frontend image limits HTTP request bodies to 50 MB in `frontend/nginx.conf.t
 | `JWT_REFRESH_EXPIRES_IN`      | `7d`                                    | Refresh-token lifetime                                     |
 | `BOOTSTRAP_SETUP_CODE_TTL_MS` | `900000`                                | First administrator setup-code lifetime (15 minutes)       |
 
+With local authentication enabled, users sign in through the email and password form.
+
+<ThemeScreenshot light="/images/screenshots/signin-light.png" dark="/images/screenshots/signin.png" alt="Email and password sign-in when local authentication is enabled" />
+
 ## OpenID Connect
 
 Set `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, and `OIDC_REDIRECT_URI`. Set `AUTH_MODE` to `hybrid` or `oidc_enforced`.
@@ -64,3 +68,7 @@ See [backup configuration](/deploy/docker#persist-and-back-up-data) for a Compos
 ## Email and password reset
 
 Set `ENABLE_PASSWORD_RESET=true`, select `MAIL_TRANSPORT`, and configure either SMTP or Resend credentials. `MAIL_FROM` controls the visible sender.
+
+After configuring delivery, users can select **Forgot your password?** on the sign-in page to request a reset link.
+
+<ThemeScreenshot light="/images/screenshots/password-reset-light.png" dark="/images/screenshots/password-reset.png" alt="Password reset request form when the feature is enabled" />
