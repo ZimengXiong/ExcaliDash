@@ -57,10 +57,10 @@ backend:
   resources:
     requests:
       cpu: 50m
-      memory: 512Mi
+      memory: 256Mi
     limits:
       cpu: 500m
-      memory: 512Mi
+      memory: 256Mi
   nodeSelector: {}
   tolerations: []
   affinity: {}
@@ -80,10 +80,10 @@ frontend:
   resources:
     requests:
       cpu: 10m
-      memory: 64Mi
+      memory: 32Mi
     limits:
       cpu: 200m
-      memory: 64Mi
+      memory: 32Mi
   nodeSelector: {}
   tolerations: []
   affinity: {}
