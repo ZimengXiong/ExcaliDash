@@ -20,3 +20,8 @@ Open <http://localhost:6767>. Configuration and deployment guidance live in
 the [documentation](https://excalidash.xyz).
 
 ExcaliDash is licensed under the GNU Lesser General Public License v3.0.
+
+## One-click deploy
+
+<a href="https://repocloud.io/details/ExcaliDash/"><img src="https://d16t0pc4846x52.cloudfront.net/deploylobe.svg" alt="Deploy on RepoCloud" height="42"></a>
+<a href="https://railway.com/deploy/excalidash"><img src="https://railway.com/button.svg" alt="Deploy on Railway" height="42"></a>
