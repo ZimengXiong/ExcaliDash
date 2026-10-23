@@ -145,7 +145,7 @@ export const apiKeyCreateSchema = z.object({
 
 export const userPreferencesSchema = z
   .object({
-    theme: z.enum(["light", "dark"]).optional(),
+    theme: z.enum(["light", "dark", "system"]).optional(),
     dashboardSortField: z.enum(["name", "createdAt", "updatedAt"]).optional(),
     dashboardSortDirection: z.enum(["asc", "desc"]).optional(),
     language: z.string().trim().min(1).max(35).optional(),
