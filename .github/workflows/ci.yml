@@ -1,0 +1,246 @@
+name: CI
+
+# Required status checks for `main`:
+#   Backend Integration Tests, Repo Checks, E2E (anonymous), E2E (authenticated),
+#   Container Image Smoke Test.
+# Also called by release.yml, so the exact commit that merged is re-tested before
+# any image is published.
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+  workflow_call:
+    outputs:
+      application:
+        description: "true when the change touches more than docs"
+        value: ${{ jobs.changes.outputs.application }}
+
+# In a workflow_call run, github.workflow is the caller's name, so these groups
+# never collide with release.yml's own `release` group.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Detect application changes
+    runs-on: ubuntu-24.04
+    outputs:
+      application: ${{ steps.paths.outputs.application }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+      - name: Separate docs changes from application changes
+        id: paths
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          application=true
+          if [ "$EVENT_NAME" != workflow_dispatch ] && git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+            application=false
+            while IFS= read -r -d '' path; do
+              case "$path" in
+                docs/*|README.md|vercel.json|.github/workflows/ci.yml|.github/workflows/release.yml|.github/dependabot.yml) ;;
+                *) application=true; break ;;
+              esac
+            done < <(git diff --name-only -z "$BASE_SHA" "$HEAD_SHA")
+          fi
+          echo "application=$application" >> "$GITHUB_OUTPUT"
+
+  backend-tests:
+    name: Backend Integration Tests
+    needs: changes
+    if: needs.changes.outputs.application == 'true'
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.22.1"
+          cache: "npm"
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install test dependencies
+        run: |
+          npm --prefix backend ci
+          npm --prefix frontend ci
+
+      - name: Generate Prisma client
+        run: |
+          cd backend
+          npx prisma generate
+
+      - name: Run backend tests
+        run: |
+          cd backend
+          npm test
+
+  repo-checks:
+    name: Repo Checks
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.22.1"
+          cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install check dependencies
+        run: |
+          npm ci
+          npm --prefix backend ci
+          npm --prefix frontend ci
+
+      - name: Check formatting and lint
+        run: npm run check
+
+      - name: Run frontend unit and lab configuration tests
+        run: |
+          npm --prefix frontend run test:unit
+          node --test scripts/lab-frontend-ports.test.mjs
+
+      - name: Build documentation
+        run: npm run docs:build
+
+  e2e-tests:
+    name: E2E (${{ matrix.mode }})
+    needs: changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [anonymous, authenticated]
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        if: needs.changes.outputs.application == 'true'
+
+      - name: Setup Node.js
+        if: needs.changes.outputs.application == 'true'
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.22.1"
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+            e2e/package-lock.json
+
+      - name: Install dependencies and generate Prisma client
+        if: needs.changes.outputs.application == 'true'
+        run: |
+          npm --prefix backend ci
+          npm --prefix frontend ci
+          npm --prefix e2e ci
+          cd backend && npx prisma generate
+
+      - name: Install Chromium
+        if: needs.changes.outputs.application == 'true'
+        working-directory: e2e
+        run: npx playwright install chromium --with-deps
+
+      - name: Typecheck browser tests
+        if: needs.changes.outputs.application == 'true'
+        run: npm --prefix e2e run check
+
+      - name: Run real browser and API journeys
+        if: needs.changes.outputs.application == 'true'
+        run: npm --prefix e2e test
+        env:
+          E2E_AUTH: ${{ matrix.mode == 'authenticated' && 'true' || 'false' }}
+
+      - name: Upload browser diagnostics
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: always() && needs.changes.outputs.application == 'true'
+        with:
+          name: playwright-${{ matrix.mode }}
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          retention-days: 7
+
+  # Builds both Dockerfiles without pushing and starts each image, so a broken
+  # Dockerfile fails the PR instead of failing after the merge.
+  docker-smoke:
+    name: Container Image Smoke Test
+    needs: changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        if: needs.changes.outputs.application == 'true'
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        if: needs.changes.outputs.application == 'true'
+
+      - name: Build backend image (not pushed)
+        if: needs.changes.outputs.application == 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: backend/Dockerfile
+          load: true
+          push: false
+          tags: excalidash-backend:ci
+          build-args: APP_BUILD_LABEL=ci
+          cache-from: type=gha,scope=backend-image
+          cache-to: type=gha,scope=backend-image,mode=max
+
+      - name: Build frontend image (not pushed)
+        if: needs.changes.outputs.application == 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: frontend/Dockerfile
+          load: true
+          push: false
+          tags: excalidash-frontend:ci
+          build-args: VITE_APP_BUILD_LABEL=ci
+          cache-from: type=gha,scope=frontend-image
+          cache-to: type=gha,scope=frontend-image,mode=max
+
+      - name: Backend starts and reports healthy
+        if: needs.changes.outputs.application == 'true'
+        run: |
+          docker run -d --name backend-smoke \
+            -e DATABASE_PROVIDER=sqlite \
+            -e DATABASE_URL=file:/app/prisma/dev.db \
+            -e PORT=8000 \
+            -e NODE_ENV=production \
+            -e AUTH_MODE=local \
+            excalidash-backend:ci
+          for i in $(seq 1 60); do
+            if docker exec backend-smoke wget -q --spider http://127.0.0.1:8000/health; then
+              echo "backend healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Backend did not become healthy" >&2
+          docker logs backend-smoke >&2
+          exit 1
+
+      - name: Frontend ports and non-root execution
+        if: needs.changes.outputs.application == 'true'
+        run: sh scripts/test-frontend-container.sh excalidash-frontend:ci

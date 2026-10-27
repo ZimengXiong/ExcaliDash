@@ -1,0 +1,204 @@
+name: Release
+
+# Publishes the backend and frontend images to the private registry.
+#
+# Automatic: every push to `main` (a merged PR) re-runs CI on the merged commit,
+# then builds and pushes both images. Pushes that only touch docs or workflow
+# files publish nothing.
+#
+# Manual: Actions -> Release -> Run workflow builds the selected branch, tag or
+# SHA. Only the immutable tags are pushed unless "latest" is ticked.
+#
+# Tags pushed for each image (backend and frontend always move together):
+#   <VERSION>-ordinatude.<run>   immutable, one per workflow run
+#   sha-<short sha>              immutable, the commit that was built
+#   <VERSION>                    floating, only after both images are verified
+#   latest                       floating, only after both images are verified
+#
+# <VERSION> is read from the VERSION file, so bumping it is how a new upstream
+# release is adopted.
+#
+# Needed repository (or `production` environment) secrets:
+#   REGISTRY_USERNAME, REGISTRY_PASSWORD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      latest:
+        description: 'Also move the "latest" and <VERSION> tags to this build'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Queue releases instead of cancelling them, so no merge is skipped.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  REGISTRY: registry.ordinatude.dev
+  BACKEND_IMAGE: excalidash-backend
+  FRONTEND_IMAGE: excalidash-frontend
+  # Add linux/arm64 here only after adding docker/setup-qemu-action to publish.
+  PLATFORMS: linux/amd64
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  meta:
+    name: Resolve tags
+    needs: ci
+    if: needs.ci.outputs.application == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.tags.outputs.version }}
+      build-tag: ${{ steps.tags.outputs.build_tag }}
+      promote: ${{ steps.tags.outputs.promote }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+      - name: Derive version and tags
+        id: tags
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_LATEST: ${{ github.event.inputs.latest }}
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "VERSION must contain a stable x.y.z version, found '$version'." >&2
+            exit 1
+          fi
+          promote=false
+          if [ "$EVENT_NAME" = push ] || [ "$INPUT_LATEST" = true ]; then
+            promote=true
+          fi
+          {
+            echo "version=$version"
+            echo "build_tag=${version}-ordinatude.${GITHUB_RUN_NUMBER}"
+            echo "promote=$promote"
+          } >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish ${{ matrix.component }} image
+    needs: meta
+    environment: production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - component: backend
+            build-arg: APP_BUILD_LABEL
+          - component: frontend
+            build-arg: VITE_APP_BUILD_LABEL
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.REGISTRY }}/excalidash-${{ matrix.component }}
+          tags: |
+            type=raw,value=${{ needs.meta.outputs.build-tag }}
+            type=sha,prefix=sha-,format=short
+          labels: |
+            org.opencontainers.image.version=${{ needs.meta.outputs.build-tag }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Build and push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ${{ matrix.component }}/Dockerfile
+          platforms: ${{ env.PLATFORMS }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: ${{ matrix.build-arg }}=${{ needs.meta.outputs.build-tag }}
+          # Attestation-free manifests keep the images compatible with the stock
+          # `registry:2` and its UIs.
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=${{ matrix.component }}-image
+          cache-to: type=gha,scope=${{ matrix.component }}-image,mode=max
+
+  # Floating tags move only after both images are in the registry and the pushed
+  # frontend image passes the container test, so backend and frontend never
+  # disagree on what `latest` means.
+  promote:
+    name: Verify and promote
+    needs: [meta, publish]
+    environment: production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Verify the pushed frontend image
+        env:
+          BUILD_TAG: ${{ needs.meta.outputs.build-tag }}
+        run: sh scripts/test-frontend-container.sh "${REGISTRY}/${FRONTEND_IMAGE}:${BUILD_TAG}"
+
+      - name: Promote floating tags
+        if: needs.meta.outputs.promote == 'true'
+        env:
+          BUILD_TAG: ${{ needs.meta.outputs.build-tag }}
+          VERSION: ${{ needs.meta.outputs.version }}
+        run: |
+          for image in "$BACKEND_IMAGE" "$FRONTEND_IMAGE"; do
+            docker buildx imagetools create \
+              --tag "${REGISTRY}/${image}:${VERSION}" \
+              --tag "${REGISTRY}/${image}:latest" \
+              "${REGISTRY}/${image}:${BUILD_TAG}"
+          done
+
+      - name: Summary
+        env:
+          BUILD_TAG: ${{ needs.meta.outputs.build-tag }}
+          VERSION: ${{ needs.meta.outputs.version }}
+          PROMOTE: ${{ needs.meta.outputs.promote }}
+        run: |
+          {
+            echo "### Published images"
+            echo
+            for image in "$BACKEND_IMAGE" "$FRONTEND_IMAGE"; do
+              echo "- \`${REGISTRY}/${image}:${BUILD_TAG}\`"
+            done
+            echo
+            if [ "$PROMOTE" = true ]; then
+              echo "Also tagged \`${VERSION}\` and \`latest\`. Set \`EXCALIDASH_TAG=${BUILD_TAG}\` to pin this build."
+            else
+              echo "Floating tags were not moved."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
