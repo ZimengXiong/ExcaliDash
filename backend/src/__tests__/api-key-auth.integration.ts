@@ -14,6 +14,7 @@ async function createApiKeyFixture(
   prisma: PrismaClient,
   userId: string,
   name: string,
+  scopes?: readonly string[],
 ): Promise<ApiKeyFixture> {
   const generated = generateApiKey();
   const apiKey = await prisma.apiKey.create({
@@ -23,7 +24,7 @@ async function createApiKeyFixture(
       keyId: generated.keyId,
       tokenHash: generated.tokenHash,
       prefix: generated.prefix,
-      scopes: serializeApiKeyScopes(),
+      scopes: serializeApiKeyScopes(scopes),
     },
     select: { id: true },
   });
@@ -145,19 +146,82 @@ describe("API key authentication", () => {
     expect(response.status).toBe(403);
   });
 
-  it("does not expose removed agent routes to account-wide keys", async () => {
-    for (const route of ["summary", "elements", "ops"]) {
-      const response = await request(app)
-        .get(`/drawings/drawing-1/${route}`)
-        .set("Authorization", `Bearer ${apiKeyToken}`);
+  it("lets account-wide keys use the agent routes on their own drawings", async () => {
+    const drawing = await prisma.drawing.create({
+      data: {
+        name: "Agent API drawing",
+        userId,
+        elements: "[]",
+        appState: "{}",
+      },
+    });
+    const auth = ["Authorization", `Bearer ${apiKeyToken}`] as const;
 
-      expect(response.status).toBe(404);
-    }
-    const response = await request(app)
-      .post("/drawings/drawing-1/ops")
-      .set("Authorization", `Bearer ${apiKeyToken}`)
-      .send({ ops: [] });
-    expect(response.status).toBe(404);
+    const summary = await request(app)
+      .get(`/drawings/${drawing.id}/summary`)
+      .set(...auth);
+    expect(summary.status).toBe(200);
+    expect(summary.text).toContain("Agent API drawing");
+
+    const ops = await request(app)
+      .post(`/drawings/${drawing.id}/ops`)
+      .set(...auth)
+      .send({
+        ops: [
+          { op: "add_shape", shape: "rectangle", x: 0, y: 0, label: "Box" },
+        ],
+      });
+    expect(ops.status).toBe(200);
+    const createdId = ops.body.results[0].createdIds[0];
+
+    const element = await request(app)
+      .get(`/drawings/${drawing.id}/elements/${createdId}`)
+      .set(...auth);
+    expect(element.status).toBe(200);
+    expect(element.body.element.type).toBe("rectangle");
+  });
+
+  it("keeps the agent routes behind the drawings API key scopes", async () => {
+    const drawing = await prisma.drawing.create({
+      data: {
+        name: "Scoped drawing",
+        userId,
+        elements: "[]",
+        appState: "{}",
+      },
+    });
+    const readOnly = await createApiKeyFixture(prisma, userId, "Read only", [
+      "drawings:read",
+    ]);
+    const collectionsOnly = await createApiKeyFixture(
+      prisma,
+      userId,
+      "Collections only",
+      ["collections:read", "collections:write"],
+    );
+
+    const readSummary = await request(app)
+      .get(`/drawings/${drawing.id}/summary`)
+      .set("Authorization", `Bearer ${readOnly.token}`);
+    expect(readSummary.status).toBe(200);
+
+    const readOps = await request(app)
+      .post(`/drawings/${drawing.id}/ops`)
+      .set("Authorization", `Bearer ${readOnly.token}`)
+      .send({ ops: [{ op: "add_shape", shape: "rectangle", x: 0, y: 0 }] });
+    expect(readOps.status).toBe(403);
+
+    const collectionsAuth = `Bearer ${collectionsOnly.token}`;
+    const noScopeSummary = await request(app)
+      .get(`/drawings/${drawing.id}/summary`)
+      .set("Authorization", collectionsAuth);
+    expect(noScopeSummary.status).toBe(403);
+
+    const noScopeOps = await request(app)
+      .post(`/drawings/${drawing.id}/ops`)
+      .set("Authorization", collectionsAuth)
+      .send({ ops: [{ op: "add_shape", shape: "rectangle", x: 0, y: 0 }] });
+    expect(noScopeOps.status).toBe(403);
   });
 
   it("never promotes legacy drawing-scoped keys to account access", async () => {

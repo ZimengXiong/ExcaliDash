@@ -126,6 +126,20 @@ const getApiKeyRouteResource = (
     ) {
       return "drawings";
     }
+    // Agent API, matched on the exact route shapes so future sub-paths do not
+    // inherit API key access: POST /drawings/:id/ops (write), GET
+    // /drawings/:id/summary and GET /drawings/:id/elements/:elementId (read).
+    if (
+      (segments.length === 3 && segments[2] === "ops" && method === "POST") ||
+      (segments.length === 3 &&
+        segments[2] === "summary" &&
+        ["GET", "HEAD"].includes(method)) ||
+      (segments.length === 4 &&
+        segments[2] === "elements" &&
+        ["GET", "HEAD"].includes(method))
+    ) {
+      return "drawings";
+    }
     return null;
   }
   if (segments[0] === "collections") {

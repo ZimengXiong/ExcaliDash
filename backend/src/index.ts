@@ -27,6 +27,7 @@ import { authModeService, requireAuth, optionalAuth } from "./middleware/auth";
 import { errorHandler, asyncHandler } from "./middleware/errorHandler";
 import authRouter from "./auth";
 import { logAuditEvent } from "./utils/audit";
+import { stopLayoutWorker } from "./agent/layoutRunner";
 import { registerDashboardRoutes } from "./routes/dashboard";
 import { registerImportExportRoutes } from "./routes/importExport";
 import { registerSystemRoutes } from "./routes/system";
@@ -592,6 +593,10 @@ registerDashboardRoutes(app, {
     internDrawingFilesWithPrisma(files, userId, drawingId, prisma),
   revalidateDrawingAccess: socketHandlers.revalidateDrawingAccess,
   io,
+  agentOps: {
+    rateLimitMaxRequests: config.agentOpsRateLimitMax,
+    rateLimitWindowMs: config.agentOpsRateLimitWindowMs,
+  },
 });
 registerFileRoutes(app, { prisma, requireAuth, optionalAuth, asyncHandler });
 registerStorageRoutes(app, {
@@ -656,6 +661,7 @@ if (isMain) {
     shuttingDown = true;
     console.log(`[shutdown] Received ${signal}, shutting down gracefully`);
     clearInterval(snapshotCleanupTimer);
+    void stopLayoutWorker().catch(() => {});
     const forceExit = setTimeout(() => {
       console.error("[shutdown] Forced exit after timeout");
       process.exit(1);
