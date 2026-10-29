@@ -126,4 +126,84 @@ describe("Drawings - Shared With Me", () => {
     expect(ids).toContain(drawingOwnedByB.id);
     expect(ids).not.toContain(drawingOwnedByA.id);
   });
+
+  it("keeps drawings outside any collection when the user also has a shared collection", async () => {
+    const passwordHash = await bcrypt.hash("password123", 10);
+    const owner = await prisma.user.create({
+      data: {
+        email: "unfiled-owner@test.local",
+        passwordHash,
+        name: "Unfiled Owner",
+        role: "USER",
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    const recipient = await prisma.user.create({
+      data: {
+        email: "unfiled-recipient@test.local",
+        passwordHash,
+        name: "Unfiled Recipient",
+        role: "USER",
+        isActive: true,
+      },
+      select: { id: true, email: true },
+    });
+
+    const sharedCollection = await prisma.collection.create({
+      data: { name: "Shared collection", userId: owner.id },
+      select: { id: true },
+    });
+    await prisma.collectionShare.create({
+      data: {
+        collectionId: sharedCollection.id,
+        granteeUserId: recipient.id,
+        role: "view",
+        createdByUserId: owner.id,
+      },
+    });
+    const [unfiled, inSharedCollection] = await Promise.all(
+      [null, sharedCollection.id].map((collectionId) =>
+        prisma.drawing.create({
+          data: {
+            name: collectionId ? "In shared collection" : "Unfiled",
+            elements: "[]",
+            appState: "{}",
+            files: "{}",
+            userId: owner.id,
+            collectionId,
+            version: 1,
+          },
+          select: { id: true },
+        }),
+      ),
+    );
+    for (const drawing of [unfiled, inSharedCollection]) {
+      await prisma.drawingPermission.create({
+        data: {
+          drawingId: drawing.id,
+          granteeUserId: recipient.id,
+          permission: "view",
+          createdByUserId: owner.id,
+        },
+      });
+    }
+
+    const token = jwt.sign(
+      { userId: recipient.id, email: recipient.email, type: "access" },
+      config.jwtSecret,
+      { expiresIn: config.jwtAccessExpiresIn as StringValue },
+    );
+    const response = await request(app)
+      .get("/drawings/shared")
+      .set("User-Agent", userAgent)
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    const ids = (response.body.drawings as any[]).map((d) => d.id);
+    // The unfiled drawing is only reachable through Shared with me.
+    expect(ids).toContain(unfiled.id);
+    // The other one is already listed under the shared collection.
+    expect(ids).not.toContain(inSharedCollection.id);
+  });
 });
