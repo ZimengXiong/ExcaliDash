@@ -63,6 +63,15 @@ export const registerSocketHandlers = ({
     return trimmed.slice(0, 2).toUpperCase();
   };
 
+  const isSceneBounds = (
+    value: unknown,
+  ): value is [number, number, number, number] =>
+    Array.isArray(value) &&
+    value.length === 4 &&
+    value.every((n) => typeof n === "number" && Number.isFinite(n)) &&
+    value[0] <= value[2] &&
+    value[1] <= value[3];
+
   const toPresenceColor = (value: unknown): string => {
     if (typeof value !== "string") return "#4f46e5";
     const trimmed = value.trim();
@@ -296,6 +305,33 @@ export const registerSocketHandlers = ({
         userId: self.id,
         username: self.name,
         color: self.color,
+      });
+    });
+
+    socket.on("visible-bounds", async (data) => {
+      const drawingId =
+        typeof data?.drawingId === "string" ? data.drawingId : null;
+      if (!drawingId || !state.access.has(drawingId)) return;
+      if (!isSceneBounds(data?.bounds)) return;
+      const access = await getCachedOrFreshAccess(drawingId);
+      if (!access) {
+        dropDrawingAccess(drawingId);
+        return;
+      }
+      const roomId = `drawing_${drawingId}`;
+      const users = roomUsers.get(roomId) || [];
+      const self = users.find((u) => u.socketId === socket.id);
+      if (!self) return;
+      // Everyone in the room gets every viewport; whether to follow one is
+      // decided client-side, so the server keeps no follower state.
+      socket.volatile.to(roomId).emit("visible-bounds", {
+        drawingId,
+        userId: self.id,
+        bounds: data.bounds,
+        // Only an id present in this drawing; clients ignore others anyway.
+        following: users.some((u) => u.id === data.following)
+          ? data.following
+          : null,
       });
     });
 
