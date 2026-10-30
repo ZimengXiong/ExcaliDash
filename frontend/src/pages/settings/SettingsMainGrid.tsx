@@ -4,12 +4,14 @@ import {
   Eye,
   EyeOff,
   Languages,
+  Monitor,
   Moon,
   Sun,
   Zap,
   ZapOff,
 } from "lucide-react";
 import type * as api from "../../api";
+import { PlayfulSelect } from "../../components/PlayfulSelect";
 import { PlayfulSwitch } from "../../components/PlayfulSwitch";
 import { UpdateSettingsCard } from "./UpdateSettingsCard";
 import {
@@ -26,8 +28,9 @@ import {
 
 type SettingsMainGridProps = {
   exportBackup: () => void;
-  theme: string;
-  toggleTheme: () => void;
+  theme: "light" | "dark";
+  themePreference: api.ThemePreference;
+  onThemePreferenceChange: (preference: api.ThemePreference) => void;
   imageCompression: boolean;
   toggleImageCompression: () => void;
   imageCompressionThresholdMb: number;
@@ -47,7 +50,8 @@ type SettingsMainGridProps = {
 export const SettingsMainGrid = ({
   exportBackup,
   theme,
-  toggleTheme,
+  themePreference,
+  onThemePreferenceChange,
   imageCompression,
   toggleImageCompression,
   imageCompressionThresholdMb,
@@ -87,14 +91,28 @@ export const SettingsMainGrid = ({
       </SettingsRow>
 
       <SettingsRow
-        icon={theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
+        icon={theme === "light" ? <Sun size={20} /> : <Moon size={20} />}
         tileClassName="border-black bg-amber-400 text-black dark:border-neutral-700 dark:bg-amber-400 dark:text-black"
         title="Appearance"
+        description={
+          themePreference === "system"
+            ? `Following your system (${theme})`
+            : undefined
+        }
       >
-        <PlayfulSwitch
-          checked={theme === "dark"}
-          onChange={() => toggleTheme()}
-          ariaLabel="Toggle dark mode"
+        <PlayfulSelect
+          ariaLabel="Theme"
+          value={themePreference}
+          onChange={(value) =>
+            onThemePreferenceChange(
+              value === "light" || value === "dark" ? value : "system",
+            )
+          }
+          options={[
+            { value: "light", label: "Light", icon: <Sun size={14} /> },
+            { value: "dark", label: "Dark", icon: <Moon size={14} /> },
+            { value: "system", label: "System", icon: <Monitor size={14} /> },
+          ]}
         />
       </SettingsRow>
 
