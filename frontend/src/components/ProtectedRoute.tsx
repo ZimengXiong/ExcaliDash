@@ -3,6 +3,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { startOidcSignIn } from "../api";
 import { AuthStatusErrorPanel } from "./AuthStatusErrorPanel";
+import { useLocale } from "../context/useLocale";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -21,6 +22,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     authOnboardingRequired,
     user,
   } = useAuth();
+  const { t } = useLocale();
 
   const OidcRedirect: React.FC<{ returnTo: string }> = ({ returnTo }) => {
     useEffect(() => {
@@ -30,7 +32,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-gray-600 dark:text-gray-400">
-          Redirecting to sign-in...
+          {t("auth.redirectingToSignIn")}
         </div>
       </div>
     );
@@ -48,7 +50,9 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     }
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-600 dark:text-gray-400">Loading...</div>
+        <div className="text-gray-600 dark:text-gray-400">
+          {t("common.loading")}
+        </div>
       </div>
     );
   }

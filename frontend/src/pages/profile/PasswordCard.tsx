@@ -14,6 +14,7 @@ import {
   settingsButtonClass,
   settingsSelectClass,
 } from "../settings/SettingsRow";
+import { useLocale } from "../../context/useLocale";
 
 const roseButtonClass = "ui-button-danger";
 
@@ -31,6 +32,7 @@ export const PasswordCard: React.FC<Props> = ({
   onSuccess,
 }) => {
   const navigate = useNavigate();
+  const { t } = useLocale();
   const passwordPolicy = getPasswordPolicy();
   const [loading, setLoading] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -52,7 +54,7 @@ export const PasswordCard: React.FC<Props> = ({
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
-      onError("All password fields are required");
+      onError(t("password.errors.allRequired"));
       return;
     }
 
@@ -62,7 +64,7 @@ export const PasswordCard: React.FC<Props> = ({
       return;
     }
     if (newPassword !== confirmPassword) {
-      onError("New passwords do not match");
+      onError(t("password.newPasswordsMismatch"));
       return;
     }
 
@@ -74,14 +76,14 @@ export const PasswordCard: React.FC<Props> = ({
         currentPassword,
         newPassword,
       });
-      onSuccess("Password changed successfully");
+      onSuccess(t("password.changed"));
       resetForm();
       setTimeout(() => {
         logout();
         navigate("/login");
       }, 2000);
     } catch (err: unknown) {
-      let message = "Failed to change password";
+      let message = t("password.errors.changeFailed");
       if (api.isAxiosError(err)) {
         message =
           err.response?.data?.message ?? err.response?.data?.error ?? message;
@@ -96,38 +98,38 @@ export const PasswordCard: React.FC<Props> = ({
     "mb-1 block text-xs font-semibold text-slate-500 dark:text-neutral-400";
 
   return (
-    <section aria-label="Change password">
+    <section aria-label={t("password.change")}>
       <SettingsCard>
         {!showPasswordForm ? (
           <SettingsRow
-            title="Change password"
-            description="You will be signed out afterwards"
+            title={t("password.change")}
+            description={t("password.signedOutAfterwards")}
           >
             <button
               onClick={() => setShowPasswordForm(true)}
               className={roseButtonClass}
             >
-              Change password
+              {t("password.change")}
             </button>
           </SettingsRow>
         ) : (
           <div className="max-w-md space-y-3 px-4 py-3.5 sm:px-5">
             <div>
               <label htmlFor="currentPassword" className={fieldLabelClass}>
-                Current Password
+                {t("password.currentPassword")}
               </label>
               <PasswordInput
                 id="currentPassword"
                 value={currentPassword}
                 onChange={(event) => setCurrentPassword(event.target.value)}
                 className={`${settingsSelectClass} w-full`}
-                placeholder="Enter current password"
+                placeholder={t("password.enterCurrent")}
               />
             </div>
 
             <div>
               <label htmlFor="newPassword" className={fieldLabelClass}>
-                New Password
+                {t("password.newPassword")}
               </label>
               <PasswordInput
                 id="newPassword"
@@ -137,7 +139,7 @@ export const PasswordCard: React.FC<Props> = ({
                 maxLength={passwordPolicy.maxLength}
                 pattern={passwordPolicy.patternHtml}
                 className={`${settingsSelectClass} w-full`}
-                placeholder="Enter new password"
+                placeholder={t("password.enterNew")}
               />
               <PasswordRequirements
                 password={newPassword}
@@ -148,7 +150,7 @@ export const PasswordCard: React.FC<Props> = ({
 
             <div>
               <label htmlFor="confirmPassword" className={fieldLabelClass}>
-                Confirm New Password
+                {t("password.confirmNewPassword")}
               </label>
               <PasswordInput
                 id="confirmPassword"
@@ -158,7 +160,7 @@ export const PasswordCard: React.FC<Props> = ({
                 maxLength={passwordPolicy.maxLength}
                 pattern={passwordPolicy.patternHtml}
                 className={`${settingsSelectClass} w-full`}
-                placeholder="Confirm new password"
+                placeholder={t("password.confirmNewPassword")}
               />
               <PasswordMatch
                 password={newPassword}
@@ -177,7 +179,7 @@ export const PasswordCard: React.FC<Props> = ({
                 }
                 className={roseButtonClass}
               >
-                {loading ? "Changing..." : "Change Password"}
+                {loading ? t("password.changing") : t("password.change")}
               </button>
               {!mustResetPassword && (
                 <button
@@ -185,7 +187,7 @@ export const PasswordCard: React.FC<Props> = ({
                   disabled={loading}
                   className={settingsButtonClass}
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </button>
               )}
             </div>

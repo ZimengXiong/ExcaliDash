@@ -6,10 +6,12 @@ import { getPasswordPolicy, validatePassword } from "../utils/passwordPolicy";
 import { PasswordRequirements } from "../components/PasswordRequirements";
 import { PasswordInput } from "../components/PasswordInput";
 import { PasswordMatch } from "../components/PasswordMatch";
+import { useLocale } from "../context/useLocale";
 
 export const PasswordResetConfirm: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = useLocale();
   const token = useMemo(() => {
     const fragmentParams = new URLSearchParams(location.hash.replace(/^#/, ""));
     return (
@@ -41,16 +43,16 @@ export const PasswordResetConfirm: React.FC = () => {
 
   useEffect(() => {
     if (!token) {
-      setError("Invalid reset link. Please request a new password reset.");
+      setError(t("auth.resetConfirm.invalidLink"));
     }
-  }, [token]);
+  }, [token, t]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
+      setError(t("password.mismatch"));
       return;
     }
 
@@ -61,7 +63,7 @@ export const PasswordResetConfirm: React.FC = () => {
     }
 
     if (!token) {
-      setError("Invalid reset token");
+      setError(t("auth.resetConfirm.invalidToken"));
       return;
     }
 
@@ -74,10 +76,10 @@ export const PasswordResetConfirm: React.FC = () => {
         navigate("/login");
       }, 3000);
     } catch (err: unknown) {
-      let message = "Failed to reset password";
+      let message = t("auth.mustReset.failed");
       if (isAxiosError(err)) {
         if (err.response?.status === 404) {
-          message = "Password reset feature is not enabled on this server";
+          message = t("auth.resetConfirm.notEnabled");
         } else if (err.response?.data?.message) {
           message = err.response.data.message;
         } else if (err.response?.data?.error) {
@@ -100,13 +102,15 @@ export const PasswordResetConfirm: React.FC = () => {
         <div className="auth-wrap">
           <div className="text-center">
             <Logo className="mx-auto h-12 w-auto" />
-            <h2 className="auth-heading">Password reset successful</h2>
+            <h2 className="auth-heading">
+              {t("auth.resetConfirm.successTitle")}
+            </h2>
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              Your password has been reset. Redirecting to login...
+              {t("auth.resetConfirm.successMessage")}
             </p>
             <div className="mt-6">
               <Link to="/login" className="ui-link">
-                Go to login
+                {t("auth.goToLogin")}
               </Link>
             </div>
           </div>
@@ -120,7 +124,7 @@ export const PasswordResetConfirm: React.FC = () => {
       <div className="auth-wrap">
         <div className="text-center">
           <Logo className="mx-auto h-12 w-auto" />
-          <h2 className="auth-heading">Set new password</h2>
+          <h2 className="auth-heading">{t("auth.mustReset.submit")}</h2>
         </div>
         <form className="auth-panel" onSubmit={handleSubmit}>
           {error && (
@@ -131,7 +135,7 @@ export const PasswordResetConfirm: React.FC = () => {
           <div className="space-y-4">
             <div>
               <label htmlFor="password" className="sr-only">
-                New password
+                {t("password.newPassword")}
               </label>
               <PasswordInput
                 id="password"
@@ -142,7 +146,7 @@ export const PasswordResetConfirm: React.FC = () => {
                 maxLength={passwordPolicy.maxLength}
                 pattern={passwordPolicy.patternHtml}
                 className="ui-input block w-full"
-                placeholder="New password"
+                placeholder={t("password.newPassword")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -154,7 +158,7 @@ export const PasswordResetConfirm: React.FC = () => {
             </div>
             <div>
               <label htmlFor="confirmPassword" className="sr-only">
-                Confirm password
+                {t("password.confirmPassword")}
               </label>
               <PasswordInput
                 id="confirmPassword"
@@ -164,7 +168,7 @@ export const PasswordResetConfirm: React.FC = () => {
                 minLength={passwordPolicy.minLength}
                 maxLength={passwordPolicy.maxLength}
                 className="ui-input block w-full"
-                placeholder="Confirm password"
+                placeholder={t("password.confirmPassword")}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
               />
@@ -181,13 +185,15 @@ export const PasswordResetConfirm: React.FC = () => {
               disabled={loading || !token}
               className="ui-button-primary w-full"
             >
-              {loading ? "Resetting..." : "Reset password"}
+              {loading
+                ? t("auth.resetConfirm.resetting")
+                : t("auth.resetConfirm.submit")}
             </button>
           </div>
 
           <div className="text-center">
             <Link to="/login" className="ui-link">
-              Back to login
+              {t("auth.backToLogin")}
             </Link>
           </div>
         </form>

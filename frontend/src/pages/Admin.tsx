@@ -22,8 +22,10 @@ import {
   readImpersonationState,
   USER_KEY,
 } from "../utils/impersonation";
+import { useLocale } from "../context/useLocale";
 export const Admin: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useLocale();
   const { user: authUser, authEnabled } = useAuth();
   const isSingleUserOwner = authEnabled === false;
   const isAdmin = isSingleUserOwner || authUser?.role === "ADMIN";
@@ -72,7 +74,7 @@ export const Admin: React.FC = () => {
       const response = await api.api.get<{ users: AdminUser[] }>("/auth/users");
       setUsers(response.data.users || []);
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, "Failed to load users"));
+      setError(getApiErrorMessage(err, t("admin.errors.loadUsers")));
     } finally {
       setLoadingUsers(false);
     }
@@ -90,10 +92,10 @@ export const Admin: React.FC = () => {
         email: response.data.user?.email || target.email,
         tempPassword: response.data.tempPassword,
       });
-      setSuccess(`Temporary password generated for ${target.email}`);
+      setSuccess(t("admin.tempPasswordGenerated", { email: target.email }));
       await loadUsers();
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, "Failed to reset password"));
+      setError(getApiErrorMessage(err, t("auth.mustReset.failed")));
     } finally {
       setResetPasswordLoadingId(null);
     }
@@ -119,11 +121,11 @@ export const Admin: React.FC = () => {
           a.createdAt.localeCompare(b.createdAt),
         ),
       );
-      setSuccess("User created");
+      setSuccess(t("admin.userCreated"));
       setCreateOpen(false);
       return true;
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, "Failed to create user"));
+      setError(getApiErrorMessage(err, t("admin.errors.createUser")));
       return false;
     }
   };
@@ -146,21 +148,21 @@ export const Admin: React.FC = () => {
       setUsers((prev) =>
         prev.map((u) => (u.id === id ? response.data.user : u)),
       );
-      setSuccess("User updated");
+      setSuccess(t("admin.userUpdated"));
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, "Failed to update user"));
+      setError(getApiErrorMessage(err, t("admin.errors.updateUser")));
     }
   };
   const startImpersonation = async (target: AdminUser) => {
     setError("");
     setSuccess("");
     if (readImpersonationState()) {
-      setError("Stop the current impersonation before starting a new one.");
+      setError(t("admin.errors.stopCurrentImpersonation"));
       return;
     }
     const originalUser = localStorage.getItem(USER_KEY);
     if (!originalUser) {
-      setError("Missing current session user state.");
+      setError(t("admin.errors.missingSession"));
       return;
     }
     try {
@@ -172,7 +174,7 @@ export const Admin: React.FC = () => {
         impersonator: {
           id: authUser?.id || "unknown",
           email: authUser?.email || "unknown",
-          name: authUser?.name || "Unknown Admin",
+          name: authUser?.name || t("admin.unknownAdmin"),
         },
         target: {
           id: response.data.user.id,
@@ -185,7 +187,7 @@ export const Admin: React.FC = () => {
       localStorage.setItem(USER_KEY, JSON.stringify(response.data.user));
       window.location.href = "/";
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, "Failed to impersonate user"));
+      setError(getApiErrorMessage(err, t("admin.errors.impersonate")));
     }
   };
   if (authEnabled === null) {

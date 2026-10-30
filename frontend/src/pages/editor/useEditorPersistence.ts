@@ -10,6 +10,7 @@ import type { MutableRefObject } from "react";
 import { exportToSvg } from "@excalidraw/excalidraw";
 import debounce from "lodash/debounce";
 import { toast } from "sonner";
+import { translateCurrent } from "../../i18n";
 import * as api from "../../api";
 import { reloadAndReconcile } from "./reconcileSave";
 import { compressExcalidrawFiles } from "../../utils/imageCompression";
@@ -282,11 +283,11 @@ export const useEditorPersistence = ({
       );
     } catch (err) {
       if (err instanceof DrawingSaveConflictError) {
-        toast.error("Drawing changed in another tab. Refresh to load latest.");
+        toast.error(translateCurrent("editor.toast.conflict"));
         throw err;
       }
       console.error("Failed to save drawing", err);
-      toast.error("Failed to save changes");
+      toast.error(translateCurrent("editor.toast.saveFailed"));
       throw err;
     }
   };
@@ -419,7 +420,7 @@ export const useEditorPersistence = ({
     } catch (err) {
       console.error("Failed to save library", err);
       if (api.isAxiosError(err) && err.response?.status === 401) return;
-      toast.error("Failed to save library");
+      toast.error(translateCurrent("editor.toast.saveLibraryFailed"));
     }
   };
 

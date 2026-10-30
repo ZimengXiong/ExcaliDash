@@ -18,6 +18,7 @@ import {
   startOidcSignOut,
 } from "../api";
 import { toast } from "sonner";
+import { translateCurrent, type TranslationKey } from "../i18n";
 import {
   clearOidcAutoLoginSuppression,
   suppressOidcAutoLogin,
@@ -37,7 +38,7 @@ interface AuthContextType {
   loading: boolean;
   authEnabled: boolean | null;
   registrationEnabled: boolean;
-  authStatusError: string | null;
+  authStatusError: TranslationKey | null;
   authMode: "local" | "hybrid" | "oidc_enforced";
   oidcEnabled: boolean;
   oidcEnforced: boolean;
@@ -70,7 +71,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const [loading, setLoading] = useState(true);
   const [authEnabled, setAuthEnabled] = useState<boolean | null>(null);
   const [registrationEnabled, setRegistrationEnabled] = useState(false);
-  const [authStatusError, setAuthStatusError] = useState<string | null>(null);
+  const [authStatusError, setAuthStatusError] = useState<TranslationKey | null>(
+    null,
+  );
   const [authMode, setAuthMode] = useState<
     "local" | "hybrid" | "oidc_enforced"
   >("local");
@@ -147,9 +150,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           setUser(null);
           return;
         }
-        setAuthStatusError(
-          "Unable to reach the backend API. Check BACKEND_URL, FRONTEND_URL, and your reverse proxy configuration.",
-        );
+        setAuthStatusError("auth.errors.backendUnreachable");
         setAuthEnabled(null);
         setRegistrationEnabled(false);
         setAuthMode("local");
@@ -203,9 +204,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       }
     } catch (error) {
       console.error("Failed to load user:", error);
-      setAuthStatusError(
-        "Unable to initialize authentication state. Check backend/API connectivity and refresh.",
-      );
+      setAuthStatusError("auth.errors.initFailed");
       localStorage.removeItem(USER_KEY);
       setUser(null);
     } finally {
@@ -220,7 +219,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const login = async (email: string, password: string) => {
     try {
       if (authEnabled === false) {
-        throw new Error("Authentication is disabled");
+        throw new Error(translateCurrent("auth.errors.disabled"));
       }
       const response = await authLogin(email, password);
 
@@ -239,10 +238,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           "message" in error.response.data &&
           typeof error.response.data.message === "string"
             ? error.response.data.message
-            : "Login failed";
+            : translateCurrent("auth.errors.loginFailed");
         throw new Error(message);
       }
-      throw error instanceof Error ? error : new Error("Login failed");
+      throw error instanceof Error
+        ? error
+        : new Error(translateCurrent("auth.errors.loginFailed"));
     }
   };
 
@@ -254,7 +255,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   ) => {
     try {
       if (authEnabled === false) {
-        throw new Error("Authentication is disabled");
+        throw new Error(translateCurrent("auth.errors.disabled"));
       }
       const response = await authRegister(email, password, name, setupCode);
 
@@ -273,10 +274,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           "message" in error.response.data &&
           typeof error.response.data.message === "string"
             ? error.response.data.message
-            : "Registration failed";
+            : translateCurrent("auth.errors.registrationFailed");
         throw new Error(message);
       }
-      throw error instanceof Error ? error : new Error("Registration failed");
+      throw error instanceof Error
+        ? error
+        : new Error(translateCurrent("auth.errors.registrationFailed"));
     }
   };
 
@@ -288,7 +291,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       // Do not claim that the user signed out when the server session could
       // still be refreshed. This also avoids an enforced-OIDC redirect loop.
       console.error("Logout failed", error);
-      toast.error("Could not sign out. Please try again.");
+      toast.error(translateCurrent("auth.errors.signOutFailed"));
       return;
     }
     suppressOidcAutoLogin();

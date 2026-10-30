@@ -2,6 +2,7 @@ import { useCallback, useEffect } from "react";
 import type { NavigateFunction } from "react-router-dom";
 import type { MutableRefObject } from "react";
 import { toast } from "sonner";
+import { translateCurrent } from "../../i18n";
 import * as api from "../../api";
 import { rehydrateFilesProgressive } from "../../utils/rehydrateFiles";
 import { getPersistedAppState, hasRenderableElements } from "./shared";
@@ -245,7 +246,7 @@ export const useEditorSceneLoader = ({
       } catch (err) {
         if (cancelled) return;
         console.error("Failed to load drawing", err);
-        let message = "Failed to load drawing";
+        let message = translateCurrent("editor.load.failed");
         if (api.isAxiosError(err)) {
           const responseMessage =
             typeof err.response?.data?.message === "string"
@@ -254,9 +255,9 @@ export const useEditorSceneLoader = ({
           if (responseMessage) {
             message = responseMessage;
           } else if (err.response?.status === 403) {
-            message = "You do not have access to this drawing";
+            message = translateCurrent("editor.load.forbidden");
           } else if (err.response?.status === 404) {
-            message = "Drawing not found";
+            message = translateCurrent("editor.load.notFound");
           }
           if (
             err.response?.status === 403 &&

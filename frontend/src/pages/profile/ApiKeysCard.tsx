@@ -9,12 +9,15 @@ import {
   settingsButtonClass,
   settingsSelectClass,
 } from "../settings/SettingsRow";
+import { useLocale } from "../../context/useLocale";
+import type { Locale, TranslationKey } from "../../i18n";
+import { formatDateTime } from "../../i18n/format";
 
-const API_KEY_SCOPE_LABELS: Record<string, string> = {
-  "drawings:read": "Read drawings",
-  "drawings:write": "Write drawings",
-  "collections:read": "Read collections",
-  "collections:write": "Write collections",
+const API_KEY_SCOPE_LABELS: Record<string, TranslationKey> = {
+  "drawings:read": "apiKeys.scope.drawingsRead",
+  "drawings:write": "apiKeys.scope.drawingsWrite",
+  "collections:read": "apiKeys.scope.collectionsRead",
+  "collections:write": "apiKeys.scope.collectionsWrite",
 };
 
 const createButtonClass = "ui-button-primary";
@@ -27,9 +30,13 @@ const getApiErrorMessage = (err: unknown, fallback: string) => {
   return fallback;
 };
 
-const formatApiKeyDate = (value: string | null) => {
-  if (!value) return "Never";
-  return new Date(value).toLocaleString();
+const formatApiKeyDate = (
+  value: string | null,
+  locale: Locale,
+  never: string,
+) => {
+  if (!value) return never;
+  return formatDateTime(value, locale);
 };
 
 type Props = {
@@ -38,6 +45,9 @@ type Props = {
 };
 
 export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
+  const { locale, t } = useLocale();
+  const formatDate = (value: string | null) =>
+    formatApiKeyDate(value, locale, t("apiKeys.never"));
   const [apiKeys, setApiKeys] = useState<api.ApiKeyMetadata[]>([]);
   const [apiKeysLoading, setApiKeysLoading] = useState(false);
   const [apiKeyName, setApiKeyName] = useState("");
@@ -67,21 +77,21 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
       try {
         setApiKeys(await api.listApiKeys());
       } catch (err: unknown) {
-        setError(getApiErrorMessage(err, "Failed to load API keys"));
+        setError(getApiErrorMessage(err, t("apiKeys.errors.load")));
       } finally {
         setApiKeysLoading(false);
       }
     };
 
     void fetchApiKeys();
-  }, [disabled]);
+  }, [disabled, t]);
 
   const handleCreateApiKey = async () => {
     if (disabled || apiKeysLoading) return;
     const trimmedName = apiKeyName.trim();
-    if (!trimmedName) return setError("API key name is required");
+    if (!trimmedName) return setError(t("apiKeys.errors.nameRequired"));
     if (selectedScopes.length === 0)
-      return setError("Select at least one API key scope");
+      return setError(t("apiKeys.errors.scopeRequired"));
 
     setActionLoading(true);
     setError("");
@@ -94,11 +104,9 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
       setGeneratedToken(response.token);
       setGeneratedTokenName(response.apiKey.name);
       setCopiedToken(false);
-      onSuccess(
-        "API key created. Copy the token now; it will not be shown again.",
-      );
+      onSuccess(t("apiKeys.created"));
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, "Failed to create API key"));
+      setError(getApiErrorMessage(err, t("apiKeys.errors.create")));
     } finally {
       setActionLoading(false);
     }
@@ -121,10 +129,10 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
         document.body.removeChild(textarea);
       }
       setCopiedToken(true);
-      onSuccess("API key token copied to clipboard");
+      onSuccess(t("apiKeys.tokenCopied"));
       window.setTimeout(() => setCopiedToken(false), 1500);
     } catch {
-      setError("Failed to copy token. Select and copy it manually.");
+      setError(t("apiKeys.errors.copy"));
     }
   };
 
@@ -135,7 +143,7 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
     setSelectedScopes(
       api.API_KEY_SCOPES.filter((value) => next.includes(value)),
     );
-    setError(next.length === 0 ? "Select at least one API key scope" : "");
+    setError(next.length === 0 ? t("apiKeys.errors.scopeRequired") : "");
   };
 
   const handleRevokeApiKey = async (id: string) => {
@@ -150,9 +158,9 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
           apiKey.id === id ? { ...apiKey, revokedAt } : apiKey,
         ),
       );
-      onSuccess("API key revoked");
+      onSuccess(t("apiKeys.revoked"));
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, "Failed to revoke API key"));
+      setError(getApiErrorMessage(err, t("apiKeys.errors.revoke")));
     } finally {
       setActionLoading(false);
       setApiKeyToRevoke(null);
@@ -164,18 +172,17 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
       <SettingsSectionHeader
         icon={<KeyRound size={20} />}
         tileClassName="border-black bg-emerald-400 text-black dark:border-neutral-700 dark:bg-emerald-400 dark:text-black"
-        title="API Keys"
-        subtitle="Tokens for apps and scripts"
+        title={t("apiKeys.title")}
+        subtitle={t("apiKeys.subtitle")}
       />
 
       {disabled ? (
         <div className="p-3.5 bg-amber-50 dark:bg-amber-950 border-2 border-amber-200 dark:border-amber-800 rounded-xl">
           <p className="text-amber-900 dark:text-amber-200 font-bold">
-            API key management is unavailable until you reset your password.
+            {t("apiKeys.unavailable")}
           </p>
           <p className="text-xs text-amber-800 dark:text-amber-200 font-medium mt-0.5">
-            Change your password in Profile, then return here to create and
-            manage API keys.
+            {t("apiKeys.unavailableHint")}
           </p>
         </div>
       ) : (
@@ -194,14 +201,16 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
                 aria-live="polite"
               >
                 <p className="text-slate-900 dark:text-white font-bold">
-                  Copy this token now. You will not be able to see it again.
+                  {t("apiKeys.copyNow")}
                 </p>
                 <p className="text-xs text-slate-600 dark:text-neutral-300 font-medium mt-0.5">
-                  New API key: {generatedTokenName}
+                  {t("apiKeys.newKey", { name: generatedTokenName })}
                 </p>
                 <div className="mt-3 flex flex-col sm:flex-row gap-2">
                   <input
-                    aria-label={`Generated API token for ${generatedTokenName}`}
+                    aria-label={t("apiKeys.generatedToken", {
+                      name: generatedTokenName,
+                    })}
                     value={generatedToken}
                     readOnly
                     className={`${settingsSelectClass} flex-1 text-xs font-semibold tracking-tight`}
@@ -209,11 +218,11 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
                   />
                   <button
                     onClick={() => void handleCopyGeneratedToken()}
-                    aria-label="Copy generated API token"
+                    aria-label={t("apiKeys.copyGeneratedToken")}
                     className="ui-button-primary"
                   >
                     <Copy size={14} />
-                    {copiedToken ? "Copied" : "Copy"}
+                    {copiedToken ? t("common.copied") : t("common.copy")}
                   </button>
                   <button
                     onClick={() => {
@@ -223,7 +232,7 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
                     }}
                     className={settingsButtonClass}
                   >
-                    Done
+                    {t("common.done")}
                   </button>
                 </div>
               </div>
@@ -236,10 +245,10 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
                     htmlFor="apiKeyName"
                     className="block text-sm font-bold text-slate-900 dark:text-white sm:text-base"
                   >
-                    API Key Name
+                    {t("apiKeys.nameLabel")}
                   </label>
                   <p className="mt-0.5 text-xs font-medium text-slate-500 dark:text-neutral-400">
-                    Example: Backup script
+                    {t("apiKeys.nameExample")}
                   </p>
                 </div>
                 <input
@@ -249,7 +258,7 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
                   onChange={(event) => setApiKeyName(event.target.value)}
                   maxLength={100}
                   className={`${settingsSelectClass} ml-auto w-48`}
-                  placeholder="Key name"
+                  placeholder={t("apiKeys.namePlaceholder")}
                 />
                 <button
                   onClick={() => void handleCreateApiKey()}
@@ -261,12 +270,12 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
                   }
                   className={createButtonClass}
                 >
-                  {actionLoading ? "Creating..." : "Create API Key"}
+                  {actionLoading ? t("apiKeys.creating") : t("apiKeys.create")}
                 </button>
               </div>
               <fieldset className="mt-3">
                 <legend className="text-xs font-semibold text-slate-500 dark:text-neutral-400">
-                  Scopes
+                  {t("apiKeys.scopes")}
                 </legend>
                 <div className="mt-1.5 flex flex-wrap gap-2">
                   {api.API_KEY_SCOPES.map((scope) => (
@@ -282,7 +291,11 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
                         }
                         className="h-3.5 w-3.5 accent-emerald-600"
                       />
-                      <span>{API_KEY_SCOPE_LABELS[scope]}</span>
+                      <span>
+                        {API_KEY_SCOPE_LABELS[scope]
+                          ? t(API_KEY_SCOPE_LABELS[scope])
+                          : scope}
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -291,11 +304,11 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
 
             {apiKeysLoading ? (
               <p className="px-4 py-3.5 text-sm text-slate-600 dark:text-neutral-400 font-medium sm:px-5">
-                Loading API keys...
+                {t("apiKeys.loading")}
               </p>
             ) : apiKeys.length === 0 ? (
               <p className="px-4 py-3.5 text-sm text-slate-600 dark:text-neutral-400 font-medium sm:px-5">
-                No API keys have been created yet.
+                {t("apiKeys.empty")}
               </p>
             ) : (
               <>
@@ -318,14 +331,18 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
                                     : "rounded-full border-2 border-black bg-emerald-400 px-2 py-0.5 text-[11px] font-bold text-black dark:border-neutral-700 dark:bg-emerald-400 dark:text-black"
                                 }
                               >
-                                {revoked ? "Revoked" : "Active"}
+                                {revoked
+                                  ? t("apiKeys.status.revoked")
+                                  : t("apiKeys.status.active")}
                               </span>
                               <InfoPopover
-                                label={`Details for API key ${apiKey.name}`}
+                                label={t("apiKeys.details", {
+                                  name: apiKey.name,
+                                })}
                               >
                                 <p>
                                   <span className="font-bold text-slate-900 dark:text-white">
-                                    Prefix
+                                    {t("apiKeys.prefix")}
                                   </span>
                                   <span className="ml-2 text-slate-500 dark:text-neutral-400">
                                     {apiKey.prefix}
@@ -333,24 +350,29 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
                                 </p>
                                 <p>
                                   <span className="font-bold text-slate-900 dark:text-white">
-                                    Scopes
+                                    {t("apiKeys.scopes")}
                                   </span>
                                   <span className="ml-2 text-slate-500 dark:text-neutral-400">
                                     {apiKey.scopes.length > 0
                                       ? apiKey.scopes.join(", ")
-                                      : "None"}
+                                      : t("apiKeys.none")}
                                   </span>
                                 </p>
                                 <p className="text-slate-500 dark:text-neutral-400">
-                                  Created {formatApiKeyDate(apiKey.createdAt)}
+                                  {t("apiKeys.createdAt", {
+                                    date: formatDate(apiKey.createdAt),
+                                  })}
                                 </p>
                                 <p className="text-slate-500 dark:text-neutral-400">
-                                  Last used{" "}
-                                  {formatApiKeyDate(apiKey.lastUsedAt)}
+                                  {t("apiKeys.lastUsedAt", {
+                                    date: formatDate(apiKey.lastUsedAt),
+                                  })}
                                 </p>
                                 {revoked ? (
                                   <p className="text-slate-500 dark:text-neutral-400">
-                                    Revoked {formatApiKeyDate(apiKey.revokedAt)}
+                                    {t("apiKeys.revokedAt", {
+                                      date: formatDate(apiKey.revokedAt),
+                                    })}
                                   </p>
                                 ) : null}
                               </InfoPopover>
@@ -361,10 +383,12 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
                               onClick={() => setApiKeyToRevoke(apiKey)}
                               disabled={actionLoading}
                               className="ui-button-secondary ml-auto text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
-                              aria-label={`Revoke API key ${apiKey.name}`}
+                              aria-label={t("apiKeys.revokeKey", {
+                                name: apiKey.name,
+                              })}
                             >
                               <Trash2 size={14} />
-                              Revoke
+                              {t("apiKeys.revoke")}
                             </button>
                           ) : null}
                         </div>
@@ -379,8 +403,8 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
                       onClick={() => setShowAllKeys((value) => !value)}
                     >
                       {showAllKeys
-                        ? "Show less"
-                        : `Show ${apiKeys.length - 3} more`}
+                        ? t("apiKeys.showLess")
+                        : t("apiKeys.showMore", { count: apiKeys.length - 3 })}
                     </button>
                   </div>
                 ) : null}
@@ -391,13 +415,13 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
       )}
       <ConfirmModal
         isOpen={Boolean(apiKeyToRevoke)}
-        title="Revoke API Key"
+        title={t("apiKeys.revokeTitle")}
         message={
           apiKeyToRevoke
-            ? `Revoke API key "${apiKeyToRevoke.name}"? Existing integrations using this key will stop working.`
+            ? t("apiKeys.revokeMessage", { name: apiKeyToRevoke.name })
             : ""
         }
-        confirmText="Revoke"
+        confirmText={t("apiKeys.revoke")}
         onConfirm={() =>
           apiKeyToRevoke && void handleRevokeApiKey(apiKeyToRevoke.id)
         }

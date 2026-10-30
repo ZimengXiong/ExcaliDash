@@ -9,6 +9,7 @@ import { displayFontFamily } from "../utils/displayFont";
 import { PasswordCard } from "./profile/PasswordCard";
 import { getApiErrorMessage } from "../utils/getApiErrorMessage";
 import { UserAvatar } from "../components/UserAvatar";
+import { useLocale } from "../context/useLocale";
 import {
   SettingsCard,
   settingsButtonClass,
@@ -25,6 +26,7 @@ export const Profile: React.FC = () => {
     updateUser,
   } = useAuth();
   const navigate = useNavigate();
+  const { t } = useLocale();
   const mustResetPassword = Boolean(authUser?.mustResetPassword);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [loading, setLoading] = useState(false);
@@ -79,11 +81,11 @@ export const Profile: React.FC = () => {
 
   const handleUpdateName = async () => {
     if (mustResetPassword) {
-      setError("You must reset your password before updating your profile");
+      setError(t("profile.errors.resetBeforeProfile"));
       return;
     }
     if (!name.trim()) {
-      setError("Name cannot be empty");
+      setError(t("profile.errors.nameEmpty"));
       return;
     }
 
@@ -101,12 +103,12 @@ export const Profile: React.FC = () => {
           updatedAt: string;
         };
       }>("/auth/profile", { name: name.trim() });
-      setSuccess("Name updated successfully");
+      setSuccess(t("profile.nameUpdated"));
       if (response.data?.user) {
         updateUser(response.data.user);
       }
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, "Failed to update name"));
+      setError(getApiErrorMessage(err, t("profile.errors.updateName")));
     } finally {
       setLoading(false);
     }
@@ -114,15 +116,15 @@ export const Profile: React.FC = () => {
 
   const handleUpdateEmail = async () => {
     if (mustResetPassword) {
-      setError("You must reset your password before changing your email");
+      setError(t("profile.errors.resetBeforeEmail"));
       return;
     }
     if (!email.trim()) {
-      setError("Email cannot be empty");
+      setError(t("profile.errors.emailEmpty"));
       return;
     }
     if (!emailCurrentPassword) {
-      setError("Current password is required to change email");
+      setError(t("profile.errors.currentPasswordRequired"));
       return;
     }
 
@@ -146,11 +148,11 @@ export const Profile: React.FC = () => {
 
       updateUser(response.data.user);
 
-      setSuccess("Email updated successfully");
+      setSuccess(t("profile.emailUpdated"));
       setShowEmailForm(false);
       setEmailCurrentPassword("");
     } catch (err: unknown) {
-      setError(getApiErrorMessage(err, "Failed to update email"));
+      setError(getApiErrorMessage(err, t("profile.errors.updateEmail")));
     } finally {
       setEmailLoading(false);
     }
@@ -170,7 +172,7 @@ export const Profile: React.FC = () => {
           className="text-3xl sm:text-5xl mb-6 sm:mb-8 text-slate-900 dark:text-white pl-1"
           style={{ fontFamily: displayFontFamily }}
         >
-          Profile
+          {t("sidebar.profile")}
         </h1>
 
         {success && (
@@ -194,10 +196,10 @@ export const Profile: React.FC = () => {
               {mustResetPassword && (
                 <div className="mb-3 p-3.5 bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800 rounded-xl">
                   <p className="text-amber-900 dark:text-amber-200 font-bold">
-                    Password reset required
+                    {t("profile.resetRequired")}
                   </p>
                   <p className="text-xs text-amber-800 dark:text-amber-200/80 font-medium mt-0.5">
-                    Change your password below before using ExcaliDash.
+                    {t("profile.resetRequiredHint")}
                   </p>
                 </div>
               )}
@@ -210,12 +212,12 @@ export const Profile: React.FC = () => {
                       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                         <input
                           id="name"
-                          aria-label="Display name"
+                          aria-label={t("profile.displayName")}
                           type="text"
                           value={name}
                           onChange={(e) => setName(e.target.value)}
                           className={`${settingsSelectClass} min-w-40 flex-1`}
-                          placeholder="Your name"
+                          placeholder={t("auth.yourName")}
                         />
                         <button
                           onClick={handleUpdateName}
@@ -228,7 +230,7 @@ export const Profile: React.FC = () => {
                           className={settingsPrimaryButtonClass}
                         >
                           <Save size={14} />
-                          Save
+                          {t("common.save")}
                         </button>
                       </div>
                     </div>
@@ -238,7 +240,7 @@ export const Profile: React.FC = () => {
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                     <div className="min-w-0 flex-1 basis-40">
                       <h3 className="text-sm font-bold text-slate-900 dark:text-white sm:text-base">
-                        Email
+                        {t("profile.email")}
                       </h3>
                       <p className="mt-0.5 truncate text-xs font-medium text-slate-500 dark:text-neutral-400">
                         {email}
@@ -255,7 +257,7 @@ export const Profile: React.FC = () => {
                         disabled={mustResetPassword}
                         className={`${settingsButtonClass} ml-auto`}
                       >
-                        Change
+                        {t("profile.change")}
                       </button>
                     )}
                   </div>
@@ -267,7 +269,7 @@ export const Profile: React.FC = () => {
                           htmlFor="email"
                           className="mb-1 block text-xs font-semibold text-slate-500 dark:text-neutral-400"
                         >
-                          New email
+                          {t("profile.newEmail")}
                         </label>
                         <input
                           id="email"
@@ -282,7 +284,7 @@ export const Profile: React.FC = () => {
                           htmlFor="emailCurrentPassword"
                           className="mb-1 block text-xs font-semibold text-slate-500 dark:text-neutral-400"
                         >
-                          Current password
+                          {t("password.currentPassword")}
                         </label>
                         <input
                           id="emailCurrentPassword"
@@ -292,7 +294,7 @@ export const Profile: React.FC = () => {
                             setEmailCurrentPassword(e.target.value)
                           }
                           className={`${settingsSelectClass} w-full`}
-                          placeholder="Enter current password"
+                          placeholder={t("password.enterCurrent")}
                         />
                       </div>
                       <div className="flex gap-2">
@@ -306,7 +308,9 @@ export const Profile: React.FC = () => {
                           }
                           className={settingsPrimaryButtonClass}
                         >
-                          {emailLoading ? "Saving…" : "Save email"}
+                          {emailLoading
+                            ? t("common.saving")
+                            : t("profile.saveEmail")}
                         </button>
                         <button
                           onClick={() => {
@@ -318,7 +322,7 @@ export const Profile: React.FC = () => {
                           disabled={emailLoading}
                           className={settingsButtonClass}
                         >
-                          Cancel
+                          {t("common.cancel")}
                         </button>
                       </div>
                     </div>

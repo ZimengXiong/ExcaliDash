@@ -19,11 +19,13 @@ import { useDashboardDrawingActions } from "./dashboard/useDashboardDrawingActio
 import { useDashboardSelection } from "./dashboard/useDashboardSelection";
 import { useDashboardSort } from "./dashboard/useDashboardSort";
 import { displayFontFamily } from "../utils/displayFont";
+import { useLocale } from "../context/useLocale";
 const PAGE_SIZE = 24;
 export const Dashboard: React.FC = () => {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = useLocale();
   const selectedCollectionId = React.useMemo(() => {
     if (location.pathname === "/") return undefined;
     if (location.pathname === "/collections") {
@@ -146,13 +148,13 @@ export const Dashboard: React.FC = () => {
     refreshData,
   });
   const viewTitle = React.useMemo(() => {
-    if (selectedCollectionId === undefined) return "All Drawings";
-    if (selectedCollectionId === null) return "Unorganized";
-    if (selectedCollectionId === "shared") return "Shared with me";
-    if (selectedCollectionId === "trash") return "Trash";
+    if (selectedCollectionId === undefined) return t("sidebar.allDrawings");
+    if (selectedCollectionId === null) return t("sidebar.unorganized");
+    if (selectedCollectionId === "shared") return t("sidebar.sharedWithMe");
+    if (selectedCollectionId === "trash") return t("sidebar.trash");
     const collection = collections.find((c) => c.id === selectedCollectionId);
-    return collection ? collection.name : "Collection";
-  }, [selectedCollectionId, collections]);
+    return collection ? collection.name : t("collection.fallbackName");
+  }, [selectedCollectionId, collections, t]);
   const visibleCollections = React.useMemo(
     () => collections.filter((c) => c.id !== "trash"),
     [collections],
@@ -276,16 +278,16 @@ export const Dashboard: React.FC = () => {
             <div className="flex items-center gap-2 text-indigo-600 font-bold animate-in fade-in slide-in-from-bottom-2">
               {" "}
               <Loader2 size={24} className="animate-spin" />{" "}
-              <span>Loading more...</span>{" "}
+              <span>{t("dashboard.loadingMore")}</span>{" "}
             </div>
           )}{" "}
         </div>{" "}
       </div>{" "}
       <ConfirmModal
         isOpen={!!actions.drawingToDelete}
-        title="Delete Drawing"
-        message="Are you sure you want to permanently delete this drawing? This action cannot be undone."
-        confirmText="Delete Permanently"
+        title={t("dashboard.deleteDrawing.title")}
+        message={t("dashboard.deleteDrawing.message")}
+        confirmText={t("dashboard.deletePermanently")}
         onConfirm={() =>
           actions.drawingToDelete &&
           actions.executePermanentDelete(actions.drawingToDelete)
@@ -294,17 +296,19 @@ export const Dashboard: React.FC = () => {
       />{" "}
       <ConfirmModal
         isOpen={actions.showBulkDeleteConfirm}
-        title="Delete Selected Drawings"
-        message={`Are you sure you want to permanently delete ${selectedIds.size} drawings? This action cannot be undone.`}
-        confirmText={`Delete ${selectedIds.size} Drawings`}
+        title={t("dashboard.bulkDelete.title")}
+        message={t("dashboard.bulkDelete.message", { count: selectedIds.size })}
+        confirmText={t("dashboard.bulkDelete.confirm", {
+          count: selectedIds.size,
+        })}
         onConfirm={actions.executeBulkPermanentDelete}
         onCancel={() => actions.setShowBulkDeleteConfirm(false)}
       />{" "}
       <ConfirmModal
         isOpen={actions.showImportError.isOpen}
-        title="Import Failed"
+        title={t("dashboard.importFailed")}
         message={actions.showImportError.message}
-        confirmText="OK"
+        confirmText={t("common.ok")}
         showCancel={false}
         isDangerous={false}
         onConfirm={() =>

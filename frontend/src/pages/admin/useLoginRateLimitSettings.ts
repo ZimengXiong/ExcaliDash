@@ -2,6 +2,9 @@ import { useBeforeUnload } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import * as api from "../../api";
+// translateCurrent keeps these callbacks stable so locale changes don't
+// retrigger the load/auto-save effects that depend on them.
+import { translateCurrent as t } from "../../i18n";
 
 type LoginRateLimitFormState = {
   enabled: boolean;
@@ -78,7 +81,7 @@ export const useLoginRateLimitSettings = ({
       setMaxAttempts(nextConfig.max);
       setSavedConfig(nextConfig);
     } catch (err: unknown) {
-      let message = "Failed to load rate limit config";
+      let message = t("admin.rateLimit.errors.load");
       if (api.isAxiosError(err)) {
         message =
           err.response?.data?.message || err.response?.data?.error || message;
@@ -116,10 +119,10 @@ export const useLoginRateLimitSettings = ({
       setMaxAttempts(nextConfig.max);
       setSavedConfig(nextConfig);
       setAutoSaveQueued(false);
-      toast.success("Login rate limit changes saved");
+      toast.success(t("admin.rateLimit.changesSaved"));
       return true;
     } catch (err: unknown) {
-      let message = "Failed to save rate limit config";
+      let message = t("admin.rateLimit.errors.save");
       if (api.isAxiosError(err)) {
         message =
           err.response?.data?.message || err.response?.data?.error || message;
@@ -134,7 +137,7 @@ export const useLoginRateLimitSettings = ({
   const reset = useCallback(async () => {
     const identifier = resetIdentifier.trim();
     if (!identifier) {
-      setError("Enter an email/username to reset");
+      setError(t("admin.rateLimit.errors.identifierRequired"));
       return;
     }
     setResetLoading(true);
@@ -142,10 +145,10 @@ export const useLoginRateLimitSettings = ({
     setSuccess("");
     try {
       await api.api.post("/auth/rate-limit/login/reset", { identifier });
-      setSuccess(`Reset login rate limit for ${identifier}`);
+      setSuccess(t("admin.rateLimit.resetDone", { identifier }));
       setResetIdentifier("");
     } catch (err: unknown) {
-      let message = "Failed to reset rate limit";
+      let message = t("admin.rateLimit.errors.reset");
       if (api.isAxiosError(err)) {
         message =
           err.response?.data?.message || err.response?.data?.error || message;

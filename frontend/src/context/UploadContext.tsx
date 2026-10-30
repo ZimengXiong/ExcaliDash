@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { importDrawings } from "../utils/importUtils";
 import { uuidv4 } from "../utils/uuid";
+import { translateCurrent } from "../i18n";
 
 export type UploadStatus =
   "pending" | "uploading" | "processing" | "success" | "error";
@@ -85,7 +86,7 @@ export const UploadProvider: React.FC<{ children: ReactNode }> = ({
         fileName: f.name,
         status: "error",
         progress: 0,
-        error: "Unsupported file type",
+        error: translateCurrent("upload.errors.unsupportedFileType"),
       }));
 
       const supportedTasks: UploadTask[] = supportedFiles.map((f) => ({
@@ -130,7 +131,7 @@ export const UploadProvider: React.FC<{ children: ReactNode }> = ({
           if (t.status !== "error") {
             updateTask(t.id, {
               status: "error",
-              error: "Upload failed unexpectedly",
+              error: translateCurrent("upload.errors.unexpected"),
             });
           }
         });

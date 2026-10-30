@@ -3,6 +3,7 @@ import clsx from "clsx";
 import { AlertTriangle, Folder, Inbox, Loader2, Trash2 } from "lucide-react";
 import { DrawingCard } from "../../components/DrawingCard";
 import type { Collection, DrawingSummary } from "../../types";
+import { useLocale } from "../../context/useLocale";
 
 type DragPreviewProps = {
   drawings: DrawingSummary[];
@@ -80,21 +81,24 @@ type FileDropOverlayProps = {
 
 export const FileDropOverlay: React.FC<FileDropOverlayProps> = ({
   viewTitle,
-}) => (
-  <div className="absolute inset-0 z-50 bg-white/80 backdrop-blur-sm border-4 border-dashed border-indigo-400 rounded-3xl flex flex-col items-center justify-center animate-in fade-in duration-200">
-    <div className="bg-indigo-50 p-6 sm:p-8 rounded-full mb-5 sm:mb-6 shadow-sm">
-      <Inbox size={56} className="text-indigo-600 hidden sm:block" />
-      <Inbox size={44} className="text-indigo-600 sm:hidden" />
+}) => {
+  const { t } = useLocale();
+  return (
+    <div className="absolute inset-0 z-50 bg-white/80 backdrop-blur-sm border-4 border-dashed border-indigo-400 rounded-3xl flex flex-col items-center justify-center animate-in fade-in duration-200">
+      <div className="bg-indigo-50 p-6 sm:p-8 rounded-full mb-5 sm:mb-6 shadow-sm">
+        <Inbox size={56} className="text-indigo-600 hidden sm:block" />
+        <Inbox size={44} className="text-indigo-600 sm:hidden" />
+      </div>
+      <h3 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-2 text-center px-4">
+        {t("dashboard.dropFilesTitle")}
+      </h3>
+      <p className="text-slate-500 text-base sm:text-lg max-w-sm sm:max-w-md text-center px-4">
+        {t("dashboard.dropFilesDescription")}
+        <span className="font-bold text-indigo-600 mx-1">{viewTitle}</span>
+      </p>
     </div>
-    <h3 className="text-2xl sm:text-3xl font-bold text-slate-800 mb-2 text-center px-4">
-      Drop files to import
-    </h3>
-    <p className="text-slate-500 text-base sm:text-lg max-w-sm sm:max-w-md text-center px-4">
-      Drop .excalidash files here to import them into
-      <span className="font-bold text-indigo-600 mx-1">{viewTitle}</span>
-    </p>
-  </div>
-);
+  );
+};
 
 type DrawingsGridProps = {
   drawings: DrawingSummary[];
@@ -143,12 +147,13 @@ export const DrawingsGrid: React.FC<DrawingsGridProps> = ({
   onDragStart,
   onPreviewGenerated,
 }) => {
+  const { t } = useLocale();
   if (isLoading && drawings.length === 0) {
     return (
       <div
         className="flex justify-center items-center h-64 text-indigo-600"
         role="status"
-        aria-label="Loading drawings"
+        aria-label={t("dashboard.loadingDrawings")}
       >
         <Loader2 size={32} className="animate-spin" />
         <span className="sr-only">Loading drawings</span>
@@ -177,13 +182,15 @@ export const DrawingsGrid: React.FC<DrawingsGridProps> = ({
             )}
           </div>
           <p className="text-lg font-semibold text-slate-600 dark:text-slate-400">
-            {isTrashView ? "Your trash is empty" : "No drawings found"}
+            {isTrashView
+              ? t("dashboard.trashEmpty")
+              : t("dashboard.noDrawings")}
           </p>
           {!isTrashView && (
             <p className="text-sm mt-2 text-slate-400 dark:text-neutral-500 max-w-xs text-center">
               {search
-                ? `No results for "${search}"`
-                : "Create a new drawing to get started!"}
+                ? t("dashboard.noResults", { search })
+                : t("dashboard.getStarted")}
             </p>
           )}
           {search && (
@@ -191,7 +198,7 @@ export const DrawingsGrid: React.FC<DrawingsGridProps> = ({
               onClick={onClearSearch}
               className="ui-button-secondary mt-4"
             >
-              Clear search
+              {t("dashboard.clearSearch")}
             </button>
           )}
         </div>

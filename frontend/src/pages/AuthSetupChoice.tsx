@@ -5,11 +5,13 @@ import { Logo } from "../components/Logo";
 import { useAuth } from "../context/AuthContext";
 import * as api from "../api";
 import { AuthStatusErrorPanel } from "../components/AuthStatusErrorPanel";
+import { useLocale } from "../context/useLocale";
 
 type Step = "choice" | "confirm-disable";
 
 export const AuthSetupChoice: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useLocale();
   const {
     loading: authLoading,
     authEnabled,
@@ -77,7 +79,7 @@ export const AuthSetupChoice: React.FC = () => {
 
       window.location.href = "/";
     } catch (err: unknown) {
-      let message = "Failed to apply authentication choice";
+      let message = t("authSetup.failed");
       if (api.isAxiosError(err)) {
         message =
           err.response?.data?.message || err.response?.data?.error || message;
@@ -99,7 +101,9 @@ export const AuthSetupChoice: React.FC = () => {
     }
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
-        <div className="text-gray-600 dark:text-gray-400">Loading...</div>
+        <div className="text-gray-600 dark:text-gray-400">
+          {t("common.loading")}
+        </div>
       </div>
     );
   }
@@ -111,15 +115,15 @@ export const AuthSetupChoice: React.FC = () => {
           <Logo className="mx-auto h-12 w-auto" />
           <h1 className="mt-6 text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white leading-tight">
             {step === "choice"
-              ? "Choose Authentication Mode"
-              : "Keep Authentication Disabled?"}
+              ? t("authSetup.chooseTitle")
+              : t("authSetup.confirmDisableTitle")}
           </h1>
           <p className="mt-3 text-sm text-slate-600 dark:text-neutral-300">
             {step === "choice"
               ? isMigrationMode
-                ? "Existing data detected."
-                : "Secure this workspace."
-              : "Only use this on a trusted network."}
+                ? t("authSetup.existingData")
+                : t("authSetup.secureWorkspace")
+              : t("authSetup.trustedNetworkOnly")}
           </p>
         </div>
 
@@ -134,9 +138,9 @@ export const AuthSetupChoice: React.FC = () => {
             <>
               <div className="mb-6 rounded-lg border border-indigo-200 dark:border-neutral-700 bg-indigo-50 dark:bg-neutral-800 p-4 text-sm text-slate-700 dark:text-neutral-200">
                 <div className="font-semibold text-indigo-900 dark:text-indigo-200 mb-1">
-                  Secure ExcaliDash
+                  {t("authSetup.secureTitle")}
                 </div>
-                <div>Create an admin account and restrict access.</div>
+                <div>{t("authSetup.secureDescription")}</div>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -149,7 +153,7 @@ export const AuthSetupChoice: React.FC = () => {
                   className="ui-button-primary px-4 py-3"
                 >
                   <Shield size={18} />
-                  Enable Authentication
+                  {t("authSetup.enable")}
                 </button>
 
                 <button
@@ -159,7 +163,7 @@ export const AuthSetupChoice: React.FC = () => {
                   className="ui-button-secondary px-4 py-3"
                 >
                   <ShieldOff size={18} />
-                  Keep Disabled
+                  {t("authSetup.keepDisabled")}
                 </button>
               </div>
             </>
@@ -168,7 +172,7 @@ export const AuthSetupChoice: React.FC = () => {
               <div className="mb-6 rounded-lg border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950 p-4 text-sm text-rose-900 dark:text-rose-200">
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400" />
-                  <div>Anyone on this network can access every drawing.</div>
+                  <div>{t("authSetup.disableWarning")}</div>
                 </div>
               </div>
 
@@ -179,7 +183,7 @@ export const AuthSetupChoice: React.FC = () => {
                   onClick={() => setStep("choice")}
                   className="ui-button-secondary px-4 py-3"
                 >
-                  Go Back
+                  {t("common.goBack")}
                 </button>
 
                 <button
@@ -190,7 +194,7 @@ export const AuthSetupChoice: React.FC = () => {
                   }}
                   className="ui-button-danger px-4 py-3"
                 >
-                  Disable Authentication
+                  {t("authSetup.disable")}
                 </button>
               </div>
             </>

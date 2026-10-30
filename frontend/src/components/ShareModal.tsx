@@ -16,6 +16,7 @@ import {
   DEFAULT_EDIT_EXPIRY_OPTION,
   toDatetimeLocalFromIso,
 } from "./share-modal/shareUtils";
+import { useLocale } from "../context/useLocale";
 
 type Props = {
   anchorRef: React.RefObject<HTMLElement>;
@@ -31,6 +32,7 @@ export const ShareModal: React.FC<Props> = ({
   onClose,
   anchorRef,
 }) => {
+  const { t } = useLocale();
   const [position, setPosition] = useState({ right: 12, top: 72 });
   useEffect(() => {
     if (!isOpen) return;
@@ -102,7 +104,7 @@ export const ShareModal: React.FC<Props> = ({
       const data = await api.getDrawingSharing(drawingId);
       setSharing(data);
     } catch (err: unknown) {
-      let message = "Failed to load sharing settings";
+      let message = t("collection.share.errors.load");
       if (api.isAxiosError(err)) {
         const serverMessage =
           typeof err.response?.data?.message === "string"
@@ -114,7 +116,7 @@ export const ShareModal: React.FC<Props> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [drawingId]);
+  }, [drawingId, t]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -189,7 +191,7 @@ export const ShareModal: React.FC<Props> = ({
       setUserQuery("");
       setUserResults([]);
     } catch (err: unknown) {
-      let message = "Failed to share with user";
+      let message = t("collection.share.errors.add");
       if (api.isAxiosError(err)) {
         const serverMessage =
           typeof err.response?.data?.message === "string"
@@ -210,7 +212,7 @@ export const ShareModal: React.FC<Props> = ({
       await api.revokeDrawingPermission(drawingId, permissionId);
       await refresh();
     } catch {
-      setError("Failed to revoke access");
+      setError(t("editor.share.errors.revokeAccess"));
     } finally {
       setIsLoading(false);
     }
@@ -229,7 +231,7 @@ export const ShareModal: React.FC<Props> = ({
       });
       await refresh();
     } catch (err: unknown) {
-      let message = "Failed to update access";
+      let message = t("editor.share.errors.updateAccess");
       if (api.isAxiosError(err)) {
         const serverMessage =
           typeof err.response?.data?.message === "string"
@@ -264,7 +266,7 @@ export const ShareModal: React.FC<Props> = ({
       await refresh();
       void handleCopy(shareableEditorUrl);
     } catch (err: unknown) {
-      let message = "Failed to update link";
+      let message = t("editor.share.errors.updateLink");
       if (api.isAxiosError(err)) {
         const serverMessage =
           typeof err.response?.data?.message === "string"
@@ -286,7 +288,7 @@ export const ShareModal: React.FC<Props> = ({
       await api.revokeLinkShare(drawingId, activeLink.id);
       await refresh();
     } catch {
-      setError("Failed to revoke link");
+      setError(t("editor.share.errors.revokeLink"));
     } finally {
       setIsLoading(false);
     }
@@ -307,7 +309,7 @@ export const ShareModal: React.FC<Props> = ({
       <div
         style={position}
         role="dialog"
-        aria-label="Share drawing"
+        aria-label={t("editor.share.title")}
         className="fixed z-[160] flex max-h-[calc(100dvh-5rem)] w-[min(460px,calc(100vw-24px))] flex-col overflow-hidden rounded-2xl border-2 border-slate-800 bg-white font-sans shadow-[3px_3px_0px_0px_rgba(30,41,59,0.9)] animate-in fade-in slide-in-from-top-3 duration-200 dark:border-neutral-600 dark:bg-neutral-900 dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.18)]"
       >
         {/* Content */}
@@ -361,7 +363,9 @@ export const ShareModal: React.FC<Props> = ({
             ) : (
               <LinkIcon size={14} strokeWidth={2.5} />
             )}
-            {isCopied ? "Copied Link!" : "Copy Link"}
+            {isCopied
+              ? t("editor.share.linkCopied")
+              : t("editor.share.copyLink")}
           </button>
         </div>
 
@@ -369,7 +373,7 @@ export const ShareModal: React.FC<Props> = ({
           <div
             className="absolute inset-0 bg-white/20 dark:bg-black/10 backdrop-blur-[1px] flex items-center justify-center z-[300] pointer-events-none rounded-[14px]"
             role="status"
-            aria-label="Updating sharing settings"
+            aria-label={t("editor.share.updating")}
           >
             <div className="ui-popover p-4">
               <RefreshCw

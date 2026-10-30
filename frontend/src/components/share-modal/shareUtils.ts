@@ -1,11 +1,13 @@
-export const EXPIRY_OPTIONS = [
-  { label: "Disable in 1 hour", value: "1h" },
-  { label: "Disable in 1 day", value: "1d" },
-  { label: "Disable in 2 days", value: "2d" },
-  { label: "Disable in 7 days", value: "7d" },
-  { label: "Disable in 30 days", value: "30d" },
-  { label: "Never auto-disable", value: "never" },
-  { label: "Disable at...", value: "custom" },
+import type { TranslationKey } from "../../i18n";
+
+export const EXPIRY_OPTIONS: { labelKey: TranslationKey; value: string }[] = [
+  { labelKey: "editor.share.expiry.1h", value: "1h" },
+  { labelKey: "editor.share.expiry.1d", value: "1d" },
+  { labelKey: "editor.share.expiry.2d", value: "2d" },
+  { labelKey: "editor.share.expiry.7d", value: "7d" },
+  { labelKey: "editor.share.expiry.30d", value: "30d" },
+  { labelKey: "editor.share.expiry.never", value: "never" },
+  { labelKey: "editor.share.expiry.custom", value: "custom" },
 ];
 
 export const EXPIRY_OPTIONS_FOR_EDIT = EXPIRY_OPTIONS.filter(

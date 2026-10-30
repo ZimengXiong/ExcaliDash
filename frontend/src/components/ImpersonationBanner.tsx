@@ -3,6 +3,7 @@ import { LogIn, RefreshCw, XCircle } from "lucide-react";
 import { api, isAxiosError } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { PlayfulSelect } from "./PlayfulSelect";
+import { useLocale } from "../context/useLocale";
 import {
   IMPERSONATION_KEY,
   USER_KEY,
@@ -50,6 +51,7 @@ const normalizeTarget = (
 
 export const ImpersonationBanner: React.FC = () => {
   const { authEnabled } = useAuth();
+  const { t } = useLocale();
   const [impersonation, setImpersonation] = useState<ImpersonationState | null>(
     null,
   );
@@ -103,7 +105,7 @@ export const ImpersonationBanner: React.FC = () => {
       );
       setTargets(response.data.users || []);
     } catch (err: unknown) {
-      let message = "Failed to load impersonation targets";
+      let message = t("impersonation.errors.loadTargets");
       if (isAxiosError(err)) {
         message =
           err.response?.data?.message || err.response?.data?.error || message;
@@ -153,7 +155,7 @@ export const ImpersonationBanner: React.FC = () => {
       }
       window.location.reload();
     } catch (err: unknown) {
-      let message = "Failed to stop impersonation";
+      let message = t("impersonation.errors.stop");
       if (isAxiosError(err)) {
         message =
           err.response?.data?.message || err.response?.data?.error || message;
@@ -197,7 +199,7 @@ export const ImpersonationBanner: React.FC = () => {
       localStorage.setItem(USER_KEY, JSON.stringify(response.data.user));
       window.location.reload();
     } catch (err: unknown) {
-      let message = "Failed to switch impersonation user";
+      let message = t("impersonation.errors.switch");
       if (isAxiosError(err)) {
         message =
           err.response?.data?.message || err.response?.data?.error || message;
@@ -217,7 +219,9 @@ export const ImpersonationBanner: React.FC = () => {
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <div className="flex items-center gap-1.5 text-red-700 dark:text-red-400 flex-shrink-0">
             <LogIn size={14} strokeWidth={2.5} />
-            <span className="text-xs font-bold">Impersonating</span>
+            <span className="text-xs font-bold">
+              {t("impersonation.impersonating")}
+            </span>
           </div>
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-sm font-bold text-red-900 dark:text-red-100 truncate">
@@ -231,10 +235,10 @@ export const ImpersonationBanner: React.FC = () => {
 
         <div className="flex items-center gap-2 ml-auto">
           <div className="hidden items-center gap-1.5 text-xs font-semibold text-red-700/60 dark:text-red-400/40 lg:flex">
-            Switch:
+            {t("impersonation.switchLabel")}
           </div>
           <PlayfulSelect
-            ariaLabel="Switch impersonation target"
+            ariaLabel={t("impersonation.switchTarget")}
             value={impersonation.target.id}
             onChange={(value) => {
               void switchTarget(value);
@@ -254,7 +258,7 @@ export const ImpersonationBanner: React.FC = () => {
             className="ui-button-danger h-8 px-3 text-[11px]"
           >
             <XCircle size={14} strokeWidth={2.5} />
-            <span className="hidden sm:inline">Stop</span>
+            <span className="hidden sm:inline">{t("impersonation.stop")}</span>
           </button>
         </div>
       </div>
@@ -264,7 +268,7 @@ export const ImpersonationBanner: React.FC = () => {
           {loadingTargets ? (
             <span className="inline-flex items-center gap-1.5">
               <RefreshCw size={10} className="animate-spin" />
-              Syncing targets...
+              {t("impersonation.syncingTargets")}
             </span>
           ) : null}
           {error ? <span className="truncate">{error}</span> : null}
@@ -274,7 +278,7 @@ export const ImpersonationBanner: React.FC = () => {
               onClick={() => void loadTargets()}
               className="ui-icon-button h-7 w-7 border-transparent bg-transparent shadow-none dark:bg-transparent"
             >
-              Retry
+              {t("common.retry")}
             </button>
           ) : null}
         </div>
