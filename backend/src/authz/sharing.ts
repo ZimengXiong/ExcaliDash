@@ -1,6 +1,7 @@
 import type { PrismaClient } from "../generated/client";
 import crypto from "crypto";
 import { hashTokenForStorage } from "../auth/tokenSecurity";
+import { isTrashCollectionId } from "../routes/dashboard/trash";
 
 export type DrawingPermission = "view" | "edit";
 export type DrawingAccess = "none" | DrawingPermission | "owner";
@@ -113,9 +114,20 @@ const getActiveLinkShareAccess = async (params: {
       OR: [{ expiresAt: null }, { expiresAt: { gt: new Date(params.nowMs) } }],
     },
     orderBy: { createdAt: "desc" },
-    select: { permission: true },
+    select: {
+      permission: true,
+      drawing: { select: { userId: true, collectionId: true } },
+    },
   });
-  return normalizeDrawingPermission(linkShare?.permission);
+  if (!linkShare) return null;
+  // A drawing in its owner's Trash pauses the link share. The row is kept, so
+  // restoring the drawing brings the same link back.
+  if (
+    isTrashCollectionId(linkShare.drawing.collectionId, linkShare.drawing.userId)
+  ) {
+    return null;
+  }
+  return normalizeDrawingPermission(linkShare.permission);
 };
 
 const accessRank = (access: DrawingAccess): number => {
