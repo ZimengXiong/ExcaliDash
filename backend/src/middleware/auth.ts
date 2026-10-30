@@ -10,10 +10,8 @@ import {
   readCookie,
 } from "../auth/cookies";
 import {
-  apiKeyHashMatches,
-  extractApiKeyId,
+  authenticateApiKey as authenticateApiKeyWithPrisma,
   isApiKeyToken,
-  parseApiKeyScopes,
 } from "../auth/apiKeys";
 declare global {
   namespace Express {
@@ -201,30 +199,8 @@ export const createAuthMiddleware = ({
         isActive: true,
       },
     });
-  const authenticateApiKey = async (token: string) => {
-    const keyId = extractApiKeyId(token);
-    if (!keyId) return null;
-    const apiKey = await prisma.apiKey.findUnique({
-      where: { keyId },
-      include: { user: true },
-    });
-    if (!apiKey || apiKey.revokedAt) return null;
-    if (!apiKeyHashMatches(token, apiKey.tokenHash)) return null;
-    if (!apiKey.user.isActive) return null;
-    try {
-      await prisma.apiKey.update({
-        where: { id: apiKey.id },
-        data: { lastUsedAt: new Date() },
-      });
-    } catch (error) {
-      console.warn("Failed to update API key lastUsedAt:", error);
-    }
-    return {
-      user: apiKey.user,
-      scopes: parseApiKeyScopes(apiKey.scopes),
-      drawingId: apiKey.drawingId ?? null,
-    };
-  };
+  const authenticateApiKey = (token: string) =>
+    authenticateApiKeyWithPrisma(prisma, token);
   const shouldReconcileOidcRole = async (
     payload: JwtPayload,
     userId: string,
