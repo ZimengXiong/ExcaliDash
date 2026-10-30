@@ -128,20 +128,27 @@ const ExcalidrawEditor: React.FC = () => {
       replace: true,
     });
   }, [id, location.hash, location.pathname, location.search, navigate]);
-  const { peers, socketMeRef, socketRef, isSyncing, onPointerUpdate } =
-    useEditorCollaboration({
-      drawingId: id,
-      me,
-      isReady,
-      excalidrawAPI,
-      lastSyncedFilesRef,
-      lastSyncedElementOrderSigRef,
-      latestElementsRef,
-      latestFilesRef,
-      computeElementOrderSig,
-      recordElementVersion,
-      onAccessDenied: handleSocketAccessDenied,
-    });
+  const {
+    peers,
+    followedUserId,
+    toggleFollow,
+    socketMeRef,
+    socketRef,
+    isSyncing,
+    onPointerUpdate,
+  } = useEditorCollaboration({
+    drawingId: id,
+    me,
+    isReady,
+    excalidrawAPI,
+    lastSyncedFilesRef,
+    lastSyncedElementOrderSigRef,
+    latestElementsRef,
+    latestFilesRef,
+    computeElementOrderSig,
+    recordElementVersion,
+    onAccessDenied: handleSocketAccessDenied,
+  });
   const { scanNow: scanFileUploads } = useEditorFileUploads({
     canEdit,
     drawingId: id,
@@ -361,6 +368,8 @@ const ExcalidrawEditor: React.FC = () => {
         me={me}
         newName={newName}
         peers={peers}
+        followedUserId={followedUserId}
+        onToggleFollow={toggleFollow}
         theme={theme}
         onBackClick={handleBackClick}
         onCanvasChange={handleCanvasChange}

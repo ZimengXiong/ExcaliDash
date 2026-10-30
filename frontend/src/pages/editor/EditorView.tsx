@@ -20,10 +20,7 @@ import { ShareModal } from "../../components/ShareModal";
 import { UserAvatar as ProfileAvatar } from "../../components/UserAvatar";
 import type { UserIdentity } from "../../utils/identity";
 import { UIOptions, validateEmbeddableUrl } from "./shared";
-
-interface Peer extends UserIdentity {
-  isActive: boolean;
-}
+import type { Peer } from "./useEditorCollaboration";
 
 type EditorViewProps = {
   id?: string;
@@ -47,6 +44,8 @@ type EditorViewProps = {
   me: UserIdentity;
   newName: string;
   peers: Peer[];
+  followedUserId: string | null;
+  onToggleFollow: (peer: Peer) => void;
   theme: string;
   onBackClick: () => void;
   onCanvasChange: (
@@ -79,12 +78,19 @@ const CollaboratorAvatar = ({
   user,
   label,
   inactive = false,
+  followed = false,
+  onClick,
 }: {
   user: UserIdentity;
   label: string;
   inactive?: boolean;
-}) => (
-  <div className="relative group" data-testid="collaborator-avatar">
+  followed?: boolean;
+  onClick?: () => void;
+}) => {
+  const title = onClick
+    ? `${followed ? "Stop following" : "Follow"} ${label}`
+    : label;
+  const avatar = (
     <ProfileAvatar
       name={user.name}
       size="toolbar"
@@ -93,11 +99,32 @@ const CollaboratorAvatar = ({
         inactive && "opacity-30 grayscale",
       )}
     />
-    <div className="pointer-events-none absolute right-0 top-full z-50 mt-2 whitespace-nowrap rounded-lg bg-slate-900 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
-      {label}
+  );
+  return (
+    <div className="relative group" data-testid="collaborator-avatar">
+      {onClick ? (
+        <button
+          type="button"
+          onClick={onClick}
+          aria-pressed={followed}
+          aria-label={title}
+          className={clsx(
+            "block rounded-[38%]",
+            followed &&
+              "ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-neutral-900",
+          )}
+        >
+          {avatar}
+        </button>
+      ) : (
+        avatar
+      )}
+      <div className="pointer-events-none absolute right-0 top-full z-50 mt-2 whitespace-nowrap rounded-lg bg-slate-900 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+        {title}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export const EditorView: React.FC<EditorViewProps> = ({
   id,
@@ -121,6 +148,8 @@ export const EditorView: React.FC<EditorViewProps> = ({
   me,
   newName,
   peers,
+  followedUserId,
+  onToggleFollow,
   theme,
   onBackClick,
   onCanvasChange,
@@ -266,6 +295,8 @@ export const EditorView: React.FC<EditorViewProps> = ({
                     user={peer}
                     label={peer.name}
                     inactive={!peer.isActive}
+                    followed={peer.id === followedUserId}
+                    onClick={() => onToggleFollow(peer)}
                   />
                 ))}
               </div>
