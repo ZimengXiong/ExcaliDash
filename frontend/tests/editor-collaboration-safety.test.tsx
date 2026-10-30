@@ -8,7 +8,11 @@ import { useEditorCanvasHandlers } from "../src/pages/editor/useEditorCanvasHand
 import { useEditorCollaboration } from "../src/pages/editor/useEditorCollaboration";
 const { sockets } = vi.hoisted(() => ({ sockets: [] as any[] }));
 vi.mock("@excalidraw/excalidraw", () => ({
-  CaptureUpdateAction: { IMMEDIATELY: "IMMEDIATELY" },
+  CaptureUpdateAction: { IMMEDIATELY: "IMMEDIATELY", NEVER: "NEVER" },
+  getVisibleSceneBounds: vi.fn(() => [0, 0, 100, 50]),
+  zoomToFitBounds: vi.fn(() => ({
+    appState: { scrollX: -10, scrollY: -20, zoom: { value: 2 } },
+  })),
 }));
 vi.mock("socket.io-client", () => ({
   io: vi.fn(() => {
@@ -65,6 +69,7 @@ const flushFrames = async () => {
 };
 const makeHarness = () => {
   let live: any[] = [];
+  let appState: any = { collaborators: new Map() };
   const refs = {
     latestElementsRef: ref<readonly any[]>(live),
     latestFilesRef: ref<any>({}),
@@ -73,11 +78,17 @@ const makeHarness = () => {
   };
   const editor = {
     getSceneElementsIncludingDeleted: () => live,
-    getAppState: () => ({ collaborators: new Map() }),
+    getAppState: () => appState,
     getFiles: () => ({}),
     addFiles: vi.fn(),
+    onUserFollow: vi.fn(() => vi.fn()),
+    onScrollChange: vi.fn(() => vi.fn()),
     updateScene: vi.fn((scene) => {
       if (scene.elements) live = scene.elements;
+      if (scene.collaborators) {
+        appState = { ...appState, collaborators: scene.collaborators };
+      }
+      if (scene.appState) appState = { ...appState, ...scene.appState };
     }),
   };
   const input = {
@@ -99,6 +110,9 @@ const makeHarness = () => {
     editor,
     input,
     Harness,
+    setAppState: (patch: any) => {
+      appState = { ...appState, ...patch };
+    },
     setLive: (els: any[]) => {
       live = els;
       refs.latestElementsRef.current = els;
