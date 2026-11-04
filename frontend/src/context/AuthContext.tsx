@@ -10,7 +10,7 @@ import { useNavigate } from "react-router-dom";
 import {
   authStatus,
   authMe,
-  authRefresh,
+  refreshAccessToken,
   authLogout,
   authLogin,
   authRegister,
@@ -192,7 +192,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           return;
         }
         try {
-          await authRefresh();
+          // The shared single-flight refresh: mounting Editor and AuthContext
+          // both discover an expired access token on a reloaded background
+          // tab. Independent refreshes would race the single-use token
+          // rotation and one side would tear down a session that is, in
+          // fact, still valid.
+          await refreshAccessToken();
           const userResponse = await authMe();
           setUser(userResponse.user);
           localStorage.setItem(USER_KEY, JSON.stringify(userResponse.user));

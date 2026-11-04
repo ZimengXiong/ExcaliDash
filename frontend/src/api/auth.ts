@@ -17,6 +17,7 @@ const publicAuthEndpoints = [
 
 type RetriableRequestConfig = {
   _retry?: boolean;
+  _probeRetry?: boolean;
   _csrfRetry?: boolean;
   _authModeRetry?: boolean;
   url?: string;
@@ -309,11 +310,37 @@ const redirectToLogin = async () => {
   if (window.location.pathname !== "/login") window.location.href = "/login";
 };
 
-const refreshAccessToken = async (): Promise<void> => {
+export const refreshAccessToken = async (): Promise<void> => {
   refreshPromise ||= authRefresh().finally(() => {
     refreshPromise = null;
   });
   return refreshPromise;
+};
+
+let sessionProbeCache: { value: boolean; fetchedAt: number } | null = null;
+const SESSION_PROBE_TTL_MS = 3000;
+
+// A failed refresh is ambiguous: it can mean the session is really gone, or
+// that a concurrent refresh (another tab, or the AuthContext mount path) won
+// a single-use rotation race and has already renewed the shared cookie jar.
+// Asking the server directly tells the two apart; the short cache keeps
+// simultaneous 401s from each issuing their own probe.
+const probeSessionAlive = async (): Promise<boolean> => {
+  const now = Date.now();
+  if (
+    sessionProbeCache &&
+    now - sessionProbeCache.fetchedAt < SESSION_PROBE_TTL_MS
+  ) {
+    return sessionProbeCache.value;
+  }
+  try {
+    await authMe();
+    sessionProbeCache = { value: true, fetchedAt: Date.now() };
+    return true;
+  } catch {
+    sessionProbeCache = { value: false, fetchedAt: Date.now() };
+    return false;
+  }
 };
 
 const isPublicAuthEndpoint = (url?: string): boolean =>
@@ -379,6 +406,10 @@ api.interceptors.response.use(
           await refreshAccessToken();
           return api(originalRequest as any);
         } catch {
+          if (!originalRequest._probeRetry && (await probeSessionAlive())) {
+            originalRequest._probeRetry = true;
+            return api(originalRequest as any);
+          }
           clearStoredAuth();
           if (!isShareFlow) await redirectToLogin();
           return Promise.reject(error);
@@ -386,6 +417,12 @@ api.interceptors.response.use(
       }
 
       if (!isAuthRoute) {
+        // The refreshed retry 401'd too. One probe-backed recovery attempt,
+        // then treat the session as gone.
+        if (!originalRequest._probeRetry && (await probeSessionAlive())) {
+          originalRequest._probeRetry = true;
+          return api(originalRequest as any);
+        }
         clearStoredAuth();
         if (!isShareFlow) await redirectToLogin();
       }
