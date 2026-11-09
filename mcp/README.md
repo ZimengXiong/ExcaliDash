@@ -6,7 +6,10 @@
 
 An MCP server for working with drawings in ExcaliDash. An AI agent can create a drawing, edit shapes and text, connect elements, add images, and organize drawings into collections. ExcaliDash stores the drawings; changes remain visible in its editor.
 
-The server runs over stdio. Your MCP client starts it as a child process and supplies an ExcaliDash user API key. You do not need to host another MCP endpoint, install a database, or give the server S3 credentials.
+There are two ways to run it:
+
+- **Built into ExcaliDash (recommended).** With `MCP_ENABLED=true`, the ExcaliDash backend serves this server at `/api/mcp` over Streamable HTTP (see `src/embedded.ts`). Each client authenticates with its own user API key, which ExcaliDash creates for you under **Settings → AI Agents (MCP)**. See [docs/guide/mcp.md](../docs/guide/mcp.md).
+- **Standalone over stdio.** Your MCP client starts it as a child process and supplies an ExcaliDash user API key. You do not need to host another MCP endpoint, install a database, or give the server S3 credentials. The rest of this README describes this mode.
 
 ## Connect a client
 
@@ -102,7 +105,7 @@ npm run test:mcp
 
 For a direct stdio run, copy [`.env.example`](.env.example) to `mcp/.env`, set `EXCALIDASH_URL` and `EXCALIDASH_API_KEY`, restrict the file to mode `0600`, and run `node --env-file=.env dist/index.js` from `mcp/` after building. Keep browser-login passwords out of this file.
 
-Streamable HTTP is available for development and transport testing: `node --env-file=.env dist/http.js` serves `/mcp` on `127.0.0.1:8080` by default. `/health` checks the process; `/ready` makes a bounded, authenticated read request to ExcaliDash. The Host and Origin allowlists are configurable through the variables in `.env.example`. They are not a substitute for client authentication on an exposed network endpoint. From the repository root, `EXCALIDASH_API_KEY=... docker compose --profile mcp up -d` runs this HTTP mode next to ExcaliDash with a loopback-only published port (`MCP_PORT`, default 6768).
+Streamable HTTP is available for development and transport testing: `node --env-file=.env dist/http.js` serves `/mcp` on `127.0.0.1:8080` by default. `/health` checks the process; `/ready` makes a bounded, authenticated read request to ExcaliDash. The Host and Origin allowlists are configurable through the variables in `.env.example`. They are not a substitute for client authentication on an exposed network endpoint.
 
 `npm test` does not change drawings on a running ExcaliDash instance. Run `npm audit` to check dependencies.
 

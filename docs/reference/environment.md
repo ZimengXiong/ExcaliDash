@@ -72,3 +72,15 @@ Set `ENABLE_PASSWORD_RESET=true`, select `MAIL_TRANSPORT`, and configure either 
 After configuring delivery, users can select **Forgot your password?** on the sign-in page to request a reset link.
 
 <ThemeScreenshot light="/images/screenshots/password-reset-light.png" dark="/images/screenshots/password-reset.png" alt="Password reset request form when the feature is enabled" />
+
+## MCP server
+
+| Variable                   | Default   | Purpose                                                                 |
+| -------------------------- | --------- | ----------------------------------------------------------------------- |
+| `MCP_ENABLED`              | `false`   | Serve the built-in MCP endpoint at `/api/mcp` for AI agents             |
+| `MCP_MAX_SESSIONS`         | `256`     | Maximum concurrent MCP sessions across all users                        |
+| `MCP_MAX_SESSIONS_PER_KEY` | `16`      | Maximum concurrent MCP sessions per API key                             |
+| `MCP_SESSION_IDLE_MS`      | `1800000` | Idle time before an MCP session is closed (30 minutes)                  |
+| `MCP_MODULE_PATH`          | unset     | Path to `mcp/dist/embedded.js`; found automatically next to the backend |
+
+See [MCP server](/guide/mcp) for setup.

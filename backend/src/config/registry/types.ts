@@ -13,6 +13,7 @@ export interface EnvVarSpec {
     | "Update check"
     | "Link sharing"
     | "AI"
+    | "MCP server"
     | "Frontend (build-time)";
   kind: EnvKind;
   /** Human-readable default shown in docs; omit if none. */

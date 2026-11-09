@@ -35,9 +35,15 @@ const formatApiKeyDate = (value: string | null) => {
 type Props = {
   disabled: boolean;
   onSuccess: (message: string) => void;
+  /** Changing this value reloads the key list. */
+  refreshToken?: number;
 };
 
-export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
+export const ApiKeysCard: React.FC<Props> = ({
+  disabled,
+  onSuccess,
+  refreshToken = 0,
+}) => {
   const [apiKeys, setApiKeys] = useState<api.ApiKeyMetadata[]>([]);
   const [apiKeysLoading, setApiKeysLoading] = useState(false);
   const [apiKeyName, setApiKeyName] = useState("");
@@ -74,7 +80,7 @@ export const ApiKeysCard: React.FC<Props> = ({ disabled, onSuccess }) => {
     };
 
     void fetchApiKeys();
-  }, [disabled]);
+  }, [disabled, refreshToken]);
 
   const handleCreateApiKey = async () => {
     if (disabled || apiKeysLoading) return;

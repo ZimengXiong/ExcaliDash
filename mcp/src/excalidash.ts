@@ -9,6 +9,11 @@ export type ExcaliDashConfig = {
   url: string;
   token: string;
   drawingId?: string;
+  /**
+   * Exact API base, used as is instead of appending `/api` to `url`. The
+   * embedded server sets it to the backend's own loopback address.
+   */
+  apiBaseUrl?: string;
 };
 
 export type DrawingSummary = {
@@ -78,7 +83,9 @@ export class ExcaliDashClient {
     private readonly config: ExcaliDashConfig,
     private readonly fetchImpl: Fetch = globalThis.fetch,
   ) {
-    this.baseUrl = apiBase(config.url);
+    this.baseUrl = config.apiBaseUrl
+      ? config.apiBaseUrl.replace(/\/+$/, "")
+      : apiBase(config.url);
   }
 
   listDrawings(

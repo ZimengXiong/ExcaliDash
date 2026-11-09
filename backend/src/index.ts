@@ -40,6 +40,7 @@ import {
 import { createDrawingsCacheStore } from "./server/drawingsCache";
 import { registerCsrfProtection } from "./server/csrf";
 import { registerSocketHandlers } from "./server/socket";
+import { isInternalMcpRequest, registerMcpRoutes } from "./server/mcp";
 import {
   createHttpsRedirectPolicy,
   getHttpsRedirectUrl,
@@ -311,8 +312,13 @@ const generalRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   validate: { trustProxy: false, xForwardedForHeader: false },
+  // API calls the MCP endpoint makes on a client's behalf; the client's MCP
+  // request itself is already counted.
+  skip: (req) => isInternalMcpRequest(req),
 });
 app.use(generalRateLimiter);
+// Bearer-only, so it needs no CSRF token; registered before CSRF checks.
+const mcpEndpoint = registerMcpRoutes(app);
 registerCsrfProtection({
   app,
   isAllowedOrigin,
@@ -662,6 +668,7 @@ if (isMain) {
     shuttingDown = true;
     console.log(`[shutdown] Received ${signal}, shutting down gracefully`);
     clearInterval(snapshotCleanupTimer);
+    void mcpEndpoint.close();
     const forceExit = setTimeout(() => {
       console.error("[shutdown] Forced exit after timeout");
       process.exit(1);

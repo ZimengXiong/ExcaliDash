@@ -64,11 +64,16 @@ jobs:
           cache-dependency-path: |
             backend/package-lock.json
             frontend/package-lock.json
+            mcp/package-lock.json
 
       - name: Install test dependencies
         run: |
           npm --prefix backend ci
           npm --prefix frontend ci
+          npm --prefix mcp ci
+
+      - name: Build MCP module for the built-in endpoint tests
+        run: npm --prefix mcp run build
 
       - name: Generate Prisma client
         run: |
