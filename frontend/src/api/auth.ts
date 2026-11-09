@@ -391,7 +391,7 @@ api.interceptors.response.use(
       const isShareFlow = window.location.pathname.startsWith("/shared/");
       const authEnabled = !isAuthRoute ? await getAuthEnabledStatus() : true;
 
-      if (isShareFlow && !isAuthRoute) return Promise.reject(error);
+      if (isShareFlow && isAuthRoute) return Promise.reject(error);
       if (!isAuthRoute && authEnabled === false) {
         if (!originalRequest._authModeRetry) {
           originalRequest._authModeRetry = true;
