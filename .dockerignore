@@ -19,6 +19,9 @@ frontend/dist
 frontend/coverage
 frontend/test-results
 frontend/playwright-report
+mcp/node_modules
+mcp/dist
+mcp/.env
 .github
 e2e
 artifacts

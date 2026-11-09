@@ -16,6 +16,7 @@ for (const relativePath of [
   "backend/package.json",
   "frontend/package.json",
   "e2e/package.json",
+  "mcp/package.json",
 ]) {
   const manifest = JSON.parse(
     fs.readFileSync(path.join(root, relativePath), "utf8"),
@@ -33,6 +34,7 @@ for (const relativePath of [
   "backend/package-lock.json",
   "frontend/package-lock.json",
   "e2e/package-lock.json",
+  "mcp/package-lock.json",
 ]) {
   const lockfile = JSON.parse(
     fs.readFileSync(path.join(root, relativePath), "utf8"),

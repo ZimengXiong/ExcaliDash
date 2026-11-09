@@ -1,0 +1,18 @@
+ExcaliDash
+Copyright (c) ZimengXiong and ExcaliDash contributors
+Licensed under the GNU Lesser General Public License v3.0 (see LICENSE).
+
+This product includes software developed by third parties:
+
+------------------------------------------------------------------------
+excalidash-mcp (directory: mcp/)
+https://github.com/LatikDesu/excalidash-mcp
+Originally written by Evgeny Abrosimov (GitHub: LatikDesu).
+Copyright (c) 2026 Chaehyeon Lee
+Licensed under the MIT License; the full license text is in mcp/LICENSE.
+
+The code was imported from upstream commit 591eb17 and has since been
+modified for integration into ExcaliDash. Modifications are distributed
+under the ExcaliDash license (LGPL-3.0); the original portions remain
+under the MIT License.
+------------------------------------------------------------------------
