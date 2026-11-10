@@ -95,9 +95,11 @@ COPY --chown=nodejs:nodejs backend/prisma ./prisma_template/
 COPY --from=builder /app/dist ./dist
 
 # MCP server module, loaded by dist/server/mcp.js from /app/mcp/dist.
-COPY --from=mcp-builder --chmod=0444 /mcp/package.json ./mcp/package.json
+# Copy the directories first: a --chmod COPY that creates /app/mcp would
+# give the directory itself mode 0444, which the nodejs user cannot enter.
 COPY --from=mcp-builder /mcp/node_modules ./mcp/node_modules
 COPY --from=mcp-builder /mcp/dist ./mcp/dist
+COPY --from=mcp-builder --chmod=0444 /mcp/package.json ./mcp/package.json
 COPY --chmod=0444 mcp/LICENSE ./mcp/LICENSE
 COPY --chmod=0444 NOTICE ./NOTICE
 
