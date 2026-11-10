@@ -1,0 +1,7 @@
+/* Tailwind Preflight makes form controls inherit the page's 16px/24px text.
+   Restore their browser defaults inside the editor before its own scoped
+   stylesheet applies component-specific typography. Dash controls stay intact. */
+.excalidraw :where(button, input, select, textarea) {
+  font-size: revert;
+  line-height: revert;
+}

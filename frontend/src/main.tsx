@@ -1,7 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import "@excalidraw/excalidraw/index.css";
-import "./index.css";
+import "./styles";
 import App from "./App.tsx";
 import { configureDisplayFont } from "./utils/displayFont";
 
