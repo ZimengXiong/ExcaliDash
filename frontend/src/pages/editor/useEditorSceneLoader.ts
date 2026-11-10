@@ -5,12 +5,14 @@ import { toast } from "sonner";
 import * as api from "../../api";
 import { rehydrateFilesProgressive } from "../../utils/rehydrateFiles";
 import { getPersistedAppState, hasRenderableElements } from "./shared";
+import { readViewport } from "./viewport";
 
 type AccessLevel = "none" | "view" | "edit" | "owner";
 
 type SceneLoaderParams = {
   id: string | undefined;
   user: unknown;
+  viewportUserId?: string;
   location: {
     pathname: string;
     search: string;
@@ -63,6 +65,7 @@ const buildEmptyScene = () => ({
 export const useEditorSceneLoader = ({
   id,
   user,
+  viewportUserId,
   location,
   navigate,
   refs,
@@ -167,8 +170,13 @@ export const useEditorSceneLoader = ({
         refs.lastPersistedElements.current = elements;
         elements.forEach((element: any) => recordElementVersion(element));
         const persistedAppState = getPersistedAppState(data.appState || {});
+        const viewport = readViewport(
+          viewportUserId ?? userIdKey ?? "guest",
+          id,
+        );
         const hydratedAppState = {
           ...persistedAppState,
+          ...viewport,
           collaborators: new Map(),
         };
         refs.latestAppState.current = hydratedAppState;
@@ -176,7 +184,7 @@ export const useEditorSceneLoader = ({
           elements,
           appState: hydratedAppState,
           files,
-          scrollToContent: true,
+          scrollToContent: !viewport,
           libraryItems,
         });
 
@@ -308,5 +316,6 @@ export const useEditorSceneLoader = ({
     setIsSceneLoading,
     setLoadError,
     userIdKey,
+    viewportUserId,
   ]);
 };

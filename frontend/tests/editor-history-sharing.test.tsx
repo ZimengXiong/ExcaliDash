@@ -627,3 +627,57 @@ describe("sharing placement and chrome", () => {
     expect(event.preventDefault).toHaveBeenCalledOnce();
   });
 });
+
+describe("remembering the canvas viewport", () => {
+  const props = {
+    id: "viewport-drawing",
+    me: { id: "viewport-user", name: "User", initials: "U", color: "red" },
+    initialData: { elements: [] },
+    peers: [],
+    theme: "dark",
+    langCode: "pt-BR",
+    canEdit: false,
+    isHistoryOpen: false,
+    historyButtonRef: ref(null),
+    shareButtonRef: ref(null),
+    editorContainerRef: ref(null),
+  };
+
+  it("remembers pan and zoom even when the drawing is read-only", async () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    });
+    const renderer = await render(<EditorView {...(props as any)} />);
+    const canvas = renderer.root.findByType("mock-canvas" as React.ElementType);
+    expect(typeof canvas.props.onScrollChange).toBe("function");
+    await act(async () =>
+      canvas.props.onScrollChange(-1200, 450, { value: 1.5 }),
+    );
+    await advance(600);
+    expect(JSON.parse([...values.values()][0])).toEqual({
+      scrollX: -1200,
+      scrollY: 450,
+      zoom: { value: 1.5 },
+    });
+  });
+
+  it("flushes the final position on leaving without waiting for a timer", async () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    });
+    const renderer = await render(<EditorView {...(props as any)} />);
+    const canvas = renderer.root.findByType("mock-canvas" as React.ElementType);
+    expect(typeof canvas.props.onScrollChange).toBe("function");
+    await act(async () => canvas.props.onScrollChange(0, -90, { value: 0.75 }));
+    await act(async () => renderer.unmount());
+    expect(JSON.parse([...values.values()][0])).toEqual({
+      scrollX: 0,
+      scrollY: -90,
+      zoom: { value: 0.75 },
+    });
+  });
+});
