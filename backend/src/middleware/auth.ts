@@ -126,6 +126,19 @@ const getApiKeyRouteResource = (
     ) {
       return "drawings";
     }
+    // Drawing Agent API used by the MCP server: ops write, summary and
+    // element inspection read.
+    if (
+      (segments.length === 3 && segments[2] === "ops" && method === "POST") ||
+      (segments.length === 3 &&
+        segments[2] === "summary" &&
+        ["GET", "HEAD"].includes(method)) ||
+      (segments.length === 4 &&
+        segments[2] === "elements" &&
+        ["GET", "HEAD"].includes(method))
+    ) {
+      return "drawings";
+    }
     return null;
   }
   if (segments[0] === "collections") {

@@ -604,6 +604,10 @@ registerDashboardRoutes(app, {
     internDrawingFilesWithPrisma(files, userId, drawingId, prisma),
   revalidateDrawingAccess: socketHandlers.revalidateDrawingAccess,
   io,
+  agentOps: {
+    rateLimitMaxRequests: config.agentOpsRateLimitMax,
+    rateLimitWindowMs: config.agentOpsRateLimitWindowMs,
+  },
 });
 registerFileRoutes(app, { prisma, requireAuth, optionalAuth, asyncHandler });
 registerStorageRoutes(app, {

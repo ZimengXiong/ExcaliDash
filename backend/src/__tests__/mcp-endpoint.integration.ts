@@ -180,6 +180,101 @@ describe("Built-in MCP endpoint", () => {
     expect(hijack.status).toBe(404);
   });
 
+  it("edits a drawing through the restored drawing agent API", async () => {
+    const init = await initialize(owner.token);
+    const session = {
+      Authorization: `Bearer ${owner.token}`,
+      "mcp-session-id": init.headers.get("mcp-session-id") as string,
+      "mcp-protocol-version": PROTOCOL_VERSION,
+    };
+    await rpc({ jsonrpc: "2.0", method: "notifications/initialized" }, session);
+    const drawing = await prisma.drawing.findFirstOrThrow({
+      where: { userId: owner.userId },
+    });
+
+    let nextId = 10;
+    const callTool = async (name: string, args: Record<string, unknown>) => {
+      const response = await rpc(
+        {
+          jsonrpc: "2.0",
+          id: nextId++,
+          method: "tools/call",
+          params: { name, arguments: args },
+        },
+        session,
+      );
+      expect(response.status).toBe(200);
+      const payload = (await response.json()) as {
+        result?: { content?: Array<{ text?: string }>; isError?: boolean };
+      };
+      return payload.result ?? {};
+    };
+
+    const applied = await callTool("apply_drawing_ops", {
+      drawingId: drawing.id,
+      ops: [
+        { op: "add_shape", shape: "rectangle", x: 0, y: 0, label: "Start" },
+        { op: "add_shape", shape: "ellipse", x: 300, y: 0, label: "End" },
+      ],
+    });
+    expect(applied.isError).not.toBe(true);
+
+    const summary = await callTool("get_drawing_summary", {
+      drawingId: drawing.id,
+    });
+    expect(summary.isError).not.toBe(true);
+    expect(summary.content?.[0]?.text).toContain("Start");
+
+    const stored = await prisma.drawing.findUniqueOrThrow({
+      where: { id: drawing.id },
+    });
+    const elements = JSON.parse(stored.elements) as Array<{
+      id: string;
+      type: string;
+    }>;
+    const rectangle = elements.find((el) => el.type === "rectangle");
+    expect(rectangle).toBeDefined();
+
+    const inspected = await callTool("inspect_drawing_element", {
+      drawingId: drawing.id,
+      elementId: rectangle?.id,
+    });
+    expect(inspected.isError).not.toBe(true);
+    expect(inspected.content?.[0]?.text).toContain(rectangle?.id as string);
+  });
+
+  it("requires drawings:write for agent ops", async () => {
+    const readOnly = await createUserWithKey(
+      prisma,
+      "mcp-readonly@test.local",
+      ["drawings:read"],
+    );
+    const drawing = await prisma.drawing.create({
+      data: {
+        name: "Read only",
+        elements: "[]",
+        appState: "{}",
+        files: "{}",
+        userId: readOnly.userId,
+      },
+    });
+    const response = await fetch(`${baseUrl}/drawings/${drawing.id}/ops`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${readOnly.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ops: [{ op: "add_shape", shape: "rectangle", x: 0, y: 0 }],
+      }),
+    });
+    expect(response.status).toBe(403);
+    const summary = await fetch(`${baseUrl}/drawings/${drawing.id}/summary`, {
+      headers: { Authorization: `Bearer ${readOnly.token}` },
+    });
+    expect(summary.status).toBe(200);
+  });
+
   it("does not show another user's drawings", async () => {
     const init = await initialize(other.token);
     const session = {

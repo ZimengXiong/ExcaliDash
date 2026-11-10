@@ -2,6 +2,20 @@ import type { EnvVarSpec } from "./types";
 
 export const mcpEnv: readonly EnvVarSpec[] = [
   {
+    name: "AGENT_OPS_RATE_LIMIT_MAX",
+    group: "MCP server",
+    kind: "number",
+    default: "120",
+    doc: "Maximum drawing-agent op batches per user per window.",
+  },
+  {
+    name: "AGENT_OPS_RATE_LIMIT_WINDOW_MS",
+    group: "MCP server",
+    kind: "number",
+    default: "60000",
+    doc: "Window (ms) for the drawing-agent op rate limit.",
+  },
+  {
     name: "MCP_ENABLED",
     group: "MCP server",
     kind: "boolean",

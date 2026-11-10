@@ -75,12 +75,14 @@ After configuring delivery, users can select **Forgot your password?** on the si
 
 ## MCP server
 
-| Variable                   | Default   | Purpose                                                                 |
-| -------------------------- | --------- | ----------------------------------------------------------------------- |
-| `MCP_ENABLED`              | `false`   | Serve the built-in MCP endpoint at `/api/mcp` for AI agents             |
-| `MCP_MAX_SESSIONS`         | `256`     | Maximum concurrent MCP sessions across all users                        |
-| `MCP_MAX_SESSIONS_PER_KEY` | `16`      | Maximum concurrent MCP sessions per API key                             |
-| `MCP_SESSION_IDLE_MS`      | `1800000` | Idle time before an MCP session is closed (30 minutes)                  |
-| `MCP_MODULE_PATH`          | unset     | Path to `mcp/dist/embedded.js`; found automatically next to the backend |
+| Variable                         | Default   | Purpose                                                                 |
+| -------------------------------- | --------- | ----------------------------------------------------------------------- |
+| `MCP_ENABLED`                    | `false`   | Serve the built-in MCP endpoint at `/api/mcp` for AI agents             |
+| `MCP_MAX_SESSIONS`               | `256`     | Maximum concurrent MCP sessions across all users                        |
+| `MCP_MAX_SESSIONS_PER_KEY`       | `16`      | Maximum concurrent MCP sessions per API key                             |
+| `MCP_SESSION_IDLE_MS`            | `1800000` | Idle time before an MCP session is closed (30 minutes)                  |
+| `MCP_MODULE_PATH`                | unset     | Path to `mcp/dist/embedded.js`; found automatically next to the backend |
+| `AGENT_OPS_RATE_LIMIT_MAX`       | `120`     | Drawing-agent op batches per user per window                            |
+| `AGENT_OPS_RATE_LIMIT_WINDOW_MS` | `60000`   | Window for the drawing-agent op rate limit                              |
 
 See [MCP server](/guide/mcp) for setup.
