@@ -80,8 +80,16 @@ const shouldRequireBootstrapSetupCode = async (
       authMode: options.authMode,
     },
   );
+  // Resolve "auth enabled" the same way the rest of the backend does: modes
+  // other than `local` are decided by AUTH_MODE alone and ignore the stored
+  // toggle (which stays false on a fresh hybrid database), while `local`
+  // uses the runtime toggle.
+  const authEnabled =
+    options.authMode !== "local"
+      ? authModeEnablesAuth(options.authMode)
+      : Boolean(systemConfig.authEnabled);
   return (
-    Boolean(systemConfig.authEnabled) &&
+    authEnabled &&
     Boolean(bootstrapUser) &&
     bootstrapUser?.isActive === false &&
     activeUsers === 0
