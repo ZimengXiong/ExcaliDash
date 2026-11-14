@@ -1,4 +1,3 @@
-import jwt from "jsonwebtoken";
 import { Server } from "socket.io";
 import { PrismaClient } from "../generated/client";
 import { AuthModeService } from "../auth/authMode";
@@ -16,6 +15,7 @@ import {
   type RevalidatableSocket,
   type SocketState,
 } from "./socketAccess";
+import { createSocketAuthResolver } from "./socketAuth";
 
 type RegisterSocketHandlersDeps = {
   io: Server;
@@ -43,6 +43,7 @@ export const registerSocketHandlers = ({
     if (!data.access) data.access = new Map();
     if (!data.joinedRooms) data.joinedRooms = new Set();
     if (data.principal === undefined) data.principal = null;
+    if (data.apiKeyScopes === undefined) data.apiKeyScopes = null;
     return data as SocketState;
   };
 
@@ -72,37 +73,11 @@ export const registerSocketHandlers = ({
     return "#4f46e5";
   };
 
-  const getSocketAuthUserId = async (
-    token?: string,
-  ): Promise<string | null> => {
-    const authEnabled = await authModeService.getAuthEnabled();
-    if (!authEnabled) {
-      return BOOTSTRAP_USER_ID;
-    }
-
-    if (!token) return null;
-
-    try {
-      const decoded = jwt.verify(token, jwtSecret) as Record<string, unknown>;
-      if (
-        typeof decoded.userId !== "string" ||
-        typeof decoded.email !== "string" ||
-        decoded.type !== "access"
-      ) {
-        return null;
-      }
-
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.userId },
-        select: { id: true, isActive: true },
-      });
-
-      if (!user || !user.isActive) return null;
-      return user.id;
-    } catch {
-      return null;
-    }
-  };
+  const resolveSocketAuth = createSocketAuthResolver({
+    prisma,
+    authModeService,
+    jwtSecret,
+  });
 
   io.use(async (socket, next) => {
     try {
@@ -116,11 +91,12 @@ export const registerSocketHandlers = ({
       })();
       const token = tokenFromAuth || tokenFromCookie;
       const authEnabled = await authModeService.getAuthEnabled();
-      const userId = await getSocketAuthUserId(token);
+      const auth = await resolveSocketAuth(token);
       const state = getState(socket);
 
-      if (userId) {
-        state.principal = { kind: "user", userId };
+      if (auth) {
+        state.principal = { kind: "user", userId: auth.userId };
+        state.apiKeyScopes = auth.apiKeyScopes;
         return next();
       }
 
@@ -337,6 +313,15 @@ export const registerSocketHandlers = ({
       if (!canEditDrawing(joinedAccess)) {
         socket.emit("error", {
           message: "Read-only access: cannot edit this drawing",
+        });
+        return;
+      }
+      if (
+        state.apiKeyScopes &&
+        !state.apiKeyScopes.includes("drawings:write")
+      ) {
+        socket.emit("error", {
+          message: "API key is not authorized to edit drawings",
         });
         return;
       }

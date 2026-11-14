@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { config } from "../config";
+import type { PrismaClient } from "../generated/client";
 
 const API_KEY_SCRYPT_PEPPER = config.apiKeyHashPepper;
 const API_KEY_SCRYPT_N = 1 << 14;
@@ -76,6 +77,36 @@ export const parseApiKeyScopes = (raw: string | null | undefined): string[] =>
     .split(",")
     .map((scope) => scope.trim())
     .filter((scope) => scope.length > 0);
+
+// Shared by the HTTP middleware and the Socket.IO handshake, so both accept
+// and reject exactly the same keys.
+export const authenticateApiKey = async (
+  prisma: PrismaClient,
+  token: string,
+) => {
+  const keyId = extractApiKeyId(token);
+  if (!keyId) return null;
+  const apiKey = await prisma.apiKey.findUnique({
+    where: { keyId },
+    include: { user: true },
+  });
+  if (!apiKey || apiKey.revokedAt) return null;
+  if (!apiKeyHashMatches(token, apiKey.tokenHash)) return null;
+  if (!apiKey.user.isActive) return null;
+  try {
+    await prisma.apiKey.update({
+      where: { id: apiKey.id },
+      data: { lastUsedAt: new Date() },
+    });
+  } catch (error) {
+    console.warn("Failed to update API key lastUsedAt:", error);
+  }
+  return {
+    user: apiKey.user,
+    scopes: parseApiKeyScopes(apiKey.scopes),
+    drawingId: apiKey.drawingId ?? null,
+  };
+};
 
 export const hasBearerApiKey = (authorizationHeader: unknown): boolean => {
   const header = Array.isArray(authorizationHeader)
