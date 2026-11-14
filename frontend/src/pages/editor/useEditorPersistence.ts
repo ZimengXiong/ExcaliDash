@@ -285,6 +285,10 @@ export const useEditorPersistence = ({
         toast.error("Drawing changed in another tab. Refresh to load latest.");
         throw err;
       }
+      if (api.isAxiosError(err) && err.response?.status === 404) {
+        toast.error("This drawing no longer exists. Changes can't be saved.");
+        throw err;
+      }
       console.error("Failed to save drawing", err);
       toast.error("Failed to save changes");
       throw err;
