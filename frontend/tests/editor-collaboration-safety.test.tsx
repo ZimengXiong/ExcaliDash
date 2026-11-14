@@ -643,6 +643,32 @@ describe("follow mode", () => {
       captureUpdate: "NEVER",
     });
   });
+  it("ignores malformed or out-of-range viewports from the followed person", async () => {
+    const h = makeHarness();
+    await mount(h.Harness);
+    follow(h, "user-b");
+    const handler = sockets[0].handlers.get("visible-bounds");
+    for (const bounds of [
+      [10, 20, 110],
+      ["10", "20", "110", "70"],
+      [10, NaN, 110, 70],
+      [10, 20, Infinity, 70],
+      [110, 20, 10, 70],
+      [0, 0, 1e300, 1e300],
+      [1e308, 0, 1.7e308, 70],
+      null,
+    ]) {
+      handler({ drawingId: "drawing", userId: "user-b", bounds });
+    }
+    expect(h.editor.updateScene).not.toHaveBeenCalled();
+    // A later valid viewport still applies.
+    handler({
+      drawingId: "drawing",
+      userId: "user-b",
+      bounds: [10, 20, 110, 70],
+    });
+    expect(h.editor.updateScene).toHaveBeenCalledTimes(1);
+  });
   it("broadcasts its viewport on scroll and when a peer joins, keeping the last scroll of a burst", async () => {
     const h = makeHarness();
     await mount(h.Harness);

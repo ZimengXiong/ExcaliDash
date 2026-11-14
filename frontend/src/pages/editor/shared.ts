@@ -416,3 +416,22 @@ export const getColorFromString = (str: string): string => {
   }
   return COLORS[Math.abs(hash) % COLORS.length];
 };
+
+// Viewport bounds a peer reports, [minX, minY, maxX, maxY] in scene
+// coordinates. Followers jump to whatever bounds the followed person reports,
+// so reject anything that could overflow into an Infinity/NaN scroll position
+// and blank the canvas. Keep in sync with the server's sceneBounds.ts.
+export const MAX_SCENE_COORDINATE = 1e8;
+export const isSceneBounds = (
+  value: unknown,
+): value is [number, number, number, number] =>
+  Array.isArray(value) &&
+  value.length === 4 &&
+  value.every(
+    (n) =>
+      typeof n === "number" &&
+      Number.isFinite(n) &&
+      Math.abs(n) <= MAX_SCENE_COORDINATE,
+  ) &&
+  value[0] <= value[2] &&
+  value[1] <= value[3];

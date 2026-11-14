@@ -14,7 +14,7 @@ import {
   filesNeedRehydration,
   rehydrateFilesFromUrls,
 } from "../../utils/rehydrateFiles";
-import { buildRemoteSceneUpdate } from "./shared";
+import { buildRemoteSceneUpdate, isSceneBounds } from "./shared";
 import * as api from "../../api";
 import { reconcileElements } from "../../utils/sync";
 
@@ -296,11 +296,9 @@ export const useEditorCollaboration = ({
       }) => {
         if (payload?.drawingId !== drawingId) return;
         if (typeof payload.userId !== "string") return;
-        if (!Array.isArray(payload.bounds) || payload.bounds.length !== 4) {
-          return;
-        }
+        if (!isSceneBounds(payload.bounds)) return;
         peerViews.set(payload.userId, {
-          bounds: payload.bounds as SceneBounds,
+          bounds: payload.bounds,
           following:
             typeof payload.following === "string" ? payload.following : null,
         });
