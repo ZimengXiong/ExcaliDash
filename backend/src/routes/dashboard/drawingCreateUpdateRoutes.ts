@@ -37,6 +37,7 @@ export const registerDrawingCreateUpdateRoutes = (
     parseJsonField,
     getRequestPrincipal,
     respondWithAuthErrorIfPresent,
+    revalidateDrawingAccess,
     io,
   } = context;
 
@@ -406,6 +407,17 @@ export const registerDrawingCreateUpdateRoutes = (
         return res.status(404).json({ error: "Drawing not found" });
       }
       invalidateDrawingsCache();
+
+      // A move can take access away: Trash pauses the link share, and leaving
+      // a shared collection drops its grantees. Re-check collaborators already
+      // in the room. Best-effort, like the sharing routes.
+      if (payload.collectionId !== undefined && revalidateDrawingAccess) {
+        try {
+          await revalidateDrawingAccess(id);
+        } catch (err) {
+          console.error("Failed to revalidate live drawing access:", err);
+        }
+      }
 
       const savedElements = parseJsonField(updatedDrawing.elements, []);
       const savedFiles = parseJsonField(updatedDrawing.files, {});

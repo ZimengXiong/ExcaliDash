@@ -325,4 +325,51 @@ describe("Link Sharing - Public By Drawing ID", () => {
     });
     expect(activeCount).toBe(1);
   });
+
+  it("pauses the link share while the drawing is in Trash and resumes it on restore", async () => {
+    const drawing = await createDrawing();
+    await createLinkShare(drawing.id, "edit");
+    const moveTo = (collectionId: string | null) =>
+      ownerAgent
+        .put(`/drawings/${drawing.id}`)
+        .set("User-Agent", userAgent)
+        .set("Authorization", `Bearer ${ownerToken}`)
+        .set(ownerCsrfHeaderName, ownerCsrfToken)
+        .send({ collectionId });
+    const anonGet = () =>
+      request(app).get(`/drawings/${drawing.id}`).set("User-Agent", userAgent);
+    const { anonAgent, anonCsrfHeaderName, anonCsrfToken } =
+      await createAnonymousAgentWithCsrf();
+    const anonPut = (name: string) =>
+      anonAgent
+        .put(`/drawings/${drawing.id}`)
+        .set("User-Agent", userAgent)
+        .set(anonCsrfHeaderName, anonCsrfToken)
+        .send({ name });
+
+    const trashed = await moveTo("trash");
+    expect(trashed.status).toBe(200);
+
+    expect((await anonGet()).status).toBe(404);
+    expect((await anonPut("Edited In Trash")).status).toBe(404);
+    const unchanged = await prisma.drawing.findUnique({
+      where: { id: drawing.id },
+      select: { name: true },
+    });
+    expect(unchanged?.name).toBe("Shared Drawing");
+    // the share row is kept, only paused
+    expect(
+      await prisma.drawingLinkShare.count({
+        where: { drawingId: drawing.id, revokedAt: null },
+      }),
+    ).toBe(1);
+
+    const restored = await moveTo(null);
+    expect(restored.status).toBe(200);
+
+    const resumed = await anonGet();
+    expect(resumed.status).toBe(200);
+    expect(resumed.body?.accessLevel).toBe("edit");
+    expect((await anonPut("Edited After Restore")).status).toBe(200);
+  });
 });
