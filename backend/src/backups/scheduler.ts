@@ -2,8 +2,6 @@ import fs from "fs";
 import path from "path";
 import type { PrismaClient } from "../generated/client";
 
-const Database = require("better-sqlite3") as any;
-
 type BackupSchedulerOptions = {
   prisma: PrismaClient;
   databaseUrl?: string;
@@ -27,11 +25,16 @@ type ParsedCron = {
   daysOfWeekRestricted: boolean;
 };
 
-const parseDatabasePath = (databaseUrl?: string): string | null => {
-  if (!databaseUrl || !databaseUrl.startsWith("file:")) return null;
-  const raw = databaseUrl.replace(/^file:/, "");
-  return path.resolve(raw);
-};
+// Scheduled backups only support SQLite. The file path itself is not needed:
+// the backup runs through Prisma's own connection, so we only have to know the
+// database is a SQLite `file:` URL (query parameters such as `connection_limit`
+// are irrelevant here).
+const isSqliteDatabaseUrl = (databaseUrl?: string): boolean =>
+  Boolean(databaseUrl && databaseUrl.startsWith("file:"));
+
+// SQLite string literal: wrap in single quotes and double any embedded quote.
+const quoteSqliteString = (value: string): string =>
+  `'${value.replace(/'/g, "''")}'`;
 
 const timestampForFilename = (date: Date): string =>
   date.toISOString().replace(/[:.]/g, "-");
@@ -151,8 +154,7 @@ export const createSqliteBackup = async ({
   backupDir,
   retentionDays,
 }: Omit<BackupSchedulerOptions, "schedule">): Promise<string | null> => {
-  const databasePath = parseDatabasePath(databaseUrl);
-  if (!databasePath) {
+  if (!isSqliteDatabaseUrl(databaseUrl)) {
     console.warn(
       "[backup] Scheduled backups currently support SQLite file: DATABASE_URL values only.",
     );
@@ -162,22 +164,36 @@ export const createSqliteBackup = async ({
   // Backups contain a full copy of the database (password hashes, API-key
   // hashes, OIDC secrets), so restrict the directory and files to the owner.
   await fs.promises.mkdir(backupDir, { recursive: true, mode: 0o700 });
-  await prisma.$queryRawUnsafe("PRAGMA wal_checkpoint(PASSIVE)");
 
-  const target = path.join(
+  const target = path.resolve(
     backupDir,
     `excalidash-sqlite-${timestampForFilename(new Date())}.db`,
   );
-  const source = new Database(databasePath, {
-    readonly: true,
-    fileMustExist: true,
-  });
-  try {
-    await source.backup(target);
-  } finally {
-    source.close();
+  // Write to a temporary name first so an interrupted backup never looks like
+  // a complete `.db` file (and is never picked up by retention or restores).
+  const partial = `${target}.partial`;
+  if (partial.includes("\0")) {
+    throw new Error("Backup path must not contain NUL characters");
   }
-  await fs.promises.chmod(target, 0o600);
+
+  // Take the backup through Prisma's existing connection with VACUUM INTO.
+  // Do NOT open a second SQLite handle on the live database from this
+  // process (e.g. better-sqlite3): SQLite uses POSIX locks, and closing any
+  // file descriptor for a file drops every lock the process holds on it, so
+  // closing a second library's handle can pull the live WAL/SHM out from
+  // under Prisma's connections (issue #305).
+  //
+  // VACUUM INTO reads a consistent snapshot, does not block writers in WAL
+  // mode, and requires that the target does not exist yet.
+  await fs.promises.rm(partial, { force: true });
+  try {
+    await prisma.$executeRawUnsafe(`VACUUM INTO ${quoteSqliteString(partial)}`);
+    await fs.promises.chmod(partial, 0o600);
+    await fs.promises.rename(partial, target);
+  } catch (error) {
+    await fs.promises.rm(partial, { force: true }).catch(() => undefined);
+    throw error;
+  }
   await pruneOldBackups(backupDir, retentionDays);
   console.log(`[backup] Wrote SQLite backup: ${target}`);
   return target;
