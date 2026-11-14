@@ -12,7 +12,7 @@ http {
     # resolver keeps this upstream current without restarting the frontend.
     __BACKEND_RESOLVER_CONFIG__
     upstream excalidash_backend {
-        zone excalidash_backend 64k;
+        zone excalidash_backend 256k;
         server __BACKEND_URL__ __BACKEND_RESOLVE__;
     }
 
