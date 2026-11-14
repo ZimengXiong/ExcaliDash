@@ -170,6 +170,12 @@ describe("Auth Enabled Toggle Authorization", () => {
         .status,
     ).toBe(400);
     expect((await setPreference({ compactSidebar: "false" })).status).toBe(400);
+    expect((await setPreference({ theme: "system" })).status).toBe(200);
+    expect((await setPreference({ theme: "auto" })).status).toBe(400);
+    const withTheme = await agent
+      .get("/auth/preferences")
+      .set("Authorization", `Bearer ${regularUserToken}`);
+    expect(withTheme.body.preferences.theme).toBe("system");
   });
 
   it("applies auth mode change immediately for subsequent requests", async () => {

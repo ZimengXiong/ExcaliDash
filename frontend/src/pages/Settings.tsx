@@ -26,7 +26,7 @@ import {
 export const Settings: React.FC = () => {
   const [collections, setCollections] = useState<Collection[]>([]);
   const navigate = useNavigate();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, themePreference, setThemePreference } = useTheme();
   const { authEnabled, user, authMode } = useAuth();
   const [editorAutoHide, setEditorAutoHide] = usePreference(
     "editorAutoHide",
@@ -359,7 +359,8 @@ export const Settings: React.FC = () => {
           <SettingsMainGrid
             exportBackup={exportBackup}
             theme={theme}
-            toggleTheme={toggleTheme}
+            themePreference={themePreference}
+            onThemePreferenceChange={setThemePreference}
             imageCompression={imageCompression}
             toggleImageCompression={toggleImageCompression}
             imageCompressionThresholdMb={imageCompressionThresholdMb}

@@ -55,8 +55,10 @@ export interface AuthUser {
   mustResetPassword?: boolean;
 }
 
+export type ThemePreference = "light" | "dark" | "system";
+
 export interface UserPreferences {
-  theme?: "light" | "dark";
+  theme?: ThemePreference;
   dashboardSortField?: DrawingSortField;
   dashboardSortDirection?: SortDirection;
   language?: string;

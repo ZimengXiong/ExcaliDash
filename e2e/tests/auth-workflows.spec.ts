@@ -141,12 +141,21 @@ test("theme preference survives a fresh browser context without local storage", 
   baseURL,
 }) => {
   await signIn(page);
+  const before = await page.request.get(`${API_URL}/auth/preferences`);
+  expect(before.ok()).toBe(true);
+  const originalTheme: string =
+    (await before.json()).preferences.theme ?? "system";
+
   await page.goto("/settings");
-  const toggle = page.getByRole("switch", { name: "Toggle dark mode" });
-  await expect(toggle).toBeVisible();
-  const wasDark = (await toggle.getAttribute("aria-checked")) === "true";
-  await toggle.click();
+  const themeSelect = page.getByRole("button", { name: "Theme", exact: true });
+  await expect(themeSelect).toBeVisible();
+  const wasDark = await page
+    .locator("html")
+    .evaluate((el) => el.classList.contains("dark"));
   const expectedTheme = wasDark ? "light" : "dark";
+  const expectedLabel = wasDark ? "Light" : "Dark";
+  await themeSelect.click();
+  await page.getByRole("option", { name: expectedLabel, exact: true }).click();
   await expect
     .poll(async () => {
       const response = await page.request.get(`${API_URL}/auth/preferences`);
@@ -163,13 +172,13 @@ test("theme preference survives a fresh browser context without local storage", 
     const otherPage = await fresh.newPage();
     await otherPage.goto("/settings");
     await expect(
-      otherPage.getByRole("switch", { name: "Toggle dark mode" }),
-    ).toHaveAttribute("aria-checked", String(!wasDark));
+      otherPage.getByRole("button", { name: "Theme", exact: true }),
+    ).toHaveText(expectedLabel);
   } finally {
     await fresh.close();
     const restored = await page.request.put(`${API_URL}/auth/preferences`, {
       headers: await getCsrfHeaders(page.request),
-      data: { theme: wasDark ? "dark" : "light" },
+      data: { theme: originalTheme },
     });
     expect(restored.ok()).toBe(true);
   }
