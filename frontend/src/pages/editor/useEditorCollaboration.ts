@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { io, type Socket } from "socket.io-client";
+import throttle from "lodash/throttle";
+import {
+  CaptureUpdateAction,
+  getVisibleSceneBounds,
+  zoomToFitBounds,
+} from "@excalidraw/excalidraw";
+import type { OnUserFollowedPayload } from "@excalidraw/excalidraw/types";
 import { toast } from "sonner";
 import type { UserIdentity } from "../../utils/identity";
 import {
@@ -11,7 +18,10 @@ import { buildRemoteSceneUpdate } from "./shared";
 import * as api from "../../api";
 import { reconcileElements } from "../../utils/sync";
 
-interface Peer extends UserIdentity {
+type SceneBounds = [number, number, number, number];
+
+export interface Peer extends UserIdentity {
+  socketId: string;
   isActive: boolean;
 }
 
@@ -70,6 +80,7 @@ export const useEditorCollaboration = ({
   const [socketMe, setSocketMe] = useState<UserIdentity>(me);
   const socketMeRef = useRef<UserIdentity>(socketMe);
   const [peers, setPeers] = useState<Peer[]>([]);
+  const [followedUserId, setFollowedUserId] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const lastPresenceUsersRef = useRef<Peer[] | null>(null);
   const lastCursorEmit = useRef<number>(0);
@@ -134,29 +145,124 @@ export const useEditorCollaboration = ({
       animationFrameId.current = requestAnimationFrame(renderLoop);
     };
     renderLoop();
-    socket.on("presence-update", (users: Peer[]) => {
-      lastPresenceUsersRef.current = users;
-      const selfId = socketMeRef.current.id;
-      setPeers(users.filter((u) => u.id !== selfId));
-      if (excalidrawAPI.current) {
-        const collaborators = new Map<string, any>(
-          excalidrawAPI.current.getAppState().collaborators || [],
-        );
-        users.forEach((user) => {
-          if (!user.isActive && user.id !== selfId) {
-            collaborators.delete(user.id);
-          }
+    // Every client broadcasts its viewport and whom it follows, and the
+    // latest of each is kept per person, so whichever of their tabs moved
+    // last wins. Following someone then jumps to them at once, a chain
+    // (C follows B follows A) tracks A directly, and the server needs no
+    // follower state.
+    const peerViews = new Map<
+      string,
+      { bounds: SceneBounds; following: string | null }
+    >();
+    // Collaborators are keyed by user id, so Excalidraw's follow target
+    // (which it calls socketId) is the person, whichever tab they use.
+    const followedUser = (): string | null =>
+      excalidrawAPI.current?.getAppState().userToFollow?.socketId ?? null;
+    // From the person we follow to the leader at the end of its chain; empty
+    // when the chain loops, since then nobody in it is broadcasting.
+    const followChain = () => {
+      const chain: string[] = [];
+      let next = followedUser();
+      while (next && next !== socketMeRef.current.id && !chain.includes(next)) {
+        chain.push(next);
+        next = peerViews.get(next)?.following ?? null;
+      }
+      return next ? [] : chain;
+    };
+    const applyLeaderBounds = () => {
+      const api = excalidrawAPI.current;
+      if (!api) return;
+      const chain = followChain();
+      const bounds = peerViews.get(chain[chain.length - 1])?.bounds;
+      if (!bounds) return;
+      const { appState: next } = zoomToFitBounds({
+        bounds,
+        appState: api.getAppState(),
+        fitToViewport: true,
+        viewportZoomFactor: 1,
+      });
+      isSyncing.current = true;
+      try {
+        api.updateScene({
+          appState: {
+            scrollX: next.scrollX,
+            scrollY: next.scrollY,
+            zoom: next.zoom,
+          },
+          // Mirroring a leader is not an edit; keep it out of undo history.
+          captureUpdate: CaptureUpdateAction.NEVER,
         });
-        const { sceneUpdate } = buildRemoteSceneUpdate({ collaborators });
-        if (sceneUpdate) {
-          isSyncing.current = true;
-          try {
-            excalidrawAPI.current.updateScene(sceneUpdate);
-          } finally {
-            isSyncing.current = false;
-          }
+      } finally {
+        isSyncing.current = false;
+      }
+    };
+    const emitVisibleBounds = throttle(() => {
+      const api = excalidrawAPI.current;
+      if (!api) return;
+      const appState = api.getAppState();
+      socket.emit("visible-bounds", {
+        drawingId,
+        bounds: getVisibleSceneBounds(appState),
+        following: followedUser(),
+      });
+    }, 50);
+    const isSelf = (user: Peer) =>
+      user.socketId === socket.id || user.id === socketMeRef.current.id;
+    const applyPresence = (users: Peer[]) => {
+      const api = excalidrawAPI.current;
+      if (!api) return;
+      // One header avatar per person, standing for an active tab if any.
+      const peersByUser = new Map<string, Peer>();
+      users.forEach((user) => {
+        if (isSelf(user)) return;
+        const known = peersByUser.get(user.id);
+        if (!known || (!known.isActive && user.isActive)) {
+          peersByUser.set(user.id, user);
+        }
+      });
+      setPeers([...peersByUser.values()]);
+      const collaborators = new Map<string, any>(
+        api.getAppState().collaborators || [],
+      );
+      // One entry per person, which Excalidraw's follow mode targets. People
+      // are listed before their first cursor move and kept while away,
+      // because Excalidraw ends a follow once its target leaves the map.
+      collaborators.forEach((_collaborator, userId) => {
+        if (!peersByUser.has(userId)) collaborators.delete(userId);
+      });
+      peersByUser.forEach((user, userId) => {
+        collaborators.set(userId, {
+          username: user.name,
+          color: { background: user.color, stroke: user.color },
+          id: userId,
+          ...collaborators.get(userId),
+          userState: user.isActive ? "active" : "away",
+        });
+      });
+      const { sceneUpdate } = buildRemoteSceneUpdate({ collaborators });
+      if (sceneUpdate) {
+        isSyncing.current = true;
+        try {
+          api.updateScene(sceneUpdate);
+        } finally {
+          isSyncing.current = false;
         }
       }
+    };
+    socket.on("presence-update", (users: Peer[]) => {
+      const knownSocketIds = new Set(
+        (lastPresenceUsersRef.current ?? []).map((u) => u.socketId),
+      );
+      lastPresenceUsersRef.current = users;
+      // Someone joined (or we rejoined under a new socket id): they have no
+      // viewport for us until we next scroll, so send it now.
+      if (users.some((u) => !knownSocketIds.has(u.socketId))) {
+        emitVisibleBounds();
+      }
+      peerViews.forEach((_view, userId) => {
+        if (!users.some((u) => u.id === userId)) peerViews.delete(userId);
+      });
+      applyPresence(users);
     });
     socket.on("error", (payload: any) => {
       const message =
@@ -169,6 +275,7 @@ export const useEditorCollaboration = ({
       if (message) toast.error(message);
     });
     socket.on("cursor-move", (data: any) => {
+      if (data.userId === socketMeRef.current.id) return;
       cursorBuffer.current.set(data.userId, {
         pointer: data.pointer,
         button: data.button || "up",
@@ -176,8 +283,51 @@ export const useEditorCollaboration = ({
         username: data.username,
         color: { background: data.color, stroke: data.color },
         id: data.userId,
+        userState: "active",
       });
     });
+    socket.on(
+      "visible-bounds",
+      (payload: {
+        drawingId?: string;
+        userId?: string;
+        bounds?: any;
+        following?: unknown;
+      }) => {
+        if (payload?.drawingId !== drawingId) return;
+        if (typeof payload.userId !== "string") return;
+        if (!Array.isArray(payload.bounds) || payload.bounds.length !== 4) {
+          return;
+        }
+        peerViews.set(payload.userId, {
+          bounds: payload.bounds as SceneBounds,
+          following:
+            typeof payload.following === "string" ? payload.following : null,
+        });
+        if (followChain().includes(payload.userId)) applyLeaderBounds();
+      },
+    );
+    // A follower's viewport only mirrors its leader's, so re-broadcasting it
+    // would turn each leader pan into one message per follower; followers of
+    // a follower resolve the chain to the leader instead.
+    const unsubscribeScrollChange = excalidrawAPI.current?.onScrollChange?.(
+      () => {
+        if (!excalidrawAPI.current?.getAppState().userToFollow) {
+          emitVisibleBounds();
+        }
+      },
+    );
+    // Excalidraw 0.18 declares an `onUserFollow` prop but never calls it;
+    // follow changes are only published through the imperative API.
+    const unsubscribeUserFollow = excalidrawAPI.current?.onUserFollow?.(
+      ({ userToFollow, action }: OnUserFollowedPayload) => {
+        // Excalidraw reports UNFOLLOW(old) before FOLLOW(new) on a switch.
+        setFollowedUserId(action === "FOLLOW" ? userToFollow.socketId : null);
+        if (action === "FOLLOW") applyLeaderBounds();
+        // Tell peers whom we follow now, for anyone following us.
+        emitVisibleBounds();
+      },
+    );
     const hasNonEmptyArray = (value: unknown): value is any[] =>
       Array.isArray(value) && value.length > 0;
     const flushRemoteUpdates = () => {
@@ -412,9 +562,8 @@ export const useEditorCollaboration = ({
       };
       socketMeRef.current = next;
       setSocketMe(next);
-      const lastUsers = lastPresenceUsersRef.current;
-      if (lastUsers) {
-        setPeers(lastUsers.filter((u) => u.id !== next.id));
+      if (lastPresenceUsersRef.current) {
+        applyPresence(lastPresenceUsersRef.current);
       }
     });
     socket.on("drawing-server-update", (payload: { drawingId?: string }) => {
@@ -427,7 +576,13 @@ export const useEditorCollaboration = ({
     const handleActivity = (isActive: boolean) => {
       socket.emit("user-activity", { drawingId, isActive });
     };
-    const onFocus = () => handleActivity(true);
+    const onFocus = () => {
+      handleActivity(true);
+      // Followers move to whichever of our tabs we are looking at.
+      if (!excalidrawAPI.current?.getAppState().userToFollow) {
+        emitVisibleBounds();
+      }
+    };
     const onBlur = () => handleActivity(false);
     const onMouseEnter = () => handleActivity(true);
     const onMouseLeave = () => handleActivity(false);
@@ -440,6 +595,9 @@ export const useEditorCollaboration = ({
       cancelled = true;
       catchupGeneration += 1;
       detachRoomJoin();
+      unsubscribeScrollChange?.();
+      unsubscribeUserFollow?.();
+      emitVisibleBounds.cancel();
       socket.off("disconnect", invalidateCatchup);
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("blur", onBlur);
@@ -448,6 +606,7 @@ export const useEditorCollaboration = ({
       socket.off("presence-update");
       socket.off("error");
       socket.off("cursor-move");
+      socket.off("visible-bounds");
       socket.off("element-update");
       socket.off("drawing-server-update");
       socket.disconnect();
@@ -461,6 +620,7 @@ export const useEditorCollaboration = ({
       pendingRemoteElementOrderRef.current = null;
       cursorUpdates.clear();
       lastPresenceUsersRef.current = null;
+      setFollowedUserId(null);
       if (socketRef.current === socket) socketRef.current = null;
       cancelAnimationFrame(animationFrameId.current);
     };
@@ -497,8 +657,29 @@ export const useEditorCollaboration = ({
     [drawingId],
   );
 
+  const toggleFollow = useCallback(
+    (peer: Peer) => {
+      const api = excalidrawAPI.current;
+      if (!api) return;
+      const following = api.getAppState().userToFollow?.socketId;
+      api.updateScene({
+        appState: {
+          userToFollow:
+            following === peer.id
+              ? null
+              : { socketId: peer.id, username: peer.name },
+        },
+        // Following someone is not an edit; keep it out of undo history.
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+    },
+    [excalidrawAPI],
+  );
+
   return {
     peers,
+    followedUserId,
+    toggleFollow,
     socketMeRef,
     socketRef,
     isSyncing,
