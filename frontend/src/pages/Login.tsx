@@ -13,6 +13,7 @@ import {
   clearOidcAutoLoginSuppression,
   isOidcAutoLoginSuppressed,
 } from "../utils/oidcLogout";
+import { useLocale } from "../context/useLocale";
 
 export const Login: React.FC = () => {
   const [email, setEmail] = useState("");
@@ -37,6 +38,7 @@ export const Login: React.FC = () => {
     loading: authLoading,
     user,
   } = useAuth();
+  const { t } = useLocale();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const queryMustReset = searchParams.get("mustReset") === "1";
@@ -48,8 +50,8 @@ export const Login: React.FC = () => {
 
   useEffect(() => {
     if (!oidcErrorCode) return;
-    setError(oidcErrorMessage || "OIDC sign-in failed");
-  }, [oidcErrorCode, oidcErrorMessage]);
+    setError(oidcErrorMessage || t("auth.login.oidcFailed"));
+  }, [oidcErrorCode, oidcErrorMessage, t]);
 
   useEffect(() => {
     if (authStatusError) return;
@@ -117,7 +119,8 @@ export const Login: React.FC = () => {
       }
       navigate("/");
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to login";
+      const message =
+        err instanceof Error ? err.message : t("auth.login.failed");
       setError(message);
     } finally {
       setLoading(false);
@@ -129,7 +132,7 @@ export const Login: React.FC = () => {
     setError("");
 
     if (!newPassword || !confirmNewPassword) {
-      setError("Please enter and confirm a new password");
+      setError(t("auth.mustReset.enterAndConfirm"));
       return;
     }
     const passwordError = validatePassword(newPassword, passwordPolicy);
@@ -138,7 +141,7 @@ export const Login: React.FC = () => {
       return;
     }
     if (newPassword !== confirmNewPassword) {
-      setError("New passwords do not match");
+      setError(t("password.newPasswordsMismatch"));
       return;
     }
 
@@ -158,7 +161,7 @@ export const Login: React.FC = () => {
 
       window.location.href = "/";
     } catch (err: unknown) {
-      let message = "Failed to reset password";
+      let message = t("auth.mustReset.failed");
       if (api.isAxiosError(err)) {
         message =
           err.response?.data?.message || err.response?.data?.error || message;
@@ -176,21 +179,23 @@ export const Login: React.FC = () => {
           <Logo className="mx-auto h-12 w-auto" />
           <h2 className="auth-heading">
             {mustReset
-              ? "Reset your password"
+              ? t("auth.mustReset.title")
               : oidcEnforced
-                ? `Sign in with ${oidcProvider || "OIDC"}`
-                : "Sign in to your account"}
+                ? t("auth.login.signInWith", {
+                    provider: oidcProvider || "OIDC",
+                  })
+                : t("auth.login.title")}
           </h2>
           {!mustReset && !oidcEnforced && registrationEnabled ? (
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              Or{" "}
+              {t("auth.login.or")}{" "}
               <Link to="/register" className="ui-link">
-                create a new account
+                {t("auth.login.createAccountLink")}
               </Link>
             </p>
           ) : mustReset ? (
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-              Choose a new password to continue.
+              {t("auth.mustReset.subtitle")}
             </p>
           ) : null}
         </div>
@@ -213,7 +218,7 @@ export const Login: React.FC = () => {
                 }}
                 className="ui-button-primary w-full"
               >
-                Continue with {oidcProvider || "OIDC"}
+                {t("auth.continueWith", { provider: oidcProvider || "OIDC" })}
               </button>
             </div>
           ) : (
@@ -223,7 +228,7 @@ export const Login: React.FC = () => {
                   <>
                     <div>
                       <label htmlFor="email" className="sr-only">
-                        Email address
+                        {t("auth.emailAddress")}
                       </label>
                       <input
                         id="email"
@@ -232,14 +237,14 @@ export const Login: React.FC = () => {
                         autoComplete="email"
                         required
                         className="ui-input block w-full"
-                        placeholder="Email address"
+                        placeholder={t("auth.emailAddress")}
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                       />
                     </div>
                     <div>
                       <label htmlFor="password" className="sr-only">
-                        Password
+                        {t("auth.password")}
                       </label>
                       <PasswordInput
                         id="password"
@@ -247,7 +252,7 @@ export const Login: React.FC = () => {
                         autoComplete="current-password"
                         required
                         className="ui-input block w-full"
-                        placeholder="Password"
+                        placeholder={t("auth.password")}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                       />
@@ -257,7 +262,7 @@ export const Login: React.FC = () => {
                   <>
                     <div>
                       <label htmlFor="newPassword" className="sr-only">
-                        New password
+                        {t("password.newPassword")}
                       </label>
                       <PasswordInput
                         id="newPassword"
@@ -268,14 +273,14 @@ export const Login: React.FC = () => {
                         maxLength={passwordPolicy.maxLength}
                         pattern={passwordPolicy.patternHtml}
                         className="ui-input block w-full"
-                        placeholder="New password"
+                        placeholder={t("password.newPassword")}
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
                       />
                     </div>
                     <div>
                       <label htmlFor="confirmNewPassword" className="sr-only">
-                        Confirm new password
+                        {t("password.confirmNewPassword")}
                       </label>
                       <PasswordInput
                         id="confirmNewPassword"
@@ -285,7 +290,7 @@ export const Login: React.FC = () => {
                         minLength={passwordPolicy.minLength}
                         maxLength={passwordPolicy.maxLength}
                         className="ui-input block w-full"
-                        placeholder="Confirm new password"
+                        placeholder={t("password.confirmNewPassword")}
                         value={confirmNewPassword}
                         onChange={(e) => setConfirmNewPassword(e.target.value)}
                       />
@@ -310,7 +315,7 @@ export const Login: React.FC = () => {
           {!mustReset && !oidcEnforced && (
             <div className="flex justify-end">
               <Link to="/reset-password" className="ui-link text-sm">
-                Forgot your password?
+                {t("auth.login.forgotPassword")}
               </Link>
             </div>
           )}
@@ -324,11 +329,11 @@ export const Login: React.FC = () => {
               >
                 {mustReset
                   ? loading
-                    ? "Updating..."
-                    : "Set new password"
+                    ? t("common.updating")
+                    : t("auth.mustReset.submit")
                   : loading
-                    ? "Signing in..."
-                    : "Sign in"}
+                    ? t("auth.login.signingIn")
+                    : t("auth.login.signIn")}
               </button>
             </div>
           )}
@@ -343,7 +348,7 @@ export const Login: React.FC = () => {
                 }}
                 className="ui-button-secondary w-full"
               >
-                Continue with {oidcProvider || "OIDC"}
+                {t("auth.continueWith", { provider: oidcProvider || "OIDC" })}
               </button>
             </div>
           )}
@@ -359,7 +364,7 @@ export const Login: React.FC = () => {
                 }}
                 className="ui-link text-sm"
               >
-                Sign in as a different user
+                {t("auth.mustReset.signInAsDifferentUser")}
               </button>
             </div>
           )}

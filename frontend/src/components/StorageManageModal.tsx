@@ -18,6 +18,7 @@ import {
   type FilesDiffResult,
   type FileDiffEntry,
 } from "../api";
+import { useLocale } from "../context/useLocale";
 
 interface StorageManageModalProps {
   isOpen: boolean;
@@ -40,11 +41,12 @@ function StatusIcon({
   active?: boolean;
   present: boolean;
 }) {
+  const { t } = useLocale();
   if (active) {
     return (
       <span
         className="text-emerald-600 dark:text-emerald-400 font-bold"
-        title="Active"
+        title={t("storage.status.active")}
       >
         {"\u2713"}
       </span>
@@ -54,7 +56,7 @@ function StatusIcon({
     return (
       <span
         className="text-amber-500 dark:text-amber-400 font-bold"
-        title="History-only"
+        title={t("storage.status.historyOnly")}
       >
         {"\u25D0"}
       </span>
@@ -63,7 +65,7 @@ function StatusIcon({
   return (
     <span
       className="text-neutral-400 dark:text-neutral-500 font-bold"
-      title="Missing"
+      title={t("storage.status.missing")}
     >
       {"\u2717"}
     </span>
@@ -76,6 +78,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
   drawingName,
   onClose,
 }) => {
+  const { t } = useLocale();
   const [diffData, setDiffData] = useState<FilesDiffResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,12 +106,12 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
       setSelectedIds(preSelected);
     } catch (err: unknown) {
       const message =
-        err instanceof Error ? err.message : "Failed to load file diff";
+        err instanceof Error ? err.message : t("storage.errors.loadDiff");
       setError(message);
     } finally {
       setLoading(false);
     }
-  }, [drawingId]);
+  }, [drawingId, t]);
 
   useEffect(() => {
     if (isOpen) {
@@ -136,15 +139,20 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
     setError(null);
     try {
       const result = await trimDrawing(drawingId, confirmInput);
-      const t = result.trimmed;
+      const trimmed = result.trimmed;
       setLastResult(
-        `Trim complete: ${t.elementsRemoved} elements removed, ${t.filesRemoved} files removed, ${t.s3ObjectsDeleted} S3 objects deleted.`,
+        t("storage.trimComplete", {
+          elements: trimmed.elementsRemoved,
+          files: trimmed.filesRemoved,
+          s3Objects: trimmed.s3ObjectsDeleted,
+        }),
       );
       setConfirmAction(null);
       setConfirmInput("");
       await loadDiff();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Trim failed";
+      const message =
+        err instanceof Error ? err.message : t("storage.errors.trim");
       setError(message);
       setConfirmAction(null);
       setConfirmInput("");
@@ -160,13 +168,17 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
       const ids = Array.from(selectedIds);
       const result = await deleteOrphanFiles(drawingId, confirmInput, ids);
       setLastResult(
-        `Deleted ${result.deleted} orphan file(s).${result.errors > 0 ? ` ${result.errors} error(s).` : ""}`,
+        t("storage.orphansDeleted", { count: result.deleted }) +
+          (result.errors > 0
+            ? ` ${t("storage.orphansErrors", { count: result.errors })}`
+            : ""),
       );
       setConfirmAction(null);
       setConfirmInput("");
       await loadDiff();
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Delete failed";
+      const message =
+        err instanceof Error ? err.message : t("storage.errors.delete");
       setError(message);
       setConfirmAction(null);
       setConfirmInput("");
@@ -194,7 +206,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-lg font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">
-              Storage Management
+              {t("storage.title")}
             </h2>
             <p className="text-sm text-neutral-500 dark:text-neutral-400 truncate">
               {drawingName}
@@ -234,10 +246,10 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
               className="ui-button-danger px-4 py-2.5"
             >
               <Scissors size={16} />
-              Trim History
+              {t("storage.trimHistory")}
             </button>
             <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
-              Clean up deleted elements and unused files.
+              {t("storage.trimDescription")}
             </p>
           </div>
 
@@ -247,7 +259,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
           <div>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
-                File Comparison
+                {t("storage.fileComparison")}
               </h3>
               <button
                 onClick={loadDiff}
@@ -258,7 +270,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                   size={14}
                   className={clsx(loading && "animate-spin")}
                 />
-                Refresh
+                {t("common.refresh")}
               </button>
             </div>
 
@@ -270,7 +282,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
               <>
                 {/* Summary */}
                 <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-3">
-                  Canvas refs:{" "}
+                  {t("storage.canvasRefs")}{" "}
                   <span className="font-semibold text-neutral-700 dark:text-neutral-300">
                     {diffData.summary.totalCanvasRefs}
                   </span>
@@ -294,10 +306,10 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                             <span className="sr-only">Select</span>
                           </th>
                           <th className="px-3 py-2 text-left font-semibold text-neutral-700 dark:text-neutral-300">
-                            File ID
+                            {t("storage.columns.fileId")}
                           </th>
                           <th className="px-3 py-2 text-center font-semibold text-neutral-700 dark:text-neutral-300">
-                            Canvas
+                            {t("storage.columns.canvas")}
                           </th>
                           <th className="px-3 py-2 text-center font-semibold text-neutral-700 dark:text-neutral-300">
                             SQLite
@@ -306,7 +318,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                             S3
                           </th>
                           <th className="px-3 py-2 text-right font-semibold text-neutral-700 dark:text-neutral-300">
-                            Size
+                            {t("storage.columns.size")}
                           </th>
                         </tr>
                       </thead>
@@ -317,7 +329,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                               colSpan={6}
                               className="px-3 py-6 text-center text-neutral-400"
                             >
-                              No files found.
+                              {t("storage.noFiles")}
                             </td>
                           </tr>
                         ) : (
@@ -370,19 +382,19 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                     <span className="text-emerald-600 dark:text-emerald-400 font-bold">
                       {"\u2713"}
                     </span>{" "}
-                    active
+                    {t("storage.legend.active")}
                   </span>
                   <span>
                     <span className="text-amber-500 dark:text-amber-400 font-bold">
                       {"\u25D0"}
                     </span>{" "}
-                    history-only
+                    {t("storage.legend.historyOnly")}
                   </span>
                   <span>
                     <span className="text-neutral-400 dark:text-neutral-500 font-bold">
                       {"\u2717"}
                     </span>{" "}
-                    missing
+                    {t("storage.legend.missing")}
                   </span>
                 </div>
 
@@ -397,7 +409,9 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                     className="ui-button-danger px-4 py-2.5"
                   >
                     <Trash2 size={16} />
-                    Delete Selected Orphans ({selectedIds.size})
+                    {t("storage.deleteSelectedOrphans", {
+                      count: selectedIds.size,
+                    })}
                   </button>
                 </div>
               </>
@@ -408,7 +422,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
         {/* Footer */}
         <div className="p-4 border-t-2 border-slate-800 dark:border-neutral-700 flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/10 rounded-b-2xl">
           <AlertTriangle size={14} className="shrink-0" />
-          These operations are irreversible.
+          {t("storage.irreversible")}
         </div>
 
         {/* Confirmation overlay */}
@@ -421,15 +435,15 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                 </div>
                 <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-100">
                   {confirmAction === "trim"
-                    ? "Trim History"
-                    : "Delete Orphan Files"}
+                    ? t("storage.trimHistory")
+                    : t("storage.deleteOrphanFiles")}
                 </h3>
                 <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                  Type{" "}
+                  {t("storage.typeToConfirmPrefix")}{" "}
                   <span className="font-bold text-neutral-750 dark:text-neutral-200">
                     {drawingName}
                   </span>{" "}
-                  to confirm:
+                  {t("storage.typeToConfirmSuffix")}
                 </p>
               </div>
 
@@ -451,7 +465,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                   disabled={actionLoading}
                   className="ui-button-secondary flex-1 px-4 py-2.5"
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </button>
                 <button
                   onClick={
@@ -463,7 +477,7 @@ export const StorageManageModal: React.FC<StorageManageModalProps> = ({
                   {actionLoading && (
                     <Loader2 size={16} className="animate-spin" />
                   )}
-                  Confirm
+                  {t("common.confirm")}
                 </button>
               </div>
             </div>

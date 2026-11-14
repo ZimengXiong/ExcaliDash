@@ -6,6 +6,7 @@ import {
   validatePassword,
   type PasswordPolicy,
 } from "../../utils/passwordPolicy";
+import { useLocale } from "../../context/useLocale";
 
 export type CreateUserInput = {
   email: string;
@@ -31,6 +32,7 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
   onSubmit,
   onCancel,
 }) => {
+  const { t } = useLocale();
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
@@ -78,7 +80,7 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
           <UserCog size={24} className="text-indigo-600 dark:text-indigo-400" />
         </div>
         <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-          Create User
+          {t("admin.createUser.title")}
         </h2>
       </div>
       <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -89,7 +91,7 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
         )}
         <div>
           <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">
-            Email
+            {t("profile.email")}
           </label>
           <input
             type="email"
@@ -101,7 +103,7 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
         </div>
         <div>
           <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">
-            Name
+            {t("auth.name")}
           </label>
           <input
             type="text"
@@ -113,7 +115,7 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
         </div>
         <div>
           <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">
-            Username (optional)
+            {t("admin.createUser.username")}
           </label>
           <input
             type="text"
@@ -124,7 +126,7 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
         </div>
         <div>
           <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">
-            Account Type
+            {t("admin.createUser.accountType")}
           </label>
           <button
             type="button"
@@ -140,18 +142,20 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
                 : "border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-slate-600 dark:text-neutral-300"
             } ${!oidcEnabled ? "opacity-60 cursor-not-allowed" : ""}`}
           >
-            {oidcOnly ? "OIDC-only invite" : "Local password account"}
+            {oidcOnly
+              ? t("admin.createUser.oidcInvite")
+              : t("admin.createUser.localAccount")}
           </button>
           <p className="mt-2 text-xs text-slate-500 dark:text-neutral-400">
             {oidcOnly
-              ? "This user can sign in through OIDC when the IdP email matches. No local password is stored."
-              : "This user can sign in with a local password."}
+              ? t("admin.createUser.oidcInviteHint")
+              : t("admin.createUser.localAccountHint")}
           </p>
         </div>
         {!oidcOnly && (
           <div>
             <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">
-              Temporary Password
+              {t("admin.createUser.tempPassword")}
             </label>
             <input
               type="password"
@@ -172,10 +176,10 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
         )}
         <div>
           <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">
-            Role
+            {t("admin.role")}
           </label>
           <PlayfulSelect
-            ariaLabel="Role"
+            ariaLabel={t("admin.role")}
             value={role}
             onChange={(value) => setRole(value as "ADMIN" | "USER")}
             options={[
@@ -193,7 +197,7 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
         <div className="flex flex-col sm:flex-row items-center gap-4 pt-4">
           <div className="flex-1 w-full">
             <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">
-              Password Reset
+              {t("admin.createUser.passwordReset")}
             </label>
             <button
               type="button"
@@ -206,15 +210,15 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
               } ${oidcOnly ? "opacity-60 cursor-not-allowed" : ""}`}
             >
               {oidcOnly
-                ? "Not used for OIDC-only"
+                ? t("admin.createUser.notUsedForOidc")
                 : mustReset
-                  ? "Must reset password"
-                  : "No reset required"}
+                  ? t("admin.createUser.mustReset")
+                  : t("admin.createUser.noReset")}
             </button>
           </div>
           <div className="flex-1 w-full">
             <label className="block text-sm font-bold text-slate-700 dark:text-neutral-300 mb-2">
-              Account Status
+              {t("admin.createUser.accountStatus")}
             </label>
             <button
               type="button"
@@ -225,7 +229,7 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
                   : "border-slate-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-slate-600 dark:text-neutral-300"
               }`}
             >
-              {active ? "Active" : "Inactive"}
+              {active ? t("admin.active") : t("admin.inactive")}
             </button>
           </div>
         </div>
@@ -238,10 +242,10 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({
             }}
             className="ui-button-secondary px-4"
           >
-            Cancel
+            {t("common.cancel")}
           </button>
           <button type="submit" className="ui-button-primary px-4">
-            Create
+            {t("admin.createUser.create")}
           </button>
         </div>
       </form>

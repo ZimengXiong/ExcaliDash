@@ -12,10 +12,8 @@ import { SettingsConfirmModals } from "./settings/SettingsConfirmModals";
 import { ApiKeysCard } from "./profile/ApiKeysCard";
 import { Toaster } from "sonner";
 import { displayFontFamily } from "../utils/displayFont";
-import {
-  EXCALIDASH_REQUIRED_MESSAGE,
-  isExcalidashFile,
-} from "../utils/importUtils";
+import { useLocale } from "../context/useLocale";
+import { isExcalidashFile } from "../utils/importUtils";
 import { resetImageCompressionMemo } from "../utils/imageCompression";
 import {
   IMAGE_COMPRESSION_ENABLED_KEY,
@@ -26,6 +24,7 @@ import {
 export const Settings: React.FC = () => {
   const [collections, setCollections] = useState<Collection[]>([]);
   const navigate = useNavigate();
+  const { t } = useLocale();
   const { theme, toggleTheme } = useTheme();
   const { authEnabled, user, authMode } = useAuth();
   const [editorAutoHide, setEditorAutoHide] = usePreference(
@@ -82,7 +81,8 @@ export const Settings: React.FC = () => {
     isOpen: boolean;
     message: string;
   }>({ isOpen: false, message: "" });
-  const appVersion = import.meta.env.VITE_APP_VERSION || "Unknown version";
+  const appVersion =
+    import.meta.env.VITE_APP_VERSION || t("settings.unknownVersion");
   const buildLabel = import.meta.env.VITE_APP_BUILD_LABEL;
   const isManagedAuthMode = authMode !== "local";
   const UPDATE_CHANNEL_KEY = "excalidash-update-channel";
@@ -146,7 +146,7 @@ export const Settings: React.FC = () => {
         // Ignore unavailable storage in private/embedded contexts.
       }
     } catch (err: unknown) {
-      let message = "Failed to check for updates";
+      let message = t("settings.errors.checkUpdates");
       if (api.isAxiosError(err)) {
         message =
           err.response?.data?.message || err.response?.data?.error || message;
@@ -175,7 +175,7 @@ export const Settings: React.FC = () => {
       }
       window.location.reload();
     } catch (err: unknown) {
-      let message = "Failed to update authentication setting";
+      let message = t("settings.errors.updateAuth");
       if (api.isAxiosError(err)) {
         message =
           err.response?.data?.message || err.response?.data?.error || message;
@@ -209,7 +209,7 @@ export const Settings: React.FC = () => {
       console.error("Backup export failed:", err);
       setBackupImportError({
         isOpen: true,
-        message: "Failed to export backup. Please try again.",
+        message: t("settings.errors.exportBackup"),
       });
     }
   };
@@ -217,7 +217,7 @@ export const Settings: React.FC = () => {
     if (!isExcalidashFile(file)) {
       setBackupImportError({
         isOpen: true,
-        message: EXCALIDASH_REQUIRED_MESSAGE,
+        message: t("settings.errors.excalidashRequired"),
       });
       return;
     }
@@ -249,7 +249,7 @@ export const Settings: React.FC = () => {
       });
     } catch (err: unknown) {
       console.error("Backup verify failed:", err);
-      let message = "Failed to verify backup file.";
+      let message = t("settings.errors.verifyBackup");
       if (api.isAxiosError(err)) {
         message =
           err.response?.data?.message || err.response?.data?.error || message;
@@ -285,7 +285,7 @@ export const Settings: React.FC = () => {
       });
     } catch (err: unknown) {
       console.error("Legacy DB verify failed:", err);
-      let message = "Failed to verify legacy database file.";
+      let message = t("settings.errors.verifyLegacyDb");
       if (api.isAxiosError(err)) {
         message =
           err.response?.data?.message || err.response?.data?.error || message;
@@ -332,7 +332,7 @@ export const Settings: React.FC = () => {
           style={{ fontFamily: displayFontFamily }}
         >
           {" "}
-          Settings{" "}
+          {t("sidebar.settings")}{" "}
         </h1>{" "}
         {authToggleError && (
           <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-xl">

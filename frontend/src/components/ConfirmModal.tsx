@@ -1,6 +1,7 @@
 import React from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, CheckCircle, X } from "lucide-react";
+import { useLocale } from "../context/useLocale";
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -19,14 +20,15 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   isOpen,
   title,
   message,
-  confirmText = "Delete",
-  cancelText = "Cancel",
+  confirmText,
+  cancelText,
   onConfirm,
   onCancel,
   isDangerous = true,
   showCancel = true,
   variant = "warning",
 }) => {
+  const { t } = useLocale();
   if (!isOpen) return null;
 
   const isSuccess = variant === "success";
@@ -46,7 +48,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
         <button
           onClick={onCancel}
           className="ui-icon-button absolute right-4 top-4 h-8 w-8 border-transparent bg-transparent shadow-none dark:bg-transparent"
-          aria-label="Close"
+          aria-label={t("common.close")}
         >
           <X size={20} />
         </button>
@@ -71,7 +73,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
                 onClick={onCancel}
                 className="ui-button-secondary flex-1 px-4 py-2.5"
               >
-                {cancelText}
+                {cancelText ?? t("common.cancel")}
               </button>
             )}
 
@@ -81,7 +83,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
                 isDangerous ? "ui-button-danger" : "ui-button-primary"
               }`}
             >
-              {confirmText}
+              {confirmText ?? t("common.delete")}
             </button>
           </div>
         </div>

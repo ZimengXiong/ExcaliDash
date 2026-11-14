@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import clsx from "clsx";
+import { useLocale } from "../../context/useLocale";
 
 interface SidebarItemProps {
   id: string | null;
@@ -34,6 +35,7 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
   onEditBlur,
   onDrop,
 }) => {
+  const { t } = useLocale();
   const [isDragOver, setIsDragOver] = useState(false);
 
   return (
@@ -45,7 +47,7 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
             type="text"
             value={editValue}
             onChange={(e) => onEditChange?.(e.target.value)}
-            aria-label="Collection name"
+            aria-label={t("collection.name")}
             className="ui-input w-full font-medium"
             onBlur={onEditBlur}
           />

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useUpload } from "../context/UploadContext";
+import { useLocale } from "../context/useLocale";
 import {
   Loader2,
   CheckCircle2,
@@ -11,6 +12,7 @@ import {
 import clsx from "clsx";
 
 export const UploadStatus: React.FC = () => {
+  const { t } = useLocale();
   const { tasks, clearCompleted, clearSuccessful, removeTask, isUploading } =
     useUpload();
   const [isOpen, setIsOpen] = useState(false);
@@ -104,14 +106,19 @@ export const UploadStatus: React.FC = () => {
         >
           <div className="p-3 border-b border-slate-100 dark:border-neutral-800 flex items-center justify-between bg-slate-50 dark:bg-neutral-800/50">
             <h3 className="font-bold text-sm text-slate-700 dark:text-slate-200">
-              Uploads ({activeCount > 0 ? `${activeCount} active` : "Done"})
+              {t("upload.title", {
+                status:
+                  activeCount > 0
+                    ? t("upload.activeCount", { count: activeCount })
+                    : t("upload.done"),
+              })}
             </h3>
             {(completedCount > 0 || errorCount > 0) && !isUploading && (
               <button
                 onClick={clearCompleted}
                 className="ui-button-secondary px-2 py-1 text-xs"
               >
-                Clear All
+                {t("upload.clearAll")}
               </button>
             )}
           </div>
@@ -157,7 +164,7 @@ export const UploadStatus: React.FC = () => {
                     <button
                       onClick={() => removeTask(task.id)}
                       className="ui-icon-button h-7 w-7 border-transparent bg-transparent shadow-none opacity-0 group-hover:opacity-100 dark:bg-transparent"
-                      aria-label={`Remove ${task.fileName} from uploads`}
+                      aria-label={t("upload.remove", { name: task.fileName })}
                     >
                       <X size={14} />
                     </button>
@@ -182,7 +189,7 @@ export const UploadStatus: React.FC = () => {
                         className="text-[10px] text-rose-500 font-medium truncate max-w-[80px]"
                         title={task.error}
                       >
-                        {task.error || "Failed"}
+                        {task.error || t("upload.failed")}
                       </span>
                     ) : (
                       <span className="text-[10px] text-slate-400 font-medium w-8 text-right">
@@ -199,7 +206,7 @@ export const UploadStatus: React.FC = () => {
 
       <button
         onClick={() => setIsOpen(!isOpen)}
-        aria-label={isOpen ? "Hide upload status" : "Show upload status"}
+        aria-label={isOpen ? t("upload.hideStatus") : t("upload.showStatus")}
         aria-expanded={isOpen}
         className={clsx(
           "h-12 w-12 rounded-full border-2 border-slate-800 dark:border-neutral-700 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)] flex items-center justify-center transition-all hover:-translate-y-1 active:translate-y-0 hover:shadow-[2.5px_2.5px_0px_0px_rgba(30,41,59,0.9)] dark:hover:shadow-[2.5px_2.5px_0px_0px_rgba(255,255,255,0.18)] bg-white dark:bg-neutral-800 text-slate-900 dark:text-white relative",

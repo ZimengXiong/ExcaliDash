@@ -1,11 +1,13 @@
 import { useCallback, useState } from "react";
 import * as api from "../../api";
+import { useLocale } from "../../context/useLocale";
 
 export const useAccessControlSettings = (
   isAdmin: boolean,
   setError: (message: string) => void,
   setSuccess: (message: string) => void,
 ) => {
+  const { t } = useLocale();
   const [registrationEnabled, setRegistrationEnabled] = useState<
     boolean | null
   >(null);
@@ -42,7 +44,7 @@ export const useAccessControlSettings = (
           : null,
       );
     } catch (err: unknown) {
-      let message = "Failed to load registration status";
+      let message = t("admin.access.errors.load");
       if (api.isAxiosError(err)) {
         message =
           err.response?.data?.message || err.response?.data?.error || message;
@@ -51,7 +53,7 @@ export const useAccessControlSettings = (
     } finally {
       setLoading(false);
     }
-  }, [setError]);
+  }, [setError, t]);
 
   const toggleRegistration = async () => {
     if (!isAdmin || registrationEnabled === null || !localRegistrationAllowed)
@@ -67,11 +69,11 @@ export const useAccessControlSettings = (
       setRegistrationEnabled(Boolean(response.data.registrationEnabled));
       setSuccess(
         response.data.registrationEnabled
-          ? "Registration enabled"
-          : "Registration disabled",
+          ? t("admin.access.registrationEnabled")
+          : t("admin.access.registrationDisabled"),
       );
     } catch (err: unknown) {
-      let message = "Failed to update registration setting";
+      let message = t("admin.access.errors.updateRegistration");
       if (api.isAxiosError(err)) {
         message =
           err.response?.data?.message || err.response?.data?.error || message;
@@ -98,11 +100,11 @@ export const useAccessControlSettings = (
       );
       setSuccess(
         response.data.oidcJitProvisioningEnabled
-          ? "OIDC auto-provisioning enabled"
-          : "OIDC access is now invite-only",
+          ? t("admin.access.autoProvisioningEnabled")
+          : t("admin.access.autoProvisioningDisabled"),
       );
     } catch (err: unknown) {
-      let message = "Failed to update OIDC provisioning setting";
+      let message = t("admin.access.errors.updateOidc");
       if (api.isAxiosError(err)) {
         message =
           err.response?.data?.message || err.response?.data?.error || message;

@@ -1,5 +1,6 @@
 import React from "react";
 import { Check, X } from "lucide-react";
+import { useLocale } from "../context/useLocale";
 
 type PasswordMatchProps = {
   password: string;
@@ -12,6 +13,7 @@ export const PasswordMatch: React.FC<PasswordMatchProps> = ({
   confirmPassword,
   className = "",
 }) => {
+  const { t } = useLocale();
   if (!confirmPassword) return null;
 
   const matches = password === confirmPassword;
@@ -31,7 +33,7 @@ export const PasswordMatch: React.FC<PasswordMatchProps> = ({
       ) : (
         <X size={14} aria-hidden="true" />
       )}
-      {matches ? "Passwords match" : "Passwords do not match"}
+      {matches ? t("password.match") : t("password.mismatch")}
     </p>
   );
 };

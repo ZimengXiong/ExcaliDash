@@ -9,6 +9,7 @@ import {
   EXPIRY_OPTIONS,
 } from "./shareUtils";
 import clsx from "clsx";
+import { useLocale } from "../../context/useLocale";
 
 type Props = {
   activeLink: api.DrawingLinkShareRow | null;
@@ -43,6 +44,7 @@ export const LinkExpirySelect: React.FC<{
   handleUpdateLink,
   linkPermission,
 }) => {
+  const { t } = useLocale();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -141,7 +143,7 @@ export const LinkExpirySelect: React.FC<{
               selected && "ui-menu-item-selected",
             )}
           >
-            <span>{option.label}</span>
+            <span>{t(option.labelKey)}</span>
             {selected && (
               <Check
                 size={12}
@@ -156,7 +158,7 @@ export const LinkExpirySelect: React.FC<{
       {expiryOption === "custom" && (
         <div className="border-t border-slate-100 dark:border-neutral-800 pt-2 px-1.5 pb-1 mt-1.5 flex flex-col gap-1.5">
           <span className="pl-0.5 text-xs font-semibold text-slate-400 dark:text-neutral-500">
-            Custom expiry time
+            {t("editor.share.customExpiry")}
           </span>
           <input
             type="datetime-local"
@@ -182,8 +184,8 @@ export const LinkExpirySelect: React.FC<{
           "ui-icon-button h-[38px] w-[38px]",
           open && "bg-indigo-50 dark:bg-indigo-900/30",
         )}
-        title="Set link expiration"
-        aria-label="Set link expiration"
+        title={t("editor.share.setExpiration")}
+        aria-label={t("editor.share.setExpiration")}
       >
         <Clock size={14} className="text-indigo-600 dark:text-indigo-400" />
       </button>
@@ -202,65 +204,76 @@ export const GeneralAccessSection: React.FC<Props> = ({
   setCustomExpiry,
   handleUpdateLink,
   handleRevokeLink,
-}) => (
-  <section className="border-t-2 border-slate-100 pt-4 dark:border-neutral-800">
-    <h3 className="mb-3 text-xs font-semibold text-slate-400 dark:text-neutral-500">
-      General access
-    </h3>
+}) => {
+  const { t } = useLocale();
+  return (
+    <section className="border-t-2 border-slate-100 pt-4 dark:border-neutral-800">
+      <h3 className="mb-3 text-xs font-semibold text-slate-400 dark:text-neutral-500">
+        {t("editor.share.generalAccess")}
+      </h3>
 
-    <div className="flex items-center justify-between gap-3">
-      <div className="min-w-0 flex-1">
-        <PlayfulSelect
-          ariaLabel="Link access"
-          portal
-          value={activeLink ? "anyone" : "restricted"}
-          onChange={(value) => {
-            if (value === "anyone") void handleUpdateLink();
-            else void handleRevokeLink();
-          }}
-          options={[
-            {
-              label: "Restricted",
-              value: "restricted",
-              icon: <Lock size={14} />,
-            },
-            {
-              label: "Anyone with the link",
-              value: "anyone",
-              icon: <Globe size={14} />,
-            },
-          ]}
-          variant="playful"
-          showCheck={false}
-          buttonClassName="py-2 px-3 text-sm font-semibold"
-        />
-      </div>
-
-      {activeLink && (
-        <div className="flex items-center gap-2 shrink-0 animate-in fade-in duration-150">
-          <LinkExpirySelect
-            expiryOption={expiryOption}
-            customExpiry={customExpiry}
-            setExpiryOption={setExpiryOption}
-            setCustomExpiry={setCustomExpiry}
-            handleUpdateLink={handleUpdateLink}
-            linkPermission={linkPermission}
-          />
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <PlayfulSelect
-            ariaLabel="Link permission"
+            ariaLabel={t("editor.share.linkAccess")}
             portal
-            value={linkPermission}
-            onChange={(value) => handleUpdateLink(value as "view" | "edit")}
+            value={activeLink ? "anyone" : "restricted"}
+            onChange={(value) => {
+              if (value === "anyone") void handleUpdateLink();
+              else void handleRevokeLink();
+            }}
             options={[
-              { label: "Viewer", value: "view", icon: <Eye size={14} /> },
-              { label: "Editor", value: "edit", icon: <Pencil size={14} /> },
+              {
+                label: t("editor.share.restricted"),
+                value: "restricted",
+                icon: <Lock size={14} />,
+              },
+              {
+                label: t("editor.share.anyoneWithLink"),
+                value: "anyone",
+                icon: <Globe size={14} />,
+              },
             ]}
             variant="playful"
-            className="w-32"
-            buttonClassName="w-full justify-between py-2 px-3 text-sm font-semibold"
+            showCheck={false}
+            buttonClassName="py-2 px-3 text-sm font-semibold"
           />
         </div>
-      )}
-    </div>
-  </section>
-);
+
+        {activeLink && (
+          <div className="flex items-center gap-2 shrink-0 animate-in fade-in duration-150">
+            <LinkExpirySelect
+              expiryOption={expiryOption}
+              customExpiry={customExpiry}
+              setExpiryOption={setExpiryOption}
+              setCustomExpiry={setCustomExpiry}
+              handleUpdateLink={handleUpdateLink}
+              linkPermission={linkPermission}
+            />
+            <PlayfulSelect
+              ariaLabel={t("editor.share.linkPermission")}
+              portal
+              value={linkPermission}
+              onChange={(value) => handleUpdateLink(value as "view" | "edit")}
+              options={[
+                {
+                  label: t("sidebar.viewer"),
+                  value: "view",
+                  icon: <Eye size={14} />,
+                },
+                {
+                  label: t("sidebar.editor"),
+                  value: "edit",
+                  icon: <Pencil size={14} />,
+                },
+              ]}
+              variant="playful"
+              className="w-32"
+              buttonClassName="w-full justify-between py-2 px-3 text-sm font-semibold"
+            />
+          </div>
+        )}
+      </div>
+    </section>
+  );
+};

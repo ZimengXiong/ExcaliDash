@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { MutableRefObject } from "react";
 import { io, type Socket } from "socket.io-client";
 import { toast } from "sonner";
+import { translateCurrent } from "../../i18n";
 import type { UserIdentity } from "../../utils/identity";
 import {
   filesNeedRehydration,
@@ -419,9 +420,7 @@ export const useEditorCollaboration = ({
     });
     socket.on("drawing-server-update", (payload: { drawingId?: string }) => {
       if (!payload?.drawingId || payload.drawingId !== drawingId) return;
-      toast.info(
-        "Drawing storage changed on the server. Reloading the editor.",
-      );
+      toast.info(translateCurrent("editor.toast.serverStorageChanged"));
       window.location.reload();
     });
     const handleActivity = (isActive: boolean) => {

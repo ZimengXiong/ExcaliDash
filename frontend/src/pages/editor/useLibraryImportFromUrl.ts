@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import type { RefObject } from "react";
 import { toast } from "sonner";
+import { translateCurrent } from "../../i18n";
 import * as api from "../../api";
 
 type UseLibraryImportFromUrlParams = {
@@ -39,10 +40,14 @@ export const useLibraryImportFromUrl = ({
         const isCrossOrigin = parsedUrl.origin !== window.location.origin;
         if (isCrossOrigin) {
           const ok = window.confirm(
-            `Import library from external site?\n\n${parsedUrl.origin}\n\nOnly continue if you trust this source.`,
+            translateCurrent("editor.library.confirmExternal", {
+              origin: parsedUrl.origin,
+            }),
           );
           if (!ok) {
-            toast.info("Library import canceled", { id: "library-import" });
+            toast.info(translateCurrent("editor.library.canceled"), {
+              id: "library-import",
+            });
             window.history.replaceState(
               null,
               "",
@@ -58,7 +63,9 @@ export const useLibraryImportFromUrl = ({
         ) {
           throw new Error("Insecure http:// library URL is not allowed");
         }
-        toast.loading("Importing library...", { id: "library-import" });
+        toast.loading(translateCurrent("editor.library.importing"), {
+          id: "library-import",
+        });
         const response = await fetch(parsedUrl.toString(), {
           credentials: "omit",
         });
@@ -80,7 +87,7 @@ export const useLibraryImportFromUrl = ({
         if (user) {
           await api.updateLibrary([...updatedItems]);
         }
-        toast.success("Library imported successfully", {
+        toast.success(translateCurrent("editor.library.imported"), {
           id: "library-import",
         });
         window.history.replaceState(
@@ -90,7 +97,9 @@ export const useLibraryImportFromUrl = ({
         );
       } catch (err) {
         console.error("[Editor] Failed to import library:", err);
-        toast.error("Failed to import library", { id: "library-import" });
+        toast.error(translateCurrent("editor.library.failed"), {
+          id: "library-import",
+        });
       }
     };
     importLibraryFromUrl();

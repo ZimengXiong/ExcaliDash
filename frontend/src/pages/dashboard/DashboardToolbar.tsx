@@ -17,6 +17,7 @@ import type { DrawingSortField, SortDirection } from "../../api";
 import type { Collection } from "../../types";
 import { PlayfulSelect } from "../../components/PlayfulSelect";
 import { NewDrawingControl } from "./NewDrawingControl";
+import { useLocale } from "../../context/useLocale";
 
 type SortOption = {
   field: DrawingSortField;
@@ -82,6 +83,7 @@ export const DashboardToolbar: React.FC<DashboardToolbarProps> = ({
   onCreateDrawing,
   onViewerActionError,
 }) => {
+  const { t } = useLocale();
   const canModifySelection =
     !isSharedView &&
     (!isSharedCollection || currentCollection?.sharedRole === "edit");
@@ -93,7 +95,7 @@ export const DashboardToolbar: React.FC<DashboardToolbarProps> = ({
           <input
             ref={searchInputRef}
             type="text"
-            placeholder="Search drawings..."
+            placeholder={t("dashboard.searchPlaceholder")}
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
             className="w-full pl-10 pr-12 py-2.5 bg-white dark:bg-neutral-900 border-2 border-black dark:border-neutral-700 rounded-xl focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] dark:focus:shadow-[4px_4px_0px_0px_rgba(255,255,255,0.2)] outline-none transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] dark:shadow-[2px_2px_0px_0px_rgba(255,255,255,0.2)] placeholder:text-slate-400 dark:placeholder:text-neutral-500 text-sm text-slate-900 dark:text-white"
@@ -110,7 +112,7 @@ export const DashboardToolbar: React.FC<DashboardToolbarProps> = ({
         </div>
         <div className="flex items-center gap-2 p-1 flex-wrap">
           <PlayfulSelect
-            ariaLabel="Sort drawings"
+            ariaLabel={t("dashboard.sort.label")}
             value={sortConfig.field}
             onChange={(value) => onSortFieldChange(value as DrawingSortField)}
             options={sortOptions.map((option) => ({
@@ -128,8 +130,8 @@ export const DashboardToolbar: React.FC<DashboardToolbarProps> = ({
             )}
             title={
               sortConfig.direction === "asc"
-                ? "Sort Ascending"
-                : "Sort Descending"
+                ? t("dashboard.sort.ascending")
+                : t("dashboard.sort.descending")
             }
           >
             {sortConfig.direction === "asc" ? (
@@ -151,7 +153,11 @@ export const DashboardToolbar: React.FC<DashboardToolbarProps> = ({
                 ? "text-indigo-600 dark:text-indigo-400"
                 : "",
             )}
-            title={allSelected ? "Deselect All" : "Select All"}
+            title={
+              allSelected
+                ? t("dashboard.deselectAll")
+                : t("dashboard.selectAll")
+            }
           >
             {allSelected ? <CheckSquare size={20} /> : <Square size={20} />}
           </button>
@@ -164,7 +170,11 @@ export const DashboardToolbar: React.FC<DashboardToolbarProps> = ({
                 ? "text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
                 : "",
             )}
-            title={isTrashView ? "Delete Permanently" : "Move to Trash"}
+            title={
+              isTrashView
+                ? t("dashboard.deletePermanently")
+                : t("dashboard.moveToTrash")
+            }
           >
             <Trash2 size={20} />
           </button>
@@ -177,7 +187,7 @@ export const DashboardToolbar: React.FC<DashboardToolbarProps> = ({
                 ? "text-indigo-600 dark:text-indigo-400"
                 : "",
             )}
-            title="Duplicate Selected"
+            title={t("dashboard.duplicateSelected")}
           >
             <Copy size={20} />
           </button>
@@ -193,7 +203,7 @@ export const DashboardToolbar: React.FC<DashboardToolbarProps> = ({
                   ? "text-indigo-600 dark:text-indigo-400"
                   : "",
               )}
-              title="Move Selected"
+              title={t("dashboard.moveSelected")}
             >
               <div className="relative">
                 <Folder size={20} />
@@ -212,13 +222,13 @@ export const DashboardToolbar: React.FC<DashboardToolbarProps> = ({
                 />
                 <div className="ui-menu absolute right-0 top-full mt-2 w-56 z-50 max-h-64 overflow-y-auto custom-scrollbar animate-in fade-in zoom-in-95 duration-100">
                   <div className="px-2.5 py-1.5 text-xs font-semibold text-slate-400 dark:text-neutral-500">
-                    Move {selectedCount} items to...
+                    {t("dashboard.moveItemsTo", { count: selectedCount })}
                   </div>
                   <button
                     onClick={() => onBulkMove(null)}
                     className="ui-menu-item"
                   >
-                    <Inbox size={14} /> Unorganized
+                    <Inbox size={14} /> {t("sidebar.unorganized")}
                   </button>
                   {collections
                     .filter((collection) => collection.id !== "trash")
@@ -254,7 +264,7 @@ export const DashboardToolbar: React.FC<DashboardToolbarProps> = ({
               isSharedCollection &&
               currentCollection?.sharedRole !== "edit"
             ) {
-              onViewerActionError("Viewers can't import drawings");
+              onViewerActionError(t("dashboard.viewerCannotImport"));
               return;
             }
             document.getElementById("dashboard-import")?.click();
@@ -267,7 +277,7 @@ export const DashboardToolbar: React.FC<DashboardToolbarProps> = ({
               : "text-indigo-700 dark:text-indigo-300",
           )}
         >
-          <Upload size={18} strokeWidth={2.5} /> Import drawings
+          <Upload size={18} strokeWidth={2.5} /> {t("dashboard.importDrawings")}
         </button>
         <NewDrawingControl
           disabled={isTrashView || isSharedView}
@@ -277,7 +287,7 @@ export const DashboardToolbar: React.FC<DashboardToolbarProps> = ({
               isSharedCollection &&
               currentCollection?.sharedRole !== "edit"
             ) {
-              onViewerActionError("Viewers can't create new drawings");
+              onViewerActionError(t("dashboard.viewerCannotCreate"));
               return false;
             }
             return true;

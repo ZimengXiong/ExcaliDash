@@ -1,6 +1,7 @@
 import React from "react";
 import { Edit2, Plus, Share2, Trash2 } from "lucide-react";
 import type { Collection } from "../../types";
+import { useLocale } from "../../context/useLocale";
 
 export type SidebarContextMenuState = {
   x: number;
@@ -27,65 +28,68 @@ export const SidebarContextMenu: React.FC<SidebarContextMenuProps> = ({
   onRenameCollection,
   onShareCollection,
   onDeleteCollection,
-}) => (
-  <div
-    className="fixed inset-0 z-50"
-    onClick={onClose}
-    onContextMenu={(e) => {
-      e.preventDefault();
-      onClose();
-    }}
-  >
+}) => {
+  const { t } = useLocale();
+  return (
     <div
-      className="ui-menu absolute w-52 animate-in fade-in zoom-in-95 duration-100"
-      style={{ top: contextMenu.y, left: contextMenu.x }}
-      onClick={(e) => e.stopPropagation()}
+      className="fixed inset-0 z-50"
+      onClick={onClose}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
     >
-      {contextMenu.type === "item" && contextMenu.id ? (
-        <>
+      <div
+        className="ui-menu absolute w-52 animate-in fade-in zoom-in-95 duration-100"
+        style={{ top: contextMenu.y, left: contextMenu.x }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {contextMenu.type === "item" && contextMenu.id ? (
+          <>
+            <button
+              onClick={() => {
+                onShareCollection(contextMenu.id!);
+                onClose();
+              }}
+              className="ui-menu-item"
+            >
+              <Share2 size={14} /> {t("collection.share")}
+            </button>
+            <button
+              onClick={() => {
+                const collection = collections.find(
+                  (c) => c.id === contextMenu.id,
+                );
+                if (collection) onRenameCollection(collection);
+                onClose();
+              }}
+              className="ui-menu-item"
+            >
+              <Edit2 size={14} /> {t("collection.rename")}
+            </button>
+            <div className="ui-menu-separator" />
+            <button
+              onClick={() => {
+                onDeleteCollection(contextMenu.id!);
+                onClose();
+              }}
+              className="ui-menu-item ui-menu-item-danger"
+            >
+              <Trash2 size={14} /> {t("sidebar.deleteCollection")}
+            </button>
+          </>
+        ) : (
           <button
             onClick={() => {
-              onShareCollection(contextMenu.id!);
+              onCreateCollection();
               onClose();
             }}
             className="ui-menu-item"
           >
-            <Share2 size={14} /> Share Collection
+            <Plus size={14} /> {t("sidebar.newCollection")}
           </button>
-          <button
-            onClick={() => {
-              const collection = collections.find(
-                (c) => c.id === contextMenu.id,
-              );
-              if (collection) onRenameCollection(collection);
-              onClose();
-            }}
-            className="ui-menu-item"
-          >
-            <Edit2 size={14} /> Rename Collection
-          </button>
-          <div className="ui-menu-separator" />
-          <button
-            onClick={() => {
-              onDeleteCollection(contextMenu.id!);
-              onClose();
-            }}
-            className="ui-menu-item ui-menu-item-danger"
-          >
-            <Trash2 size={14} /> Delete Collection
-          </button>
-        </>
-      ) : (
-        <button
-          onClick={() => {
-            onCreateCollection();
-            onClose();
-          }}
-          className="ui-menu-item"
-        >
-          <Plus size={14} /> New Collection
-        </button>
-      )}
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};

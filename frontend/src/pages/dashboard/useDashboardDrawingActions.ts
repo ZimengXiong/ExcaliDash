@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import type { NavigateFunction } from "react-router-dom";
 import * as api from "../../api";
 import type { Collection, DrawingSummary } from "../../types";
+import { useLocale } from "../../context/useLocale";
 
 type UseDashboardDrawingActionsParams = {
   drawings: DrawingSummary[];
@@ -36,6 +37,7 @@ export const useDashboardDrawingActions = ({
   refreshData,
   navigate,
 }: UseDashboardDrawingActionsParams) => {
+  const { t } = useLocale();
   const [drawingToDelete, setDrawingToDelete] = useState<string | null>(null);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [showImportError, setShowImportError] = useState<{
@@ -64,14 +66,14 @@ export const useDashboardDrawingActions = ({
   const handleCreateDrawing = async () => {
     if (isTrashView || isSharedView) return;
     if (isSharedCollection && currentCollection?.sharedRole !== "edit") {
-      handleViewerActionError("Viewers can't create new drawings");
+      handleViewerActionError(t("dashboard.viewerCannotCreate"));
       return;
     }
     try {
       const targetCollectionId =
         selectedCollectionId === undefined ? null : selectedCollectionId;
       const { id } = await api.createDrawing(
-        "Untitled Drawing",
+        t("dashboard.untitledDrawing"),
         targetCollectionId,
       );
       navigate(`/editor/${id}`);
@@ -83,7 +85,7 @@ export const useDashboardDrawingActions = ({
   const handleImportDrawings = async (files: FileList | null) => {
     if (!files || isTrashView || isSharedView) return;
     if (isSharedCollection && currentCollection?.sharedRole !== "edit") {
-      handleViewerActionError("Viewers can't import drawings");
+      handleViewerActionError(t("dashboard.viewerCannotImport"));
       return;
     }
     const targetCollectionId =
@@ -289,8 +291,7 @@ export const useDashboardDrawingActions = ({
       if (libFiles.length > 0) {
         setShowImportError({
           isOpen: true,
-          message:
-            "Library (.excalidrawlib) imports are not supported in this build. Please import drawings (.excalidraw/.json) instead.",
+          message: t("dashboard.errors.libraryImportUnsupported"),
         });
       }
       const drawingFiles = files.filter(

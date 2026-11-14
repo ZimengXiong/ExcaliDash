@@ -7,6 +7,7 @@ import * as api from "../api";
 import { getPasswordPolicy, validatePassword } from "../utils/passwordPolicy";
 import { PasswordRequirements } from "../components/PasswordRequirements";
 import { AuthStatusErrorPanel } from "../components/AuthStatusErrorPanel";
+import { useLocale } from "../context/useLocale";
 
 export const Register: React.FC = () => {
   const [email, setEmail] = useState("");
@@ -30,6 +31,7 @@ export const Register: React.FC = () => {
     isAuthenticated,
     loading: authLoading,
   } = useAuth();
+  const { t } = useLocale();
   const navigate = useNavigate();
 
   const passwordPolicy = getPasswordPolicy();
@@ -113,7 +115,7 @@ export const Register: React.FC = () => {
       return;
     }
     if (bootstrapRequired && setupCode.trim().length === 0) {
-      setError("Bootstrap setup code is required");
+      setError(t("auth.register.setupCodeRequired"));
       return;
     }
 
@@ -128,7 +130,8 @@ export const Register: React.FC = () => {
       );
       navigate("/");
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to register";
+      const message =
+        err instanceof Error ? err.message : t("auth.register.failed");
       setError(message);
     } finally {
       setLoading(false);
@@ -146,16 +149,18 @@ export const Register: React.FC = () => {
         <div className="text-center">
           <Logo className="mx-auto h-12 w-auto" />
           <h2 className="auth-heading">
-            {bootstrapRequired ? "Set up admin account" : "Create your account"}
+            {bootstrapRequired
+              ? t("auth.register.bootstrapTitle")
+              : t("auth.register.title")}
           </h2>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
             {bootstrapRequired ? (
-              <span>Create the first admin account.</span>
+              <span>{t("auth.register.bootstrapSubtitle")}</span>
             ) : (
               <>
-                Or{" "}
+                {t("auth.login.or")}{" "}
                 <Link to="/login" className="ui-link">
-                  sign in to your existing account
+                  {t("auth.register.signInLink")}
                 </Link>
               </>
             )}
@@ -164,9 +169,11 @@ export const Register: React.FC = () => {
         <form className="auth-panel" onSubmit={handleSubmit}>
           {bootstrapRequired && (
             <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-3 text-left text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
-              <div className="font-semibold">One-time setup code</div>
+              <div className="font-semibold">
+                {t("auth.register.setupCode")}
+              </div>
               <div className="mt-1 text-amber-800 dark:text-amber-200">
-                Copy it from the backend logs:
+                {t("auth.register.copyFromLogs")}
               </div>
               <div className="mt-2 rounded bg-white dark:bg-neutral-900 p-2">
                 <div className="flex items-start gap-2">
@@ -179,10 +186,12 @@ export const Register: React.FC = () => {
                     className="ui-icon-button h-7 w-7 shrink-0"
                     aria-label={
                       copiedBootstrapCmd
-                        ? "Copied docker command"
-                        : "Copy docker command"
+                        ? t("auth.register.copiedDockerCommand")
+                        : t("auth.register.copyDockerCommand")
                     }
-                    title={copiedBootstrapCmd ? "Copied" : "Copy"}
+                    title={
+                      copiedBootstrapCmd ? t("common.copied") : t("common.copy")
+                    }
                   >
                     {copiedBootstrapCmd ? (
                       <Check size={14} />
@@ -208,10 +217,12 @@ export const Register: React.FC = () => {
                 disabled={loading}
                 className="ui-button-secondary w-full"
               >
-                Set up admin with {oidcProvider || "OIDC"}
+                {t("auth.register.setupAdminWith", {
+                  provider: oidcProvider || "OIDC",
+                })}
               </button>
               <div className="text-center text-xs text-gray-500 dark:text-gray-400">
-                Or use a local account
+                {t("auth.register.orUseLocal")}
               </div>
             </div>
           )}
@@ -219,7 +230,7 @@ export const Register: React.FC = () => {
           <div className="rounded-md shadow-sm space-y-4">
             <div>
               <label htmlFor="name" className="sr-only">
-                Name
+                {t("auth.name")}
               </label>
               <input
                 id="name"
@@ -228,14 +239,14 @@ export const Register: React.FC = () => {
                 autoComplete="name"
                 required
                 className="ui-input block w-full"
-                placeholder="Your name"
+                placeholder={t("auth.yourName")}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
             <div>
               <label htmlFor="email" className="sr-only">
-                Email address
+                {t("auth.emailAddress")}
               </label>
               <input
                 id="email"
@@ -244,14 +255,14 @@ export const Register: React.FC = () => {
                 autoComplete="email"
                 required
                 className="ui-input block w-full"
-                placeholder="Email address"
+                placeholder={t("auth.emailAddress")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div>
               <label htmlFor="password" className="sr-only">
-                Password
+                {t("auth.password")}
               </label>
               <input
                 id="password"
@@ -263,7 +274,7 @@ export const Register: React.FC = () => {
                 maxLength={passwordPolicy.maxLength}
                 pattern={passwordPolicy.patternHtml}
                 className="ui-input block w-full"
-                placeholder="Password"
+                placeholder={t("auth.password")}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -276,7 +287,7 @@ export const Register: React.FC = () => {
             {bootstrapRequired && (
               <div>
                 <label htmlFor="setupCode" className="sr-only">
-                  Bootstrap setup code
+                  {t("auth.register.bootstrapSetupCode")}
                 </label>
                 <input
                   id="setupCode"
@@ -285,7 +296,7 @@ export const Register: React.FC = () => {
                   autoComplete="one-time-code"
                   required
                   className="ui-input block w-full border-amber-300 dark:border-amber-700"
-                  placeholder="One-time setup code"
+                  placeholder={t("auth.register.setupCode")}
                   value={setupCode}
                   onChange={(e) => setSetupCode(e.target.value.toUpperCase())}
                 />
@@ -299,7 +310,9 @@ export const Register: React.FC = () => {
               disabled={loading}
               className="ui-button-primary w-full"
             >
-              {loading ? "Creating account..." : "Create account"}
+              {loading
+                ? t("auth.register.creatingAccount")
+                : t("auth.register.createAccount")}
             </button>
           </div>
         </form>

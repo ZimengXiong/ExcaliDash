@@ -1,3 +1,6 @@
+import { getCurrentLocale, translateCurrent as t } from "../i18n";
+import { formatList } from "../i18n/format";
+
 export type PasswordPolicy = {
   minLength: number;
   maxLength: number;
@@ -58,21 +61,38 @@ const buildPatternHtml = (policy: PasswordPolicyResponse): string => {
 };
 
 const buildPolicyMessage = (policy: PasswordPolicyResponse): string => {
-  const requirements = [`at least ${policy.minLength} characters`];
-  if (policy.requireUppercase) requirements.push("one uppercase letter");
-  if (policy.requireLowercase) requirements.push("one lowercase letter");
-  if (policy.requireNumber) requirements.push("one number");
-  if (policy.requireSymbol) requirements.push("one symbol");
-  return `Password must be ${requirements.join(", ")}`;
+  const requirements = [
+    t("password.policy.atLeastChars", { count: policy.minLength }),
+  ];
+  if (policy.requireUppercase)
+    requirements.push(t("password.policy.oneUppercase"));
+  if (policy.requireLowercase)
+    requirements.push(t("password.policy.oneLowercase"));
+  if (policy.requireNumber) requirements.push(t("password.policy.oneNumber"));
+  if (policy.requireSymbol) requirements.push(t("password.policy.oneSymbol"));
+  return t("password.policy.mustBe", {
+    requirements: formatList(requirements, getCurrentLocale()),
+  });
 };
 
 const buildRequirementsText = (policy: PasswordPolicyResponse): string => {
-  const requirements = [`${policy.minLength}-${policy.maxLength} characters`];
-  if (policy.requireUppercase) requirements.push("1 uppercase letter");
-  if (policy.requireLowercase) requirements.push("1 lowercase letter");
-  if (policy.requireNumber) requirements.push("1 number");
-  if (policy.requireSymbol) requirements.push("1 symbol");
-  return `${requirements.join(", ")}.`;
+  const requirements = [
+    t("password.policy.charRange", {
+      min: policy.minLength,
+      max: policy.maxLength,
+    }),
+  ];
+  if (policy.requireUppercase)
+    requirements.push(t("password.policy.oneUppercaseShort"));
+  if (policy.requireLowercase)
+    requirements.push(t("password.policy.oneLowercaseShort"));
+  if (policy.requireNumber)
+    requirements.push(t("password.policy.oneNumberShort"));
+  if (policy.requireSymbol)
+    requirements.push(t("password.policy.oneSymbolShort"));
+  return t("password.policy.requirementsText", {
+    requirements: formatList(requirements, getCurrentLocale()),
+  });
 };
 
 const normalizePolicy = (
@@ -152,7 +172,7 @@ export const getPasswordRequirements = (
   const requirements: PasswordRequirement[] = [
     {
       id: "minLength",
-      label: `At least ${policy.minLength} characters`,
+      label: t("password.requirement.minLength", { count: policy.minLength }),
       ok: value.length >= policy.minLength,
     },
   ];
@@ -160,28 +180,28 @@ export const getPasswordRequirements = (
   if (policy.requireUppercase) {
     requirements.push({
       id: "uppercase",
-      label: "One uppercase letter (A-Z)",
+      label: t("password.requirement.uppercase"),
       ok: /[A-Z]/.test(value),
     });
   }
   if (policy.requireLowercase) {
     requirements.push({
       id: "lowercase",
-      label: "One lowercase letter (a-z)",
+      label: t("password.requirement.lowercase"),
       ok: /[a-z]/.test(value),
     });
   }
   if (policy.requireNumber) {
     requirements.push({
       id: "number",
-      label: "One number (0-9)",
+      label: t("password.requirement.number"),
       ok: /\d/.test(value),
     });
   }
   if (policy.requireSymbol) {
     requirements.push({
       id: "symbol",
-      label: "One symbol",
+      label: t("password.requirement.symbol"),
       ok: /[^A-Za-z0-9]/.test(value),
     });
   }
@@ -196,7 +216,7 @@ export const validatePassword = (
   if (typeof password !== "string") return policy.validationMessage;
   if (password.length < policy.minLength) return policy.validationMessage;
   if (password.length > policy.maxLength)
-    return `Password must be at most ${policy.maxLength} characters long`;
+    return t("password.policy.tooLong", { max: policy.maxLength });
   if (policy.requireUppercase && !/[A-Z]/.test(password))
     return policy.validationMessage;
   if (policy.requireLowercase && !/[a-z]/.test(password))

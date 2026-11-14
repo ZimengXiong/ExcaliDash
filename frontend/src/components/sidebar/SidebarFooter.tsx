@@ -53,7 +53,7 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({
   const footerRef = useRef<HTMLDivElement>(null);
   const actionsId = useId();
   const isAdmin = user?.role === "ADMIN";
-  const name = user?.name || "Workspace";
+  const name = user?.name || t("sidebar.workspace");
   const selectPage = (path: string) => {
     setIsOpen(false);
     navigate(path);
@@ -83,7 +83,7 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({
       {compact && (
         <button
           type="button"
-          aria-label="Account menu"
+          aria-label={t("sidebar.accountMenu")}
           aria-expanded={isOpen}
           aria-controls={actionsId}
           onClick={() => setIsOpen((open) => !open)}
