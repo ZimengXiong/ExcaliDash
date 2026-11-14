@@ -123,7 +123,10 @@ const getActiveLinkShareAccess = async (params: {
   // A drawing in its owner's Trash pauses the link share. The row is kept, so
   // restoring the drawing brings the same link back.
   if (
-    isTrashCollectionId(linkShare.drawing.collectionId, linkShare.drawing.userId)
+    isTrashCollectionId(
+      linkShare.drawing.collectionId,
+      linkShare.drawing.userId,
+    )
   ) {
     return null;
   }
