@@ -10,7 +10,7 @@ import { useNavigate } from "react-router-dom";
 import {
   authStatus,
   authMe,
-  authRefresh,
+  refreshAccessToken,
   authLogout,
   authLogin,
   authRegister,
@@ -186,13 +186,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         setUser(response.user);
         localStorage.setItem(USER_KEY, JSON.stringify(response.user));
       } catch {
-        if (isShareFlow) {
-          localStorage.removeItem(USER_KEY);
-          setUser(null);
-          return;
-        }
         try {
-          await authRefresh();
+          // The shared single-flight refresh: mounting Editor and AuthContext
+          // both discover an expired access token on a reloaded background
+          // tab. Independent refreshes would race the single-use token
+          // rotation and one side would tear down a session that is, in
+          // fact, still valid. Share-link pages run this too: a signed-in
+          // visitor with an expired access token must not dead-end on a
+          // page that never refreshes. Anonymous visitors simply fail the
+          // refresh and stay anonymous, as before.
+          await refreshAccessToken();
           const userResponse = await authMe();
           setUser(userResponse.user);
           localStorage.setItem(USER_KEY, JSON.stringify(userResponse.user));
