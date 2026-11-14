@@ -1,6 +1,7 @@
 import { PrismaClient } from "../generated/client";
 import type { config as AppConfig } from "../config";
 import { enableIncrementalAutoVacuum } from "./sqliteMaintenance";
+import { readDatabaseUrl } from "../config/databaseUrl";
 
 // Load config lazily. A static import would eagerly evaluate the config module
 // the moment this module is imported, snapshotting the environment before tests
@@ -12,7 +13,65 @@ declare global {
   var __excalidashPrisma: PrismaClient | undefined;
 }
 
-const prismaClient = globalThis.__excalidashPrisma ?? new PrismaClient();
+/**
+ * Connection defaults for SQLite `file:` URLs. Non-SQLite URLs are returned
+ * unchanged, and any parameter the operator already set is left alone.
+ *
+ * SQLite PRAGMAs such as busy_timeout are per-connection, so running
+ * `PRAGMA busy_timeout` once through the pool only reaches one connection
+ * (issue #303). Prisma's SQLite connector instead applies these URL
+ * parameters to every connection it opens:
+ *
+ * - socket_timeout=10: seconds each connection waits on a lock before failing
+ *   with SQLITE_BUSY (Prisma's default is 5; this matches the 10s intent of
+ *   the PRAGMA below, see issue #182).
+ * - connection_limit=1: SQLite allows a single writer anyway. One connection
+ *   queues concurrent saves inside Prisma instead of letting two interactive
+ *   transactions (read, then write) collide on different connections and
+ *   stall until the transaction timeout.
+ * - pool_timeout=30: with one connection, requests wait in the pool queue
+ *   (default 10s) while a long transaction such as an import runs.
+ */
+export function withSqliteConnectionDefaults(databaseUrl: string): string {
+  if (!databaseUrl.startsWith("file:")) return databaseUrl;
+  const queryStart = databaseUrl.indexOf("?");
+  const existing = queryStart === -1 ? "" : databaseUrl.slice(queryStart + 1);
+  const present = new Set(
+    existing
+      .split("&")
+      .map((pair) => pair.split("=", 1)[0])
+      .filter(Boolean),
+  );
+  const additions = (
+    [
+      ["connection_limit", "1"],
+      ["socket_timeout", "10"],
+      ["pool_timeout", "30"],
+    ] as const
+  )
+    .filter(([key]) => !present.has(key))
+    .map(([key, value]) => `${key}=${value}`);
+  if (additions.length === 0) return databaseUrl;
+  const separator = queryStart === -1 ? "?" : existing === "" ? "" : "&";
+  return `${databaseUrl}${separator}${additions.join("&")}`;
+}
+
+function createPrismaClient(): PrismaClient {
+  // Pick up DATABASE_URL from a .env file too. Idempotent: it never overrides
+  // variables that are already set, and config.ts calls it again later.
+  require("dotenv").config();
+  // Resolve relative SQLite paths now, the same way config.ts does, since
+  // this client may be created before config.ts has rewritten DATABASE_URL.
+  const databaseUrl = readDatabaseUrl();
+  if (databaseUrl.startsWith("file:")) {
+    return new PrismaClient({
+      datasources: { db: { url: withSqliteConnectionDefaults(databaseUrl) } },
+    });
+  }
+  return new PrismaClient();
+}
+
+const prismaClient = globalThis.__excalidashPrisma ?? createPrismaClient();
 
 // Cache the client across module re-imports (vitest resetModules, dev reload).
 // Done unconditionally so this module never needs config at load time.
@@ -43,6 +102,10 @@ export async function configureSqlite(): Promise<void> {
     // journal_mode returns "wal"), so we use $queryRaw — the tagged-
     // template form rejects accidental interpolation, and accepts the
     // returned row.
+    //
+    // The URL parameters from withSqliteConnectionDefaults already set the
+    // timeout on every connection; this PRAGMA only reaches the connection
+    // that runs it, so it is kept for the WAL switch ordering below.
     //
     // busy_timeout: give writers up to 10s to wait for a lock instead of
     // failing immediately with SQLITE_BUSY. Issue #182 showed the previous

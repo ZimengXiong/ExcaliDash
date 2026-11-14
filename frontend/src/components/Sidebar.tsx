@@ -5,7 +5,7 @@ import {
   Plus,
   Archive,
   FolderOpen,
-  Shield,
+  Users,
 } from "lucide-react";
 import type { Collection } from "../types";
 import clsx from "clsx";
@@ -134,7 +134,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
             <SidebarItem
               id={"shared"}
-              icon={<Shield size={18} />}
+              icon={<Users size={18} />}
               label={t("sidebar.sharedWithMe")}
               isActive={selectedCollectionId === "shared"}
               onClick={() => onSelectCollection("shared")}

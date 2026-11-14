@@ -3,6 +3,10 @@ import type { MutableRefObject } from "react";
 import { isFileUploadSupported, uploadDrawingFile } from "../../api";
 import { compressExcalidrawFiles } from "../../utils/imageCompression";
 import type { UploadedFileRefs } from "./shared";
+import {
+  classifyUploadError,
+  getUploadRetryDelayMs,
+} from "./uploadRetryPolicy";
 
 // How often (ms) we sweep the live file set for freshly inserted images that
 // still need uploading. A short interval keeps the first metadata-only scene
@@ -10,7 +14,6 @@ import type { UploadedFileRefs } from "./shared";
 // for programmatic/drag inserts so uploads usually start before the poll ticks.
 const SCAN_INTERVAL_MS = 800;
 const UPLOAD_CONCURRENCY = 3;
-const UPLOAD_ATTEMPTS = 2;
 
 type UseEditorFileUploadsParams = {
   canEdit: boolean;
@@ -73,6 +76,12 @@ const runWithConcurrency = async (
  * for a small `/api/files/...` ref. Uploads are idempotent and content-keyed,
  * so a duplicate scan is a cheap no-op. Against an older backend the capability
  * flag flips off after the first 404/501 and this hook becomes inert.
+ *
+ * A failed upload is never retried from a tight loop: 401/403 stop uploads for
+ * the drawing (the caller, e.g. a link-share editor without an account, can't
+ * use the endpoint; the scene save still carries the inline bytes), other
+ * non-retryable 4xx stop retrying that file, and retryable failures (network,
+ * 408/429/5xx) back off exponentially up to a cap. See `uploadRetryPolicy.ts`.
  */
 export const useEditorFileUploads = ({
   canEdit,
@@ -84,24 +93,40 @@ export const useEditorFileUploads = ({
   uploadedRefs,
 }: UseEditorFileUploadsParams) => {
   const inFlightRef = useRef<Set<string>>(new Set());
+  // Per-file consecutive failure count and earliest next attempt (ms epoch).
+  const retryStateRef = useRef<
+    Map<string, { failures: number; retryAt: number }>
+  >(new Map());
+  // Files that failed with a non-retryable error; never retried this session.
+  const blockedIdsRef = useRef<Set<string>>(new Set());
+  // Set on 401/403: the caller can't upload, so stop for this drawing session.
+  const uploadsBlockedRef = useRef(false);
   const canEditRef = useRef(canEdit);
   const drawingSessionRef = useRef({ drawingId });
   useLayoutEffect(() => {
     if (drawingSessionRef.current.drawingId !== drawingId) {
       drawingSessionRef.current = { drawingId };
       inFlightRef.current = new Set();
+      retryStateRef.current = new Map();
+      blockedIdsRef.current = new Set();
+      uploadsBlockedRef.current = false;
       uploadedRefs.current = {};
     }
   }, [drawingId, uploadedRefs]);
   useLayoutEffect(() => {
     canEditRef.current = canEdit;
+    // A change in edit permission (e.g. the guest signs in) may lift a 401/403.
+    uploadsBlockedRef.current = false;
   }, [canEdit]);
 
   const scanNow = useCallback(async () => {
     if (!canEditRef.current || !drawingId || !isFileUploadSupported()) return;
+    if (uploadsBlockedRef.current) return;
     const editor = excalidrawAPI.current;
     const session = drawingSessionRef.current;
     const inFlight = inFlightRef.current;
+    const retryState = retryStateRef.current;
+    const blockedIds = blockedIdsRef.current;
     const isCurrent = () =>
       drawingSessionRef.current === session &&
       session.drawingId === drawingId &&
@@ -112,8 +137,12 @@ export const useEditorFileUploads = ({
       any
     >;
 
+    const now = Date.now();
     const candidateIds = Object.keys(files).filter((id) => {
       const file = files[id];
+      if (blockedIds.has(id)) return false;
+      const retryAt = retryState.get(id)?.retryAt;
+      if (retryAt !== undefined && retryAt > now) return false;
       return (
         file &&
         typeof file.dataURL === "string" &&
@@ -159,29 +188,42 @@ export const useEditorFileUploads = ({
         inFlight.delete(id);
         return;
       }
-      for (let attempt = 0; attempt < UPLOAD_ATTEMPTS; attempt++) {
-        if (!canEditRef.current || !isCurrent()) {
-          inFlight.delete(id);
-          return;
+      if (!canEditRef.current || !isCurrent()) {
+        inFlight.delete(id);
+        return;
+      }
+      try {
+        const result = await uploadDrawingFile(
+          drawingId,
+          id,
+          parsed.bytes,
+          (typeof file?.mimeType === "string" && file.mimeType) ||
+            parsed.mimeType,
+        );
+        // null => backend lacks the endpoint; stop trying for the session.
+        if (isCurrent()) {
+          if (result) uploadedRefs.current[id] = result.url;
+          retryState.delete(id);
         }
-        try {
-          const result = await uploadDrawingFile(
-            drawingId,
-            id,
-            parsed.bytes,
-            (typeof file?.mimeType === "string" && file.mimeType) ||
-              parsed.mimeType,
-          );
-          // null => backend lacks the endpoint; stop trying for the session.
-          if (result && isCurrent()) uploadedRefs.current[id] = result.url;
-          inFlight.delete(id);
-          return;
-        } catch {
-          if (attempt === UPLOAD_ATTEMPTS - 1) {
-            // Give up for now; a later scan retries (server interns meanwhile).
-            inFlight.delete(id);
+      } catch (error) {
+        // Ignore failures from a drawing/editor we've since moved away from.
+        if (isCurrent()) {
+          const kind = classifyUploadError(error);
+          if (kind === "auth") {
+            uploadsBlockedRef.current = true;
+          } else if (kind === "permanent") {
+            blockedIds.add(id);
+          } else {
+            const failures = (retryState.get(id)?.failures ?? 0) + 1;
+            retryState.set(id, {
+              failures,
+              retryAt: Date.now() + getUploadRetryDelayMs(failures, error),
+            });
           }
         }
+      } finally {
+        // The server interns inline bytes on scene save meanwhile.
+        inFlight.delete(id);
       }
     };
 

@@ -33,6 +33,7 @@ import {
 } from "./config/derived";
 import { type MailConfig, resolveMailConfig } from "./config/mail";
 import { resolveOidcClientSecret } from "./config/oidcSecret";
+import { resolveDatabaseUrl } from "./config/databaseUrl";
 
 export { buildPasswordPolicyMessage, validatePasswordAgainstPolicy };
 
@@ -202,34 +203,6 @@ const parseFrontendUrl = (raw: string | undefined): string | undefined => {
     .filter((origin) => origin.length > 0)
     .join(",");
   return normalized.length > 0 ? normalized : undefined;
-};
-
-const resolveDatabaseUrl = (rawUrl?: string) => {
-  const backendRoot = path.resolve(__dirname, "../");
-  const defaultDbPath = path.resolve(backendRoot, "prisma/dev.db");
-
-  if (!rawUrl || rawUrl.trim().length === 0) {
-    return `file:${defaultDbPath}`;
-  }
-
-  if (!rawUrl.startsWith("file:")) {
-    return rawUrl;
-  }
-
-  const filePath = rawUrl.replace(/^file:/, "");
-  const prismaDir = path.resolve(backendRoot, "prisma");
-  const normalizedRelative = filePath.replace(/^\.\/?/, "");
-  const hasLeadingPrismaDir =
-    normalizedRelative === "prisma" || normalizedRelative.startsWith("prisma/");
-
-  const absolutePath = path.isAbsolute(filePath)
-    ? filePath
-    : path.resolve(
-        hasLeadingPrismaDir ? backendRoot : prismaDir,
-        normalizedRelative,
-      );
-
-  return `file:${absolutePath}`;
 };
 
 process.env.DATABASE_URL = resolveDatabaseUrl(process.env.DATABASE_URL);

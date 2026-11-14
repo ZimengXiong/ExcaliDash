@@ -61,7 +61,11 @@ export const parseDatabaseTarget = (databaseUrl?: string): DatabaseTarget => {
   }
 
   if (databaseUrl.startsWith("file:")) {
-    return { provider: "sqlite", target: databaseUrl.replace(/^file:/, "") };
+    // Drop query parameters such as connection_limit/socket_timeout.
+    return {
+      provider: "sqlite",
+      target: databaseUrl.replace(/^file:/, "").split("?", 1)[0],
+    };
   }
 
   try {

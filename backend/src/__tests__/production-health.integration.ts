@@ -29,4 +29,30 @@ describe("production health checks", () => {
       await server.stop();
     }
   });
+
+  it("reports unhealthy (503) when the database is actually broken", async () => {
+    const server = await startRuntimeServer();
+    try {
+      expect((await fetch(`${server.url}/health`)).status).toBe(200);
+
+      // Break the schema out from under the running server. A bare `SELECT 1`
+      // never touches the database file, so it would keep reporting healthy.
+      const Database = require("better-sqlite3") as any;
+      const db = new Database(process.env.DATABASE_URL!.replace(/^file:/, ""));
+      try {
+        db.exec("DROP TABLE SystemConfig");
+      } finally {
+        db.close();
+      }
+
+      const health = await fetch(`${server.url}/health`);
+      expect(health.status).toBe(503);
+      expect(await health.json()).toEqual({
+        status: "error",
+        database: "unavailable",
+      });
+    } finally {
+      await server.stop();
+    }
+  });
 });

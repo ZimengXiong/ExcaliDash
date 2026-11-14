@@ -244,8 +244,15 @@ export const useEditorCommands = ({
         }
       }
     } catch (err) {
-      console.error("Failed to save on back navigation", err);
-      toast.error(translateCurrent("editor.toast.saveBeforeLeaveFailed"));
+      if (api.isAxiosError(err) && err.response?.status === 404) {
+        // The drawing was deleted while open (another tab, a collaborator or
+        // the API). A retry can never succeed, so do not keep the user here;
+        // the save path has already said the changes could not be saved.
+        shouldNavigate = true;
+      } else {
+        console.error("Failed to save on back navigation", err);
+        toast.error(translateCurrent("editor.toast.saveBeforeLeaveFailed"));
+      }
     } finally {
       setIsSavingOnLeave(false);
     }
