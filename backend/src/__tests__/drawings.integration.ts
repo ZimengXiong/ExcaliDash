@@ -24,6 +24,7 @@ import {
   resetSecuritySettings,
   getSecurityConfig,
   DrawingSanitizationError,
+  MAX_ELEMENT_TEXT_LENGTH,
 } from "../security";
 describe("Security Sanitization - Image Data URLs", () => {
   beforeEach(() => {
@@ -547,5 +548,51 @@ describe("Issue #17 Regression Test - Images Not Loading Fully", () => {
     });
     const resultFiles = result.files as Record<string, any>;
     expect(resultFiles["over-limit-test"].dataURL.length).toBe(10001);
+  });
+});
+
+describe("Security Sanitization - element text length", () => {
+  const sanitize = (elements: any[]) =>
+    sanitizeDrawingData({
+      elements,
+      appState: { viewBackgroundColor: "#ffffff" },
+    }).elements as any[];
+
+  it("keeps long text and originalText intact past the old 5000 character cut", () => {
+    const longText = "line of a long cheat sheet\n".repeat(400); // ~11k chars
+    expect(longText.length).toBeGreaterThan(5000);
+    const [el] = sanitize([
+      { id: "t1", type: "text", text: longText, originalText: longText },
+    ]);
+    expect(el.text).toBe(longText);
+    expect(el.originalText).toBe(longText);
+  });
+
+  it("caps text and originalText at the same limit so they stay consistent", () => {
+    const huge = "a".repeat(MAX_ELEMENT_TEXT_LENGTH + 1234);
+    const [el] = sanitize([
+      { id: "t1", type: "text", text: huge, originalText: huge },
+    ]);
+    expect(el.text).toHaveLength(MAX_ELEMENT_TEXT_LENGTH);
+    expect(el.originalText).toBe(el.text);
+  });
+
+  it("strips control characters from originalText like it does for text", () => {
+    const [el] = sanitize([
+      {
+        id: "t1",
+        type: "text",
+        text: "a\u0000b<c> & d",
+        originalText: "a\u0000b<c> & d",
+      },
+    ]);
+    expect(el.text).toBe("ab<c> & d");
+    expect(el.originalText).toBe("ab<c> & d");
+  });
+
+  it("leaves elements without originalText alone", () => {
+    const [el] = sanitize([{ id: "t1", type: "text", text: "hi" }]);
+    expect(el.text).toBe("hi");
+    expect("originalText" in el).toBe(false);
   });
 });

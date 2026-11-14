@@ -261,18 +261,26 @@ export const sanitizeText = (
     .trim();
 };
 /**
+ * Maximum characters kept for an element's `text` / `originalText`. Excalidraw
+ * itself imposes no limit, so this is only a guard against abuse and is set far
+ * above realistic content (see issue #310).
+ */
+export const MAX_ELEMENT_TEXT_LENGTH = 200_000;
+/**
  * Sanitize a canvas element's plain-text content. Unlike {@link sanitizeText}
  * (for names/metadata that may land in an HTML context), element text is drawn
  * to the Excalidraw canvas verbatim and is never inserted as HTML, so it must
  * NOT be run through DOMPurify: that strips literal `<value>`-style words as if
  * they were unknown tags and entity-encodes `<`, `&` (turning `3 < 4 & ok` into
  * `3 &lt; 4 &amp; ok`), corrupting imported drawings. We only strip control
- * characters and truncate, preserving angle brackets/ampersands exactly. The
+ * characters and cap the length (generously, at
+ * {@link MAX_ELEMENT_TEXT_LENGTH}, far above anything Excalidraw produces in
+ * practice), preserving angle brackets/ampersands exactly. The
  * SVG preview export path is sanitized separately by {@link sanitizeSvg}.
  */
 export const sanitizeElementText = (
   input: unknown,
-  maxLength: number = 5000,
+  maxLength: number = MAX_ELEMENT_TEXT_LENGTH,
 ): string => {
   if (typeof input !== "string") return "";
   return input
@@ -333,7 +341,13 @@ export const elementSchema = z
   .transform((element) => {
     const sanitized = { ...element };
     if (typeof sanitized.text === "string") {
-      sanitized.text = sanitizeElementText(sanitized.text, 5000);
+      sanitized.text = sanitizeElementText(sanitized.text);
+    }
+    // `originalText` is the pre-wrap source of a bound/wrapped text element; it
+    // must go through the same sanitizer and limit as `text` so the two cannot
+    // diverge.
+    if (typeof sanitized.originalText === "string") {
+      sanitized.originalText = sanitizeElementText(sanitized.originalText);
     }
     if (typeof sanitized.link === "string") {
       sanitized.link = sanitizeUrl(sanitized.link);
