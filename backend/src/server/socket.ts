@@ -15,6 +15,7 @@ import {
   type RevalidatableSocket,
   type SocketState,
 } from "./socketAccess";
+import { isSceneBounds } from "./sceneBounds";
 import { createSocketAuthResolver, revalidateSocketApiKey } from "./socketAuth";
 
 type RegisterSocketHandlersDeps = {
@@ -64,15 +65,6 @@ export const registerSocketHandlers = ({
     }
     return trimmed.slice(0, 2).toUpperCase();
   };
-
-  const isSceneBounds = (
-    value: unknown,
-  ): value is [number, number, number, number] =>
-    Array.isArray(value) &&
-    value.length === 4 &&
-    value.every((n) => typeof n === "number" && Number.isFinite(n)) &&
-    value[0] <= value[2] &&
-    value[1] <= value[3];
 
   const toPresenceColor = (value: unknown): string => {
     if (typeof value !== "string") return "#4f46e5";
