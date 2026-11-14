@@ -331,11 +331,13 @@ export const registerDrawingListRoutes = (
             hidden: false,
           },
         },
-        // Exclude drawings already accessible via a shared collection
+        // Exclude drawings already accessible via a shared collection. A bare
+        // NOT IN would also drop drawings outside any collection (NULL).
         ...(sharedColIds.length > 0 && {
-          NOT: {
-            collectionId: { in: sharedColIds },
-          },
+          OR: [
+            { collectionId: null },
+            { collectionId: { notIn: sharedColIds } },
+          ],
         }),
       };
       if (searchTerm) {
