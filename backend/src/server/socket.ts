@@ -320,6 +320,7 @@ export const registerSocketHandlers = ({
         typeof data?.drawingId === "string" ? data.drawingId : null;
       if (!drawingId || !state.access.has(drawingId)) return;
       if (!isSceneBounds(data?.bounds)) return;
+      if (!(await ensureApiKeyValid())) return;
       const access = await getCachedOrFreshAccess(drawingId);
       if (!access) {
         dropDrawingAccess(drawingId);
