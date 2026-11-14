@@ -9,6 +9,7 @@ import { CollectionPicker } from "./drawing-card/CollectionPicker";
 import { DrawingCardContextMenu } from "./drawing-card/DrawingCardContextMenu";
 import { useDrawingPreview } from "./drawing-card/useDrawingPreview";
 import * as api from "../api";
+import { InlineEditInput } from "./InlineEditInput";
 
 interface DrawingCardProps {
   drawing: DrawingSummary;
@@ -128,12 +129,24 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
     return () => document.removeEventListener("click", handleClick);
   }, []);
 
-  const handleRenameSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newName.trim()) {
-      onRename(drawing.id, newName);
-      setIsRenaming(false);
+  const startRename = () => {
+    setNewName(drawing.name);
+    setIsRenaming(true);
+  };
+
+  const handleRenameCommit = () => {
+    const trimmed = newName.trim();
+    setIsRenaming(false);
+    if (trimmed && trimmed !== drawing.name) {
+      onRename(drawing.id, trimmed);
+    } else {
+      setNewName(drawing.name);
     }
+  };
+
+  const handleRenameCancel = () => {
+    setIsRenaming(false);
+    setNewName(drawing.name);
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -229,24 +242,22 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
         <div className="p-4 sm:p-5 bg-white dark:bg-neutral-900 rounded-b-2xl relative z-10 flex-1 flex flex-col justify-between">
           <div>
             {isRenaming ? (
-              <form
-                onSubmit={handleRenameSubmit}
+              <div
                 onClick={(e) => e.stopPropagation()}
                 onPointerDown={(e) => e.stopPropagation()}
-                onMouseLeave={() => setIsRenaming(false)}
                 onMouseDown={(e) => e.stopPropagation()}
               >
-                <input
-                  autoFocus
-                  type="text"
+                <InlineEditInput
+                  aria-label="Drawing name"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  onBlur={() => setIsRenaming(false)}
+                  onCommit={handleRenameCommit}
+                  onCancel={handleRenameCancel}
                   onDragStart={(e) => e.stopPropagation()}
                   onMouseDown={(e) => e.stopPropagation()}
                   className="w-full px-2 py-1 -ml-2 text-sm sm:text-base font-semibold text-slate-900 dark:text-white border-2 border-slate-800 dark:border-neutral-600 rounded-lg focus:outline-none shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)] bg-white dark:bg-neutral-800"
                 />
-              </form>
+              </div>
             ) : (
               <h3
                 className="text-sm sm:text-base font-bold text-slate-800 dark:text-neutral-100 truncate cursor-text select-none group-hover:text-neutral-900 dark:group-hover:text-white transition-colors"
@@ -258,7 +269,7 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
                     (!isShared ||
                       drawing.accessLevel === "edit" ||
                       drawing.accessLevel === "owner");
-                  if (canRename) setIsRenaming(true);
+                  if (canRename) startRename();
                 }}
               >
                 {drawing.name}
@@ -304,7 +315,7 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
           onShowMoveSubmenu={setShowMoveSubmenu}
           onClose={() => setContextMenu(null)}
           onRename={() => {
-            setIsRenaming(true);
+            startRename();
             setContextMenu(null);
           }}
           onMoveToCollection={onMoveToCollection}

@@ -68,12 +68,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       setIsCreating(false);
     }
   };
-  const handleEditSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingId && editName.trim()) {
-      onEditCollection(editingId, editName);
-      setEditingId(null);
-    }
+  const handleEditCommit = () => {
+    const id = editingId;
+    const trimmed = editName.trim();
+    setEditingId(null);
+    if (!id || !trimmed) return;
+    const current = collections.find((c) => c.id === id);
+    if (current && current.name === trimmed) return;
+    onEditCollection(id, trimmed);
   };
   const handleItemContextMenu = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
@@ -218,8 +220,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   isEditing={editingId === collection.id}
                   editValue={editName}
                   onEditChange={setEditName}
-                  onEditSubmit={handleEditSubmit}
-                  onEditBlur={() => setEditingId(null)}
+                  onEditCommit={handleEditCommit}
+                  onEditCancel={() => setEditingId(null)}
                   onDrop={onDrop}
                   extraAction={
                     <div className="flex items-center gap-1">

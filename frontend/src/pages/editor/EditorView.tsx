@@ -15,6 +15,7 @@ import {
 import clsx from "clsx";
 import { Toaster } from "sonner";
 import { LanguageSelector } from "../../components/LanguageSelector";
+import { InlineEditInput } from "../../components/InlineEditInput";
 import { GridStepSelector } from "../../components/GridStepSelector";
 import { ShareModal } from "../../components/ShareModal";
 import { UserAvatar as ProfileAvatar } from "../../components/UserAvatar";
@@ -60,9 +61,9 @@ type EditorViewProps = {
   onNavigateHome: () => void;
   onNewNameChange: (value: string) => void;
   onPointerUpdate: (payload: any) => void;
-  onRenameBlur: () => void;
+  onRenameCancel: () => void;
   onRenameStart: () => void;
-  onRenameSubmit: (event: React.FormEvent) => void;
+  onRenameSubmit: () => void;
   onSetExcalidrawAPI: (api: any) => void;
   onSetLangCode: (langCode: string) => void;
   gridStep: number;
@@ -130,7 +131,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
   onNavigateHome,
   onNewNameChange,
   onPointerUpdate,
-  onRenameBlur,
+  onRenameCancel,
   onRenameStart,
   onRenameSubmit,
   onSetExcalidrawAPI,
@@ -176,17 +177,15 @@ export const EditorView: React.FC<EditorViewProps> = ({
           )}
         </button>
         {isRenaming ? (
-          <form onSubmit={onRenameSubmit}>
-            <input
-              autoFocus
-              type="text"
-              value={newName}
-              onChange={(e) => onNewNameChange(e.target.value)}
-              onBlur={onRenameBlur}
-              className="font-medium text-gray-900 dark:text-white bg-transparent px-2 py-1 border-2 border-indigo-500 rounded-md outline-none min-w-[200px]"
-              style={{ width: `${Math.max(200, newName.length * 9 + 20)}px` }}
-            />
-          </form>
+          <InlineEditInput
+            aria-label="Drawing name"
+            value={newName}
+            onChange={(e) => onNewNameChange(e.target.value)}
+            onCommit={onRenameSubmit}
+            onCancel={onRenameCancel}
+            className="font-medium text-gray-900 dark:text-white bg-transparent px-2 py-1 border-2 border-indigo-500 rounded-md outline-none min-w-[200px]"
+            style={{ width: `${Math.max(200, newName.length * 9 + 20)}px` }}
+          />
         ) : (
           <h1
             className="font-medium text-gray-900 dark:text-white px-2 py-1 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded cursor-text"

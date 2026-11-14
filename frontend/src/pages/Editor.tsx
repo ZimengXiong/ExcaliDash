@@ -370,7 +370,7 @@ const ExcalidrawEditor: React.FC = () => {
         onNavigateHome={() => navigate("/")}
         onNewNameChange={setNewName}
         onPointerUpdate={onPointerUpdate}
-        onRenameBlur={() => setIsRenaming(false)}
+        onRenameCancel={() => setIsRenaming(false)}
         onRenameStart={handleRenameStart}
         onRenameSubmit={handleRenameSubmit}
         onSetExcalidrawAPI={setExcalidrawAPI}

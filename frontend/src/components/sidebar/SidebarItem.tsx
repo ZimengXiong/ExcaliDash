@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import clsx from "clsx";
+import { InlineEditInput } from "../InlineEditInput";
 
 interface SidebarItemProps {
   id: string | null;
@@ -13,8 +14,8 @@ interface SidebarItemProps {
   isEditing?: boolean;
   editValue?: string;
   onEditChange?: (val: string) => void;
-  onEditSubmit?: (e: React.FormEvent) => void;
-  onEditBlur?: () => void;
+  onEditCommit?: () => void;
+  onEditCancel?: () => void;
   onDrop?: (e: React.DragEvent, collectionId: string | null) => void;
 }
 
@@ -30,8 +31,8 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
   isEditing,
   editValue,
   onEditChange,
-  onEditSubmit,
-  onEditBlur,
+  onEditCommit,
+  onEditCancel,
   onDrop,
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
@@ -39,17 +40,16 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
   return (
     <div className="relative group/item pl-3 pr-2">
       {isEditing ? (
-        <form onSubmit={onEditSubmit} className="py-1">
-          <input
-            autoFocus
-            type="text"
+        <div className="py-1">
+          <InlineEditInput
             value={editValue}
             onChange={(e) => onEditChange?.(e.target.value)}
+            onCommit={() => onEditCommit?.()}
+            onCancel={() => onEditCancel?.()}
             aria-label="Collection name"
             className="ui-input w-full font-medium"
-            onBlur={onEditBlur}
           />
-        </form>
+        </div>
       ) : (
         <div
           role="button"

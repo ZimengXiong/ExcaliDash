@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from "react";
-import type { FormEvent, MutableRefObject } from "react";
+import type { MutableRefObject } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import * as api from "../../api";
@@ -160,41 +160,40 @@ export const useEditorCommands = ({
     return () => window.removeEventListener("pagehide", handlePageHide);
   }, [canEdit, drawingId, refs, resolveSafeSnapshot]);
 
-  const handleRenameSubmit = useCallback(
-    async (e: FormEvent) => {
-      e.preventDefault();
-      if (!canEdit || !drawingId || refs.historyRestorePending.current) return;
-      const trimmed = newName.trim();
-      // Empty or unchanged name: just close the editor, save nothing.
-      if (!trimmed || trimmed === drawingName) {
-        setIsRenaming(false);
-        return;
-      }
-      const previousName = drawingName;
-      // Optimistically show the trimmed name, but revert if the save fails so
-      // the header never diverges from what is actually persisted.
-      setDrawingName(trimmed);
-      setNewName(trimmed);
+  const handleRenameSubmit = useCallback(async () => {
+    if (!canEdit || !drawingId || refs.historyRestorePending.current) {
       setIsRenaming(false);
-      try {
-        await api.updateDrawing(drawingId, { name: trimmed });
-      } catch (err) {
-        console.error("Failed to rename", err);
-        setDrawingName(previousName);
-        toast.error("Failed to rename drawing");
-      }
-    },
-    [
-      canEdit,
-      drawingId,
-      drawingName,
-      newName,
-      refs,
-      setDrawingName,
-      setIsRenaming,
-      setNewName,
-    ],
-  );
+      return;
+    }
+    const trimmed = newName.trim();
+    // Empty or unchanged name: just close the editor, save nothing.
+    if (!trimmed || trimmed === drawingName) {
+      setIsRenaming(false);
+      return;
+    }
+    const previousName = drawingName;
+    // Optimistically show the trimmed name, but revert if the save fails so
+    // the header never diverges from what is actually persisted.
+    setDrawingName(trimmed);
+    setNewName(trimmed);
+    setIsRenaming(false);
+    try {
+      await api.updateDrawing(drawingId, { name: trimmed });
+    } catch (err) {
+      console.error("Failed to rename", err);
+      setDrawingName(previousName);
+      toast.error("Failed to rename drawing");
+    }
+  }, [
+    canEdit,
+    drawingId,
+    drawingName,
+    newName,
+    refs,
+    setDrawingName,
+    setIsRenaming,
+    setNewName,
+  ]);
 
   const handleLibraryChange = useCallback(
     (items: readonly any[]) => {
