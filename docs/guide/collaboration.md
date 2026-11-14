@@ -17,7 +17,7 @@ ExcaliDash lets people edit Excalidraw drawings together while storing them on y
 
 <ThemeScreenshot light="/images/screenshots/share-drawing-light.png" dark="/images/screenshots/share-drawing.png" alt="Share dialog open with account search and access controls" />
 
-Live cursors and presence help you see who is working on the drawing.
+Live cursors and presence help you see who is working on the drawing. Select a collaborator's avatar in the editor header to follow their view while they present; panning or zooming yourself stops following.
 
 <ThemeScreenshot light="/images/collaboration-light.png" dark="/images/collaboration-dark.png" alt="Live deployment drawing with collaborator avatars and named cursors" />
 
