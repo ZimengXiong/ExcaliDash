@@ -232,6 +232,18 @@ const upload = multer({
     cb(null, true);
   },
 });
+// The bundled nginx strips the /api prefix before proxying, but some reverse
+// proxies forward /api/... as-is. Accept both so the UI keeps working there.
+app.use((req, _res, next) => {
+  if (
+    req.url === "/api" ||
+    req.url.startsWith("/api/") ||
+    req.url.startsWith("/api?")
+  ) {
+    req.url = req.url.slice(4) || "/";
+  }
+  next();
+});
 app.use((req, res, next) => {
   const requestId = uuidv4();
   req.headers["x-request-id"] = requestId;
