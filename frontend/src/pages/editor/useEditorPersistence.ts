@@ -11,6 +11,7 @@ import { exportToSvg } from "@excalidraw/excalidraw";
 import debounce from "lodash/debounce";
 import { toast } from "sonner";
 import * as api from "../../api";
+import { saveLibraryItems } from "./librarySync";
 import { reloadAndReconcile } from "./reconcileSave";
 import { compressExcalidrawFiles } from "../../utils/imageCompression";
 import { isDefaultPreviewBackground } from "../../utils/previewSvg";
@@ -419,7 +420,7 @@ export const useEditorPersistence = ({
   saveLibraryRef.current = async (items: any[]) => {
     if (!user) return;
     try {
-      await api.updateLibrary(items);
+      await saveLibraryItems(items);
     } catch (err) {
       console.error("Failed to save library", err);
       if (api.isAxiosError(err) && err.response?.status === 401) return;

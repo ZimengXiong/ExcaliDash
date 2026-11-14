@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import type { RefObject } from "react";
 import { toast } from "sonner";
-import * as api from "../../api";
+import { saveLibraryItems } from "./librarySync";
 
 type UseLibraryImportFromUrlParams = {
   excalidrawAPIRef: RefObject<any>;
@@ -69,16 +69,14 @@ export const useLibraryImportFromUrl = ({
         if (blob.size > 10 * 1024 * 1024) {
           throw new Error("Library file is too large");
         }
-        await excalidrawAPIRef.current.updateLibrary({
+        const updatedItems = await excalidrawAPIRef.current.updateLibrary({
           libraryItems: blob,
           merge: true,
           defaultStatus: "published",
           openLibraryMenu: true,
         });
-        const updatedItems =
-          excalidrawAPIRef.current.getAppState().libraryItems || [];
         if (user) {
-          await api.updateLibrary([...updatedItems]);
+          await saveLibraryItems(updatedItems ?? []);
         }
         toast.success("Library imported successfully", {
           id: "library-import",
