@@ -3,7 +3,10 @@ import jwt from "jsonwebtoken";
 import { PrismaClient } from "../generated/client";
 import { createAuthModeService, BOOTSTRAP_USER_ID } from "../auth/authMode";
 import { generateApiKey, serializeApiKeyScopes } from "../auth/apiKeys";
-import { createSocketAuthResolver } from "../server/socketAuth";
+import {
+  createSocketAuthResolver,
+  revalidateSocketApiKey,
+} from "../server/socketAuth";
 import { getTestPrisma, setupTestDb } from "./testUtils";
 
 const JWT_SECRET = "socket-auth-test-secret";
@@ -86,6 +89,7 @@ describe("Socket.IO handshake authentication", () => {
     const auth = await resolve(key.token);
 
     expect(auth?.userId).toBe(userId);
+    expect(auth?.apiKeyId).toBe(key.id);
     expect(auth?.apiKeyScopes).toContain("drawings:write");
     const stored = await prisma.apiKey.findUnique({ where: { id: key.id } });
     expect(stored?.lastUsedAt).toBeInstanceOf(Date);
@@ -111,6 +115,20 @@ describe("Socket.IO handshake authentication", () => {
 
     expect(await resolve(revoked.token)).toBeNull();
     expect(await resolve("exd_invalid_invalid")).toBeNull();
+  });
+
+  it("refuses API keys that are not sent explicitly, such as from a cookie", async () => {
+    const key = await createKey();
+
+    expect(await resolve(key.token, { allowApiKey: false })).toBeNull();
+    expect(await resolve({ not: "a string" })).toBeNull();
+  });
+
+  it("ignores API keys while auth is disabled", async () => {
+    const key = await createKey();
+    await setAuthEnabled(false);
+
+    expect((await resolve(key.token))?.userId).toBe(BOOTSTRAP_USER_ID);
   });
 
   it("refuses legacy drawing-scoped keys", async () => {
@@ -142,7 +160,11 @@ describe("Socket.IO handshake authentication", () => {
       JWT_SECRET,
     );
 
-    expect(await resolve(token)).toEqual({ userId, apiKeyScopes: null });
+    expect(await resolve(token)).toEqual({
+      userId,
+      apiKeyScopes: null,
+      apiKeyId: null,
+    });
     expect(await resolve(undefined)).toBeNull();
   });
 
@@ -152,6 +174,48 @@ describe("Socket.IO handshake authentication", () => {
     expect(await resolve(undefined)).toEqual({
       userId: BOOTSTRAP_USER_ID,
       apiKeyScopes: null,
+      apiKeyId: null,
     });
+  });
+
+  it("revalidates a key after it is revoked, edited or its owner deactivated", async () => {
+    const owner = await createUser("socket-revalidate@test.local");
+    const key = await createKey({ ownerId: owner.id });
+
+    expect(await revalidateSocketApiKey(prisma, key.id)).toContain(
+      "drawings:write",
+    );
+
+    await prisma.apiKey.update({
+      where: { id: key.id },
+      data: { scopes: "drawings:read" },
+    });
+    expect(await revalidateSocketApiKey(prisma, key.id)).toEqual([
+      "drawings:read",
+    ]);
+
+    await prisma.apiKey.update({
+      where: { id: key.id },
+      data: { scopes: "collections:read" },
+    });
+    expect(await revalidateSocketApiKey(prisma, key.id)).toBeNull();
+
+    await prisma.apiKey.update({
+      where: { id: key.id },
+      data: { scopes: "drawings:read", revokedAt: new Date() },
+    });
+    expect(await revalidateSocketApiKey(prisma, key.id)).toBeNull();
+
+    await prisma.apiKey.update({
+      where: { id: key.id },
+      data: { revokedAt: null },
+    });
+    expect(await revalidateSocketApiKey(prisma, key.id)).not.toBeNull();
+    await prisma.user.update({
+      where: { id: owner.id },
+      data: { isActive: false },
+    });
+    expect(await revalidateSocketApiKey(prisma, key.id)).toBeNull();
+    expect(await revalidateSocketApiKey(prisma, "missing")).toBeNull();
   });
 });

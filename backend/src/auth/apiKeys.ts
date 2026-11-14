@@ -102,6 +102,7 @@ export const authenticateApiKey = async (
     console.warn("Failed to update API key lastUsedAt:", error);
   }
   return {
+    id: apiKey.id,
     user: apiKey.user,
     scopes: parseApiKeyScopes(apiKey.scopes),
     drawingId: apiKey.drawingId ?? null,

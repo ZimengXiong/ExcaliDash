@@ -15,7 +15,7 @@ import {
   type RevalidatableSocket,
   type SocketState,
 } from "./socketAccess";
-import { createSocketAuthResolver } from "./socketAuth";
+import { createSocketAuthResolver, revalidateSocketApiKey } from "./socketAuth";
 
 type RegisterSocketHandlersDeps = {
   io: Server;
@@ -44,6 +44,7 @@ export const registerSocketHandlers = ({
     if (!data.joinedRooms) data.joinedRooms = new Set();
     if (data.principal === undefined) data.principal = null;
     if (data.apiKeyScopes === undefined) data.apiKeyScopes = null;
+    if (data.apiKeyId === undefined) data.apiKeyId = null;
     return data as SocketState;
   };
 
@@ -81,7 +82,11 @@ export const registerSocketHandlers = ({
 
   io.use(async (socket, next) => {
     try {
-      const tokenFromAuth = socket.handshake.auth?.token as string | undefined;
+      const rawAuthToken: unknown = socket.handshake.auth?.token;
+      const tokenFromAuth =
+        typeof rawAuthToken === "string" && rawAuthToken.length > 0
+          ? rawAuthToken
+          : undefined;
       const tokenFromCookie = (() => {
         const cookies = parseCookieHeader(socket.handshake.headers.cookie);
         const value = cookies[ACCESS_TOKEN_COOKIE_NAME];
@@ -89,14 +94,19 @@ export const registerSocketHandlers = ({
           ? value
           : undefined;
       })();
-      const token = tokenFromAuth || tokenFromCookie;
       const authEnabled = await authModeService.getAuthEnabled();
-      const auth = await resolveSocketAuth(token);
+      // API keys are only honoured when sent explicitly in the handshake auth
+      // payload (never from the query string or a cookie), matching REST,
+      // where they are only accepted as a Bearer header.
+      const auth = tokenFromAuth
+        ? await resolveSocketAuth(tokenFromAuth)
+        : await resolveSocketAuth(tokenFromCookie, { allowApiKey: false });
       const state = getState(socket);
 
       if (auth) {
         state.principal = { kind: "user", userId: auth.userId };
         state.apiKeyScopes = auth.apiKeyScopes;
+        state.apiKeyId = auth.apiKeyId;
         return next();
       }
 
@@ -115,6 +125,33 @@ export const registerSocketHandlers = ({
     const state = getState(socket);
     const principal = state.principal;
     const ACCESS_CACHE_TTL_MS = 1500;
+
+    // An API key is validated once at the handshake; the socket can live far
+    // longer. Re-check it (revoked, owner deactivated, scopes) before acting
+    // so revoking a key cuts off an open socket. Cached briefly for the
+    // high-frequency events; `fresh` forces a lookup for mutations.
+    let apiKeyCheckedAtMs = Date.now();
+    const ensureApiKeyValid = async (fresh = false): Promise<boolean> => {
+      if (!state.apiKeyId) return true;
+      if (!fresh && Date.now() - apiKeyCheckedAtMs < ACCESS_CACHE_TTL_MS) {
+        return true;
+      }
+      let scopes: string[] | null = null;
+      try {
+        scopes = await revalidateSocketApiKey(prisma, state.apiKeyId);
+      } catch (error) {
+        // Fail closed: if the key cannot be confirmed, do not act on it.
+        console.error("Failed to revalidate socket API key:", error);
+      }
+      if (!scopes) {
+        socket.emit("error", { message: "API key is no longer valid" });
+        socket.disconnect(true);
+        return false;
+      }
+      state.apiKeyScopes = scopes;
+      apiKeyCheckedAtMs = Date.now();
+      return true;
+    };
 
     const getCachedOrFreshAccess = async (
       drawingId: string,
@@ -167,6 +204,7 @@ export const registerSocketHandlers = ({
         }) => void,
       ) => {
         try {
+          if (!(await ensureApiKeyValid(true))) return;
           const access = await getCachedOrFreshAccess(drawingId);
           if (!access) {
             socket.emit("error", {
@@ -254,6 +292,7 @@ export const registerSocketHandlers = ({
       if (!drawingId || !state.access.has(drawingId)) {
         return;
       }
+      if (!(await ensureApiKeyValid())) return;
       // Re-validate through the TTL cache so revoked collaborators stop
       // broadcasting cursors (rather than trusting the stale join-time grant).
       const access = await getCachedOrFreshAccess(drawingId);
@@ -281,6 +320,8 @@ export const registerSocketHandlers = ({
       if (!drawingId || !state.access.has(drawingId)) {
         return;
       }
+
+      if (!(await ensureApiKeyValid(true))) return;
 
       // Enforce edit permission for every mutation event. Mutations bypass
       // the short-TTL access cache so a just-revoked collaborator cannot
@@ -342,6 +383,7 @@ export const registerSocketHandlers = ({
         if (typeof drawingId !== "string" || !state.access.has(drawingId)) {
           return;
         }
+        if (!(await ensureApiKeyValid())) return;
         // Re-validate so revoked collaborators stop broadcasting presence.
         const access = await getCachedOrFreshAccess(drawingId);
         if (!access) {
