@@ -52,6 +52,7 @@ const ExcalidrawEditor: React.FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isSavingOnLeave, setIsSavingOnLeave] = useState(false);
   const [editorAutoHide] = usePreference("editorAutoHide", false);
+  const [appendDroppedDrawings] = usePreference("appendDroppedDrawings", false);
   const { autoHideEnabled, setAutoHideEnabled } = useEditorAutoHide(
     id,
     editorAutoHide,
@@ -294,6 +295,7 @@ const ExcalidrawEditor: React.FC = () => {
   );
   const { handleCanvasChange, handleCanvasDropCapture } =
     useEditorCanvasHandlers({
+      appendDroppedDrawings,
       canEdit,
       debouncedSavePreview,
       drawingId: id,
