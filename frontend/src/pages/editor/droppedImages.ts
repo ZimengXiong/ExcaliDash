@@ -11,7 +11,7 @@ export type DroppedImageData = {
   height: number;
 };
 
-const createDroppedFileId = (): string =>
+export const createDroppedId = (): string =>
   typeof crypto.randomUUID === "function"
     ? crypto.randomUUID()
     : `dropped-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -92,7 +92,7 @@ export const loadDroppedImageData = async (
     // Keep the original dropped image if compression is unavailable.
   }
   return {
-    fileId: createDroppedFileId(),
+    fileId: createDroppedId(),
     mimeType,
     dataURL,
     created: Date.now(),
