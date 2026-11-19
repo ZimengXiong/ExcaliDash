@@ -4,6 +4,7 @@ import {
   canViewDrawing,
   getDrawingAccess,
 } from "../../authz/sharing";
+import { config } from "../../config";
 import { decodeSnapshotField } from "../../snapshots/snapshotCodec";
 import { applySceneUpdateTx, isVersionConflict } from "./sceneUpdate";
 import type { DrawingRouteContext } from "./drawingRouteContext";
@@ -68,7 +69,11 @@ export const registerDrawingHistoryRoutes = (
         prisma.drawingSnapshot.count({ where: { drawingId: id } }),
       ]);
 
-      return res.json({ snapshots, totalCount });
+      return res.json({
+        snapshots,
+        totalCount,
+        retentionDays: config.snapshotRetentionMs / (24 * 60 * 60 * 1000),
+      });
     }),
   );
 

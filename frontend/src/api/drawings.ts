@@ -356,7 +356,11 @@ export type DrawingSnapshotFull = DrawingSnapshotSummary & {
 export const getDrawingHistory = async (
   drawingId: string,
   options?: { limit?: number; offset?: number },
-): Promise<{ snapshots: DrawingSnapshotSummary[]; totalCount: number }> => {
+): Promise<{
+  snapshots: DrawingSnapshotSummary[];
+  totalCount: number;
+  retentionDays?: number;
+}> => {
   const params: Record<string, number> = {};
   if (options?.limit) params.limit = options.limit;
   if (options?.offset) params.offset = options.offset;
