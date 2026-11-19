@@ -16,7 +16,6 @@ cd ExcaliDash
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-Open <http://localhost:6767>. Configuration and deployment guidance live in
-the [documentation](https://excalidash.xyz).
+Open <http://localhost:6767>.
 
 ExcaliDash is licensed under the GNU Lesser General Public License v3.0.
