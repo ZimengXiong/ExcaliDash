@@ -10,6 +10,7 @@ import { SettingsMainGrid } from "./settings/SettingsMainGrid";
 import { AdvancedSettings } from "./settings/AdvancedSettings";
 import { SettingsConfirmModals } from "./settings/SettingsConfirmModals";
 import { ApiKeysCard } from "./profile/ApiKeysCard";
+import { McpConnectCard } from "./profile/McpConnectCard";
 import { Toaster } from "sonner";
 import { displayFontFamily } from "../utils/displayFont";
 import {
@@ -38,6 +39,7 @@ export const Settings: React.FC = () => {
   );
   const mustResetPassword = Boolean(user?.mustResetPassword);
   const [settingsSuccess, setSettingsSuccess] = useState("");
+  const [apiKeysRefresh, setApiKeysRefresh] = useState(0);
   const [legacyDbImportConfirmation, setLegacyDbImportConfirmation] = useState<{
     isOpen: boolean;
     file: File | null;
@@ -350,9 +352,16 @@ export const Settings: React.FC = () => {
           </div>
         )}{" "}
         <div className="space-y-10">
+          <McpConnectCard
+            disabled={mustResetPassword}
+            authEnabled={authEnabled}
+            onSuccess={setSettingsSuccess}
+            onApiKeyCreated={() => setApiKeysRefresh((value) => value + 1)}
+          />
           <ApiKeysCard
             disabled={mustResetPassword}
             onSuccess={setSettingsSuccess}
+            refreshToken={apiKeysRefresh}
           />
         </div>
         <div className="mt-10">

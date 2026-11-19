@@ -12,6 +12,8 @@ services:
       - NODE_ENV=production
       - AUTH_MODE=${AUTH_MODE:-local}
       - FILE_UPLOAD_MAX_MB=${FILE_UPLOAD_MAX_MB:-100}
+      # Built-in MCP endpoint for AI agents at /api/mcp (users connect with their own API key).
+      - MCP_ENABLED=${MCP_ENABLED:-false}
       # Keep disabled by default; only enable when a trusted proxy sanitizes forwarded headers.
       - TRUST_PROXY=false
       # Optional for single-instance deployments:

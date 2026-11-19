@@ -56,6 +56,14 @@ interface BackupConfig {
   retentionDays: number;
 }
 
+interface McpConfig {
+  enabled: boolean;
+  maxSessions: number;
+  maxSessionsPerKey: number;
+  sessionIdleMs: number;
+  modulePath: string | null;
+}
+
 interface Config {
   port: number;
   listenHost: string;
@@ -97,6 +105,9 @@ interface Config {
   linkShare: LinkShareConfig;
   updateCheck: UpdateCheckConfig;
   mail: MailConfig;
+  mcp: McpConfig;
+  agentOpsRateLimitMax: number;
+  agentOpsRateLimitWindowMs: number;
 }
 
 export type AuthMode = "local" | "hybrid" | "oidc_enforced" | "disabled";
@@ -380,6 +391,18 @@ export const config: Config = {
   linkShare: resolveLinkShareConfig(),
   updateCheck: resolveUpdateCheckConfig(),
   mail: resolveMailConfig(),
+  agentOpsRateLimitMax: readNumber("AGENT_OPS_RATE_LIMIT_MAX", 120),
+  agentOpsRateLimitWindowMs: readNumber(
+    "AGENT_OPS_RATE_LIMIT_WINDOW_MS",
+    60000,
+  ),
+  mcp: {
+    enabled: readBoolean("MCP_ENABLED", false),
+    maxSessions: readNumber("MCP_MAX_SESSIONS", 256),
+    maxSessionsPerKey: readNumber("MCP_MAX_SESSIONS_PER_KEY", 16),
+    sessionIdleMs: readNumber("MCP_SESSION_IDLE_MS", 30 * 60 * 1000),
+    modulePath: readOptionalString("MCP_MODULE_PATH"),
+  },
 };
 if (config.nodeEnv === "production") {
   validateProductionConfig(config);

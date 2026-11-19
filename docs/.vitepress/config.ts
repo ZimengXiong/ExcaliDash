@@ -61,6 +61,7 @@ export default defineConfig({
           { text: "Configuration", link: "/guide/configuration" },
           { text: "Collaboration", link: "/guide/collaboration" },
           { text: "Storage and backups", link: "/guide/storage-backups" },
+          { text: "MCP server", link: "/guide/mcp" },
         ],
       },
       {

@@ -64,11 +64,16 @@ jobs:
           cache-dependency-path: |
             backend/package-lock.json
             frontend/package-lock.json
+            mcp/package-lock.json
 
       - name: Install test dependencies
         run: |
           npm --prefix backend ci
           npm --prefix frontend ci
+          npm --prefix mcp ci
+
+      - name: Build MCP module for the built-in endpoint tests
+        run: npm --prefix mcp run build
 
       - name: Generate Prisma client
         run: |
@@ -79,6 +84,31 @@ jobs:
         run: |
           cd backend
           npm test
+
+  mcp-tests:
+    name: MCP Server Tests
+    needs: changes
+    if: needs.changes.outputs.application == 'true'
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24.22.1"
+          cache: "npm"
+          cache-dependency-path: mcp/package-lock.json
+
+      - name: Install MCP dependencies
+        run: npm --prefix mcp ci
+
+      - name: Run MCP tests
+        run: npm run test:mcp
+
+      - name: Audit MCP dependencies
+        run: npm --prefix mcp audit --omit=dev
 
   repo-checks:
     name: Repo Checks

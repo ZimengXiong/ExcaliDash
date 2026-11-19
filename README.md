@@ -18,4 +18,13 @@ docker compose -f docker-compose.prod.yml up -d
 
 Open <http://localhost:6767>.
 
+## MCP server
+
+The `mcp/` directory contains an MCP server that lets AI agents create and
+edit ExcaliDash drawings. Set `MCP_ENABLED=true` to serve it from the backend
+at `/api/mcp`, then connect an agent from **Settings → AI Agents (MCP)**. It is based on
+[excalidash-mcp](https://github.com/LatikDesu/excalidash-mcp) by
+Evgeny Abrosimov ([@LatikDesu](https://github.com/LatikDesu)), used under the
+MIT License. See [NOTICE](NOTICE) and [mcp/LICENSE](mcp/LICENSE).
+
 ExcaliDash is licensed under the GNU Lesser General Public License v3.0.
