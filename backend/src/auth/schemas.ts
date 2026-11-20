@@ -152,5 +152,6 @@ export const userPreferencesSchema = z
     gridStep: z.number().int().min(1).max(100).optional(),
     editorAutoHide: z.boolean().optional(),
     compactSidebar: z.boolean().optional(),
+    appendDroppedDrawings: z.boolean().optional(),
   })
   .strict();

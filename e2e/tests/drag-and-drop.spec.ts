@@ -373,3 +373,192 @@ test.describe("Drag and Drop - Editor Image Import", () => {
       .toEqual({ imageCount: 2, fileCount: 2 });
   });
 });
+
+test.describe("Drag and Drop - Dropped drawings", () => {
+  let createdDrawingIds: string[] = [];
+
+  test.afterEach(async ({ request }) => {
+    for (const id of createdDrawingIds) {
+      try {
+        await deleteDrawing(request, id);
+      } catch {}
+    }
+    createdDrawingIds = [];
+  });
+
+  const rectangle = (id: string, x: number, y: number, extra = {}) => ({
+    id,
+    type: "rectangle",
+    x,
+    y,
+    width: 100,
+    height: 60,
+    angle: 0,
+    strokeColor: "#1e1e1e",
+    backgroundColor: "transparent",
+    fillStyle: "solid",
+    strokeWidth: 2,
+    strokeStyle: "solid",
+    roughness: 1,
+    opacity: 100,
+    groupIds: [],
+    frameId: null,
+    roundness: null,
+    seed: 1,
+    version: 1,
+    versionNonce: 1,
+    isDeleted: false,
+    boundElements: null,
+    updated: 1,
+    link: null,
+    locked: false,
+    ...extra,
+  });
+
+  // An SVG with an embedded Excalidraw scene, as the "Embed scene" export
+  // writes it.
+  // It holds two grouped rectangles, so the test can check that the drop
+  // gives the group a fresh id.
+  const embeddedSceneSvg = () => {
+    const scene = {
+      type: "excalidraw",
+      version: 2,
+      source: "e2e",
+      elements: [
+        rectangle("dropped-a", 0, 0, { groupIds: ["dropped-group"] }),
+        rectangle("dropped-b", 150, 0, { groupIds: ["dropped-group"] }),
+      ],
+      appState: { viewBackgroundColor: "#ffc9c9" },
+      files: {},
+    };
+    const payload = Buffer.from(JSON.stringify(scene)).toString("base64");
+    return [
+      '<svg xmlns="http://www.w3.org/2000/svg" width="250" height="60">',
+      "<!-- svg-source:excalidraw -->",
+      "<metadata>",
+      "<!-- payload-type:application/vnd.excalidraw+json -->",
+      "<!-- payload-version:2 -->",
+      "<!-- payload-start -->",
+      payload,
+      "<!-- payload-end -->",
+      "</metadata>",
+      "</svg>",
+    ].join("");
+  };
+
+  const openDrawingWithOneRectangle = async (
+    page: import("@playwright/test").Page,
+    request: import("@playwright/test").APIRequestContext,
+    appendDroppedDrawings: boolean,
+  ) => {
+    const drawing = await createDrawing(request, {
+      name: `DroppedDrawing_${Date.now()}`,
+      elements: [rectangle("existing", 0, 0)],
+    });
+    createdDrawingIds.push(drawing.id);
+    // The app overwrites local preferences with the server's once it fetches
+    // them.
+    // Answer that fetch instead of seeding localStorage, or the shared e2e
+    // user's stored value wins, and that value depends on what earlier tests
+    // saved.
+    await page.route("**/auth/preferences", async (route) => {
+      if (route.request().method() !== "GET") return route.fallback();
+      await route.fulfill({
+        json: { preferences: { appendDroppedDrawings } },
+      });
+    });
+    await page.goto(`/editor/${drawing.id}`);
+    await page.waitForFunction(() =>
+      Boolean((window as any).__EXCALIDASH_EXCALIDRAW_API__),
+    );
+    // The app mirrors the preference to localStorage once it applies it.
+    // Wait for that before dropping anything.
+    await page.waitForFunction(
+      (append) =>
+        JSON.parse(localStorage.getItem("excalidash-preferences") || "{}")
+          .appendDroppedDrawings === append,
+      appendDroppedDrawings,
+    );
+    return drawing;
+  };
+
+  const dropSvg = (page: import("@playwright/test").Page, svg: string) =>
+    page.evaluate(
+      async ({ svgText }) => {
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(
+          new File([svgText], "dropped.excalidraw.svg", {
+            type: "image/svg+xml",
+          }),
+        );
+        const target = document.querySelector(".excalidraw");
+        if (!target) throw new Error("Missing Excalidraw container");
+        for (const type of ["dragenter", "dragover", "drop"]) {
+          target.dispatchEvent(
+            new DragEvent(type, {
+              bubbles: true,
+              cancelable: true,
+              dataTransfer,
+            }),
+          );
+        }
+      },
+      { svgText: svg },
+    );
+
+  const liveElements = (page: import("@playwright/test").Page) =>
+    page.evaluate(() =>
+      (window as any).__EXCALIDASH_EXCALIDRAW_API__
+        .getSceneElementsIncludingDeleted()
+        .filter((element: any) => !element.isDeleted)
+        .map((element: any) => ({
+          id: element.id,
+          groupIds: element.groupIds,
+        })),
+    );
+
+  test("appends a dropped drawing when the setting is on", async ({
+    page,
+    request,
+  }) => {
+    const drawing = await openDrawingWithOneRectangle(page, request, true);
+    const svg = embeddedSceneSvg();
+
+    await dropSvg(page, svg);
+    await expect.poll(async () => (await liveElements(page)).length).toBe(3);
+    await dropSvg(page, svg);
+    await expect.poll(async () => (await liveElements(page)).length).toBe(5);
+
+    const elements = await liveElements(page);
+    const ids = elements.map((element: any) => element.id);
+    expect(ids).toContain("existing");
+    expect(new Set(ids).size).toBe(5);
+    const groups = new Set(
+      elements.flatMap((element: any) => element.groupIds),
+    );
+    expect(groups.size).toBe(2);
+    expect(groups.has("dropped-group")).toBe(false);
+
+    await expect
+      .poll(
+        async () =>
+          ((await getDrawing(request, drawing.id)).elements ?? []).filter(
+            (element: any) => !element.isDeleted,
+          ).length,
+        { timeout: 15000 },
+      )
+      .toBe(5);
+  });
+
+  test("replaces the drawing by default", async ({ page, request }) => {
+    await openDrawingWithOneRectangle(page, request, false);
+
+    await dropSvg(page, embeddedSceneSvg());
+
+    await expect
+      .poll(async () =>
+        (await liveElements(page)).map((element: any) => element.id).sort(),
+      )
+      .toEqual(["dropped-a", "dropped-b"]);
+  });
+});

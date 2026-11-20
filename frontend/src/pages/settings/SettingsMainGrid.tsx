@@ -1,5 +1,6 @@
 import {
   Archive,
+  CopyPlus,
   PanelLeft,
   Eye,
   EyeOff,
@@ -39,6 +40,8 @@ type SettingsMainGridProps = {
   onEditorAutoHideChange: (enabled: boolean) => void;
   compactSidebar: boolean;
   onCompactSidebarChange: (enabled: boolean) => void;
+  appendDroppedDrawings: boolean;
+  onAppendDroppedDrawingsChange: (enabled: boolean) => void;
   updateChannel: api.UpdateChannel;
   updateInfo: api.UpdateInfo | null;
   updateLoading: boolean;
@@ -60,6 +63,8 @@ export const SettingsMainGrid = ({
   onEditorAutoHideChange,
   compactSidebar,
   onCompactSidebarChange,
+  appendDroppedDrawings,
+  onAppendDroppedDrawingsChange,
   updateChannel,
   updateInfo,
   updateLoading,
@@ -141,6 +146,19 @@ export const SettingsMainGrid = ({
           checked={compactSidebar}
           onChange={onCompactSidebarChange}
           ariaLabel="Toggle compact sidebar"
+        />
+      </SettingsRow>
+
+      <SettingsRow
+        icon={<CopyPlus size={20} />}
+        tileClassName="border-black bg-rose-400 text-black dark:border-neutral-700 dark:bg-rose-400 dark:text-black"
+        title="Append dropped drawings"
+        description="Add to the open drawing instead of replacing it."
+      >
+        <PlayfulSwitch
+          checked={appendDroppedDrawings}
+          onChange={onAppendDroppedDrawingsChange}
+          ariaLabel="Toggle appending dropped drawings"
         />
       </SettingsRow>
 
