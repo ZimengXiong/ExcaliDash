@@ -1,5 +1,5 @@
 ---
-title: "First Run — ExcaliDash"
+title: First Run Setup
 description: Choose an authentication mode, create your first ExcaliDash administrator, invite teammates, and harden your workspace.
 ---
 

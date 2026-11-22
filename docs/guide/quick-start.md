@@ -1,6 +1,6 @@
 ---
-title: "Quick Start — ExcaliDash"
-description: Start a self-hosted ExcaliDash workspace locally with Docker Compose and create your administrator account.
+title: Self-Host Excalidraw Quick Start
+description: Launch a self-hosted Excalidraw workspace with ExcaliDash and Docker Compose in under two minutes.
 ---
 
 <script setup>

@@ -1,9 +1,9 @@
 ---
-title: "Collaboration — ExcaliDash"
-description: Share ExcaliDash drawings and collections, collaborate in real time with follow mode, connect with Socket.IO API keys, and configure WebSocket proxies.
+title: Self-Hosted Excalidraw Real-Time Collaboration
+description: Run real-time Excalidraw collaboration on your own server with ExcaliDash. Live cursors, follow mode, drawing and collection sharing, link access, and WebSocket proxy setup.
 ---
 
-# Collaboration
+# Self-hosted Excalidraw collaboration
 
 ExcaliDash runs real-time Excalidraw collaboration on your own backend. Edits, cursors, presence avatars, and viewport updates sync over Socket.IO without sending drawings to third-party servers.
 

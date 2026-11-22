@@ -1,5 +1,5 @@
 ---
-title: "Local Development — ExcaliDash"
+title: Local Development
 description: Run the ExcaliDash backend, frontend, and documentation site locally for development.
 ---
 

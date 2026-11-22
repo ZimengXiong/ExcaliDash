@@ -1,15 +1,15 @@
 ---
-title: "Deploy with Docker Compose — ExcaliDash"
-description: Deploy ExcaliDash with Docker Compose. Configure pinned image tags, HTTPS reverse proxies, non-root port binding, scheduled backups, and upgrades.
+title: How to Self-Host Excalidraw with Docker Compose
+description: Step-by-step guide to self-host Excalidraw with Docker Compose using ExcaliDash. Includes persistent SQLite or PostgreSQL storage, HTTPS reverse proxy (Caddy, Nginx, Traefik), WebSockets, and backups.
 ---
 
 <script setup>
 import { setupSlides } from "../.vitepress/theme/screenshot-flows";
 </script>
 
-# Deploy with Docker Compose
+# How to self-host Excalidraw with Docker Compose
 
-Run ExcaliDash on a server, VPS, or homelab using the production Docker Compose stack (`frontend` + `backend` + persistent SQLite volume).
+Run a self-hosted Excalidraw workspace with saved drawings, collections, and real-time collaboration on your server, VPS, or homelab using ExcaliDash's production Docker Compose stack (`frontend` + `backend` + persistent SQLite volume).
 
 ## Prerequisites
 
@@ -77,6 +77,49 @@ Apply the override:
 ```bash
 docker compose -f docker-compose.prod.yml -f compose.override.yml up -d
 ```
+
+### Reverse proxy examples
+
+::: code-group
+
+```txt [Caddy]
+draw.example.com {
+    reverse_proxy 127.0.0.1:6767
+}
+```
+
+```nginx [Nginx]
+server {
+    listen 443 ssl http2;
+    server_name draw.example.com;
+
+    client_max_body_size 50M;
+
+    location / {
+        proxy_pass http://127.0.0.1:6767;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
+
+```yaml [Traefik labels]
+services:
+  frontend:
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.excalidash.rule=Host(`draw.example.com`)
+      - traefik.http.routers.excalidash.entrypoints=websecure
+      - traefik.http.routers.excalidash.tls.certresolver=letsencrypt
+      - traefik.http.services.excalidash.loadbalancer.server.port=8080
+```
+
+:::
 
 ## Non-root port binding
 

@@ -1,5 +1,5 @@
 ---
-title: "Configuration — ExcaliDash"
+title: Configuration
 description: Configure ExcaliDash environment variables, Docker overrides, signing secrets, and per-account workspace preferences.
 ---
 

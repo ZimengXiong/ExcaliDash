@@ -1,5 +1,5 @@
 ---
-title: "Screenshots — ExcaliDash"
+title: Screenshots
 description: Light and dark mode screenshots of the ExcaliDash dashboard, collections, Excalidraw editor, live collaboration, sharing, history, and settings.
 ---
 

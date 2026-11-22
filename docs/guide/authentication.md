@@ -1,13 +1,13 @@
 ---
-title: "Authentication — ExcaliDash"
-description: Configure local accounts, OpenID Connect, password reset email, and scoped API keys for REST and Socket.IO in ExcaliDash.
+title: Self-Hosted Excalidraw Authentication & OIDC SSO
+description: Configure local accounts, OpenID Connect (OIDC) SSO with Authentik, Keycloak, or Pocket ID, password reset email, and scoped API keys in ExcaliDash.
 ---
 
 <script setup>
 import { userManagementSlides, passwordResetSlides } from "../.vitepress/theme/screenshot-flows";
 </script>
 
-# Authentication
+# Authentication and OIDC SSO
 
 Control how people and scripts authenticate with `AUTH_MODE`:
 

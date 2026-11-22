@@ -1,5 +1,5 @@
 ---
-title: "Storage and Backups — ExcaliDash"
+title: Excalidraw Storage, Version History & Backups
 description: Understand persistent Docker volumes, version history retention, .excalidash backup exports and recovery copies, and scheduled SQLite backups.
 ---
 

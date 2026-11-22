@@ -1,5 +1,5 @@
 ---
-title: "Environment Reference — ExcaliDash"
+title: Environment Variables Reference
 description: Reference for ExcaliDash environment variables covering server settings, databases, authentication, OpenID Connect, S3 storage, backups, and email.
 ---
 
