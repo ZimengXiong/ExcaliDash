@@ -1,4 +1,5 @@
 import * as api from "../../api";
+import { getAuthSessionGeneration } from "../../utils/authSession";
 
 type LibraryItem = Record<string, unknown>;
 
@@ -76,8 +77,15 @@ export const resetLibrarySync = (items: readonly LibraryItem[]) =>
  * when the tab has no changes, otherwise its changes are rebased onto the
  * current server library before the PUT.
  */
-export const saveLibraryItems = (items: readonly LibraryItem[]) =>
+export const saveLibraryItems = (
+  items: readonly LibraryItem[],
+  sessionGeneration = getAuthSessionGeneration(),
+) =>
   enqueue(async () => {
+    // Items edited under a previous account must not be written to the next.
+    const isCurrentSession = () =>
+      sessionGeneration === getAuthSessionGeneration();
+    if (!isCurrentSession()) return;
     const local = [...items];
     const base = lastSynced;
     const unchanged =
@@ -85,6 +93,7 @@ export const saveLibraryItems = (items: readonly LibraryItem[]) =>
       local.every((item, index) => sameItem(item, base[index]));
     if (unchanged) return;
     const server = await api.getLibrary();
+    if (!isCurrentSession()) return;
     const merged = rebaseLibrary(base, local, server);
     if (
       merged.length !== server.length ||

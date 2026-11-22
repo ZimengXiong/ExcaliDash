@@ -28,9 +28,13 @@ export const reloadAndReconcile = async (
   localElements: readonly any[],
   localFiles: Record<string, any>,
   isCurrent: () => boolean = () => true,
-): Promise<{ elements: readonly any[]; files: Record<string, any> } | null> => {
+): Promise<{
+  elements: readonly any[];
+  files: Record<string, any>;
+  appState: Record<string, any>;
+} | null> => {
   if (!isCurrent()) return null;
-  const remote = await api.getDrawing(drawingId);
+  const remote = await api.getDrawing(drawingId, { omitPreview: true });
   if (!isCurrent()) return null;
   const storedRemoteFiles =
     (remote.files as Record<string, any> | undefined) || {};
@@ -54,12 +58,21 @@ export const reloadAndReconcile = async (
     ...refs.latestFiles.current,
     ...editor?.getFiles?.(),
   };
-  if (typeof remote.version === "number") {
-    refs.currentDrawingVersion.current = Math.max(
-      refs.currentDrawingVersion.current ?? 0,
-      remote.version,
-    );
+  const remoteAppState =
+    remote.appState && typeof remote.appState === "object"
+      ? (remote.appState as Record<string, any>)
+      : {};
+  const syncedAppState: Record<string, any> = {};
+  for (const key of ["viewBackgroundColor", "gridSize", "gridModeEnabled"]) {
+    if (key in remoteAppState) {
+      syncedAppState[key] = remoteAppState[key];
+    }
   }
+  const mergedAppState = {
+    ...(editor?.getAppState?.() || {}),
+    ...syncedAppState,
+  };
+  refs.currentDrawingVersion.current = remote.version;
   if (editor) {
     refs.isSyncing.current = true;
     try {
@@ -69,6 +82,9 @@ export const reloadAndReconcile = async (
       if (typeof editor.updateScene === "function") {
         editor.updateScene({
           elements: mergedElements,
+          ...(Object.keys(syncedAppState).length > 0
+            ? { appState: syncedAppState }
+            : {}),
           captureUpdate: "NEVER",
         });
       }
@@ -79,5 +95,9 @@ export const reloadAndReconcile = async (
   refs.latestElements.current = mergedElements;
   refs.latestFiles.current = mergedFiles;
   refs.lastSyncedFiles.current = mergedFiles;
-  return { elements: mergedElements, files: mergedFiles };
+  return {
+    elements: mergedElements,
+    files: mergedFiles,
+    appState: mergedAppState,
+  };
 };

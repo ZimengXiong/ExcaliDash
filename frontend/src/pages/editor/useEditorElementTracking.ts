@@ -1,6 +1,20 @@
 import { useCallback, useRef } from "react";
-import { getElementContentSig } from "./shared";
-import type { ElementVersionInfo } from "./shared";
+import {
+  matchesElementContent,
+  snapshotElementContent,
+} from "../../utils/sync";
+
+type ElementVersionInfo = {
+  version: number;
+  versionNonce: number;
+  updated: number;
+  content: ReturnType<typeof snapshotElementContent>;
+};
+
+const getUpdated = (element: any): number =>
+  typeof element.updated === "number"
+    ? element.updated
+    : Number(element.updated) || 0;
 
 export const useEditorElementTracking = () => {
   const elementVersionMap = useRef<Map<string, ElementVersionInfo>>(new Map());
@@ -9,51 +23,23 @@ export const useEditorElementTracking = () => {
     elementVersionMap.current.set(element.id, {
       version: element.version ?? 0,
       versionNonce: element.versionNonce ?? 0,
-      updated:
-        typeof element?.updated === "number"
-          ? element.updated
-          : Number(element?.updated) || 0,
-      contentSig: getElementContentSig(element),
+      updated: getUpdated(element),
+      content: snapshotElementContent(element),
     });
   }, []);
 
-  const hasElementChanged = useCallback((element: any) => {
+  const hasElementChanged = useCallback((element: any, status?: unknown) => {
     const previous = elementVersionMap.current.get(element.id);
-    if (!previous) return true;
-    const nextVersion = element.version ?? 0;
-    const nextNonce = element.versionNonce ?? 0;
-    const nextUpdated =
-      typeof element?.updated === "number"
-        ? element.updated
-        : Number(element?.updated) || 0;
-    const nextSig = getElementContentSig(element);
     return (
-      previous.version !== nextVersion ||
-      previous.versionNonce !== nextNonce ||
-      previous.updated !== nextUpdated ||
-      previous.contentSig !== nextSig
+      !previous ||
+      previous.version !== (element.version ?? 0) ||
+      previous.versionNonce !== (element.versionNonce ?? 0) ||
+      previous.updated !== getUpdated(element) ||
+      !matchesElementContent(previous.content, element, status)
     );
   }, []);
 
-  const computeElementOrderSig = useCallback((elements: readonly any[]) => {
-    let hash = 2166136261;
-    let count = 0;
-    for (const el of elements) {
-      const id = typeof el?.id === "string" ? el.id : "";
-      if (!id) continue;
-      count += 1;
-      for (let i = 0; i < id.length; i++) {
-        hash ^= id.charCodeAt(i);
-        hash = Math.imul(hash, 16777619);
-      }
-      hash ^= 124;
-      hash = Math.imul(hash, 16777619);
-    }
-    return `${count}:${(hash >>> 0).toString(16)}`;
-  }, []);
-
   return {
-    computeElementOrderSig,
     elementVersionMap,
     hasElementChanged,
     recordElementVersion,

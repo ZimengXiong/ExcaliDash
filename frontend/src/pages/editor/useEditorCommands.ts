@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { MutableRefObject } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -11,13 +11,29 @@ import {
 } from "./shared";
 import type { UploadedFileRefs } from "./shared";
 import { saveDrawingKeepalive } from "./keepaliveSave";
+import { DrawingAccessLostError } from "./useEditorPersistence";
+import type { SavePreviewOptions } from "./useEditorPersistence";
+
+// Resolves after the next frame; the timeout covers hidden tabs, where
+// requestAnimationFrame does not fire.
+const nextPaint = () =>
+  new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 50);
+    window.requestAnimationFrame?.(() => window.setTimeout(resolve, 0));
+  });
 
 type EditorCommandRefs = {
   historyRestorePending: MutableRefObject<boolean>;
   currentDrawingVersion: MutableRefObject<number | null>;
   excalidrawAPI: MutableRefObject<any>;
   hasSceneChangesSinceLoad: MutableRefObject<boolean>;
+  localSceneRevision: MutableRefObject<number>;
+  savedSceneRevision: MutableRefObject<number>;
+  latestAppState: MutableRefObject<any>;
+  latestElements: MutableRefObject<readonly any[]>;
   latestFiles: MutableRefObject<any>;
+  lastPersistedElements?: MutableRefObject<readonly any[]>;
+  lastPersistedFiles?: MutableRefObject<Record<string, any>>;
   saveData: MutableRefObject<
     | ((
         drawingId: string,
@@ -33,6 +49,7 @@ type EditorCommandRefs = {
         elements: readonly any[],
         appState: any,
         files: any,
+        options?: SavePreviewOptions,
       ) => Promise<void>)
     | null
   >;
@@ -43,7 +60,6 @@ type EditorCommandRefs = {
 type UseEditorCommandsParams = {
   autoHideEnabled: boolean;
   canEdit: boolean;
-  debouncedSaveLibrary: (items: any[]) => void;
   drawingId: string | undefined;
   drawingName: string;
   isSavingOnLeave: boolean;
@@ -60,24 +76,24 @@ type UseEditorCommandsParams = {
     elements: readonly any[],
     appState: any,
     files?: Record<string, any>,
-    options?: { suppressErrors?: boolean },
+    options?: { suppressErrors?: boolean; onlyIfDirty?: boolean },
   ) => Promise<void>;
+  flushBroadcastChanges: () => void;
   setAutoHideEnabled: (enabled: boolean) => void;
   setDrawingName: (name: string) => void;
   setIsHeaderVisible: (visible: boolean) => void;
   setIsRenaming: (isRenaming: boolean) => void;
   setIsSavingOnLeave: (isSaving: boolean) => void;
   setNewName: (name: string) => void;
-  user: unknown;
 };
 
 export const useEditorCommands = ({
   autoHideEnabled,
   canEdit,
-  debouncedSaveLibrary,
   drawingId,
   drawingName,
   enqueueSceneSave,
+  flushBroadcastChanges,
   isSavingOnLeave,
   newName,
   refs,
@@ -88,9 +104,12 @@ export const useEditorCommands = ({
   setIsRenaming,
   setIsSavingOnLeave,
   setNewName,
-  user,
 }: UseEditorCommandsParams) => {
   const navigate = useNavigate();
+  const hasUnsavedChanges = useCallback(
+    () => refs.localSceneRevision.current !== refs.savedSceneRevision.current,
+    [refs],
+  );
 
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
@@ -105,6 +124,7 @@ export const useEditorCommands = ({
           return;
         }
         if (!drawingId) return;
+        flushBroadcastChanges();
         const elements =
           refs.excalidrawAPI.current.getSceneElementsIncludingDeleted();
         const { snapshot: safeElements } = resolveSafeSnapshot(elements);
@@ -115,7 +135,21 @@ export const useEditorCommands = ({
           await enqueueSceneSave(drawingId, safeElements, appState, files, {
             suppressErrors: false,
           });
-          refs.savePreview.current(drawingId, safeElements, appState, files);
+          const committedElements =
+            refs.lastPersistedElements?.current ?? safeElements;
+          const committedAppState =
+            refs.excalidrawAPI.current?.getAppState() ?? appState;
+          const committedFiles = refs.lastPersistedFiles?.current ?? files;
+          refs.savePreview.current(
+            drawingId,
+            committedElements,
+            committedAppState,
+            committedFiles,
+            {
+              expectedVersion: refs.currentDrawingVersion.current,
+              useSuppliedSnapshot: true,
+            },
+          );
           toast.success("Saved changes to server");
         } catch (err) {
           console.error("Failed to save on Ctrl+S", err);
@@ -126,7 +160,14 @@ export const useEditorCommands = ({
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [canEdit, drawingId, enqueueSceneSave, refs, resolveSafeSnapshot]);
+  }, [
+    canEdit,
+    drawingId,
+    enqueueSceneSave,
+    flushBroadcastChanges,
+    refs,
+    resolveSafeSnapshot,
+  ]);
 
   useEffect(() => {
     // Flush the latest scene when the tab is being hidden/closed. Debounced
@@ -136,7 +177,8 @@ export const useEditorCommands = ({
       if (!canEdit || !drawingId || refs.historyRestorePending.current) return;
       const editor = refs.excalidrawAPI.current;
       if (!editor) return;
-      if (!refs.hasSceneChangesSinceLoad.current) return;
+      flushBroadcastChanges();
+      if (!hasUnsavedChanges()) return;
       const elements = editor.getSceneElementsIncludingDeleted();
       const { snapshot: safeElements } = resolveSafeSnapshot(elements);
       if (
@@ -158,7 +200,14 @@ export const useEditorCommands = ({
     };
     window.addEventListener("pagehide", handlePageHide);
     return () => window.removeEventListener("pagehide", handlePageHide);
-  }, [canEdit, drawingId, refs, resolveSafeSnapshot]);
+  }, [
+    canEdit,
+    drawingId,
+    flushBroadcastChanges,
+    hasUnsavedChanges,
+    refs,
+    resolveSafeSnapshot,
+  ]);
 
   const handleRenameSubmit = useCallback(async () => {
     if (!canEdit || !drawingId || refs.historyRestorePending.current) {
@@ -195,72 +244,128 @@ export const useEditorCommands = ({
     setNewName,
   ]);
 
-  const handleLibraryChange = useCallback(
-    (items: readonly any[]) => {
-      if (!canEdit || !user) return;
-      debouncedSaveLibrary([...items]);
-    },
-    [canEdit, debouncedSaveLibrary, user],
-  );
-
-  const handleBackClick = useCallback(async () => {
-    if (isSavingOnLeave || refs.historyRestorePending.current) return;
-    setIsSavingOnLeave(true);
-    let shouldNavigate = false;
-    try {
-      if (!(
-        refs.excalidrawAPI.current &&
-        refs.saveData.current &&
-        refs.savePreview.current
-      )) {
-        shouldNavigate = true;
-      } else if (!canEdit || !refs.hasSceneChangesSinceLoad.current) {
-        shouldNavigate = true;
-      } else if (!drawingId) {
-        shouldNavigate = true;
-      } else {
-        const elements =
-          refs.excalidrawAPI.current.getSceneElementsIncludingDeleted();
-        const { snapshot: safeElements } = resolveSafeSnapshot(elements);
-        const appState = refs.excalidrawAPI.current.getAppState();
-        const files = refs.excalidrawAPI.current.getFiles() || {};
-        refs.latestFiles.current = files;
-        if (
-          refs.suspiciousBlankLoad.current &&
-          !hasRenderableElements(safeElements)
-        ) {
-          toast.warning(
-            "Blank scene detected on load. Skipping save to protect existing data.",
-          );
-          shouldNavigate = true;
-        } else {
-          await Promise.all([
-            enqueueSceneSave(drawingId, safeElements, appState, files, {
-              suppressErrors: false,
-            }),
-            refs.savePreview.current(drawingId, safeElements, appState, files),
-          ]);
-          shouldNavigate = true;
-        }
-      }
-    } catch (err) {
-      if (api.isAxiosError(err) && err.response?.status === 404) {
-        // The drawing was deleted while open (another tab, a collaborator or
-        // the API). A retry can never succeed, so do not keep the user here;
-        // the save path has already said the changes could not be saved.
-        shouldNavigate = true;
-      } else {
-        console.error("Failed to save on back navigation", err);
-        toast.error("Failed to save changes. Please retry before leaving.");
-      }
-    } finally {
-      setIsSavingOnLeave(false);
-    }
-    if (shouldNavigate) navigate("/");
+  // Hovering Back starts the pending autosave early, so by the time the click
+  // lands the scene is usually persisted and navigation doesn't wait on it.
+  const backIntentSavePending = useRef(false);
+  const handleBackIntent = useCallback(() => {
+    if (
+      !canEdit ||
+      !drawingId ||
+      isSavingOnLeave ||
+      backIntentSavePending.current ||
+      refs.historyRestorePending.current
+    )
+      return;
+    const editor = refs.excalidrawAPI.current;
+    if (!editor) return;
+    flushBroadcastChanges();
+    if (!hasUnsavedChanges()) return;
+    backIntentSavePending.current = true;
+    void enqueueSceneSave(
+      drawingId,
+      editor.getSceneElementsIncludingDeleted(),
+      editor.getAppState(),
+      editor.getFiles() || {},
+      { onlyIfDirty: true },
+    ).finally(() => {
+      backIntentSavePending.current = false;
+    });
   }, [
     canEdit,
     drawingId,
     enqueueSceneSave,
+    flushBroadcastChanges,
+    hasUnsavedChanges,
+    isSavingOnLeave,
+    refs,
+  ]);
+
+  const handleBackClick = useCallback(async () => {
+    if (isSavingOnLeave || refs.historyRestorePending.current) return;
+    const editor = refs.excalidrawAPI.current;
+    if (!editor || !canEdit || !drawingId) {
+      navigate("/");
+      return;
+    }
+
+    flushBroadcastChanges();
+    if (hasUnsavedChanges()) {
+      setIsSavingOnLeave(true);
+      try {
+        // Paint the "Saving changes" state before sampling and serializing
+        // the scene, so the click acknowledges immediately.
+        await nextPaint();
+        let revision: number;
+        do {
+          revision = refs.localSceneRevision.current;
+          const { snapshot: safeElements } = resolveSafeSnapshot(
+            editor.getSceneElementsIncludingDeleted(),
+          );
+          if (
+            refs.suspiciousBlankLoad.current &&
+            !hasRenderableElements(safeElements)
+          ) {
+            toast.warning(
+              "Blank scene detected on load. Skipping save to protect existing data.",
+            );
+            break;
+          }
+          const files = editor.getFiles() || {};
+          await enqueueSceneSave(
+            drawingId,
+            safeElements,
+            editor.getAppState(),
+            files,
+            {
+              suppressErrors: false,
+              onlyIfDirty: true,
+            },
+          );
+          flushBroadcastChanges();
+        } while (
+          revision !== refs.localSceneRevision.current &&
+          hasUnsavedChanges()
+        );
+      } catch (err) {
+        if (
+          err instanceof DrawingAccessLostError ||
+          (api.isAxiosError(err) && err.response?.status === 404)
+        ) {
+          // The scene save already reported the deletion or lost access.
+          navigate("/");
+        } else {
+          console.error("Failed to save on back navigation", err);
+          toast.error("Failed to save changes. Please retry before leaving.");
+          setIsSavingOnLeave(false);
+        }
+        return;
+      }
+    }
+
+    navigate("/");
+    const savePreview = refs.savePreview.current;
+    const appState = refs.latestAppState.current;
+    if (!refs.hasSceneChangesSinceLoad.current || !savePreview || !appState)
+      return;
+    const elements = refs.latestElements.current;
+    const files = refs.latestFiles.current || {};
+    // The committed version this render depicts; a newer save wins.
+    const expectedVersion = refs.currentDrawingVersion.current;
+    const updatePreview = () =>
+      void savePreview(drawingId, elements, appState, files, {
+        expectedVersion,
+      });
+    if (typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(updatePreview, { timeout: 2000 });
+    } else {
+      window.setTimeout(updatePreview, 0);
+    }
+  }, [
+    canEdit,
+    drawingId,
+    enqueueSceneSave,
+    flushBroadcastChanges,
+    hasUnsavedChanges,
     isSavingOnLeave,
     navigate,
     refs,
@@ -296,8 +401,8 @@ export const useEditorCommands = ({
 
   return {
     handleBackClick,
+    handleBackIntent,
     handleExportClick,
-    handleLibraryChange,
     handleRenameStart,
     handleRenameSubmit,
     handleToggleAutoHide,

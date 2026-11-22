@@ -1,41 +1,33 @@
 import { applyElementOrder, reconcileElements } from "../../utils/sync";
 
-export interface ElementVersionInfo {
-  version: number;
-  versionNonce: number;
-  updated: number;
-  contentSig: string;
-}
+export const getElementOrder = (elements: readonly any[]): string[] =>
+  elements
+    .map((element) => element?.id)
+    .filter((id): id is string => typeof id === "string" && id.length > 0);
 
-const toFiniteNumber = (value: any): number => {
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
+export const getImageElementStatus = (
+  element: any,
+  files: Record<string, any>,
+) => {
+  if (
+    element?.type !== "image" ||
+    element.status === "saved" ||
+    typeof element.fileId !== "string"
+  ) {
+    return element?.status;
+  }
+  const dataURL = files[element.fileId]?.dataURL;
+  return typeof dataURL === "string" && dataURL.startsWith("data:image/")
+    ? "saved"
+    : element.status;
 };
 
-export const getElementContentSig = (element: any): string => {
-  if (!element || typeof element !== "object") return "";
-  const type = typeof element.type === "string" ? element.type : "";
-  const isDeleted = element.isDeleted ? "1" : "0";
-  const status = typeof element.status === "string" ? element.status : "";
-  const x = toFiniteNumber(element.x);
-  const y = toFiniteNumber(element.y);
-  const w = toFiniteNumber(element.width);
-  const h = toFiniteNumber(element.height);
-  const angle = toFiniteNumber(element.angle);
-  const fileId = typeof element.fileId === "string" ? element.fileId : "";
-  const text = typeof element.text === "string" ? element.text : "";
-  const textSig = text ? `t${text.length}:${text.slice(0, 64)}` : "";
-  let pointsSig = "";
-  if (Array.isArray(element.points)) {
-    const pts = element.points as any[];
-    const len = pts.length;
-    const last = len > 0 ? pts[len - 1] : null;
-    const lastX = Array.isArray(last) ? toFiniteNumber(last[0]) : 0;
-    const lastY = Array.isArray(last) ? toFiniteNumber(last[1]) : 0;
-    pointsSig = `p${len}:${lastX},${lastY}`;
-  }
-  return `${type}|${isDeleted}|${status}|${x}|${y}|${w}|${h}|${angle}|${pointsSig}|${fileId}|${textSig}`;
+export const withSavedImageStatus = (
+  element: any,
+  files: Record<string, any>,
+) => {
+  const status = getImageElementStatus(element, files);
+  return status === element?.status ? element : { ...element, status };
 };
 
 /**
@@ -259,6 +251,7 @@ export const getFilesDelta = (
   const delta: Record<string, any> = {};
   const prev = previous || {};
   const nxt = next || {};
+  if (prev === nxt) return delta;
 
   for (const fileId of Object.keys(nxt)) {
     const nextFile = nxt[fileId];
@@ -272,7 +265,10 @@ export const getFilesDelta = (
       continue;
     }
 
-    if (buildFileSignature(prevFile) !== buildFileSignature(nextFile)) {
+    if (
+      prevFile !== nextFile &&
+      buildFileSignature(prevFile) !== buildFileSignature(nextFile)
+    ) {
       delta[fileId] = nextFile;
     }
   }

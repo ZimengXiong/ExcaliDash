@@ -4,6 +4,7 @@ import {
   hasRenderableElements,
   isStaleEmptySnapshot,
   isStaleNonRenderableSnapshot,
+  withSavedImageStatus,
 } from "./shared";
 
 type UseEditorSnapshotGuardsParams = {
@@ -114,27 +115,15 @@ export const useEditorSnapshotGuards = ({
     ): readonly any[] => {
       if (!Array.isArray(elements) || elements.length === 0) return elements;
       const fileMap = files || {};
-      let changed = false;
-      const normalized = elements.map((element: any) => {
-        if (
-          !element ||
-          element.type !== "image" ||
-          typeof element.fileId !== "string"
-        ) {
-          return element;
-        }
-        const file = fileMap[element.fileId];
-        const hasImageData =
-          typeof file?.dataURL === "string" &&
-          file.dataURL.startsWith("data:image/") &&
-          file.dataURL.length > 0;
-        if (!hasImageData || element.status === "saved") {
-          return element;
-        }
-        changed = true;
-        return { ...element, status: "saved" };
-      });
-      return changed ? normalized : elements;
+      let normalized: any[] | undefined;
+      for (let i = 0; i < elements.length; i++) {
+        const element = elements[i];
+        const next = withSavedImageStatus(element, fileMap);
+        if (next === element) continue;
+        normalized ??= elements.slice();
+        normalized[i] = next;
+      }
+      return normalized ?? elements;
     },
     [],
   );

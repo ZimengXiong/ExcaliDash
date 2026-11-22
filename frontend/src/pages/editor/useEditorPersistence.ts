@@ -7,19 +7,23 @@ import {
   useState,
 } from "react";
 import type { MutableRefObject } from "react";
-import { exportToSvg } from "@excalidraw/excalidraw";
+import { exportToCanvas, exportToSvg } from "@excalidraw/excalidraw";
 import debounce from "lodash/debounce";
 import { toast } from "sonner";
 import * as api from "../../api";
+import { invalidateDrawingPreview } from "../../components/drawing-card/previewCache";
 import { saveLibraryItems } from "./librarySync";
+import { getAuthSessionGeneration } from "../../utils/authSession";
 import { reloadAndReconcile } from "./reconcileSave";
 import { compressExcalidrawFiles } from "../../utils/imageCompression";
 import { isDefaultPreviewBackground } from "../../utils/previewSvg";
+import { renderPreviewSvg } from "../../utils/renderPreview";
 import {
   applyUploadedFileRefs,
   getFilesDelta,
   getPersistedAppState,
   hasRenderableElements,
+  haveSameElements,
 } from "./shared";
 import type { UploadedFileRefs } from "./shared";
 
@@ -29,6 +33,35 @@ class DrawingSaveConflictError extends Error {
     this.name = "DrawingSaveConflictError";
   }
 }
+
+// The server refused the save because edit access is gone. `readOnly` means
+// the drawing is still viewable and the editor switched to read-only.
+export class DrawingAccessLostError extends Error {
+  readonly readOnly: boolean;
+  constructor(readOnly: boolean) {
+    super(readOnly ? "Drawing is read-only" : "Drawing is unavailable");
+    this.name = "DrawingAccessLostError";
+    this.readOnly = readOnly;
+  }
+}
+
+// After a 403/404 save, find out whether the drawing is still readable.
+const getRemainingAccess = async (
+  drawingId: string,
+): Promise<"view" | "edit" | "gone" | null> => {
+  try {
+    const drawing = await api.getDrawing(drawingId, { omitPreview: true });
+    return drawing.accessLevel === "view" ? "view" : "edit";
+  } catch (err) {
+    const status = api.isAxiosError(err) ? err.response?.status : undefined;
+    return status === 403 || status === 404 ? "gone" : null;
+  }
+};
+
+export type SavePreviewOptions = {
+  expectedVersion?: number | null;
+  useSuppliedSnapshot?: boolean;
+};
 
 type PersistenceRefs = {
   currentDrawingVersion: MutableRefObject<number | null>;
@@ -44,7 +77,8 @@ type PersistenceRefs = {
   excalidrawAPI: MutableRefObject<any>;
   isSyncing: MutableRefObject<boolean>;
   isUnmounting: MutableRefObject<boolean>;
-  lastLocalChangeAt: MutableRefObject<number>;
+  localSceneRevision: MutableRefObject<number>;
+  savedSceneRevision: MutableRefObject<number>;
   lastPersistedElements: MutableRefObject<readonly any[]>;
   lastPersistedFiles: MutableRefObject<Record<string, any>>;
   lastSyncedFiles: MutableRefObject<Record<string, any>>;
@@ -54,6 +88,8 @@ type PersistenceRefs = {
   saveQueue: MutableRefObject<Promise<void>>;
   suspiciousBlankLoad: MutableRefObject<boolean>;
   uploadedRefs: MutableRefObject<UploadedFileRefs>;
+  // Lets the server leave this editor out of its own persisted broadcast.
+  socket?: MutableRefObject<{ id?: string } | null>;
 };
 
 type UseEditorPersistenceParams = {
@@ -71,6 +107,8 @@ type UseEditorPersistenceParams = {
     staleEmptySnapshot: boolean;
     staleNonRenderableSnapshot: boolean;
   };
+  // Switch the editor to read-only after edit access was removed.
+  onReadOnly?: () => void;
 };
 
 export const useEditorPersistence = ({
@@ -80,6 +118,7 @@ export const useEditorPersistence = ({
   user,
   normalizeImageElementStatus,
   resolveSafeSnapshot,
+  onReadOnly,
 }: UseEditorPersistenceParams) => {
   const historyRestorePendingRef = useRef(false);
   const drawingSessionRef = useRef({ drawingId: activeDrawingId });
@@ -109,10 +148,13 @@ export const useEditorPersistence = ({
         elements: readonly any[],
         appState: any,
         files: any,
+        options?: SavePreviewOptions,
       ) => Promise<void>)
     | null
   >(null);
-  const saveLibraryRef = useRef<((items: any[]) => Promise<void>) | null>(null);
+  const saveLibraryRef = useRef<
+    ((items: any[], sessionGeneration: number) => Promise<void>) | null
+  >(null);
   const [autosaveFailing, setAutosaveFailing] = useState(false);
   const autosaveFailureCountRef = useRef(0);
 
@@ -130,12 +172,16 @@ export const useEditorPersistence = ({
       refs.excalidrawAPI.current === editor;
     if (!canEditRef.current || !drawingId || !isCurrent()) return;
     try {
+      const revision = refs.localSceneRevision.current;
       const persistableAppState = getPersistedAppState(
         editor?.getAppState?.() ?? refs.latestAppState.current ?? appState,
       );
       // Queued arguments may predate a previous conflict merge. Sample the live
       // scene when the queued save starts, including its deletion tombstones.
       const liveElements = editor?.getSceneElementsIncludingDeleted?.();
+      // Pair the sampled scene with the version it is based on. A peer's
+      // saved-scene broadcast may advance the tracked version meanwhile.
+      const sampledVersion = refs.currentDrawingVersion.current;
       const candidateElements = Array.isArray(liveElements)
         ? liveElements
         : Array.isArray(refs.latestElements.current)
@@ -169,38 +215,40 @@ export const useEditorPersistence = ({
         });
         return;
       }
-      let persistableFiles = {
+      const editorFilesBeforeCompression = {
         ...files,
         ...refs.latestFiles.current,
         ...editor?.getFiles?.(),
       };
-      const editorFilesBeforeCompression = persistableFiles;
-      const compressedFilesResult =
-        await compressExcalidrawFiles(persistableFiles);
+      const compressedFilesResult = await compressExcalidrawFiles(
+        editorFilesBeforeCompression,
+      );
       if (!canEditRef.current || !isCurrent()) return;
+      const persistableFiles = compressedFilesResult.files;
       if (compressedFilesResult.changed) {
-        persistableFiles = compressedFilesResult.files;
-        if (
-          refs.excalidrawAPI.current &&
-          typeof refs.excalidrawAPI.current.addFiles === "function"
-        ) {
+        const editorFiles = editor?.getFiles?.() || {};
+        const latestFiles = { ...refs.latestFiles.current };
+        const missingFiles = [];
+        for (const id of compressedFilesResult.changedIds) {
+          if (
+            editorFiles[id] &&
+            editorFiles[id] !== editorFilesBeforeCompression[id]
+          )
+            continue;
+          latestFiles[id] = persistableFiles[id];
+          if (!editorFiles[id]) missingFiles.push(persistableFiles[id]);
+        }
+        // Excalidraw retains bytes for existing IDs. Only add missing files,
+        // since resubmitting the whole batch causes another canvas update.
+        if (missingFiles.length > 0 && typeof editor?.addFiles === "function") {
           refs.isSyncing.current = true;
           try {
-            refs.excalidrawAPI.current.addFiles(
-              Object.values(persistableFiles),
-            );
+            editor.addFiles(missingFiles);
           } finally {
             refs.isSyncing.current = false;
           }
         }
-        refs.latestFiles.current = {
-          ...refs.latestFiles.current,
-          ...persistableFiles,
-        };
-        // Excalidraw may retain the original blob when addFiles receives an
-        // existing content-derived ID, so compare realtime changes against
-        // the file map that is still in the editor.
-        refs.lastSyncedFiles.current = editorFilesBeforeCompression;
+        refs.latestFiles.current = latestFiles;
       }
       // Swap inline bytes for a ref on any file already uploaded out-of-band so
       // the PUT ships KB, not MB. Files not yet uploaded keep their inline
@@ -216,23 +264,31 @@ export const useEditorPersistence = ({
             filesToPersist || {},
           ),
         ).length > 0;
-      const normalizedElementsForSave = Array.from(
-        normalizeImageElementStatus(persistableElements, filesToPersist),
+      const normalizedElementsForSave = normalizeImageElementStatus(
+        persistableElements,
+        filesToPersist,
       );
       const persistScene = async (
         attempt: number,
         elementsToSave: readonly any[],
         filesToSave: Record<string, any>,
+        appStateToSave: Record<string, any>,
         sendFiles: boolean,
+        baseVersion: number | null,
       ): Promise<void> => {
         if (!canEditRef.current || !isCurrent()) return;
         try {
-          const updated = await api.updateDrawing(drawingId, {
-            elements: Array.from(elementsToSave),
-            appState: persistableAppState,
-            ...(sendFiles ? { files: filesToSave } : {}),
-            version: refs.currentDrawingVersion.current ?? undefined,
-          });
+          const socketId = refs.socket?.current?.id;
+          const updated = await api.saveDrawing(
+            drawingId,
+            {
+              elements: Array.from(elementsToSave),
+              appState: appStateToSave,
+              ...(sendFiles ? { files: filesToSave } : {}),
+              version: baseVersion ?? undefined,
+            },
+            ...(socketId ? [{ socketId }] : []),
+          );
           if (!canEditRef.current || !isCurrent()) return;
           if (typeof updated.version === "number") {
             refs.currentDrawingVersion.current = Math.max(
@@ -241,6 +297,7 @@ export const useEditorPersistence = ({
             );
           }
           refs.lastPersistedElements.current = elementsToSave;
+          refs.savedSceneRevision.current = revision;
           if (sendFiles) {
             refs.lastPersistedFiles.current = filesToSave;
           }
@@ -248,9 +305,6 @@ export const useEditorPersistence = ({
           if (!isCurrent()) return;
           if (api.isAxiosError(err) && err.response?.status === 409) {
             if (attempt < 4) {
-              // Concurrent editors can collide again after reconciliation.
-              // Stagger retries, but always merge against the latest version
-              // rather than overwriting another participant's changes.
               await new Promise((resolve) =>
                 setTimeout(resolve, 100 * 2 ** attempt + Math.random() * 150),
               );
@@ -262,11 +316,16 @@ export const useEditorPersistence = ({
                 isCurrent,
               );
               if (!reconciled) return;
+              const reconciledAppState = getPersistedAppState(
+                reconciled.appState,
+              );
               await persistScene(
                 attempt + 1,
                 reconciled.elements,
                 reconciled.files,
+                reconciledAppState,
                 true,
+                refs.currentDrawingVersion.current,
               );
               return;
             }
@@ -279,16 +338,34 @@ export const useEditorPersistence = ({
         0,
         normalizedElementsForSave,
         filesToPersist,
+        persistableAppState,
         filesChangedSincePersist,
+        sampledVersion,
       );
     } catch (err) {
       if (err instanceof DrawingSaveConflictError) {
         toast.error("Drawing changed in another tab. Refresh to load latest.");
         throw err;
       }
-      if (api.isAxiosError(err) && err.response?.status === 404) {
-        toast.error("This drawing no longer exists. Changes can't be saved.");
-        throw err;
+      const status = api.isAxiosError(err) ? err.response?.status : undefined;
+      if ((status === 403 || status === 404) && isCurrent()) {
+        const access = await getRemainingAccess(drawingId);
+        if (access === "view") {
+          if (isCurrent() && canEditRef.current) {
+            canEditRef.current = false;
+            onReadOnly?.();
+            toast.info("Your access changed to view only.");
+          }
+          throw new DrawingAccessLostError(true);
+        }
+        if (access === "gone" || (access === null && status === 404)) {
+          toast.error(
+            status === 404
+              ? "This drawing no longer exists. Changes can't be saved."
+              : "You no longer have access to this drawing.",
+          );
+          throw new DrawingAccessLostError(false);
+        }
       }
       console.error("Failed to save drawing", err);
       toast.error("Failed to save changes");
@@ -302,7 +379,7 @@ export const useEditorPersistence = ({
       elements: readonly any[],
       appState: any,
       files?: Record<string, any>,
-      options?: { suppressErrors?: boolean },
+      options?: { suppressErrors?: boolean; onlyIfDirty?: boolean },
     ) => {
       // Restore owns the scene until reload (or failure). Existing saves may
       // drain, but late broadcast/file timers must not enqueue another save.
@@ -313,6 +390,11 @@ export const useEditorPersistence = ({
         .catch(() => undefined)
         .then(async () => {
           if (!saveDataRef.current || drawingSessionRef.current !== session)
+            return;
+          if (
+            options?.onlyIfDirty &&
+            refs.localSceneRevision.current === refs.savedSceneRevision.current
+          )
             return;
           try {
             await saveDataRef.current(drawingId, elements, appState, files);
@@ -349,6 +431,7 @@ export const useEditorPersistence = ({
     elements: readonly any[],
     appState: any,
     files: any,
+    options?: SavePreviewOptions,
   ) => {
     if (!canEditRef.current || !drawingId || historyRestorePendingRef.current)
       return;
@@ -358,16 +441,21 @@ export const useEditorPersistence = ({
     try {
       const snapshotFromArgs = Array.isArray(elements) ? elements : [];
       const snapshotFromRef = refs.latestElements.current ?? [];
-      const candidateSnapshot =
-        hasRenderableElements(snapshotFromArgs) ||
-        !hasRenderableElements(snapshotFromRef)
+      const candidateSnapshot = options?.useSuppliedSnapshot
+        ? snapshotFromArgs
+        : hasRenderableElements(snapshotFromArgs) ||
+            !hasRenderableElements(snapshotFromRef)
           ? snapshotFromArgs
           : snapshotFromRef;
       const {
         snapshot: currentSnapshot,
         prevented: preventedPreviewOverwrite,
-      } = resolveSafeSnapshot(candidateSnapshot);
-      const currentFiles = refs.latestFiles.current ?? files;
+      } = options?.useSuppliedSnapshot
+        ? { snapshot: candidateSnapshot, prevented: false }
+        : resolveSafeSnapshot(candidateSnapshot);
+      const currentFiles = options?.useSuppliedSnapshot
+        ? (files ?? {})
+        : (refs.latestFiles.current ?? files);
       const normalizedSnapshot = normalizeImageElementStatus(
         currentSnapshot,
         currentFiles,
@@ -384,25 +472,35 @@ export const useEditorPersistence = ({
           fallbackElementCount: currentSnapshot.length,
         });
       }
-      const svg = await exportToSvg({
-        elements: normalizedSnapshot,
-        appState: {
-          ...appState,
-          exportBackground: !isDefaultPreviewBackground(
-            appState.viewBackgroundColor,
-          ),
-          exportWithDarkMode: false,
-          viewBackgroundColor: appState.viewBackgroundColor || "#ffffff",
+      const preview = await renderPreviewSvg(
+        { exportToSvg, exportToCanvas },
+        {
+          elements: normalizedSnapshot,
+          appState: {
+            ...appState,
+            exportBackground: !isDefaultPreviewBackground(
+              appState.viewBackgroundColor,
+            ),
+            exportWithDarkMode: false,
+            viewBackgroundColor: appState.viewBackgroundColor || "#ffffff",
+          },
+          files: currentFiles,
         },
-        files: currentFiles,
-      });
+      );
       if (
         !canEditRef.current ||
         historyRestorePendingRef.current ||
         drawingSessionRef.current !== session
       )
         return;
-      await api.updateDrawing(drawingId, { preview: svg.outerHTML });
+      // A delayed render (e.g. after Back) carries the version it depicts, so
+      // the server can skip it once a newer edit has been saved.
+      const expectedVersion = options?.expectedVersion;
+      await api.saveDrawing(drawingId, {
+        preview,
+        ...(typeof expectedVersion === "number" ? { expectedVersion } : {}),
+      });
+      invalidateDrawingPreview(drawingId);
     } catch (err) {
       console.error("Failed to save preview", err);
     }
@@ -417,10 +515,10 @@ export const useEditorPersistence = ({
     return pendingSave;
   };
 
-  saveLibraryRef.current = async (items: any[]) => {
-    if (!user) return;
+  saveLibraryRef.current = async (items: any[], sessionGeneration: number) => {
+    if (!user || sessionGeneration !== getAuthSessionGeneration()) return;
     try {
-      await saveLibraryItems(items);
+      await saveLibraryItems(items, sessionGeneration);
     } catch (err) {
       console.error("Failed to save library", err);
       if (api.isAxiosError(err) && err.response?.status === 401) return;
@@ -431,7 +529,9 @@ export const useEditorPersistence = ({
   const debouncedSave = useMemo(
     () =>
       debounce((drawingId, elements, appState, files) => {
-        enqueueSceneSave(drawingId, elements, appState, files);
+        enqueueSceneSave(drawingId, elements, appState, files, {
+          onlyIfDirty: true,
+        });
       }, 1000),
     [enqueueSceneSave],
   );
@@ -442,18 +542,20 @@ export const useEditorPersistence = ({
       debounce((drawingId: string) => {
         if (!savePreviewRef.current || !drawingId) return;
         if (refs.isUnmounting.current || refs.isSyncing.current) return;
-        const expectedChangeAt = refs.lastLocalChangeAt.current;
+        const expectedRevision = refs.localSceneRevision.current;
         const run = () => {
           if (!savePreviewRef.current) return;
           if (refs.isUnmounting.current || refs.isSyncing.current) return;
-          if (refs.lastLocalChangeAt.current !== expectedChangeAt) return;
+          if (refs.localSceneRevision.current !== expectedRevision) return;
           const appState = refs.latestAppState.current;
           if (!appState) return;
+          // Skip the thumbnail if another editor commits a newer version first.
           void savePreviewRef.current(
             drawingId,
             refs.latestElements.current,
             appState,
             refs.latestFiles.current || {},
+            { expectedVersion: refs.currentDrawingVersion.current },
           );
         };
         const w = window as any;
@@ -466,13 +568,24 @@ export const useEditorPersistence = ({
     [refs],
   );
 
-  const debouncedSaveLibrary = useMemo(
+  // Each queued library write carries the auth session it was made in; it is
+  // dropped (not flushed) if the account changed before it runs.
+  const debouncedSaveLibraryInner = useMemo(
     () =>
-      debounce((items: any[]) => {
-        if (saveLibraryRef.current) saveLibraryRef.current(items);
+      debounce((items: any[], sessionGeneration: number) => {
+        if (sessionGeneration !== getAuthSessionGeneration()) return;
+        if (saveLibraryRef.current)
+          void saveLibraryRef.current(items, sessionGeneration);
       }, 1000),
     [],
   );
+  const debouncedSaveLibrary = useMemo(() => {
+    const queue = (items: any[]) =>
+      debouncedSaveLibraryInner(items, getAuthSessionGeneration());
+    queue.flush = () => debouncedSaveLibraryInner.flush();
+    queue.cancel = () => debouncedSaveLibraryInner.cancel();
+    return queue;
+  }, [debouncedSaveLibraryInner]);
 
   useEffect(() => {
     return () => {
@@ -486,19 +599,31 @@ export const useEditorPersistence = ({
   }, [debouncedSave, debouncedSaveLibrary, debouncedSavePreview]);
 
   const runHistoryRestore = useCallback(
-    async (drawingId: string, restore: () => Promise<unknown>) => {
+    async (
+      drawingId: string,
+      restore: () => Promise<unknown>,
+      flushPendingChanges?: () => void,
+    ) => {
       if (historyRestorePendingRef.current) return;
-      // Save the live API snapshot before locking, including edits still waiting
-      // in the broadcast throttle. A stale debounce must not replace this backup.
-      debouncedSave.cancel();
       const editor = refs.excalidrawAPI.current;
       if (!editor) throw new Error("Drawing is still loading");
+      // Emit edits still waiting in the broadcast throttle so they count as
+      // unsaved, then drop the debounce: this backup save replaces it.
+      flushPendingChanges?.();
+      debouncedSave.cancel();
+      const liveElements = editor.getSceneElementsIncludingDeleted();
+      // Skip the backup save only when the canvas matches the last saved
+      // revision and scene; otherwise it would add a duplicate version.
+      const liveMatchesSaved = haveSameElements(
+        liveElements,
+        refs.lastPersistedElements.current,
+      );
       const finalLiveSave = enqueueSceneSave(
         drawingId,
-        editor.getSceneElementsIncludingDeleted(),
+        liveElements,
         editor.getAppState(),
         editor.getFiles() || {},
-        { suppressErrors: false },
+        { suppressErrors: false, onlyIfDirty: liveMatchesSaved },
       );
       historyRestorePendingRef.current = true;
       debouncedSavePreview.cancel();

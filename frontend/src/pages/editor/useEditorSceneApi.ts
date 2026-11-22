@@ -24,7 +24,7 @@ type UseEditorSceneApiParams = {
       ) => void)
     | null
   >;
-  hasSceneChangesSinceLoadRef: MutableRefObject<boolean>;
+  markSceneChanged: () => void;
   uploadedRefs: MutableRefObject<UploadedFileRefs>;
   scanFileUploads: () => void;
   setIsReady: (ready: boolean) => void;
@@ -48,7 +48,7 @@ export const useEditorSceneApi = ({
   latestElementsRef,
   latestAppStateRef,
   debouncedSaveRef,
-  hasSceneChangesSinceLoadRef,
+  markSceneChanged,
   uploadedRefs,
   scanFileUploads,
   setIsReady,
@@ -61,7 +61,7 @@ export const useEditorSceneApi = ({
 
   const emitFilesDeltaIfNeeded = useCallback(
     (nextFiles: Record<string, any>) => {
-      if (!canEditRef.current || !socketRef.current || !drawingId) return false;
+      if (!canEditRef.current || !drawingId) return false;
       const filesDelta = getFilesDelta(
         lastSyncedFilesRef.current,
         nextFiles || {},
@@ -69,7 +69,7 @@ export const useEditorSceneApi = ({
       if (Object.keys(filesDelta).length === 0) return false;
       latestFilesRef.current = nextFiles;
       lastSyncedFilesRef.current = nextFiles;
-      socketRef.current.emit("element-update", {
+      socketRef.current?.emit("element-update", {
         drawingId,
         elements: [],
         files: applyUploadedFileRefs(filesDelta, uploadedRefs.current),
@@ -147,7 +147,7 @@ export const useEditorSceneApi = ({
             latestAppStateRef.current &&
             debouncedSaveRef.current
           ) {
-            hasSceneChangesSinceLoadRef.current = true;
+            markSceneChanged();
             debouncedSaveRef.current(
               drawingId,
               latestElementsRef.current,
@@ -167,7 +167,7 @@ export const useEditorSceneApi = ({
       drawingId,
       emitFilesDeltaIfNeeded,
       excalidrawAPIRef,
-      hasSceneChangesSinceLoadRef,
+      markSceneChanged,
       isSyncing,
       latestAppStateRef,
       latestElementsRef,

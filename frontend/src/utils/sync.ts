@@ -1,3 +1,85 @@
+const toFiniteNumber = (value: unknown): number => {
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) ? number : 0;
+};
+
+const asString = (value: unknown): string =>
+  typeof value === "string" ? value : "";
+
+// Flatten every point so moving an interior point (with unchanged bounds and
+// endpoints) still registers as a content change.
+const flattenPoints = (points: readonly unknown[]): number[] => {
+  const flat: number[] = [];
+  for (const point of points) {
+    const pair = Array.isArray(point) ? point : [];
+    flat.push(toFiniteNumber(pair[0]), toFiniteNumber(pair[1]));
+  }
+  return flat;
+};
+
+const pointsMatch = (
+  previous: readonly number[],
+  points: readonly unknown[],
+): boolean => {
+  if (previous.length !== points.length * 2) return false;
+  for (let index = 0; index < points.length; index += 1) {
+    const point = points[index];
+    const pair = Array.isArray(point) ? point : [];
+    if (
+      previous[index * 2] !== toFiniteNumber(pair[0]) ||
+      previous[index * 2 + 1] !== toFiniteNumber(pair[1])
+    ) {
+      return false;
+    }
+  }
+  return true;
+};
+
+// Copy the fields that can change in-place without a version bump. Plain
+// values let the next frame compare them without allocating a signature.
+export const snapshotElementContent = (element: any) => {
+  return {
+    type: asString(element.type),
+    isDeleted: Boolean(element.isDeleted),
+    status: asString(element.status),
+    x: toFiniteNumber(element.x),
+    y: toFiniteNumber(element.y),
+    width: toFiniteNumber(element.width),
+    height: toFiniteNumber(element.height),
+    angle: toFiniteNumber(element.angle),
+    fileId: asString(element.fileId),
+    text: asString(element.text),
+    points: Array.isArray(element.points)
+      ? flattenPoints(element.points)
+      : null,
+  };
+};
+
+export const matchesElementContent = (
+  previous: ReturnType<typeof snapshotElementContent>,
+  element: any,
+  status: unknown = element.status,
+): boolean => {
+  if (
+    previous.type !== asString(element.type) ||
+    previous.isDeleted !== Boolean(element.isDeleted) ||
+    previous.status !== asString(status) ||
+    previous.x !== toFiniteNumber(element.x) ||
+    previous.y !== toFiniteNumber(element.y) ||
+    previous.width !== toFiniteNumber(element.width) ||
+    previous.height !== toFiniteNumber(element.height) ||
+    previous.angle !== toFiniteNumber(element.angle) ||
+    previous.fileId !== asString(element.fileId) ||
+    previous.text !== asString(element.text)
+  ) {
+    return false;
+  }
+  if (!Array.isArray(element.points)) return previous.points === null;
+  return (
+    previous.points !== null && pointsMatch(previous.points, element.points)
+  );
+};
+
 export const reconcileElements = (
   localElements: readonly any[],
   remoteElements: readonly any[],
@@ -15,38 +97,6 @@ export const reconcileElements = (
   const getUpdated = (element: any) => {
     const value = element?.updated;
     return typeof value === "number" ? value : Number(value) || 0;
-  };
-
-  const toFiniteNumber = (value: any): number => {
-    if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-    const n = Number(value);
-    return Number.isFinite(n) ? n : 0;
-  };
-
-  // Tie-breaker signature when version metadata doesn't change during live interactions.
-  const getContentSig = (element: any): string => {
-    if (!element || typeof element !== "object") return "";
-    const type = typeof element.type === "string" ? element.type : "";
-    const isDeleted = element.isDeleted ? "1" : "0";
-    const status = typeof element.status === "string" ? element.status : "";
-    const x = toFiniteNumber(element.x);
-    const y = toFiniteNumber(element.y);
-    const w = toFiniteNumber(element.width);
-    const h = toFiniteNumber(element.height);
-    const angle = toFiniteNumber(element.angle);
-    let pointsSig = "";
-    if (Array.isArray(element.points)) {
-      const pts = element.points as any[];
-      const len = pts.length;
-      const last = len > 0 ? pts[len - 1] : null;
-      const lastX = Array.isArray(last) ? toFiniteNumber(last[0]) : 0;
-      const lastY = Array.isArray(last) ? toFiniteNumber(last[1]) : 0;
-      pointsSig = `p${len}:${lastX},${lastY}`;
-    }
-    const text = typeof element.text === "string" ? element.text : "";
-    const textSig = text ? `t${text.length}:${text.slice(0, 64)}` : "";
-    const fileId = typeof element.fileId === "string" ? element.fileId : "";
-    return `${type}|${isDeleted}|${status}|${x}|${y}|${w}|${h}|${angle}|${pointsSig}|${fileId}|${textSig}`;
   };
 
   remoteElements.forEach((remoteEl) => {
@@ -94,12 +144,7 @@ export const reconcileElements = (
 
     // If the metadata says "equal" but content differs, accept the remote element.
     // This enables live shape creation/move frames that don't bump version fields.
-    if (
-      remoteVersion === localVersion &&
-      remoteUpdated === localUpdated &&
-      getVersionNonce(remoteEl) === getVersionNonce(localEl) &&
-      getContentSig(remoteEl) !== getContentSig(localEl)
-    ) {
+    if (!matchesElementContent(snapshotElementContent(localEl), remoteEl)) {
       localMap.set(remoteEl.id, remoteEl);
     }
   });

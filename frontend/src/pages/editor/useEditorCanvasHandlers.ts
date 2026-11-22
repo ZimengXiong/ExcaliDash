@@ -44,12 +44,10 @@ const FILES_POLL_INTERVAL_MS = 2500;
 type CanvasHandlerRefs = {
   excalidrawAPI: MutableRefObject<any>;
   hasHydratedInitialScene: MutableRefObject<boolean>;
-  hasSceneChangesSinceLoad: MutableRefObject<boolean>;
   initialSceneElements: MutableRefObject<readonly any[]>;
   isBootstrappingScene: MutableRefObject<boolean>;
   isSyncing: MutableRefObject<boolean>;
   isUnmounting: MutableRefObject<boolean>;
-  lastLocalChangeAt: MutableRefObject<number>;
   latestAppState: MutableRefObject<any>;
   latestElements: MutableRefObject<readonly any[]>;
   latestFiles: MutableRefObject<any>;
@@ -147,6 +145,7 @@ type UseEditorCanvasHandlersParams = {
   drawingId: string | undefined;
   emitFilesDeltaIfNeeded: (nextFiles: Record<string, any>) => boolean;
   isReady: boolean;
+  markSceneChanged: () => void;
   refs: CanvasHandlerRefs;
   resolveSafeSnapshot: (candidateSnapshot?: readonly any[]) => {
     prevented: boolean;
@@ -166,6 +165,7 @@ export const useEditorCanvasHandlers = ({
   drawingId,
   emitFilesDeltaIfNeeded,
   isReady,
+  markSceneChanged,
   refs,
   resolveSafeSnapshot,
   broadcastChanges,
@@ -174,12 +174,10 @@ export const useEditorCanvasHandlers = ({
     debouncedSave: debouncedSaveRef,
     excalidrawAPI: excalidrawAPIRef,
     hasHydratedInitialScene: hasHydratedInitialSceneRef,
-    hasSceneChangesSinceLoad: hasSceneChangesSinceLoadRef,
     initialSceneElements: initialSceneElementsRef,
     isBootstrappingScene: isBootstrappingSceneRef,
     isSyncing: isSyncingRef,
     isUnmounting: isUnmountingRef,
-    lastLocalChangeAt: lastLocalChangeAtRef,
     latestAppState: latestAppStateRef,
     latestElements: latestElementsRef,
     latestFiles: latestFilesRef,
@@ -191,6 +189,8 @@ export const useEditorCanvasHandlers = ({
       if (!canEdit) return;
       if (isUnmountingRef.current) return;
       if (isSyncingRef.current) return;
+      if (appState.isLoading) return;
+      const previousAppState = latestAppStateRef.current;
       latestAppStateRef.current = appState;
       const currentFiles = files || excalidrawAPIRef.current?.getFiles() || {};
       if (Object.keys(currentFiles).length > 0) {
@@ -226,11 +226,32 @@ export const useEditorCanvasHandlers = ({
       }
       if (isBootstrappingSceneRef.current && !hasRenderable) return;
       latestElementsRef.current = allElements;
+      if (
+        drawingId &&
+        previousAppState &&
+        (appState.viewBackgroundColor !==
+          previousAppState.viewBackgroundColor ||
+          appState.gridSize !== previousAppState.gridSize ||
+          appState.gridStep !== previousAppState.gridStep ||
+          appState.gridModeEnabled !== previousAppState.gridModeEnabled)
+      ) {
+        markSceneChanged();
+        debouncedSaveRef.current?.(
+          drawingId,
+          allElements,
+          appState,
+          currentFiles,
+        );
+        debouncedSavePreview(drawingId);
+      }
       broadcastChanges(allElements, currentFiles);
     },
     [
       broadcastChanges,
       canEdit,
+      debouncedSavePreview,
+      debouncedSaveRef,
+      drawingId,
       excalidrawAPIRef,
       hasHydratedInitialSceneRef,
       initialSceneElementsRef,
@@ -240,6 +261,7 @@ export const useEditorCanvasHandlers = ({
       latestAppStateRef,
       latestElementsRef,
       latestFilesRef,
+      markSceneChanged,
       resolveSafeSnapshot,
       suspiciousBlankLoadRef,
     ],
@@ -407,8 +429,7 @@ export const useEditorCanvasHandlers = ({
       const nextFiles = excalidrawAPIRef.current.getFiles?.() || {};
       const didEmit = emitFilesDeltaIfNeeded(nextFiles);
       if (didEmit && latestAppStateRef.current && debouncedSaveRef.current) {
-        hasSceneChangesSinceLoadRef.current = true;
-        lastLocalChangeAtRef.current = Date.now();
+        markSceneChanged();
         debouncedSaveRef.current(
           drawingId,
           latestElementsRef.current,
@@ -426,11 +447,10 @@ export const useEditorCanvasHandlers = ({
     drawingId,
     emitFilesDeltaIfNeeded,
     excalidrawAPIRef,
-    hasSceneChangesSinceLoadRef,
     isReady,
     isSyncingRef,
     isUnmountingRef,
-    lastLocalChangeAtRef,
+    markSceneChanged,
     latestAppStateRef,
     latestElementsRef,
   ]);

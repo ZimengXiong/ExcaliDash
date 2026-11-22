@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import type { MutableRefObject } from "react";
 import { isFileUploadSupported, uploadDrawingFile } from "../../api";
+import { dataUrlToBlob } from "../../utils/dataUrls";
 import { compressExcalidrawFiles } from "../../utils/imageCompression";
 import type { UploadedFileRefs } from "./shared";
 import {
@@ -20,52 +21,8 @@ type UseEditorFileUploadsParams = {
   drawingId: string | undefined;
   isReady: boolean;
   excalidrawAPI: MutableRefObject<any>;
-  isSyncing: MutableRefObject<boolean>;
   latestFiles: MutableRefObject<any>;
   uploadedRefs: MutableRefObject<UploadedFileRefs>;
-};
-
-/** Decode a base64/plain `data:` URL into raw bytes plus its declared MIME. */
-const dataUrlToBytes = (
-  dataURL: string,
-): { bytes: Uint8Array; mimeType: string } | null => {
-  const match = /^data:([^;,]*)(;base64)?,([\s\S]*)$/.exec(dataURL);
-  if (!match) return null;
-  const mimeType = match[1] || "application/octet-stream";
-  const isBase64 = Boolean(match[2]);
-  const payload = match[3];
-  try {
-    if (isBase64) {
-      const binary = atob(payload);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      return { bytes, mimeType };
-    }
-    return {
-      bytes: new TextEncoder().encode(decodeURIComponent(payload)),
-      mimeType,
-    };
-  } catch {
-    return null;
-  }
-};
-
-/** Run task factories with a bounded number in flight at once. */
-const runWithConcurrency = async (
-  tasks: Array<() => Promise<void>>,
-  limit: number,
-): Promise<void> => {
-  let cursor = 0;
-  const workers = Array.from(
-    { length: Math.min(limit, tasks.length) },
-    async () => {
-      while (cursor < tasks.length) {
-        const task = tasks[cursor++];
-        await task();
-      }
-    },
-  );
-  await Promise.all(workers);
 };
 
 /**
@@ -88,7 +45,6 @@ export const useEditorFileUploads = ({
   drawingId,
   isReady,
   excalidrawAPI,
-  isSyncing,
   latestFiles,
   uploadedRefs,
 }: UseEditorFileUploadsParams) => {
@@ -121,7 +77,11 @@ export const useEditorFileUploads = ({
 
   const scanNow = useCallback(async () => {
     if (!canEditRef.current || !drawingId || !isFileUploadSupported()) return;
-    if (uploadsBlockedRef.current) return;
+    if (
+      uploadsBlockedRef.current ||
+      inFlightRef.current.size >= UPLOAD_CONCURRENCY
+    )
+      return;
     const editor = excalidrawAPI.current;
     const session = drawingSessionRef.current;
     const inFlight = inFlightRef.current;
@@ -138,67 +98,42 @@ export const useEditorFileUploads = ({
     >;
 
     const now = Date.now();
-    const candidateIds = Object.keys(files).filter((id) => {
-      const file = files[id];
-      if (blockedIds.has(id)) return false;
+    const candidates: Record<string, any> = Object.create(null);
+    for (const id in files) {
+      if (!Object.hasOwn(files, id)) continue;
+      if (blockedIds.has(id) || inFlight.has(id) || uploadedRefs.current[id])
+        continue;
       const retryAt = retryState.get(id)?.retryAt;
-      if (retryAt !== undefined && retryAt > now) return false;
-      return (
-        file &&
-        typeof file.dataURL === "string" &&
-        file.dataURL.startsWith("data:") &&
-        !uploadedRefs.current[id] &&
-        !inFlight.has(id)
-      );
-    });
-    if (candidateIds.length === 0) return;
-    candidateIds.forEach((id) => inFlight.add(id));
-
-    // Compress (idempotent/memoized) and write the result back into the editor
-    // so the uploaded bytes are the same ones later saves and previews use.
-    let filesToUpload = files;
-    try {
-      const compressed = await compressExcalidrawFiles(files);
-      if (!isCurrent()) return;
-      if (compressed.changed) {
-        filesToUpload = compressed.files;
-        if (editor && typeof editor.addFiles === "function") {
-          isSyncing.current = true;
-          try {
-            editor.addFiles(Object.values(filesToUpload));
-          } finally {
-            isSyncing.current = false;
-          }
-        }
-        latestFiles.current = { ...latestFiles.current, ...filesToUpload };
-      }
-    } catch {
-      // Keep original bytes on compression failure; upload proceeds below.
+      if (retryAt !== undefined && retryAt > now) continue;
+      const file = files[id];
+      if (
+        typeof file?.dataURL !== "string" ||
+        !file.dataURL.startsWith("data:")
+      )
+        continue;
+      candidates[id] = file;
+      inFlight.add(id);
+      if (inFlight.size >= UPLOAD_CONCURRENCY) break;
     }
+    const candidateIds = Object.keys(candidates);
+    if (candidateIds.length === 0) return;
 
-    const uploadOne = async (id: string): Promise<void> => {
-      const file = filesToUpload[id];
-      const dataURL = file?.dataURL;
-      if (typeof dataURL !== "string" || !dataURL.startsWith("data:")) {
-        inFlight.delete(id);
-        return;
-      }
-      const parsed = dataUrlToBytes(dataURL);
-      if (!parsed) {
-        inFlight.delete(id);
-        return;
-      }
-      if (!canEditRef.current || !isCurrent()) {
-        inFlight.delete(id);
-        return;
-      }
+    const uploadOne = async (id: string, file: any): Promise<void> => {
       try {
+        if (!canEditRef.current || !isCurrent() || uploadsBlockedRef.current)
+          return;
+        const body = await dataUrlToBlob(file.dataURL);
+        if (!canEditRef.current || !isCurrent() || uploadsBlockedRef.current)
+          return;
+        if (!body) {
+          blockedIds.add(id);
+          return;
+        }
         const result = await uploadDrawingFile(
           drawingId,
           id,
-          parsed.bytes,
-          (typeof file?.mimeType === "string" && file.mimeType) ||
-            parsed.mimeType,
+          body,
+          (typeof file.mimeType === "string" && file.mimeType) || body.type,
         );
         // null => backend lacks the endpoint; stop trying for the session.
         if (isCurrent()) {
@@ -227,11 +162,17 @@ export const useEditorFileUploads = ({
       }
     };
 
-    await runWithConcurrency(
-      candidateIds.map((id) => () => uploadOne(id)),
-      UPLOAD_CONCURRENCY,
+    // Share the encoded bytes with autosave without re-adding files already
+    // held by Excalidraw. The batch encodes sequentially to limit canvas memory.
+    const compressed = await compressExcalidrawFiles(candidates).catch(
+      () => null,
     );
-  }, [drawingId, excalidrawAPI, isSyncing, latestFiles, uploadedRefs]);
+    await Promise.all(
+      candidateIds.map((id) =>
+        uploadOne(id, compressed?.files[id] ?? candidates[id]),
+      ),
+    );
+  }, [drawingId, excalidrawAPI, latestFiles, uploadedRefs]);
 
   useEffect(() => {
     if (!canEdit || !drawingId || !isReady) return;
