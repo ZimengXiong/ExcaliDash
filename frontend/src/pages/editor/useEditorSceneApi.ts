@@ -86,6 +86,8 @@ export const useEditorSceneApi = ({
     ],
   );
 
+  const fittedApisRef = useRef(new WeakSet<object>());
+
   const setExcalidrawAPI = useCallback(
     (api: any) => {
       excalidrawAPIRef.current = api;
@@ -125,6 +127,22 @@ export const useEditorSceneApi = ({
           // 1s later can ship a ref instead of inline bytes.
           void scanFileUploads();
         };
+      }
+      if (api && !fittedApisRef.current.has(api as object)) {
+        fittedApisRef.current.add(api as object);
+        // initialData.scrollToContent centers on the element closest to the
+        // origin when the scene is larger than the viewport, so big drawings
+        // open with their top-left corner mid-screen. Fit the whole scene
+        // once the canvas has measured itself instead.
+        requestAnimationFrame(() => {
+          const elements = api.getSceneElements?.() || [];
+          if (elements.length === 0) return;
+          api.scrollToContent?.(elements, {
+            fitToViewport: true,
+            viewportZoomFactor: 0.9,
+            maxZoom: 1,
+          });
+        });
       }
       setIsReady(true);
     },
