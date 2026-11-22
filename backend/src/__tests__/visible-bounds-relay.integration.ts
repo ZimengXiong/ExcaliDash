@@ -1,13 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Server } from "socket.io";
 import type { PrismaClient } from "../generated/client";
 
-const { getDrawingAccess } = vi.hoisted(() => ({
-  getDrawingAccess: vi.fn(),
+const { getDrawingAccessDetails } = vi.hoisted(() => ({
+  getDrawingAccessDetails: vi.fn(),
 }));
 vi.mock("../authz/sharing", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../authz/sharing")>()),
-  getDrawingAccess,
+  getDrawingAccessDetails,
 }));
 
 import { registerSocketHandlers } from "../server/socket";
@@ -20,15 +20,17 @@ const setup = () => {
   const middleware: Handler[] = [];
   let onConnection!: Handler;
   const relays: Relay[] = [];
+  const rooms = new Map<string, Set<string>>();
+  const sockets = new Map<string, unknown>();
   const io = {
     use: (fn: Handler) => middleware.push(fn),
     on: (event: string, fn: Handler) => {
       if (event === "connection") onConnection = fn;
     },
     to: () => ({ emit: vi.fn() }),
-    sockets: { adapter: { rooms: new Map() }, sockets: new Map() },
+    sockets: { adapter: { rooms }, sockets },
   };
-  registerSocketHandlers({
+  const { revalidateDrawingAccess } = registerSocketHandlers({
     io: io as unknown as Server,
     prisma: {} as PrismaClient,
     authModeService: { getAuthEnabled: async () => false } as never,
@@ -41,8 +43,11 @@ const setup = () => {
       data: {},
       handshake: { auth: {}, headers: {} },
       on: (event: string, fn: Handler) => handlers.set(event, fn),
-      join: vi.fn(),
-      leave: vi.fn(),
+      join: (room: string) => {
+        if (!rooms.has(room)) rooms.set(room, new Set());
+        rooms.get(room)!.add(id);
+      },
+      leave: (room: string) => rooms.get(room)?.delete(id),
       emit: vi.fn(),
       volatile: {
         to: (room: string) => ({
@@ -54,6 +59,7 @@ const setup = () => {
     await new Promise<void>((resolve, reject) =>
       middleware[0](socket, (err?: Error) => (err ? reject(err) : resolve())),
     );
+    sockets.set(id, socket);
     onConnection(socket);
     return {
       id,
@@ -65,17 +71,19 @@ const setup = () => {
       send: (payload: unknown) => handlers.get("visible-bounds")!(payload),
     };
   };
-  return { connect, relays };
+  return { connect, relays, revalidateDrawingAccess };
 };
 
 const bounds = [0, 0, 100, 50];
 
 beforeEach(() => {
-  getDrawingAccess.mockReset();
-  getDrawingAccess.mockResolvedValue("edit");
-});
-afterEach(() => {
-  vi.useRealTimers();
+  getDrawingAccessDetails.mockReset();
+  getDrawingAccessDetails.mockResolvedValue({
+    access: "edit",
+    baseAccess: "edit",
+    linkExpiresAt: null,
+    trashed: false,
+  });
 });
 
 describe("visible-bounds relay", () => {
@@ -109,7 +117,12 @@ describe("visible-bounds relay", () => {
   });
 
   it("lets read-only collaborators share their viewport", async () => {
-    getDrawingAccess.mockResolvedValue("view");
+    getDrawingAccessDetails.mockResolvedValue({
+      access: "view",
+      baseAccess: "view",
+      linkExpiresAt: null,
+      trashed: false,
+    });
     const { connect, relays } = setup();
     const viewer = await connect("sock-v");
     await viewer.join();
@@ -146,15 +159,19 @@ describe("visible-bounds relay", () => {
   });
 
   it("stops relaying once access to the drawing is revoked", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    const { connect, relays } = setup();
+    const { connect, relays, revalidateDrawingAccess } = setup();
     const a = await connect("sock-a");
     await a.join();
     await a.send({ drawingId: "d1", bounds });
     expect(relays).toHaveLength(1);
 
-    getDrawingAccess.mockResolvedValue(null);
-    vi.setSystemTime(Date.now() + 5_000);
+    getDrawingAccessDetails.mockResolvedValue({
+      access: "none",
+      baseAccess: "none",
+      linkExpiresAt: null,
+      trashed: false,
+    });
+    await revalidateDrawingAccess("d1");
     await a.send({ drawingId: "d1", bounds });
     expect(relays).toHaveLength(1);
   });

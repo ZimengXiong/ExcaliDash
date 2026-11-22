@@ -21,25 +21,50 @@ export const buildShareLinkToken = (): string =>
 export const hashShareLinkToken = (token: string): string =>
   hashTokenForStorage(token);
 
-export const getDrawingAccess = async (params: {
+type DrawingAccessParams = {
   prisma: PrismaClient;
   principal: DrawingPrincipal | null;
   drawingId: string;
   now?: Date;
-}): Promise<DrawingAccess> => {
-  const nowMs = (params.now ?? new Date()).getTime();
+};
 
+export type DrawingAccessDetails = {
+  access: DrawingAccess;
+  baseAccess: DrawingAccess;
+  linkExpiresAt: number | null;
+  trashed: boolean;
+};
+
+export const getDrawingAccessDetails = async (
+  params: DrawingAccessParams,
+): Promise<DrawingAccessDetails> => {
+  const now = params.now ?? new Date();
   let baseAccess: DrawingAccess = "none";
 
-  // User-based access (owner or explicit ACL).
   if (params.principal?.kind === "user") {
     const drawing = await params.prisma.drawing.findUnique({
       where: { id: params.drawingId },
       select: { userId: true, collectionId: true },
     });
-    if (!drawing) return "none";
-    if (drawing.userId === params.principal.userId) return "owner";
-
+    const trashed = Boolean(
+      drawing && isTrashCollectionId(drawing.collectionId, drawing.userId),
+    );
+    if (drawing?.userId === params.principal.userId) {
+      return {
+        access: "owner",
+        baseAccess: "owner",
+        linkExpiresAt: null,
+        trashed,
+      };
+    }
+    if (!drawing || trashed) {
+      return {
+        access: "none",
+        baseAccess: "none",
+        linkExpiresAt: null,
+        trashed,
+      };
+    }
     const perm = await params.prisma.drawingPermission.findUnique({
       where: {
         drawingId_granteeUserId: {
@@ -78,17 +103,48 @@ export const getDrawingAccess = async (params: {
     }
   }
 
-  // Google Docs-style link policy: applies regardless of whether the visitor is signed in.
-  // If a drawing has an active link-share policy, possession of the drawing id URL grants the policy access.
-  const linkPolicy = await getActiveLinkShareAccess({
-    prisma: params.prisma,
-    drawingId: params.drawingId,
-    nowMs,
+  const linkShare = await params.prisma.drawingLinkShare.findFirst({
+    where: {
+      drawingId: params.drawingId,
+      revokedAt: null,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      permission: true,
+      expiresAt: true,
+      drawing: { select: { userId: true, collectionId: true } },
+    },
   });
-  const linkAccess: DrawingAccess = linkPolicy ?? "none";
-
-  return maxAccess(baseAccess, linkAccess);
+  if (
+    linkShare &&
+    isTrashCollectionId(
+      linkShare.drawing.collectionId,
+      linkShare.drawing.userId,
+    )
+  ) {
+    return {
+      access: "none",
+      baseAccess: "none",
+      linkExpiresAt: null,
+      trashed: true,
+    };
+  }
+  const linkAccess =
+    normalizeDrawingPermission(linkShare?.permission) ?? "none";
+  const access = maxAccess(baseAccess, linkAccess);
+  return {
+    access,
+    baseAccess,
+    linkExpiresAt:
+      access === baseAccess ? null : (linkShare?.expiresAt?.getTime() ?? null),
+    trashed: false,
+  };
 };
+
+export const getDrawingAccess = async (
+  params: DrawingAccessParams,
+): Promise<DrawingAccess> => (await getDrawingAccessDetails(params)).access;
 
 export const canViewDrawing = (
   access: DrawingAccess,
@@ -101,37 +157,6 @@ export const canEditDrawing = (
 
 export const isOwnerAccess = (access: DrawingAccess): boolean =>
   access === "owner";
-
-const getActiveLinkShareAccess = async (params: {
-  prisma: PrismaClient;
-  drawingId: string;
-  nowMs: number;
-}): Promise<DrawingPermission | null> => {
-  const linkShare = await params.prisma.drawingLinkShare.findFirst({
-    where: {
-      drawingId: params.drawingId,
-      revokedAt: null,
-      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date(params.nowMs) } }],
-    },
-    orderBy: { createdAt: "desc" },
-    select: {
-      permission: true,
-      drawing: { select: { userId: true, collectionId: true } },
-    },
-  });
-  if (!linkShare) return null;
-  // A drawing in its owner's Trash pauses the link share. The row is kept, so
-  // restoring the drawing brings the same link back.
-  if (
-    isTrashCollectionId(
-      linkShare.drawing.collectionId,
-      linkShare.drawing.userId,
-    )
-  ) {
-    return null;
-  }
-  return normalizeDrawingPermission(linkShare.permission);
-};
 
 const accessRank = (access: DrawingAccess): number => {
   switch (access) {

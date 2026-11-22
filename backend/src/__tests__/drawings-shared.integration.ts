@@ -101,7 +101,7 @@ describe("Drawings - Shared With Me", () => {
       data: {
         drawingId: drawingOwnedByB.id,
         granteeUserId: userA.id,
-        permission: "view",
+        permission: "edit",
         createdByUserId: userB.id,
       },
     });
@@ -125,6 +125,26 @@ describe("Drawings - Shared With Me", () => {
     const ids = (response.body.drawings as any[]).map((d) => d.id);
     expect(ids).toContain(drawingOwnedByB.id);
     expect(ids).not.toContain(drawingOwnedByA.id);
+    const summary = response.body.drawings.find(
+      (d) => d.id === drawingOwnedByB.id,
+    );
+    for (const column of ["elements", "appState", "files", "preview"]) {
+      expect(summary).not.toHaveProperty(column);
+    }
+    const full = await request(app)
+      .get("/drawings/shared?includeData=true")
+      .set("User-Agent", userAgent)
+      .set("Authorization", `Bearer ${tokenA}`);
+    expect(full.body.drawings).toEqual([
+      expect.objectContaining({
+        id: drawingOwnedByB.id,
+        accessLevel: "edit",
+        elements: [],
+        files: {},
+        appState: {},
+        preview: null,
+      }),
+    ]);
   });
 
   it("keeps drawings outside any collection when the user also has a shared collection", async () => {

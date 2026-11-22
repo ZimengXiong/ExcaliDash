@@ -1,11 +1,18 @@
 import express from "express";
-import { Prisma } from "../../generated/client";
+import { Prisma, type Drawing } from "../../generated/client";
+import { matchesIfNoneMatch } from "../../server/ifNoneMatch";
 import {
   canViewDrawing,
   getDrawingAccess,
   normalizeDrawingPermission,
 } from "../../authz/sharing";
-import { getUserTrashCollectionId, toPublicTrashCollectionId } from "./trash";
+import {
+  getUserTrashCollectionId,
+  isTrashCollectionId,
+  LEGACY_TRASH_COLLECTION_ID,
+  toPublicTrashCollectionId,
+  TRASH_COLLECTION_PREFIX,
+} from "./trash";
 import { SortDirection, SortField } from "./types";
 import type { DrawingRouteContext } from "./drawingRouteContext";
 
@@ -83,27 +90,25 @@ export const registerDrawingListRoutes = (
           collectionFilterKey = "trash";
         } else {
           const collection = await prisma.collection.findFirst({
-            where: { id: normalizedCollectionId },
+            where: {
+              id: normalizedCollectionId,
+              OR: [
+                { userId: req.user.id },
+                { shares: { some: { granteeUserId: req.user.id } } },
+              ],
+            },
+            select: { id: true, userId: true },
           });
-          if (!collection) {
+          if (
+            !collection ||
+            (isTrashCollectionId(collection.id, collection.userId) &&
+              collection.userId !== req.user.id)
+          ) {
             return res.status(404).json({ error: "Collection not found" });
           }
 
-          // Check if user is owner or has a share entry
-          const isOwner = collection.userId === req.user.id;
-          if (!isOwner) {
-            const share = await prisma.collectionShare.findFirst({
-              where: {
-                collectionId: normalizedCollectionId,
-                granteeUserId: req.user.id,
-              },
-            });
-            if (!share) {
-              return res.status(404).json({ error: "Collection not found" });
-            }
-          }
           // Always fetch all drawings in the collection regardless of who created them
-          delete (where as any).userId;
+          delete where.userId;
 
           where.collectionId = normalizedCollectionId;
           collectionFilterKey = `id:${normalizedCollectionId}`;
@@ -162,7 +167,7 @@ export const registerDrawingListRoutes = (
         createdAt: true,
         updatedAt: true,
         userId: true,
-        user: { select: { id: true, name: true } },
+        user: { select: { name: true } },
       };
 
       const orderBy: Prisma.DrawingOrderByWithRelationInput =
@@ -245,6 +250,25 @@ export const registerDrawingListRoutes = (
         });
       }
 
+      const previewTag = (updatedAt: Date) =>
+        `W/"preview-${id}-${updatedAt.getTime()}"`;
+      const cacheControl = "private, max-age=0, must-revalidate";
+      const ifNoneMatch = req.headers["if-none-match"];
+      if (ifNoneMatch) {
+        const metadata = await prisma.drawing.findUnique({
+          where: { id },
+          select: { updatedAt: true },
+        });
+        if (
+          metadata &&
+          matchesIfNoneMatch(ifNoneMatch, previewTag(metadata.updatedAt))
+        ) {
+          res.setHeader("Cache-Control", cacheControl);
+          res.setHeader("ETag", previewTag(metadata.updatedAt));
+          return res.status(304).end();
+        }
+      }
+
       const drawing = await prisma.drawing.findUnique({
         where: { id },
         select: { preview: true, updatedAt: true },
@@ -256,17 +280,11 @@ export const registerDrawingListRoutes = (
         });
       }
 
-      const updatedAtMs = new Date(drawing.updatedAt).getTime();
-      const etag = `W/"preview-${id}-${updatedAtMs}"`;
-      res.setHeader("Cache-Control", "private, max-age=0, must-revalidate");
-      res.setHeader("ETag", etag);
-      if (req.headers["if-none-match"] === etag) {
-        return res.status(304).end();
-      }
-
+      res.setHeader("Cache-Control", cacheControl);
+      res.setHeader("ETag", previewTag(drawing.updatedAt));
       return res.json({
         preview: drawing.preview ?? null,
-        updatedAt: updatedAtMs,
+        updatedAt: drawing.updatedAt.getTime(),
       });
     }),
   );
@@ -306,110 +324,64 @@ export const registerDrawingListRoutes = (
       const parsedLimit = clampLimit(limit as string | undefined);
       const parsedOffset = clampOffset(offset as string | undefined);
 
-      const orderBy: Prisma.DrawingOrderByWithRelationInput =
-        parsedSortField === "name"
-          ? { name: parsedSortDirection }
-          : parsedSortField === "createdAt"
-            ? { createdAt: parsedSortDirection }
-            : { updatedAt: parsedSortDirection };
-
-      // Get collection IDs shared with this user to exclude drawings already visible via collection sharing
-      const sharedCollectionIds = await prisma.collectionShare.findMany({
-        where: { granteeUserId: req.user.id },
-        select: { collectionId: true },
-      });
-      const sharedColIds = sharedCollectionIds.map((s) => s.collectionId);
-
-      const whereDrawing: Prisma.DrawingWhereInput = {
-        // "Shared with me" should only include drawings owned by someone else.
-        // Some deployments keep an owner self-permission row for access control; exclude those.
-        userId: { not: req.user.id },
-        permissions: {
-          some: {
-            granteeUserId: req.user.id,
-            // Recipients can hide a shared drawing from their own list.
-            hidden: false,
-          },
-        },
-        // Exclude drawings already accessible via a shared collection. A bare
-        // NOT IN would also drop drawings outside any collection (NULL).
-        ...(sharedColIds.length > 0 && {
-          OR: [
-            { collectionId: null },
-            { collectionId: { notIn: sharedColIds } },
-          ],
-        }),
+      const userId = req.user.id;
+      const sharedDrawings = Prisma.sql`
+        FROM "DrawingPermission" p
+        JOIN "Drawing" d ON d."id" = p."drawingId"
+        JOIN "User" u ON u."id" = d."userId"
+        LEFT JOIN "Collection" c ON c."id" = d."collectionId"
+        WHERE p."granteeUserId" = ${userId} AND p."hidden" = false
+          AND d."userId" <> ${userId}
+          AND (
+            d."collectionId" IS NULL OR (
+              d."collectionId" NOT IN (${LEGACY_TRASH_COLLECTION_ID}, ${TRASH_COLLECTION_PREFIX} || d."userId")
+              AND c."id" IS NOT NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM "CollectionShare" cs
+                WHERE cs."collectionId" = c."id" AND cs."granteeUserId" = ${userId}
+              )
+            )
+          )
+          ${searchTerm ? Prisma.sql`AND d."name" LIKE ${`%${searchTerm}%`}` : Prisma.empty}
+      `;
+      const select = shouldIncludeData
+        ? Prisma.sql`d.*`
+        : Prisma.sql`d."id", d."name", d."version", d."createdAt", d."updatedAt", d."userId"`;
+      const sortColumn = Prisma.raw(`d."${parsedSortField}"`);
+      const sortOrder =
+        parsedSortDirection === "asc" ? Prisma.sql`ASC` : Prisma.sql`DESC`;
+      type SharedDrawing = Partial<Drawing> & {
+        creatorName: string | null;
+        permission: string;
       };
-      if (searchTerm) {
-        whereDrawing.name = { contains: searchTerm };
-      }
-
-      const summarySelect: Prisma.DrawingSelect = {
-        id: true,
-        name: true,
-        collectionId: true,
-        version: true,
-        createdAt: true,
-        updatedAt: true,
-        userId: true,
-        user: { select: { name: true } },
-        permissions: {
-          where: { granteeUserId: req.user.id },
-          select: { permission: true },
-        },
-      };
-
-      const queryOptions: Prisma.DrawingFindManyArgs = {
-        where: whereDrawing,
-        orderBy,
-        take: parsedLimit,
-        skip: parsedOffset,
-      };
-      if (shouldIncludeData) {
-        queryOptions.include = { user: { select: { name: true } } };
-      } else {
-        queryOptions.select = summarySelect;
-      }
-
-      const [drawings, totalCount] = await Promise.all([
-        prisma.drawing.findMany(queryOptions),
-        prisma.drawing.count({ where: whereDrawing }),
+      const [drawings, [count]] = await Promise.all([
+        prisma.$queryRaw<SharedDrawing[]>`
+          SELECT ${select}, u."name" AS "creatorName", p."permission"
+          ${sharedDrawings}
+          ORDER BY ${sortColumn} ${sortOrder}
+          LIMIT ${parsedLimit} OFFSET ${parsedOffset}`,
+        prisma.$queryRaw<{ count: bigint }[]>`
+          SELECT COUNT(*) AS "count" ${sharedDrawings}`,
       ]);
-
-      const normalize = (d: any) => {
-        const rawPerm = Array.isArray(d?.permissions)
-          ? d.permissions[0]?.permission
-          : null;
-        const perm = normalizeDrawingPermission(rawPerm) ?? "view";
-        const { permissions: _permissions, ...rest } = d;
-        return {
-          ...rest,
-          // Collections are owner-scoped; don't leak the owner's collection ids to viewers.
+      const responsePayload = drawings.map(({ permission, ...drawing }) => {
+        const payload = {
+          ...drawing,
           collectionId: null,
-          accessLevel: perm,
-          creatorName: d.user?.name ?? null,
-          user: undefined,
+          accessLevel: normalizeDrawingPermission(permission) ?? "view",
         };
-      };
-
-      let responsePayload: any[] = drawings as any[];
-      if (shouldIncludeData) {
-        responsePayload = (drawings as any[]).map((d: any) => {
-          const normalized = normalize(d);
-          return {
-            ...normalized,
-            elements: parseJsonField(d.elements, []),
-            appState: parseJsonField(d.appState, {}),
-            files: parseJsonField(d.files, {}),
-          };
-        });
-      } else {
-        responsePayload = (drawings as any[]).map((d: any) => normalize(d));
-      }
+        return shouldIncludeData
+          ? {
+              ...payload,
+              elements: parseJsonField(drawing.elements, []),
+              appState: parseJsonField(drawing.appState, {}),
+              files: parseJsonField(drawing.files, {}),
+            }
+          : payload;
+      });
 
       return res.json({
         drawings: responsePayload,
-        totalCount,
+        totalCount: Number(count.count),
         limit: parsedLimit,
         offset: parsedOffset,
       });

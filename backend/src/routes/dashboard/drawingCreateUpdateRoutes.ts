@@ -14,8 +14,30 @@ import {
   toPublicTrashCollectionId,
 } from "./trash";
 import type { DrawingRouteContext } from "./drawingRouteContext";
-import { applySceneUpdateTx, isVersionConflict } from "./sceneUpdate";
+import type { SocketState } from "../../server/socketAccess";
+import {
+  applySceneUpdateTx,
+  countLiveElements,
+  isVersionConflict,
+} from "./sceneUpdate";
 import { collectRetainedDrawingFileIds } from "../storage/retainedFiles";
+import {
+  prefersMinimalReturn,
+  rawJsonArray,
+  rawJsonObject,
+  sendJsonWithRawFields,
+} from "../../utils/rawJson";
+
+// Columns returned to clients that send `Prefer: return=minimal`.
+const MINIMAL_RESULT_SELECT = {
+  id: true,
+  name: true,
+  version: true,
+  userId: true,
+  collectionId: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
 
 export const registerDrawingCreateUpdateRoutes = (
   app: express.Express,
@@ -125,8 +147,10 @@ export const registerDrawingCreateUpdateRoutes = (
         if (!collection)
           return res.status(404).json({ error: "Collection not found" });
 
-        // If the collection belongs to someone else, check the user has editor access
         if (collection.userId !== req.user.id) {
+          if (isTrashCollectionId(collection.id, collection.userId)) {
+            return res.status(404).json({ error: "Collection not found" });
+          }
           const share = await prisma.collectionShare.findFirst({
             where: {
               collectionId: targetCollectionId,
@@ -183,16 +207,22 @@ export const registerDrawingCreateUpdateRoutes = (
       }
       invalidateDrawingsCache();
 
-      return res.json({
-        ...newDrawing,
-        collectionId: toPublicTrashCollectionId(
-          newDrawing.collectionId,
-          req.user.id,
-        ),
-        elements: parseJsonField(newDrawing.elements, []),
-        appState: parseJsonField(newDrawing.appState, {}),
-        files: parseJsonField(newDrawing.files, {}),
-      });
+      const { elements, appState, files, ...meta } = newDrawing;
+      return sendJsonWithRawFields(
+        res,
+        {
+          ...meta,
+          collectionId: toPublicTrashCollectionId(
+            newDrawing.collectionId,
+            req.user.id,
+          ),
+        },
+        {
+          elements: rawJsonArray(elements),
+          appState: rawJsonObject(appState),
+          files: rawJsonObject(files),
+        },
+      );
     }),
   );
 
@@ -218,6 +248,7 @@ export const registerDrawingCreateUpdateRoutes = (
 
       const existingDrawing = await prisma.drawing.findUnique({
         where: { id },
+        select: { userId: true, version: true },
       });
       if (!existingDrawing)
         return res.status(404).json({ error: "Drawing not found" });
@@ -241,6 +272,7 @@ export const registerDrawingCreateUpdateRoutes = (
         preview?: string | null;
         files?: Record<string, unknown>;
         version?: number;
+        expectedVersion?: number;
       };
 
       const ownerUserId = existingDrawing.userId;
@@ -338,9 +370,18 @@ export const registerDrawingCreateUpdateRoutes = (
                 granteeUserId: actingUserId,
                 role: "edit",
               },
-              select: { id: true },
+              select: {
+                id: true,
+                collection: { select: { id: true, userId: true } },
+              },
             });
-            if (!editableShare) {
+            if (
+              !editableShare ||
+              isTrashCollectionId(
+                editableShare.collection.id,
+                editableShare.collection.userId,
+              )
+            ) {
               return res.status(404).json({ error: "Collection not found" });
             }
           }
@@ -351,7 +392,11 @@ export const registerDrawingCreateUpdateRoutes = (
         }
       }
 
-      let updatedDrawing: typeof existingDrawing | null = null;
+      const minimal = prefersMinimalReturn(req);
+      const snapshotMinIntervalMs = config.snapshotMinIntervalMs ?? 0;
+      type SceneUpdate = Awaited<ReturnType<typeof applySceneUpdateTx>>;
+      let updatedDrawing: SceneUpdate["drawing"] | null = null;
+      let savedScene: SceneUpdate["scene"] | undefined;
 
       try {
         if (isSceneUpdate) {
@@ -367,18 +412,47 @@ export const registerDrawingCreateUpdateRoutes = (
               incomingFiles: processedFilesForUpdate,
               requiredFileIds: requiredFileIdsForUpdate,
             }),
+            resultSelect: minimal ? MINIMAL_RESULT_SELECT : undefined,
+            snapshotCoalescing:
+              snapshotMinIntervalMs > 0
+                ? {
+                    minIntervalMs: snapshotMinIntervalMs,
+                    incomingLiveCount:
+                      payload.elements !== undefined
+                        ? countLiveElements(payload.elements)
+                        : undefined,
+                  }
+                : undefined,
           });
           updatedDrawing = result.drawing;
+          savedScene = result.scene;
         } else {
+          const expectedVersion =
+            payload.preview === undefined ? undefined : payload.expectedVersion;
           const updateResult = await prisma.drawing.updateMany({
-            where: { id },
+            where: { id, version: expectedVersion },
             data,
           });
           if (updateResult.count === 0) {
+            if (expectedVersion !== undefined) {
+              const current = await prisma.drawing.findUnique({
+                where: { id },
+                select: { id: true, version: true, updatedAt: true },
+              });
+              if (current) return res.json({ ...current, skipped: true });
+            }
             return res.status(404).json({ error: "Drawing not found" });
+          }
+          if (payload.collectionId !== undefined) {
+            try {
+              await revalidateDrawingAccess?.(id);
+            } catch (err) {
+              console.error("Failed to revalidate live drawing access:", err);
+            }
           }
           updatedDrawing = await prisma.drawing.findFirst({
             where: { id },
+            ...(minimal ? { select: MINIMAL_RESULT_SELECT } : {}),
           });
         }
       } catch (error) {
@@ -408,44 +482,85 @@ export const registerDrawingCreateUpdateRoutes = (
       }
       invalidateDrawingsCache();
 
-      // A move can take access away: Trash pauses the link share, and leaving
-      // a shared collection drops its grantees. Re-check collaborators already
-      // in the room. Best-effort, like the sharing routes.
-      if (payload.collectionId !== undefined && revalidateDrawingAccess) {
+      // Revalidate after access-changing moves and before each saved-scene
+      // broadcast so a passive listener cannot keep access after revocation.
+      if (savedScene && revalidateDrawingAccess) {
         try {
           await revalidateDrawingAccess(id);
         } catch (err) {
           console.error("Failed to revalidate live drawing access:", err);
+          savedScene = undefined;
         }
       }
 
-      const savedElements = parseJsonField(updatedDrawing.elements, []);
-      const savedFiles = parseJsonField(updatedDrawing.files, {});
-      if (isSceneUpdate) {
-        // A peer can join after the realtime delta but before this autosave.
-        // Deliver the committed scene so that edit is eventually received.
-        io?.to(`drawing_${id}`).emit("element-update", {
-          drawingId: id,
-          persisted: true,
-          elements: savedElements,
-          files: savedFiles,
-          elementOrder: savedElements
-            .map((element: { id?: unknown } | null) => element?.id)
-            .filter((elementId: unknown) => typeof elementId === "string"),
-        });
+      if (savedScene && io) {
+        const roomId = `drawing_${id}`;
+        const rooms = io.sockets?.adapter?.rooms;
+        const roomSockets = rooms?.get(roomId);
+        const rawSocketId = req.headers["x-socket-id"];
+        const senderSocket =
+          typeof rawSocketId === "string" && roomSockets?.has(rawSocketId)
+            ? io.sockets.sockets?.get(rawSocketId)
+            : undefined;
+        const socketState = senderSocket?.data as
+          Partial<SocketState> | undefined;
+        // A header alone cannot prove ownership of a socket. With anonymous
+        // saves, broadcast to the entire room.
+        const senderSocketId =
+          principal && socketState?.principal?.userId === principal.userId
+            ? senderSocket?.id
+            : undefined;
+        const listenerCount =
+          (roomSockets?.size ?? 0) - (senderSocketId ? 1 : 0);
+        if (!rooms || listenerCount > 0) {
+          // A peer can join after the realtime delta but before this autosave.
+          // Deliver the committed scene so that edit is eventually received.
+          const elements = parseJsonField<unknown>(savedScene.elements, []);
+          const savedElements = Array.isArray(elements) ? elements : [];
+          const room = io.to(roomId);
+          (senderSocketId ? room.except(senderSocketId) : room).emit(
+            "element-update",
+            {
+              drawingId: id,
+              persisted: true,
+              version: updatedDrawing.version,
+              elements: savedElements,
+              appState: parseJsonField(savedScene.appState, {}),
+              files: parseJsonField(savedScene.files, {}),
+              elementOrder: savedElements
+                .map((element: { id?: unknown } | null) => element?.id)
+                .filter((elementId: unknown) => typeof elementId === "string"),
+            },
+          );
+        }
       }
 
-      return res.json({
-        ...updatedDrawing,
-        collectionId: toPublicTrashCollectionId(
-          updatedDrawing.collectionId,
-          ownerUserId,
-        ),
-        elements: savedElements,
-        appState: parseJsonField(updatedDrawing.appState, {}),
-        files: savedFiles,
-        accessLevel: access,
-      });
+      // Cheap validator so Express does not hash a multi-MB body.
+      res.setHeader(
+        "ETag",
+        `W/"drawing-${id}-${updatedDrawing.version}-${updatedDrawing.updatedAt.getTime()}"`,
+      );
+      const collectionId = toPublicTrashCollectionId(
+        updatedDrawing.collectionId ?? null,
+        ownerUserId,
+      );
+      if (minimal) {
+        return res.json({
+          ...updatedDrawing,
+          collectionId,
+          accessLevel: access,
+        });
+      }
+      const { elements, appState, files, ...meta } = updatedDrawing;
+      return sendJsonWithRawFields(
+        res,
+        { ...meta, collectionId, accessLevel: access },
+        {
+          elements: rawJsonArray(elements),
+          appState: rawJsonObject(appState),
+          files: rawJsonObject(files),
+        },
+      );
     }),
   );
 };

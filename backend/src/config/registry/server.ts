@@ -59,6 +59,13 @@ export const serverEnv: readonly EnvVarSpec[] = [
     doc: "Number of days to retain drawing snapshots before the hourly sweep prunes them.",
   },
   {
+    name: "SNAPSHOT_MIN_INTERVAL_SECONDS",
+    group: "Server",
+    kind: "number",
+    default: "0",
+    doc: "Positive values coalesce ordinary scene PUTs within this interval. Saves that remove more than 10% of live elements and history restores always snapshot. 0 snapshots every scene PUT.",
+  },
+  {
     name: "UPLOAD_MAX_MB",
     group: "Server",
     kind: "number",

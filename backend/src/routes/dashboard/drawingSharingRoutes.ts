@@ -24,7 +24,7 @@ export const registerDrawingSharingRoutes = (
 
   // Kick any connected collaborators whose access to this drawing just changed.
   // Best-effort: never let a socket failure break the sharing HTTP response.
-  const revokeLiveAccess = async (drawingId: string): Promise<void> => {
+  const refreshLiveAccess = async (drawingId: string): Promise<void> => {
     if (!revalidateDrawingAccess) return;
     try {
       await revalidateDrawingAccess(drawingId);
@@ -180,6 +180,7 @@ export const registerDrawingSharingRoutes = (
       });
 
       invalidateDrawingsCache();
+      await refreshLiveAccess(id);
 
       if (config.enableAuditLogging) {
         await logAuditEvent({
@@ -215,7 +216,7 @@ export const registerDrawingSharingRoutes = (
         where: { id: permId, drawingId: id },
       });
       invalidateDrawingsCache();
-      await revokeLiveAccess(id);
+      await refreshLiveAccess(id);
 
       if (config.enableAuditLogging) {
         await logAuditEvent({
@@ -309,34 +310,31 @@ export const registerDrawingSharingRoutes = (
       // Passphrase support is currently disabled. We keep passphraseHash nullable for backwards compatibility.
       const passphraseHashValue: string | null = null;
 
-      // Enforce a single active "anyone with the link" policy per drawing. The public link is the drawing id,
-      // so multiple active link-share rows would be confusing and could unintentionally widen access.
-      await prisma.drawingLinkShare.updateMany({
-        where: { drawingId: id, revokedAt: null },
-        data: { revokedAt: new Date() },
-      });
-
-      // Token is generated only to satisfy the current schema's tokenHash requirement.
-      // Link access is based on drawing id + active policy (no secret token in the URL).
       const tokenHash = hashShareLinkToken(buildShareLinkToken());
-
-      const created = await prisma.drawingLinkShare.create({
-        data: {
-          drawingId: id,
-          permission,
-          tokenHash,
-          passphraseHash: passphraseHashValue,
-          expiresAt,
-          createdByUserId: req.user.id,
-        },
-        select: {
-          id: true,
-          permission: true,
-          expiresAt: true,
-          revokedAt: true,
-          createdAt: true,
-        },
-      });
+      const [, created] = await prisma.$transaction([
+        prisma.drawingLinkShare.updateMany({
+          where: { drawingId: id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        }),
+        prisma.drawingLinkShare.create({
+          data: {
+            drawingId: id,
+            permission,
+            tokenHash,
+            passphraseHash: passphraseHashValue,
+            expiresAt,
+            createdByUserId: req.user.id,
+          },
+          select: {
+            id: true,
+            permission: true,
+            expiresAt: true,
+            revokedAt: true,
+            createdAt: true,
+          },
+        }),
+      ]);
+      await refreshLiveAccess(id);
 
       if (config.enableAuditLogging) {
         await logAuditEvent({
@@ -376,7 +374,7 @@ export const registerDrawingSharingRoutes = (
         where: { id: shareId, drawingId: id, revokedAt: null },
         data: { revokedAt: new Date() },
       });
-      await revokeLiveAccess(id);
+      await refreshLiveAccess(id);
 
       if (config.enableAuditLogging) {
         await logAuditEvent({

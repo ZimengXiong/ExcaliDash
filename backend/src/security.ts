@@ -103,8 +103,23 @@ export const sanitizeSvg = (svgContent: string): string => {
         `<$1 href="${hrefValue}"`,
       );
     });
+  // Previews embed every image as a base64 data URL, often tens of MB. Parsing
+  // those through jsdom dominates CPU and memory, so swap each safe data URL
+  // for a short managed-ref placeholder, sanitize the small remaining markup,
+  // then restore. Unsafe data URLs are left in place for the normal rejection.
+  const placeholderPrefix = `/api/files/inline-${crypto.randomBytes(8).toString("hex")}/`;
+  const inlineDataUrls: string[] = [];
+  const withPlaceholders = svgContent.replace(
+    /(\s(?:xlink:)?href\s*=\s*)(["'])(data:[^"']*)\2/gi,
+    (match, prefix: string, quote: string, dataUrl: string) => {
+      const trimmed = dataUrl.trim();
+      if (!safeImageDataUrlPattern.test(trimmed)) return match;
+      inlineDataUrls.push(trimmed);
+      return `${prefix}${quote}${placeholderPrefix}${inlineDataUrls.length - 1}${quote}`;
+    },
+  );
   const sanitized = purify
-    .sanitize(svgContent, {
+    .sanitize(withPlaceholders, {
       ALLOWED_TAGS: [
         "svg",
         "defs",
@@ -209,7 +224,12 @@ export const sanitizeSvg = (svgContent: string): string => {
     (attribute, value: string) =>
       /^url\(#[\w-]+\)$/.test(value) ? attribute : "",
   );
-  return sanitizeSvgImageTags(localReferences).trim();
+  const result = sanitizeSvgImageTags(localReferences).trim();
+  if (inlineDataUrls.length === 0) return result;
+  return result.replace(
+    new RegExp(`${escapeRegExp(placeholderPrefix)}(\\d+)`, "g"),
+    (_match, index: string) => inlineDataUrls[Number(index)] ?? "",
+  );
 };
 export const sanitizeText = (
   input: unknown,
@@ -449,14 +469,24 @@ export const appStateSchema = z
       return true;
     }),
   );
-export const sanitizeDrawingData = (data: {
-  elements: any[];
-  appState: any;
-  files?: any;
-  preview?: string | null;
-}) => {
+export const sanitizeDrawingData = (
+  data: {
+    elements: any[];
+    appState: any;
+    files?: any;
+    preview?: string | null;
+  },
+  options: {
+    /** Elements already passed `elementSchema` (e.g. inside a route schema). */
+    elementsValidated?: boolean;
+  } = {},
+) => {
   try {
-    const sanitizedElements = elementSchema.array().parse(data.elements);
+    // elementSchema's transform is idempotent, so a second pass over a large
+    // scene only costs time (~half of zod's share of a 20k-element save).
+    const sanitizedElements = options.elementsValidated
+      ? data.elements
+      : elementSchema.array().parse(data.elements);
     const sanitizedAppState = appStateSchema.parse(data.appState);
     let sanitizedPreview = data.preview;
     if (typeof sanitizedPreview === "string") {
@@ -464,7 +494,17 @@ export const sanitizeDrawingData = (data: {
     }
     let sanitizedFiles = data.files;
     if (typeof sanitizedFiles === "object" && sanitizedFiles !== null) {
-      sanitizedFiles = structuredClone(sanitizedFiles);
+      // Only top-level keys of each file entry are reassigned below, so a
+      // per-entry shallow copy isolates the caller's object without deep-
+      // cloning multi-megabyte dataURL strings.
+      sanitizedFiles = Object.fromEntries(
+        Object.entries(sanitizedFiles).map(([fileId, file]) => [
+          fileId,
+          file && typeof file === "object" && !Array.isArray(file)
+            ? { ...file }
+            : file,
+        ]),
+      );
       const MAX_DATAURL_SIZE = activeConfig.maxDataUrlSize;
       const VALID_FILE_ID = /^[\w-]{1,200}$/;
       for (const fileId of Object.keys(sanitizedFiles)) {

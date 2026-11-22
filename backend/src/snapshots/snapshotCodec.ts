@@ -1,4 +1,12 @@
-import { brotliCompressSync, brotliDecompressSync, constants } from "node:zlib";
+import {
+  brotliCompress,
+  brotliCompressSync,
+  brotliDecompressSync,
+  constants,
+} from "node:zlib";
+import { promisify } from "node:util";
+
+const brotliCompressAsync = promisify(brotliCompress);
 
 const PREFIX = "br1:";
 const QUALITY = 5;
@@ -19,6 +27,26 @@ export const encodeSnapshotField = (value: string, enabled = true): string => {
 
   try {
     const compressed = brotliCompressSync(Buffer.from(value, "utf8"), {
+      params: { [constants.BROTLI_PARAM_QUALITY]: QUALITY },
+    });
+    const encoded = PREFIX + compressed.toString("base64");
+    return encoded.length < value.length ? encoded : value;
+  } catch (error) {
+    console.warn("Snapshot compression failed, storing raw payload", { error });
+    return value;
+  }
+};
+
+/** Same encoding as {@link encodeSnapshotField}, off the event loop. */
+export const encodeSnapshotFieldAsync = async (
+  value: string,
+  enabled = true,
+): Promise<string> => {
+  if (!enabled || !value || isEncodedSnapshotField(value)) return value;
+  const input = Buffer.from(value, "utf8");
+  if (input.length > MAX_DECOMPRESSED_FIELD_BYTES) return value;
+  try {
+    const compressed = await brotliCompressAsync(input, {
       params: { [constants.BROTLI_PARAM_QUALITY]: QUALITY },
     });
     const encoded = PREFIX + compressed.toString("base64");

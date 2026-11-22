@@ -12,6 +12,9 @@ import {
 } from "../../s3";
 import { type DrawingPrincipal } from "../../authz/sharing";
 import { config } from "../../config";
+import { Prisma } from "../../generated/client";
+import { isPostgresDatabase } from "../../config/databaseUrl";
+import { drawingFileByteLength } from "../../drawingFileStore";
 
 export type DrawingRouteContext = DashboardRouteDeps & {
   getRequestPrincipal: (
@@ -26,12 +29,15 @@ export type DrawingRouteContext = DashboardRouteDeps & {
   cleanupS3FilesForDrawing: (
     drawingId: string,
     userId: string,
+    copiedS3Keys?: ReadonlySet<string>,
+    options?: { skipDbDelete?: boolean },
   ) => Promise<void>;
   cloneS3FileReferences: (
     sourceDrawingId: string,
     targetDrawingId: string,
     userId: string,
     files: Record<string, any>,
+    copiedS3Keys?: Set<string>,
   ) => Promise<Record<string, any>>;
 };
 
@@ -69,11 +75,11 @@ export const createDrawingRouteContext = (
   const cleanupS3FilesForDrawing = async (
     drawingId: string,
     userId: string,
+    copiedS3Keys?: ReadonlySet<string>,
+    options?: { skipDbDelete?: boolean },
   ): Promise<void> => {
-    // Delete S3 objects first (when enabled), then the rows. In db-mode the
-    // bytes live in the rows themselves, so the deleteMany below reclaims
-    // them; it runs in both modes.
-    if (isS3Enabled()) {
+    let keys = copiedS3Keys;
+    if (!keys && isS3Enabled()) {
       const [objects, records] = await Promise.all([
         listS3Objects(drawingS3Prefix(userId, drawingId)),
         prisma.drawingFile.findMany({
@@ -81,14 +87,29 @@ export const createDrawingRouteContext = (
           select: { s3Key: true },
         }),
       ]);
-      const keys = new Set<string>(objects.map((object) => object.key));
+      const discoveredKeys = new Set(objects.map((object) => object.key));
       for (const record of records) {
-        if (record.s3Key) keys.add(record.s3Key);
+        if (record.s3Key) discoveredKeys.add(record.s3Key);
       }
-      await Promise.allSettled([...keys].map((key) => deleteS3Object(key)));
+      keys = discoveredKeys;
+    }
+    if (keys?.size) {
+      const results = await Promise.allSettled(
+        [...keys].map((key) => deleteS3Object(key)),
+      );
+      for (const result of results) {
+        if (result.status === "rejected") {
+          console.warn("[s3] Failed to delete drawing file object", {
+            drawingId,
+            error: result.reason,
+          });
+        }
+      }
     }
 
-    await prisma.drawingFile.deleteMany({ where: { drawingId } });
+    if (!options?.skipDbDelete) {
+      await prisma.drawingFile.deleteMany({ where: { drawingId } });
+    }
   };
 
   const cloneS3FileReferences = async (
@@ -96,18 +117,52 @@ export const createDrawingRouteContext = (
     targetDrawingId: string,
     userId: string,
     files: Record<string, any>,
+    copiedS3Keys?: Set<string>,
   ): Promise<Record<string, any>> => {
-    const records = await prisma.drawingFile.findMany({
-      where: { drawingId: sourceDrawingId },
-    });
-    if (records.length === 0) return files;
-
     const clonedFiles: Record<string, any> = { ...files };
     const cfg = isS3Enabled() ? getS3Config() : null;
 
-    await Promise.all(
-      records.map(async (record) => {
-        if (record.storage === "s3" && record.s3Key) {
+    // The target is a fresh drawing UUID. Copy local blobs inside the database
+    // and return just their IDs for rebasing the scene's file references.
+    // PostgreSQL's default Read Committed isolation avoids serialization
+    // failures between independent duplicates writing their own fresh UUIDs.
+    const [dbFiles, s3Files] = await prisma.$transaction(
+      [
+        prisma.$queryRaw<{ fileId: string }[]>(Prisma.sql`
+        INSERT INTO "DrawingFile" ("drawingId", "fileId", "mimeType", "sizeBytes", "storage", "data")
+        SELECT ${targetDrawingId}, "fileId", "mimeType", "sizeBytes", 'db', "data"
+        FROM "DrawingFile" WHERE "drawingId" = ${sourceDrawingId}
+          AND ("storage" <> 's3' OR COALESCE("s3Key", '') = '')
+          AND ${drawingFileByteLength()} > 0
+        RETURNING "fileId"`),
+        prisma.drawingFile.findMany({
+          where: {
+            drawingId: sourceDrawingId,
+            storage: "s3",
+            s3Key: { not: "" },
+          },
+          select: {
+            fileId: true,
+            mimeType: true,
+            sizeBytes: true,
+            s3Key: true,
+          },
+        }),
+      ],
+      isPostgresDatabase() ? undefined : { isolationLevel: "Serializable" },
+    );
+    for (const { fileId } of dbFiles) {
+      if (clonedFiles[fileId]) {
+        clonedFiles[fileId] = {
+          ...clonedFiles[fileId],
+          dataURL: `/api/files/${targetDrawingId}/${fileId}`,
+        };
+      }
+    }
+
+    for (let i = 0; i < s3Files.length; i += 8) {
+      const results = await Promise.allSettled(
+        s3Files.slice(i, i + 8).map(async (record) => {
           const extension = record.s3Key.includes(".")
             ? record.s3Key.substring(record.s3Key.lastIndexOf(".") + 1)
             : "bin";
@@ -117,15 +172,10 @@ export const createDrawingRouteContext = (
             record.fileId,
             extension,
           );
+          copiedS3Keys?.add(targetKey);
           await copyS3Object(record.s3Key, targetKey, record.mimeType);
-          await prisma.drawingFile.upsert({
-            where: {
-              drawingId_fileId: {
-                drawingId: targetDrawingId,
-                fileId: record.fileId,
-              },
-            },
-            create: {
+          await prisma.drawingFile.create({
+            data: {
               drawingId: targetDrawingId,
               fileId: record.fileId,
               mimeType: record.mimeType,
@@ -134,13 +184,7 @@ export const createDrawingRouteContext = (
               s3Key: targetKey,
               data: null,
             },
-            update: {
-              storage: "s3",
-              s3Key: targetKey,
-              data: null,
-              mimeType: record.mimeType,
-              sizeBytes: record.sizeBytes,
-            },
+            select: { fileId: true },
           });
           if (clonedFiles[record.fileId]) {
             clonedFiles[record.fileId] = {
@@ -150,42 +194,11 @@ export const createDrawingRouteContext = (
                 : `/api/files/${targetDrawingId}/${record.fileId}`,
             };
           }
-          return;
-        }
-
-        // Database-bytes mode: copy the bytes into a new row for the copy.
-        await prisma.drawingFile.upsert({
-          where: {
-            drawingId_fileId: {
-              drawingId: targetDrawingId,
-              fileId: record.fileId,
-            },
-          },
-          create: {
-            drawingId: targetDrawingId,
-            fileId: record.fileId,
-            mimeType: record.mimeType,
-            sizeBytes: record.sizeBytes,
-            storage: "db",
-            s3Key: null,
-            data: record.data,
-          },
-          update: {
-            storage: "db",
-            s3Key: null,
-            data: record.data,
-            mimeType: record.mimeType,
-            sizeBytes: record.sizeBytes,
-          },
-        });
-        if (clonedFiles[record.fileId]) {
-          clonedFiles[record.fileId] = {
-            ...clonedFiles[record.fileId],
-            dataURL: `/api/files/${targetDrawingId}/${record.fileId}`,
-          };
-        }
-      }),
-    );
+        }),
+      );
+      const failure = results.find((result) => result.status === "rejected");
+      if (failure) throw failure.reason;
+    }
 
     return clonedFiles;
   };

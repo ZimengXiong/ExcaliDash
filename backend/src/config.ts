@@ -18,6 +18,7 @@ import {
 import {
   readBoolean,
   readCsv,
+  readNonNegativeNumber,
   readNumber,
   readOptionalString,
   readRaw,
@@ -77,6 +78,7 @@ interface Config {
   csrfRateLimitWindowMs: number;
   snapshotRetentionDays: number;
   snapshotRetentionMs: number;
+  snapshotMinIntervalMs: number;
   uploadMaxBytes: number;
   bodyLimitMb: number;
   fileUploadMaxMb: number;
@@ -356,6 +358,8 @@ export const config: Config = {
   csrfRateLimitWindowMs: readNumber("CSRF_RATE_LIMIT_WINDOW_MS", 60000),
   snapshotRetentionDays,
   snapshotRetentionMs: snapshotRetentionDays * 24 * 60 * 60 * 1000,
+  snapshotMinIntervalMs:
+    readNonNegativeNumber("SNAPSHOT_MIN_INTERVAL_SECONDS", 0) * 1000,
   uploadMaxBytes: readNumber("UPLOAD_MAX_MB", 100) * 1024 * 1024,
   bodyLimitMb: readNumber("BODY_LIMIT_MB", 50),
   fileUploadMaxMb,

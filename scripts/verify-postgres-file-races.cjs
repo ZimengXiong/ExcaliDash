@@ -92,9 +92,12 @@ async function firstInsertRace() {
     fileId: "first-image",
     storage: "db",
     s3Key: null,
-    mimeType: "image/png",
     sizeBytes: 3,
   };
+  const candidates = [
+    { ...base, mimeType: "image/png", data: Buffer.from([1, 2, 3]) },
+    { ...base, mimeType: "image/jpeg", data: Buffer.from([9, 9, 9]) },
+  ];
   let pending;
   let outcomes;
   try {
@@ -104,10 +107,9 @@ async function firstInsertRace() {
     await prisma.$executeRawUnsafe(`CREATE TRIGGER race_pause_file_insert BEFORE INSERT ON "DrawingFile"
       FOR EACH ROW EXECUTE FUNCTION race_pause_file_insert()`);
     await barrier.$executeRawUnsafe("SELECT pg_advisory_lock(904064, 1)");
-    pending = Promise.allSettled([
-      storeDrawingFileOnce(observed, { ...base, data: Buffer.from([1, 2, 3]) }),
-      storeDrawingFileOnce(observed, { ...base, data: Buffer.from([9, 9, 9]) }),
-    ]);
+    pending = Promise.allSettled(
+      candidates.map((content) => storeDrawingFileOnce(observed, content)),
+    );
     const deadline = Date.now() + barrierTimeoutMs;
     for (;;) {
       const [{ waiting }] =
@@ -146,11 +148,20 @@ async function firstInsertRace() {
   } else {
     assert.equal(rejected.length, 0);
     assert.equal(nativeInserts, 2);
-    assert.ok(
-      Buffer.from(outcomes[0].value.data).equals(
-        Buffer.from(outcomes[1].value.data),
-      ),
+    const { data, ...metadata } = await prisma.drawingFile.findUniqueOrThrow({
+      where: {
+        drawingId_fileId: { drawingId: drawing.id, fileId: base.fileId },
+      },
+      select: { data: true, mimeType: true, storage: true, s3Key: true },
+    });
+    const winningInput = candidates.find((candidate) =>
+      candidate.data.equals(data),
     );
+    assert.ok(winningInput);
+    assert.equal(metadata.mimeType, winningInput.mimeType);
+    for (const outcome of outcomes) {
+      assert.deepEqual(outcome.value, metadata);
+    }
   }
   console.log(
     JSON.stringify({

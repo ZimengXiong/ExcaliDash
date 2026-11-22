@@ -16,7 +16,17 @@ export const registerCollectionRoutes = (
     invalidateDrawingsCache,
     config,
     logAuditEvent,
+    revalidateDrawingAccess,
+    revalidateCollectionAccess,
   } = deps;
+
+  const refreshLiveAccess = async (collectionId: string): Promise<void> => {
+    try {
+      await revalidateCollectionAccess?.(collectionId);
+    } catch (error) {
+      console.error("Failed to revalidate live collection access:", error);
+    }
+  };
 
   // GET /collections — returns owned collections + collections shared with user
   app.get(
@@ -34,19 +44,11 @@ export const registerCollectionRoutes = (
       const hasInternalTrash = rawCollections.some(
         (c) => c.id === trashCollectionId,
       );
-      const shareCountMap = await prisma.collectionShare.groupBy({
+      const shares = await prisma.collectionShare.groupBy({
         by: ["collectionId"],
-        where: {
-          collectionId: {
-            in: rawCollections.map((c) => c.id),
-          },
-        },
-        _count: { collectionId: true },
+        where: { collection: { userId: req.user.id } },
       });
-      const sharedCollectionIds = new Set(
-        shareCountMap.map((s) => s.collectionId),
-      );
-
+      const sharedIds = new Set(shares.map((share) => share.collectionId));
       const ownedCollections = rawCollections
         .filter((c) => !(hasInternalTrash && c.id === "trash"))
         .map((c) =>
@@ -63,7 +65,7 @@ export const registerCollectionRoutes = (
                 ...c,
                 sharedRole: null,
                 isOwner: true,
-                isShared: sharedCollectionIds.has(c.id),
+                isShared: sharedIds.has(c.id),
               },
         );
 
@@ -173,6 +175,12 @@ export const registerCollectionRoutes = (
       if (!collection)
         return res.status(404).json({ error: "Collection not found" });
 
+      const drawings = revalidateDrawingAccess
+        ? await prisma.drawing.findMany({
+            where: { collectionId: id },
+            select: { id: true },
+          })
+        : [];
       await prisma.$transaction([
         prisma.drawing.updateMany({
           where: { collectionId: id, userId: req.user.id },
@@ -182,6 +190,13 @@ export const registerCollectionRoutes = (
         prisma.collection.deleteMany({ where: { id, userId: req.user.id } }),
       ]);
       invalidateDrawingsCache();
+      try {
+        await Promise.all(
+          drawings.map((drawing) => revalidateDrawingAccess?.(drawing.id)),
+        );
+      } catch (error) {
+        console.error("Failed to revalidate live collection access:", error);
+      }
 
       if (config.enableAuditLogging) {
         await logAuditEvent({
@@ -244,6 +259,12 @@ export const registerCollectionRoutes = (
           .json({ error: "identifier and role (view|edit) are required" });
       }
 
+      if (isTrashCollectionId(id, req.user.id)) {
+        return res
+          .status(400)
+          .json({ error: "Trash collection cannot be shared" });
+      }
+
       const collection = await prisma.collection.findFirst({
         where: { id, userId: req.user.id },
       });
@@ -285,6 +306,7 @@ export const registerCollectionRoutes = (
         },
       });
       invalidateDrawingsCache();
+      await refreshLiveAccess(id);
 
       return res.json({ share });
     }),
@@ -303,6 +325,12 @@ export const registerCollectionRoutes = (
         return res.status(400).json({ error: "role must be view or edit" });
       }
 
+      if (isTrashCollectionId(id, req.user.id)) {
+        return res
+          .status(400)
+          .json({ error: "Trash collection cannot be shared" });
+      }
+
       const collection = await prisma.collection.findFirst({
         where: { id, userId: req.user.id },
       });
@@ -316,6 +344,7 @@ export const registerCollectionRoutes = (
       if (share.count === 0)
         return res.status(404).json({ error: "Share not found" });
       invalidateDrawingsCache();
+      await refreshLiveAccess(id);
 
       return res.json({ success: true });
     }),
@@ -339,6 +368,7 @@ export const registerCollectionRoutes = (
         where: { collectionId: id, granteeUserId: userId },
       });
       invalidateDrawingsCache();
+      await refreshLiveAccess(id);
       return res.json({ success: true });
     }),
   );
@@ -360,17 +390,11 @@ export const registerCollectionRoutes = (
       if (!collection)
         return res.status(404).json({ error: "Collection not found" });
 
-      // Get already-shared user IDs to exclude them
-      const existing = await prisma.collectionShare.findMany({
-        where: { collectionId: id },
-        select: { granteeUserId: true },
-      });
-      const excludeIds = [req.user.id, ...existing.map((s) => s.granteeUserId)];
-
       const users = await prisma.user.findMany({
         where: {
           isActive: true,
-          id: { notIn: excludeIds },
+          id: { not: req.user.id },
+          collectionShares: { none: { collectionId: id } },
           OR: [
             { email: { contains: q } },
             { name: { contains: q } },

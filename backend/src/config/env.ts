@@ -55,6 +55,22 @@ export const readNumber = (name: string, defaultValue: number): number => {
   return parsed;
 };
 
+/** Non-negative number read for settings with a meaningful zero value. */
+export const readNonNegativeNumber = (
+  name: string,
+  defaultValue: number,
+): number => {
+  const value = readRaw(name);
+  if (!value?.trim()) return defaultValue;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(
+      `Invalid value for environment variable ${name}: must be a non-negative number`,
+    );
+  }
+  return parsed;
+};
+
 /** Boolean read with default (matches legacy getOptionalBoolean). */
 export const readBoolean = (name: string, defaultValue: boolean): boolean => {
   const value = readRaw(name);

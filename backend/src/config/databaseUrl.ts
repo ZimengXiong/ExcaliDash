@@ -37,3 +37,6 @@ export const resolveDatabaseUrl = (rawUrl?: string): string => {
 /** The resolved DATABASE_URL from the environment. */
 export const readDatabaseUrl = (): string =>
   resolveDatabaseUrl(process.env.DATABASE_URL);
+
+export const isPostgresDatabase = (): boolean =>
+  /^postgres(?:ql)?:/.test(readDatabaseUrl());

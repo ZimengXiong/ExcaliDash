@@ -4,7 +4,7 @@
  *
  * Covers:
  *   - raw upload (PUT /drawings/:id/files/:fileId) → GET roundtrip
- *   - immutable Cache-Control + ETag, and If-None-Match → 304
+ *   - private Cache-Control + ETag, and If-None-Match → 304
  *   - idempotent re-upload (no-op)
  *   - unsupported Content-Type → 415
  *   - edit-access enforcement (non-owner → 404)
@@ -127,7 +127,7 @@ describe("DrawingFile store (database-bytes mode)", () => {
       .set("Content-Type", contentType)
       .send(body);
 
-  it("stores raw bytes on PUT and serves them on GET with an immutable ETag", async () => {
+  it("stores raw bytes on PUT and serves them on GET with an ETag that requires revalidation", async () => {
     const drawing = await createDrawing(owner.id);
 
     const put = await uploadFile(drawing.id, "img-1", ownerToken, PNG_BYTES);
@@ -152,9 +152,7 @@ describe("DrawingFile store (database-bytes mode)", () => {
 
     expect(get.status).toBe(200);
     expect(get.headers["content-type"]).toContain("image/png");
-    expect(get.headers["cache-control"]).toBe(
-      "private, max-age=31536000, immutable",
-    );
+    expect(get.headers["cache-control"]).toBe("private, no-cache");
     expect(get.headers["etag"]).toBe('"img-1"');
     expect(Buffer.from(get.body).equals(PNG_BYTES)).toBe(true);
   });
@@ -163,13 +161,69 @@ describe("DrawingFile store (database-bytes mode)", () => {
     const drawing = await createDrawing(owner.id);
     await uploadFile(drawing.id, "img-1", ownerToken, PNG_BYTES);
 
-    const res = await agent
-      .get(`/files/${drawing.id}/img-1`)
-      .set("User-Agent", userAgent)
-      .set("Authorization", `Bearer ${ownerToken}`)
-      .set("If-None-Match", '"img-1"');
+    const revalidate = () =>
+      agent
+        .get(`/files/${drawing.id}/img-1`)
+        .set("User-Agent", userAgent)
+        .set("Authorization", `Bearer ${ownerToken}`)
+        .set("If-None-Match", '"older", W/"img-1"');
 
+    const res = await revalidate();
     expect(res.status).toBe(304);
+    expect(res.headers.etag).toBe('"img-1"');
+    const missing = await agent
+      .get(`/files/${drawing.id}/missing`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .set("If-None-Match", "*");
+    expect(missing.status).toBe(404);
+    const denied = await agent
+      .get(`/files/${drawing.id}/img-1`)
+      .set("Authorization", `Bearer ${otherToken}`)
+      .set("If-None-Match", "*");
+    expect(denied.status).toBe(404);
+
+    await prisma.drawingFile.update({
+      where: { drawingId_fileId: { drawingId: drawing.id, fileId: "img-1" } },
+      data: { data: null },
+    });
+    expect((await revalidate()).status).toBe(404);
+  });
+
+  it("keeps large previews out of the dashboard and revalidates them independently", async () => {
+    const preview = `<svg><!--${"x".repeat(512 * 1024)}--></svg>`;
+    await prisma.drawing.createMany({
+      data: Array.from({ length: 8 }, (_, i) => ({
+        userId: owner.id,
+        name: `Drawing ${i}`,
+        elements: "[]",
+        appState: "{}",
+        preview,
+      })),
+    });
+    const list = await agent
+      .get("/api/drawings")
+      .set("Authorization", `Bearer ${ownerToken}`);
+    expect(list.status).toBe(200);
+    expect(list.body.totalCount).toBe(8);
+    expect(list.body.drawings).toHaveLength(8);
+    expect(Buffer.byteLength(list.text)).toBeLessThan(4096);
+    const { id } = list.body.drawings[0];
+    const url = `/api/drawings/${id}/preview`;
+    const get = () =>
+      agent.get(url).set("Authorization", `Bearer ${ownerToken}`);
+    const initial = await get();
+    expect(initial.body.preview).toBe(preview);
+    const tag = initial.headers.etag;
+    expect((await get().set("If-None-Match", tag)).status).toBe(304);
+    await prisma.drawing.update({
+      where: { id },
+      data: { preview: "<svg/>" },
+      select: { id: true },
+    });
+    const updated = await get().set("If-None-Match", tag);
+    expect(updated.status).toBe(200);
+    expect(updated.body.preview).toBe("<svg/>");
+    expect(updated.headers.etag).not.toBe(tag);
   });
 
   it("is idempotent: re-uploading the same file is a 200 no-op", async () => {

@@ -8,6 +8,8 @@ import { config } from "../config";
 export interface AppError extends Error {
   statusCode?: number;
   isOperational?: boolean;
+  type?: string;
+  code?: string;
 }
 
 /**
@@ -22,6 +24,14 @@ export const errorHandler = (
 ): void => {
   const statusCode = err.statusCode || 500;
   const isDevelopment = config.nodeEnv === "development";
+  const isEncodingError =
+    (statusCode === 415 && err.type === "encoding.unsupported") ||
+    (statusCode === 400 &&
+      req.get("content-encoding")?.toLowerCase() === "gzip" &&
+      (err.code === "Z_DATA_ERROR" || err.code === "Z_BUF_ERROR"));
+  const encodingDetails = isEncodingError
+    ? { code: "REQUEST_ENCODING_ERROR" }
+    : {};
 
   console.error("Error:", {
     message: err.message,
@@ -44,6 +54,7 @@ export const errorHandler = (
     res.status(statusCode).json({
       error: "Request error",
       message: err.isOperational ? err.message : "Invalid request",
+      ...encodingDetails,
     });
     return;
   }
@@ -52,6 +63,7 @@ export const errorHandler = (
     error: err.message,
     stack: err.stack,
     statusCode,
+    ...encodingDetails,
   });
 };
 

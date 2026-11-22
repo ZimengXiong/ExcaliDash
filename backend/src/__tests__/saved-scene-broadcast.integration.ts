@@ -51,6 +51,7 @@ describe("persisted collaboration scene broadcasts", () => {
       parseJsonField: (raw, fallback) => (raw ? JSON.parse(raw) : fallback),
       drawingUpdateSchema: z.object({
         elements: z.array(z.any()).optional(),
+        appState: z.record(z.string(), z.unknown()).optional(),
         files: z.record(z.string(), z.any()).optional(),
         preview: z.string().optional(),
         version: z.number().optional(),
@@ -103,6 +104,7 @@ describe("persisted collaboration scene broadcasts", () => {
       .put(`/drawings/${drawing.id}`)
       .send({
         elements,
+        appState: { viewBackgroundColor: "#dddddd", gridModeEnabled: true },
         files: { newImage: { dataURL: "https://example.test/new.png" } },
         version: 3,
       });
@@ -112,7 +114,9 @@ describe("persisted collaboration scene broadcasts", () => {
     expect(emit).toHaveBeenCalledWith("element-update", {
       drawingId: drawing.id,
       persisted: true,
+      version: 4,
       elements: response.body.elements,
+      appState: { viewBackgroundColor: "#dddddd", gridModeEnabled: true },
       files: response.body.files,
       elementOrder: ["earlier", "new"],
     });

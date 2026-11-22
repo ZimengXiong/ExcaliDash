@@ -25,7 +25,7 @@ import {
 import { config } from "./config";
 import { authModeService, requireAuth, optionalAuth } from "./middleware/auth";
 import { errorHandler, asyncHandler } from "./middleware/errorHandler";
-import authRouter from "./auth";
+import { createAuthRouter } from "./auth";
 import { logAuditEvent } from "./utils/audit";
 import { registerDashboardRoutes } from "./routes/dashboard";
 import { registerImportExportRoutes } from "./routes/importExport";
@@ -205,16 +205,24 @@ const ensureTrashCollection = async (
   const trashCollectionId = getUserTrashCollectionId(userId);
   const trashCollection = await db.collection.findFirst({
     where: { id: trashCollectionId, userId },
+    select: { id: true },
   });
   if (!trashCollection) {
     await db.collection.create({
       data: { id: trashCollectionId, name: "Trash", userId },
     });
   }
-  await db.drawing.updateMany({
-    where: { userId, collectionId: "trash" },
-    data: { collectionId: trashCollectionId },
-  });
+  // Listing collections also calls this legacy repair. Keep that request
+  // read-only once the user's old trash entries have been migrated.
+  const legacyTrash = { userId, collectionId: "trash" };
+  if (
+    await db.drawing.findFirst({ where: legacyTrash, select: { id: true } })
+  ) {
+    await db.drawing.updateMany({
+      where: legacyTrash,
+      data: { collectionId: trashCollectionId },
+    });
+  }
 };
 const PORT = config.port;
 const upload = multer({
@@ -287,6 +295,9 @@ app.use(
       "Authorization",
       "x-csrf-token",
       "x-imported-file",
+      "x-socket-id",
+      "prefer",
+      "content-encoding",
     ],
     exposedHeaders: [
       "x-csrf-token",
@@ -336,7 +347,22 @@ registerCsrfProtection({
   rateLimitWindowMs: config.csrfRateLimitWindowMs,
   enableDebugLogging: config.debugCsrf,
 });
-app.use("/auth", authRouter);
+const socketHandlers = registerSocketHandlers({
+  io,
+  prisma,
+  authModeService,
+  jwtSecret: config.jwtSecret,
+});
+app.use(
+  "/auth",
+  createAuthRouter({
+    prisma,
+    requireAuth,
+    optionalAuth,
+    authModeService,
+    disconnectRevokedApiKey: socketHandlers.disconnectRevokedApiKey,
+  }),
+);
 const filesFieldSchema = z
   .union([z.record(z.string(), z.unknown()), z.null()])
   .optional()
@@ -355,7 +381,9 @@ const drawingCreateSchema = drawingBaseSchema
   .refine(
     (data) => {
       try {
-        const sanitized = sanitizeDrawingData(data);
+        const sanitized = sanitizeDrawingData(data, {
+          elementsValidated: true,
+        });
         Object.assign(data, sanitized);
         return true;
       } catch (error) {
@@ -371,15 +399,19 @@ const drawingUpdateSchemaBase = drawingBaseSchema.extend({
   appState: appStateSchema.optional(),
   files: filesFieldSchema,
   version: z.number().int().positive().optional(),
+  expectedVersion: z.number().int().optional(),
 });
-export const sanitizeDrawingUpdateData = (data: {
-  elements?: unknown[];
-  appState?: Record<string, unknown>;
-  files?: Record<string, unknown>;
-  preview?: string | null;
-  name?: string;
-  collectionId?: string | null;
-}): boolean => {
+export const sanitizeDrawingUpdateData = (
+  data: {
+    elements?: unknown[];
+    appState?: Record<string, unknown>;
+    files?: Record<string, unknown>;
+    preview?: string | null;
+    name?: string;
+    collectionId?: string | null;
+  },
+  elementsValidated: boolean,
+): boolean => {
   const hasSceneFields =
     data.elements !== undefined ||
     data.appState !== undefined ||
@@ -400,7 +432,7 @@ export const sanitizeDrawingUpdateData = (data: {
         name: data.name,
         collectionId: data.collectionId,
       };
-      const sanitized = sanitizeDrawingData(fullData);
+      const sanitized = sanitizeDrawingData(fullData, { elementsValidated });
       if (data.elements !== undefined)
         sanitizedData.elements = sanitized.elements;
       if (data.appState !== undefined)
@@ -425,7 +457,7 @@ export const sanitizeDrawingUpdateData = (data: {
   }
 };
 const drawingUpdateSchema = drawingUpdateSchemaBase.refine(
-  (data) => sanitizeDrawingUpdateData(data as any),
+  (data) => sanitizeDrawingUpdateData(data, true),
   { message: "Invalid or malicious drawing data detected" },
 );
 const respondWithValidationErrors = (
@@ -513,12 +545,6 @@ const removeFileIfExists = async (filePath?: string) => {
     console.error("Failed to remove file", { filePath, error });
   }
 };
-const socketHandlers = registerSocketHandlers({
-  io,
-  prisma,
-  authModeService,
-  jwtSecret: config.jwtSecret,
-});
 app.get("/health", async (_req, res) => {
   try {
     // `SELECT 1` never touches the database file, so a broken SQLite file
@@ -613,6 +639,7 @@ registerDashboardRoutes(app, {
   internDrawingFiles: (files, userId, drawingId) =>
     internDrawingFilesWithPrisma(files, userId, drawingId, prisma),
   revalidateDrawingAccess: socketHandlers.revalidateDrawingAccess,
+  revalidateCollectionAccess: socketHandlers.revalidateCollectionAccess,
   io,
 });
 registerFileRoutes(app, { prisma, requireAuth, optionalAuth, asyncHandler });

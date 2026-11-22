@@ -16,6 +16,7 @@ export const registerLibraryRoutes = (
       const libraryId = `user_${req.user.id}`;
       const library = await prisma.library.findUnique({
         where: { id: libraryId },
+        select: { items: true },
       });
       if (!library) return res.json({ items: [] });
 
@@ -35,13 +36,15 @@ export const registerLibraryRoutes = (
       }
 
       const libraryId = `user_${req.user.id}`;
-      const library = await prisma.library.upsert({
+      const serializedItems = JSON.stringify(items);
+      await prisma.library.upsert({
         where: { id: libraryId },
-        update: { items: JSON.stringify(items) },
-        create: { id: libraryId, items: JSON.stringify(items) },
+        update: { items: serializedItems },
+        create: { id: libraryId, items: serializedItems },
+        select: { id: true },
       });
 
-      return res.json({ items: parseJsonField(library.items, []) });
+      return res.type("json").send(`{"items":${serializedItems}}`);
     }),
   );
 };

@@ -1,9 +1,12 @@
 import express from "express";
 import { v4 as uuidv4 } from "uuid";
 import { rewritePreviewForInternedFiles } from "../../fileProcessing";
+import { Prisma } from "../../generated/client";
+import { drawingS3Prefix, isS3Enabled, listS3Objects } from "../../s3";
 import {
   getUserTrashCollectionId,
   isTrashCollectionId,
+  LEGACY_TRASH_COLLECTION_ID,
   toPublicTrashCollectionId,
 } from "./trash";
 import type { DrawingRouteContext } from "./drawingRouteContext";
@@ -23,6 +26,7 @@ export const registerDrawingDeleteDuplicateRoutes = (
     parseJsonField,
     cleanupS3FilesForDrawing,
     cloneS3FileReferences,
+    revalidateDrawingAccess,
   } = context;
   app.delete(
     "/drawings/:id",
@@ -31,33 +35,76 @@ export const registerDrawingDeleteDuplicateRoutes = (
       if (!req.user) return res.status(401).json({ error: "Unauthorized" });
       const { id } = req.params;
 
-      const drawing = await prisma.drawing.findFirst({
-        where: { id, userId: req.user.id },
+      const userId = req.user.id;
+      const requireTrashed = req.query.requireTrashed === "1";
+      const preDeleteS3Keys = new Set<string>();
+      if (isS3Enabled()) {
+        try {
+          const objects = await listS3Objects(drawingS3Prefix(userId, id));
+          for (const obj of objects) preDeleteS3Keys.add(obj.key);
+        } catch (error) {
+          console.warn("[s3] Failed to list drawing files before delete", {
+            drawingId: id,
+            error,
+          });
+        }
+      }
+      const result = await prisma.$transaction(async (tx) => {
+        const trashGuard = requireTrashed
+          ? Prisma.sql`AND "collectionId" IN (${LEGACY_TRASH_COLLECTION_ID}, ${getUserTrashCollectionId(userId)})`
+          : Prisma.empty;
+        const [drawing] = await tx.$queryRaw<{ name: string }[]>`
+          DELETE FROM "Drawing"
+          WHERE "id" = ${id} AND "userId" = ${userId} ${trashGuard}
+          RETURNING "name"`;
+        if (drawing) {
+          const s3Records = await tx.drawingFile.findMany({
+            where: { drawingId: id, s3Key: { not: null } },
+            select: { s3Key: true },
+          });
+          await tx.drawingFile.deleteMany({ where: { drawingId: id } });
+          const s3Keys = new Set<string>(preDeleteS3Keys);
+          for (const record of s3Records) {
+            if (record.s3Key) s3Keys.add(record.s3Key);
+          }
+          return { drawing, s3Keys } as const;
+        }
+        const stillExists =
+          requireTrashed &&
+          (await tx.drawing.findFirst({
+            where: { id, userId },
+            select: { id: true },
+          }));
+        return { status: stillExists ? 409 : 404 } as const;
       });
-      if (!drawing) return res.status(404).json({ error: "Drawing not found" });
 
-      // Delete S3 objects (and their S3File rows) BEFORE the drawing row.
-      // S3File has no FK to Drawing, so removing the row would not cascade —
-      // if we deleted the row first and then crashed, the S3 objects would
-      // be orphaned with no drawing left to drive re-cleanup (a permanent
-      // storage leak). Doing S3 first means a failure aborts before the row
-      // is removed, so the user can simply retry the delete.
+      if ("status" in result) {
+        if (result.status === 409) {
+          return res.status(409).json({
+            error: "Conflict",
+            message: "Drawing is no longer in Trash",
+          });
+        }
+        return res.status(404).json({ error: "Drawing not found" });
+      }
+
+      invalidateDrawingsCache();
       try {
-        await cleanupS3FilesForDrawing(id, req.user.id);
+        await revalidateDrawingAccess?.(id);
+      } catch (error) {
+        console.error("Failed to revalidate deleted drawing access:", error);
+      }
+
+      try {
+        await cleanupS3FilesForDrawing(id, userId, result.s3Keys, {
+          skipDbDelete: true,
+        });
       } catch (error) {
         console.warn("[s3] Failed to cleanup deleted drawing files", {
           drawingId: id,
           error,
         });
       }
-
-      const deleteResult = await prisma.drawing.deleteMany({
-        where: { id, userId: req.user.id },
-      });
-      if (deleteResult.count === 0) {
-        return res.status(404).json({ error: "Drawing not found" });
-      }
-      invalidateDrawingsCache();
 
       if (config.enableAuditLogging) {
         await logAuditEvent({
@@ -66,7 +113,7 @@ export const registerDrawingDeleteDuplicateRoutes = (
           resource: `drawing:${id}`,
           ipAddress: req.ip || req.connection.remoteAddress || undefined,
           userAgent: req.headers["user-agent"] || undefined,
-          details: { drawingId: id, drawingName: drawing.name },
+          details: { drawingId: id, drawingName: result.drawing.name },
         });
       }
 
@@ -97,34 +144,59 @@ export const registerDrawingDeleteDuplicateRoutes = (
         original.files,
         {},
       );
-      const duplicatedFiles = await cloneS3FileReferences(
-        original.id,
-        newDrawingId,
-        req.user.id,
-        originalFiles,
-      );
-      const duplicatedPreview = rewritePreviewForInternedFiles(
-        original.preview ?? null,
-        originalFiles,
-        duplicatedFiles,
-      );
+      const copiedS3Keys = new Set<string>();
+      let newDrawing;
+      try {
+        const duplicatedFiles = await cloneS3FileReferences(
+          original.id,
+          newDrawingId,
+          req.user.id,
+          originalFiles,
+          copiedS3Keys,
+        );
+        const duplicatedPreview = rewritePreviewForInternedFiles(
+          original.preview ?? null,
+          originalFiles,
+          duplicatedFiles,
+        );
 
-      const newDrawing = await prisma.drawing.create({
-        data: {
-          id: newDrawingId,
-          name: `${original.name} (Copy)`,
-          elements: original.elements,
-          appState: original.appState,
-          files: JSON.stringify(duplicatedFiles),
-          preview:
-            typeof duplicatedPreview === "string"
-              ? duplicatedPreview
-              : original.preview,
-          userId: req.user.id,
-          collectionId: duplicatedCollectionId,
-          version: 1,
-        },
-      });
+        newDrawing = await prisma.drawing.create({
+          data: {
+            id: newDrawingId,
+            name: `${original.name} (Copy)`,
+            elements: original.elements,
+            appState: original.appState,
+            files: JSON.stringify(duplicatedFiles),
+            preview:
+              typeof duplicatedPreview === "string"
+                ? duplicatedPreview
+                : original.preview,
+            userId: req.user.id,
+            collectionId: duplicatedCollectionId,
+            version: 1,
+          },
+        });
+      } catch (error) {
+        try {
+          const published = await prisma.drawing.findUnique({
+            where: { id: newDrawingId },
+            select: { id: true },
+          });
+          if (!published) {
+            await cleanupS3FilesForDrawing(
+              newDrawingId,
+              req.user.id,
+              copiedS3Keys,
+            );
+          }
+        } catch (cleanupError) {
+          console.warn("[files] Failed to clean up duplicate drawing files", {
+            drawingId: newDrawingId,
+            error: cleanupError,
+          });
+        }
+        throw error;
+      }
       invalidateDrawingsCache();
 
       return res.json({

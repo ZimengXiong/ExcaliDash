@@ -1,5 +1,6 @@
+import { storedFileFilter } from "../../drawingFileStore";
 import { Prisma, PrismaClient } from "../../generated/client";
-import { encodeSnapshotField } from "../../snapshots/snapshotCodec";
+import { encodeSnapshotFieldAsync } from "../../snapshots/snapshotCodec";
 
 // A file entry is "blank" when it exists but carries no content (empty
 // dataURL). Sanitizer tombstones and transient client state can produce
@@ -33,6 +34,52 @@ const mergeFilesUnion = (
   return merged;
 };
 
+// Live (non-deleted) element count per drawing at a committed version, so
+// the coalescing check below normally avoids parsing the stored scene.
+// Process-local and advisory: a miss just falls back to parsing.
+const liveCountCache = new Map<string, { version: number; live: number }>();
+const LIVE_COUNT_CACHE_MAX = 500;
+
+export const countLiveElements = (elements: unknown): number =>
+  Array.isArray(elements)
+    ? elements.filter(
+        (element) =>
+          element &&
+          typeof element === "object" &&
+          (element as { isDeleted?: unknown }).isDeleted !== true,
+      ).length
+    : 0;
+
+const rememberLiveCount = (
+  drawingId: string,
+  version: number,
+  live: number,
+) => {
+  if (liveCountCache.size >= LIVE_COUNT_CACHE_MAX) {
+    const oldest = liveCountCache.keys().next().value;
+    if (oldest !== undefined) liveCountCache.delete(oldest);
+  }
+  liveCountCache.delete(drawingId);
+  liveCountCache.set(drawingId, { version, live });
+};
+
+const storedLiveCount = (
+  drawingId: string,
+  version: number,
+  elementsJson: string,
+): number => {
+  const cached = liveCountCache.get(drawingId);
+  if (cached && cached.version === version) return cached.live;
+  try {
+    return countLiveElements(JSON.parse(elementsJson));
+  } catch {
+    return Number.POSITIVE_INFINITY;
+  }
+};
+
+// A save retaining fewer than 90% of live elements always gets a snapshot.
+const MIN_LIVE_ELEMENT_RATIO = 0.9;
+
 // Thrown (and recognized by identity or message) when the version-guarded
 // write loses to a concurrent save. Callers translate it to HTTP 409.
 const versionConflictError = new Error("VERSION_CONFLICT");
@@ -44,6 +91,24 @@ export const isVersionConflict = (error: unknown): boolean =>
 type DrawingRow = NonNullable<
   Awaited<ReturnType<PrismaClient["drawing"]["findUnique"]>>
 >;
+
+// The pre-update state needed for the history snapshot. Deliberately excludes
+// `preview`, which for image-heavy drawings can be larger than the scene.
+const CURRENT_SELECT = {
+  version: true,
+  elements: true,
+  appState: true,
+  files: true,
+} as const;
+type CurrentScene = Pick<
+  DrawingRow,
+  "version" | "elements" | "appState" | "files"
+>;
+
+// Row returned after the write. Callers that only need the new version pass a
+// narrow select; the default keeps the full row for response compatibility.
+type ResultRow = Pick<DrawingRow, "id" | "version" | "updatedAt"> &
+  Partial<DrawingRow>;
 
 type SceneMutation = {
   // Prisma update fields to write (elements/appState/preview/name/collection…),
@@ -65,12 +130,23 @@ type ApplySceneUpdateArgs = {
   versionGuard: number | "optimistic";
   snapshotCompressionEnabled?: boolean;
   maxRetries?: number;
-  mutate: (current: DrawingRow) => SceneMutation | Promise<SceneMutation>;
+  mutate: () => SceneMutation | Promise<SceneMutation>;
+  resultSelect?: Prisma.DrawingSelect;
+  // Autosave coalescing. Without it (history restore, imports) every update
+  // snapshots the previous state.
+  snapshotCoalescing?: {
+    minIntervalMs: number;
+    // Live elements in the incoming scene; undefined when elements are not
+    // being replaced (files/appState-only saves).
+    incomingLiveCount?: number;
+  };
 };
 
 type ApplySceneUpdateResult = {
-  drawing: DrawingRow;
+  drawing: ResultRow;
   revertVersion: number;
+  // Committed scene fields, including those the transaction left unchanged.
+  scene: Omit<CurrentScene, "version">;
 };
 
 export const applySceneUpdateTx = async (
@@ -84,6 +160,8 @@ export const applySceneUpdateTx = async (
     snapshotCompressionEnabled = true,
     mutate,
     maxRetries = 0,
+    resultSelect,
+    snapshotCoalescing,
   } = args;
 
   const attempts = versionGuard === "optimistic" ? maxRetries + 1 : 1;
@@ -91,9 +169,10 @@ export const applySceneUpdateTx = async (
   let lastConflict: unknown = versionConflictError;
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
-      return await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx) => {
         const current = await tx.drawing.findUnique({
           where: { id: drawingId },
+          select: CURRENT_SELECT,
         });
         if (!current) {
           throw versionConflictError;
@@ -106,12 +185,16 @@ export const applySceneUpdateTx = async (
           throw versionConflictError;
         }
 
-        const mutation = await mutate(current);
+        const mutation = await mutate();
 
         if (mutation.requiredFileIds?.length) {
           const requiredIds = new Set(mutation.requiredFileIds);
           const stored = await tx.drawingFile.findMany({
-            where: { drawingId, fileId: { in: [...requiredIds] } },
+            where: {
+              drawingId,
+              fileId: { in: [...requiredIds] },
+              ...storedFileFilter,
+            },
             select: { fileId: true },
           });
           if (stored.length !== requiredIds.size) {
@@ -119,24 +202,59 @@ export const applySceneUpdateTx = async (
           }
         }
 
-        await tx.drawingSnapshot.create({
-          data: {
-            drawingId,
-            version: current.version,
-            elements: encodeSnapshotField(
+        // Autosave runs about once a second while someone edits. A full
+        // compressed copy of a large scene per save cost CPU and grew the
+        // database by gigabytes per editing hour, so ordinary saves reuse a
+        // snapshot younger than the interval. Saves that remove many live
+        // elements still snapshot, so an accidental wipe stays restorable.
+        let takeSnapshot = true;
+        if (snapshotCoalescing && snapshotCoalescing.minIntervalMs > 0) {
+          const now = Date.now();
+          const recentSnapshot = await tx.drawingSnapshot.findFirst({
+            where: {
+              drawingId,
+              createdAt: {
+                gte: new Date(now - snapshotCoalescing.minIntervalMs),
+                lte: new Date(now),
+              },
+            },
+            select: { id: true },
+          });
+          if (recentSnapshot) {
+            const incoming = snapshotCoalescing.incomingLiveCount;
+            takeSnapshot =
+              incoming !== undefined &&
+              incoming <
+                storedLiveCount(drawingId, current.version, current.elements) *
+                  MIN_LIVE_ELEMENT_RATIO;
+          }
+        }
+
+        if (takeSnapshot) {
+          // Compress on the libuv pool: synchronous brotli of a large scene
+          // blocked every other request for hundreds of milliseconds per save.
+          const [snapElements, snapAppState, snapFiles] = await Promise.all([
+            encodeSnapshotFieldAsync(
               current.elements,
               snapshotCompressionEnabled,
             ),
-            appState: encodeSnapshotField(
+            encodeSnapshotFieldAsync(
               current.appState,
               snapshotCompressionEnabled,
             ),
-            files: encodeSnapshotField(
-              current.files,
-              snapshotCompressionEnabled,
-            ),
-          },
-        });
+            encodeSnapshotFieldAsync(current.files, snapshotCompressionEnabled),
+          ]);
+          await tx.drawingSnapshot.create({
+            select: { id: true },
+            data: {
+              drawingId,
+              version: current.version,
+              elements: snapElements,
+              appState: snapAppState,
+              files: snapFiles,
+            },
+          });
+        }
 
         const writeData: Prisma.DrawingUpdateInput = {
           ...mutation.data,
@@ -168,14 +286,43 @@ export const applySceneUpdateTx = async (
           throw versionConflictError;
         }
 
-        const updated = await tx.drawing.findFirst({
+        const updated = (await tx.drawing.findFirst({
           where: { id: drawingId },
-        });
+          ...(resultSelect ? { select: resultSelect } : {}),
+        })) as ResultRow | null;
         if (!updated) {
           throw versionConflictError;
         }
-        return { drawing: updated, revertVersion: current.version };
+        return {
+          drawing: updated,
+          revertVersion: current.version,
+          scene: {
+            elements:
+              updated.elements ??
+              (typeof writeData.elements === "string"
+                ? writeData.elements
+                : (writeData.elements?.set ?? current.elements)),
+            appState:
+              updated.appState ??
+              (typeof writeData.appState === "string"
+                ? writeData.appState
+                : (writeData.appState?.set ?? current.appState)),
+            files:
+              updated.files ??
+              (typeof writeData.files === "string"
+                ? writeData.files
+                : (writeData.files?.set ?? current.files)),
+          },
+        };
       });
+      if (snapshotCoalescing?.incomingLiveCount !== undefined) {
+        rememberLiveCount(
+          drawingId,
+          result.drawing.version,
+          snapshotCoalescing.incomingLiveCount,
+        );
+      }
+      return result;
     } catch (error) {
       if (isVersionConflict(error) && attempt < attempts - 1) {
         lastConflict = error;

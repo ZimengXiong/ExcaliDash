@@ -8,18 +8,11 @@
  */
 import express from "express";
 import { PrismaClient } from "../generated/client";
-import {
-  isS3Enabled,
-  generatePresignedDownloadUrl,
-  uploadBuffer,
-  buildS3Key,
-} from "../s3";
-import { MIME_TO_EXT, cleanupUnusedS3Upload } from "../fileProcessing";
+import { isS3Enabled, generatePresignedDownloadUrl, buildS3Key } from "../s3";
+import { MIME_TO_EXT, uploadDrawingFileToS3 } from "../fileProcessing";
 import { randomUUID } from "node:crypto";
-import {
-  hasDrawingFileContent,
-  storeDrawingFileOnce,
-} from "../drawingFileStore";
+import { storedFileFilter, storeDrawingFileOnce } from "../drawingFileStore";
+import { matchesIfNoneMatch } from "../server/ifNoneMatch";
 import { config } from "../config";
 import {
   canViewDrawing,
@@ -157,9 +150,10 @@ export const registerFileRoutes = (
 
       // Idempotent: an existing row that already carries content is a no-op.
       const existing = await prisma.drawingFile.findUnique({
-        where: { drawingId_fileId: { drawingId, fileId } },
+        where: { drawingId_fileId: { drawingId, fileId }, ...storedFileFilter },
+        select: { fileId: true },
       });
-      if (hasDrawingFileContent(existing)) {
+      if (existing) {
         return res.status(200).json({ url: responseUrl, fileId });
       }
 
@@ -181,17 +175,11 @@ export const registerFileRoutes = (
           ext,
           randomUUID(),
         );
-        await uploadBuffer(s3Key, body, mimeType);
-        const stored = await storeDrawingFileOnce(prisma, {
-          drawingId,
-          fileId,
-          mimeType,
-          sizeBytes: body.length,
-          storage: "s3",
-          s3Key,
-          data: null,
-        });
-        await cleanupUnusedS3Upload(s3Key, stored);
+        await uploadDrawingFileToS3(
+          prisma,
+          { drawingId, fileId, mimeType, s3Key },
+          body,
+        );
         return res.status(200).json({ url: responseUrl, fileId });
       }
 
@@ -212,7 +200,7 @@ export const registerFileRoutes = (
   // ------------------------------------------------------------------
   // GET /files/:drawingId/:fileId
   // Serves the image. In db-mode the bytes are streamed directly with an
-  // immutable cache policy and an ETag (honoring If-None-Match → 304). In
+  // private cache policy and an ETag that revalidates drawing access. In
   // s3-mode a presigned GET URL is issued and the browser is redirected.
   // ------------------------------------------------------------------
   app.get(
@@ -235,28 +223,26 @@ export const registerFileRoutes = (
         return res.status(404).json({ error: "File not found" });
       }
 
+      // File IDs are immutable. Decide whether a body could be needed before
+      // selecting data, then publish the validator only for an existing DB file.
+      const etag = `"${fileId}"`;
+      const fresh = matchesIfNoneMatch(req.headers["if-none-match"], etag);
       const fileRecord = await prisma.drawingFile.findUnique({
-        where: { drawingId_fileId: { drawingId, fileId } },
+        where: { drawingId_fileId: { drawingId, fileId }, ...storedFileFilter },
+        select: { storage: true, s3Key: true, mimeType: true, data: !fresh },
       });
       if (!fileRecord) {
         return res.status(404).json({ error: "File not found" });
       }
 
       if (fileRecord.storage === "db") {
-        if (!fileRecord.data) {
-          return res.status(404).json({ error: "File not found" });
-        }
-        // fileIds are content hashes, so the object is immutable — a strong
-        // ETag equal to the fileId lets revisits short-circuit to 304.
-        const etag = `"${fileId}"`;
         res.setHeader("ETag", etag);
-        res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
-        if (req.headers["if-none-match"] === etag) {
+        res.setHeader("Cache-Control", "private, no-cache");
+        if (fresh) {
           return res.status(304).end();
         }
-        const buffer = Buffer.isBuffer(fileRecord.data)
-          ? fileRecord.data
-          : Buffer.from(fileRecord.data as Uint8Array);
+        // Prisma materializes this column once. Node can write it directly.
+        const buffer = fileRecord.data!;
         res.setHeader("Content-Type", fileRecord.mimeType);
         res.setHeader("Content-Length", buffer.length);
         return res.status(200).end(buffer);

@@ -11,7 +11,7 @@ import express from "express";
 import request from "supertest";
 import { z } from "zod";
 import type { Server } from "socket.io";
-import { PrismaClient } from "../generated/client";
+import { Prisma, PrismaClient } from "../generated/client";
 import { getTestPrisma, setupTestDb, cleanupTestDb } from "./testUtils";
 import { encodeSnapshotField } from "../snapshots/snapshotCodec";
 import { registerStorageRoutes } from "../routes/storage";
@@ -161,6 +161,56 @@ describe("File reference lifetime", () => {
       optionalAuth: auth,
       asyncHandler,
     });
+
+  it("reuses stored inline images in one metadata read and revalidates without reading bytes", async () => {
+    const drawing = await createDrawing();
+    const bytes = Buffer.alloc(128 * 1024, 1);
+    const dataURL = `data:image/png;base64,${bytes.toString("base64")}`;
+    const rows = Array.from({ length: 16 }, (_, i) => ({
+      drawingId: drawing.id,
+      fileId: `image-${i}`,
+      mimeType: "image/png",
+      storage: "db",
+      sizeBytes: bytes.length,
+      data: bytes,
+    }));
+    await prisma.drawingFile.createMany({ data: rows });
+    const observed = new PrismaClient({
+      datasources: { db: { url: process.env.DATABASE_URL! } },
+      log: [{ level: "query", emit: "event" }],
+    });
+    const reads: string[] = [];
+    observed.$on("query", ({ query }) => {
+      if (query.startsWith("SELECT") && query.includes("DrawingFile")) {
+        reads.push(query.split(" FROM ")[0]);
+      }
+    });
+    try {
+      const processed = await internDrawingFiles(
+        Object.fromEntries(rows.map(({ fileId }) => [fileId, { dataURL }])),
+        ownerId,
+        drawing.id,
+        observed,
+      );
+      expect(Object.keys(processed)).toHaveLength(rows.length);
+      expect(reads).toHaveLength(1);
+      expect(reads[0]).not.toContain('"data"');
+      registerFileRoutes(app, {
+        prisma: observed,
+        requireAuth: auth,
+        optionalAuth: auth,
+        asyncHandler,
+      });
+      const result = await request(app)
+        .get(`/files/${drawing.id}/image-0`)
+        .set("If-None-Match", '"image-0"');
+      expect(result.status).toBe(304);
+      expect(reads).toHaveLength(2);
+      expect(reads[1]).not.toContain('"data"');
+    } finally {
+      await observed.$disconnect();
+    }
+  });
 
   it("lists a collaborator's first raw S3 upload in the drawing owner's storage namespace", async () => {
     vi.mocked(isS3Enabled).mockReturnValue(true);
@@ -523,9 +573,12 @@ describe("File reference lifetime", () => {
           sizeBytes: bytes.length,
         },
       });
-      const lookup = vi
-        .spyOn(prisma.drawingFile, "findUnique")
-        .mockResolvedValueOnce(null);
+      const lookup =
+        mode === "intern"
+          ? vi.spyOn(prisma.drawingFile, "findMany").mockResolvedValueOnce([])
+          : vi
+              .spyOn(prisma.drawingFile, "findUnique")
+              .mockResolvedValueOnce(null);
       vi.mocked(uploadBuffer).mockImplementation(async (freshKey, body) => {
         objects.set(freshKey, Buffer.from(body));
       });
@@ -586,9 +639,12 @@ describe("File reference lifetime", () => {
         },
       });
       // Another writer has filled the row after this request's initial read.
-      const lookup = vi
-        .spyOn(prisma.drawingFile, "findUnique")
-        .mockResolvedValueOnce(null);
+      const lookup =
+        mode === "intern"
+          ? vi.spyOn(prisma.drawingFile, "findMany").mockResolvedValueOnce([])
+          : vi
+              .spyOn(prisma.drawingFile, "findUnique")
+              .mockResolvedValueOnce(null);
       mountFiles();
       try {
         if (mode === "intern") {
@@ -640,14 +696,22 @@ describe("File reference lifetime", () => {
     };
     const rows = await Promise.all([
       storeDrawingFileOnce(prisma, { ...base, data: Buffer.from([1, 2, 3]) }),
-      storeDrawingFileOnce(prisma, { ...base, data: Buffer.from([9, 9, 9]) }),
+      storeDrawingFileOnce(prisma, {
+        ...base,
+        mimeType: "image/jpeg",
+        data: Buffer.from([9, 9, 9]),
+      }),
     ]);
-    expect(rows[0].data).not.toBeNull();
-    expect(
-      rows[1].data &&
-        rows[0].data &&
-        Buffer.from(rows[0].data).equals(Buffer.from(rows[1].data)),
-    ).toBe(true);
+    const winner = await prisma.drawingFile.findUniqueOrThrow({
+      where: {
+        drawingId_fileId: { drawingId: drawing.id, fileId: base.fileId },
+      },
+    });
+    expect(rows[0]).toEqual(rows[1]);
+    expect(rows[0].mimeType).toBe(winner.mimeType);
+    expect(winner.data).toEqual(
+      Buffer.from(winner.mimeType === "image/png" ? [1, 2, 3] : [9, 9, 9]),
+    );
   });
 
   it("uses a native upsert for simultaneous first stores without changing winner bytes", async () => {
@@ -674,12 +738,20 @@ describe("File reference lifetime", () => {
         }),
         storeDrawingFileOnce(observed, {
           ...base,
+          mimeType: "image/jpeg",
           data: Buffer.from([9, 9, 9]),
         }),
       ]);
-      expect(
-        Buffer.from(rows[0].data!).equals(Buffer.from(rows[1].data!)),
-      ).toBe(true);
+      expect(rows[0]).toEqual(rows[1]);
+      const winner = await observed.drawingFile.findUniqueOrThrow({
+        where: {
+          drawingId_fileId: { drawingId: drawing.id, fileId: base.fileId },
+        },
+      });
+      expect(rows[0].mimeType).toBe(winner.mimeType);
+      expect(winner.data).toEqual(
+        Buffer.from(winner.mimeType === "image/png" ? [1, 2, 3] : [9, 9, 9]),
+      );
       expect(
         queries.filter((query) => /INSERT INTO.*DrawingFile/.test(query)),
       ).toHaveLength(2);
@@ -1130,28 +1202,19 @@ describe("File reference lifetime", () => {
         sizeBytes: bytes.length,
       },
     });
-    const upsert = prisma.drawingFile.upsert.bind(prisma.drawingFile);
     const write = vi
-      .spyOn(prisma.drawingFile, "upsert")
-      .mockImplementation((args) => {
-        if (args.where.drawingId_fileId?.fileId === "fail") {
-          throw new Error("simulated storage failure");
-        }
-        return upsert(args);
-      });
+      .spyOn(prisma, "$queryRaw")
+      .mockRejectedValueOnce(new Error("simulated storage failure"));
     const files: Record<string, any> = {
       existing: { dataURL: "data:image/png;base64,AAAA" },
+      fail: { dataURL: "data:image/png;base64,AAAA" },
     };
-    // Complete the first batch before failing the next one; this exposes
-    // an earlier overwrite even when interning never returns a scene payload.
-    for (let i = 0; i < 7; i++) {
-      files[`ref-${i}`] = { dataURL: "https://files.example/image.png" };
-    }
-    files.fail = { dataURL: "data:image/png;base64,AAAA" };
     try {
       await expect(
         internDrawingFiles(files, ownerId, drawing.id, prisma),
       ).rejects.toThrow("simulated storage failure");
+      expect(write).toHaveBeenCalledOnce();
+      expect((write.mock.calls[0][0] as Prisma.Sql).values).toContain("fail");
       const row = await prisma.drawingFile.findUniqueOrThrow({
         where: {
           drawingId_fileId: { drawingId: drawing.id, fileId: "existing" },

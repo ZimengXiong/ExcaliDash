@@ -127,7 +127,7 @@ export const registerDrawingHistoryRoutes = (
       }
 
       const [drawing, snapshot] = await Promise.all([
-        prisma.drawing.findUnique({ where: { id } }),
+        prisma.drawing.findUnique({ where: { id }, select: { version: true } }),
         prisma.drawingSnapshot.findFirst({
           where: { id: snapshotId, drawingId: id },
         }),
