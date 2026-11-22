@@ -36,7 +36,7 @@ export const CollectionPicker: React.FC<CollectionPickerProps> = ({
 
   return (
     <div onClick={(e) => e.stopPropagation()}>
-      <div className="flex items-center gap-1 flex-wrap justify-start xs:justify-end">
+      <div className="flex items-center gap-1 justify-end">
         <div className="relative">
           <button
             onClick={() => {
@@ -48,10 +48,10 @@ export const CollectionPicker: React.FC<CollectionPickerProps> = ({
             aria-expanded={isOpen}
             disabled={isShared || isSharedCollection}
             className={clsx(
-              "max-w-[120px] truncate rounded-md border px-2 py-0.5 text-[10px] font-semibold transition-all",
+              "max-w-[140px] truncate rounded-md border px-2 py-0.5 text-[11px] font-semibold transition-colors",
               isShared || isSharedCollection
                 ? "bg-slate-50 dark:bg-neutral-800/40 text-slate-400 dark:text-neutral-500 border-neutral-100 dark:border-neutral-800 cursor-not-allowed"
-                : "bg-slate-50 dark:bg-neutral-800 text-slate-500 dark:text-neutral-400 cursor-pointer border-neutral-200/60 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-700/50",
+                : "bg-slate-50 dark:bg-neutral-800 text-slate-600 dark:text-neutral-300 cursor-pointer border-slate-200 dark:border-neutral-700 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 dark:hover:border-indigo-500/50 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-300",
             )}
           >
             {isShared ? "Shared" : collectionName}
@@ -60,7 +60,7 @@ export const CollectionPicker: React.FC<CollectionPickerProps> = ({
           {!isShared && isOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={onClose} />
-              <div className="ui-menu absolute left-0 xs:left-auto xs:right-0 bottom-full mb-1.5 w-48 z-20 max-h-56 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-bottom-2 duration-150">
+              <div className="ui-menu absolute right-0 bottom-full mb-1.5 w-48 z-20 max-h-56 overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-bottom-2 duration-150">
                 <CollectionMoveOptions
                   collections={collections}
                   currentCollectionId={drawing.collectionId}

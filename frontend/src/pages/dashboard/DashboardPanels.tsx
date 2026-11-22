@@ -165,22 +165,25 @@ export const DrawingsGrid: React.FC<DrawingsGridProps> = ({
       style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}
     >
       {drawings.length === 0 ? (
-        <div className="col-span-full flex flex-col items-center justify-center py-16 sm:py-32 text-slate-400 dark:text-neutral-500 border-2 border-dashed border-slate-200 dark:border-neutral-700 rounded-3xl bg-slate-50/50 dark:bg-neutral-800/50">
-          <div className="w-20 h-20 bg-white dark:bg-slate-800 rounded-full shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-center mb-6">
+        <div className="col-span-full flex flex-col items-center justify-center py-16 sm:py-32 text-slate-400 dark:text-neutral-500 border-2 border-dashed border-slate-300 dark:border-neutral-700 rounded-3xl bg-white/60 dark:bg-neutral-900/50">
+          <div className="w-20 h-20 bg-white dark:bg-neutral-800 rounded-full border-2 border-slate-200 dark:border-neutral-700 flex items-center justify-center mb-5 -rotate-6">
             {isTrashView ? (
               <Trash2
                 size={32}
-                className="text-slate-300 dark:text-slate-600"
+                className="text-slate-400 dark:text-neutral-500"
               />
             ) : (
-              <Inbox size={32} className="text-slate-300 dark:text-slate-600" />
+              <Inbox
+                size={32}
+                className="text-slate-400 dark:text-neutral-500"
+              />
             )}
           </div>
-          <p className="text-lg font-semibold text-slate-600 dark:text-slate-400">
+          <p className="text-lg font-bold text-slate-700 dark:text-neutral-200">
             {isTrashView ? "Your trash is empty" : "No drawings found"}
           </p>
           {!isTrashView && (
-            <p className="text-sm mt-2 text-slate-400 dark:text-neutral-500 max-w-xs text-center">
+            <p className="text-sm mt-1.5 text-slate-500 dark:text-neutral-400 max-w-xs text-center">
               {search
                 ? `No results for "${search}"`
                 : "Create a new drawing to get started!"}

@@ -81,18 +81,22 @@ export const SettingsMainGrid = ({
         tileClassName="border-black bg-emerald-400 text-black dark:border-neutral-700 dark:bg-emerald-400 dark:text-black"
         title={t("settings.language")}
       >
-        <select
-          aria-label={t("settings.language")}
+        <PlayfulSelect
+          ariaLabel={t("settings.language")}
           value={language}
-          onChange={(event) => setLanguage(event.target.value)}
-          className="ui-input text-sm font-bold"
-        >
-          <option value="en">English</option>
-          <option value="zh-CN">简体中文</option>
-          {language !== "en" && language !== "zh-CN" && (
-            <option value={language}>{language} (editor language)</option>
-          )}
-        </select>
+          onChange={setLanguage}
+          align="right"
+          portal
+          options={[
+            { value: "en", label: "English" },
+            { value: "zh-CN", label: "简体中文" },
+            ...(language !== "en" && language !== "zh-CN"
+              ? [{ value: language, label: `${language} (editor language)` }]
+              : []),
+          ]}
+          buttonClassName="h-10 min-w-[150px] px-3"
+          menuClassName="min-w-[170px]"
+        />
       </SettingsRow>
 
       <SettingsRow

@@ -182,12 +182,12 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
           isTrash &&
             "shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.15)] opacity-80 grayscale-[0.5]",
           isSelected
-            ? "border-neutral-500 dark:border-neutral-500 shadow-[3px_3px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.18)]"
+            ? "border-indigo-600 dark:border-indigo-400 shadow-[3px_3px_0px_0px_rgba(79,70,229,0.9)] dark:shadow-[3px_3px_0px_0px_rgba(129,140,248,0.55)]"
             : "border-slate-800 dark:border-neutral-700 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.15)]",
         )}
       >
         <div
-          className="absolute top-2.5 right-2.5 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          className="absolute top-2.5 right-2.5 z-20 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-200"
           style={{ opacity: isSelected ? 1 : undefined }}
         >
           <button
@@ -201,8 +201,8 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
             className={clsx(
               "w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-200 shadow-sm",
               isSelected
-                ? "bg-neutral-600 dark:bg-neutral-500 border-neutral-600 dark:border-neutral-500 text-white"
-                : "bg-white dark:bg-neutral-800 border-slate-300 dark:border-neutral-600 hover:border-neutral-500 dark:hover:border-neutral-400",
+                ? "bg-indigo-600 dark:bg-indigo-500 border-slate-800 dark:border-indigo-300/60 text-white scale-110"
+                : "bg-white/90 dark:bg-neutral-800/90 backdrop-blur-sm border-slate-300 dark:border-neutral-600 hover:border-slate-800 dark:hover:border-neutral-400",
             )}
           >
             {isSelected && <Check size={14} strokeWidth={3} />}
@@ -239,7 +239,7 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
           )}
         </div>
 
-        <div className="p-4 sm:p-5 bg-white dark:bg-neutral-900 rounded-b-2xl relative z-10 flex-1 flex flex-col justify-between">
+        <div className="px-4 pt-3.5 pb-3 bg-white dark:bg-neutral-900 rounded-b-2xl relative z-10 flex-1 flex flex-col justify-between gap-2.5">
           <div>
             {isRenaming ? (
               <div
@@ -277,11 +277,16 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
             )}
           </div>
 
-          <div className="flex flex-col gap-2 mt-4 relative">
-            <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-2.5">
-              <p className="text-[10px] sm:text-[11px] font-medium text-slate-400 dark:text-neutral-500 flex items-center gap-1 sm:gap-1.5 shrink-0 whitespace-nowrap">
-                <Clock size={10} className="sm:w-[11px] sm:h-[11px]" />
-                {formatDistanceToNow(drawing.updatedAt)} ago
+          <div className="relative">
+            <div className="flex items-center justify-between gap-2">
+              <p
+                className="min-w-0 truncate text-[11px] font-medium text-slate-500 dark:text-neutral-400 flex items-center gap-1.5"
+                title={new Date(drawing.updatedAt).toLocaleString()}
+              >
+                <Clock size={11} className="shrink-0" />
+                <span className="truncate">
+                  {formatDistanceToNow(drawing.updatedAt, { addSuffix: true })}
+                </span>
               </p>
 
               <CollectionPicker

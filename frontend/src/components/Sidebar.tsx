@@ -115,17 +115,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 onClick={() => onSelectCollection(undefined)}
                 className={clsx(
-                  "w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-lg transition-all duration-200 border-2",
+                  "w-full flex items-center gap-3 px-3 py-2 text-sm font-semibold rounded-xl transition-colors duration-150 border-2",
                   selectedCollectionId === undefined
-                    ? "bg-indigo-50 dark:bg-neutral-800 text-indigo-900 dark:text-neutral-200 border-slate-800 dark:border-neutral-700 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)] -translate-y-0.5"
-                    : "text-slate-600 dark:text-neutral-400 border-transparent hover:bg-slate-50 dark:hover:bg-neutral-800 hover:border-slate-800 hover:shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:hover:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)] hover:-translate-y-0.5",
+                    ? "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-900 dark:text-indigo-100 border-slate-800 dark:border-neutral-600 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)]"
+                    : "text-slate-600 dark:text-neutral-400 border-transparent hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-neutral-800 dark:hover:text-neutral-100",
                 )}
               >
                 <LayoutGrid
                   size={18}
                   className={clsx(
                     selectedCollectionId === undefined
-                      ? "text-indigo-900 dark:text-neutral-200"
+                      ? "text-indigo-600 dark:text-indigo-300"
                       : "text-slate-400 dark:text-neutral-500",
                   )}
                 />
@@ -160,7 +160,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   e.stopPropagation();
                   setIsCreating(true);
                 }}
-                className="ui-icon-button h-7 w-7 border-transparent bg-transparent shadow-none opacity-0 group-hover/header:opacity-100 dark:bg-transparent"
+                className="ui-icon-button h-7 w-7 border-transparent bg-transparent text-slate-400 shadow-none opacity-70 hover:opacity-100 group-hover/header:opacity-100 dark:border-transparent dark:bg-transparent dark:text-neutral-500 dark:shadow-none"
                 title={t("sidebar.newCollection")}
               >
                 <Plus size={14} strokeWidth={2.5} />

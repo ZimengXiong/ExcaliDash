@@ -63,7 +63,7 @@
   }
 
   .ui-button-primary {
-    @apply border-slate-800 bg-indigo-600 text-white shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] hover:bg-indigo-500 dark:border-neutral-600 dark:bg-indigo-500 dark:hover:bg-indigo-400;
+    @apply border-slate-800 bg-indigo-600 text-white shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] hover:bg-indigo-500 hover:shadow-[3px_3px_0px_0px_rgba(30,41,59,0.9)] dark:border-indigo-300/40 dark:bg-indigo-500 dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)] dark:hover:bg-indigo-400 dark:hover:shadow-[3px_3px_0px_0px_rgba(255,255,255,0.22)];
   }
 
   .ui-button-secondary {
@@ -79,7 +79,16 @@
   }
 
   .ui-icon-button {
-    @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 border-slate-800 bg-white text-slate-600 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] transition-all hover:-translate-y-0.5 hover:bg-indigo-50 hover:text-indigo-600 active:translate-y-0 active:shadow-none disabled:pointer-events-none disabled:translate-y-0 disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-300 disabled:shadow-none dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)] dark:hover:bg-neutral-700 dark:hover:text-indigo-300;
+    @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2 border-slate-800 bg-white text-slate-600 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] transition-all hover:-translate-y-0.5 hover:bg-indigo-50 hover:text-indigo-600 active:translate-y-0 active:shadow-none disabled:pointer-events-none disabled:translate-y-0 disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300 disabled:shadow-none dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300 dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)] dark:hover:bg-neutral-700 dark:hover:text-indigo-300 dark:disabled:border-neutral-800 dark:disabled:bg-neutral-900 dark:disabled:text-neutral-700;
+  }
+
+  /* Several related icon actions sharing one bordered pill. */
+  .ui-button-group {
+    @apply inline-flex shrink-0 items-center gap-0.5 rounded-xl border-2 border-slate-800 bg-white p-0.5 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:border-neutral-600 dark:bg-neutral-800 dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)];
+  }
+
+  .ui-button-group-item {
+    @apply inline-flex h-[34px] w-[34px] items-center justify-center rounded-[9px] text-slate-600 transition-colors hover:bg-indigo-50 hover:text-indigo-600 disabled:pointer-events-none disabled:text-slate-300 dark:text-neutral-300 dark:hover:bg-neutral-700 dark:hover:text-indigo-300 dark:disabled:text-neutral-600;
   }
 
   .ui-toolbar-button {

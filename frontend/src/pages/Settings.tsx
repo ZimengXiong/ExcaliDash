@@ -353,13 +353,16 @@ export const Settings: React.FC = () => {
             </p>
           </div>
         )}{" "}
-        <div className="space-y-10">
-          <ApiKeysCard
-            disabled={mustResetPassword}
-            onSuccess={setSettingsSuccess}
-          />
-        </div>
-        <div className="mt-10">
+        {/* API keys are per-user, so they only exist with auth on. */}
+        {authEnabled !== false && (
+          <div className="mb-10">
+            <ApiKeysCard
+              disabled={mustResetPassword}
+              onSuccess={setSettingsSuccess}
+            />
+          </div>
+        )}
+        <div>
           <SettingsMainGrid
             exportBackup={exportBackup}
             theme={theme}
