@@ -3,6 +3,7 @@ import type { NavigateFunction } from "react-router-dom";
 import type { MutableRefObject } from "react";
 import { toast } from "sonner";
 import * as api from "../../api";
+import { dropInvalidOrderKeys } from "../../utils/orderKeys";
 import { rehydrateFilesProgressive } from "../../utils/rehydrateFiles";
 import { getPersistedAppState, hasRenderableElements } from "./shared";
 import { resetLibrarySync } from "./librarySync";
@@ -153,7 +154,12 @@ export const useEditorSceneLoader = ({
         // elements stay non-saved and show Excalidraw's own loading state until
         // their bytes arrive.
         const files: Record<string, any> = data.files || {};
-        const elements = normalizeImageElementStatus(rawElements, files);
+        // A malformed order key makes Excalidraw's restore throw and the
+        // editor never finishes loading.
+        const elements = normalizeImageElementStatus(
+          dropInvalidOrderKeys(rawElements),
+          files,
+        );
         const hasPreview =
           typeof data.preview === "string" && data.preview.trim().length > 0;
         const loadedRenderable = hasRenderableElements(elements);

@@ -1,3 +1,4 @@
+import request from "supertest";
 import { beforeAll, describe, expect, it } from "vitest";
 import { setupTestDb } from "./testUtils";
 import { startRuntimeServer } from "./runtimeServer";
@@ -9,6 +10,7 @@ describe("production health checks", () => {
     const server = await startRuntimeServer({
       ENFORCE_HTTPS_REDIRECT: "true",
       TRUST_PROXY: "1",
+      FRONTEND_URL: "https://first.example.test,http://192.168.1.10:6767",
     });
     try {
       const health = await fetch(`${server.url}/health`, {
@@ -16,10 +18,15 @@ describe("production health checks", () => {
       });
       expect(health.status).toBe(200);
       expect(await health.json()).toEqual({ status: "ok", database: "ok" });
-      const gated = await fetch(`${server.url}/drawings`, {
-        redirect: "manual",
-      });
-      expect(gated.status).toBe(302);
+      await request(server.url)
+        .get("/drawings")
+        .set("Host", "192.168.1.10")
+        .expect(302)
+        .expect("Location", "https://first.example.test/drawings");
+      await request(server.url)
+        .get("/drawings")
+        .set("Host", "192.168.1.10:6767")
+        .expect(409);
       const secure = await fetch(`${server.url}/drawings`, {
         headers: { "X-Forwarded-Proto": "https" },
         redirect: "manual",

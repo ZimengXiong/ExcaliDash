@@ -53,6 +53,15 @@ test("lab frontends use the unprivileged nginx listener and runtime config", () 
   );
 });
 
+test("nginx forwards the incoming Host including its port for API and Socket.IO requests", () => {
+  for (const location of ["/api/", "/socket.io/"]) {
+    const start = nginx.indexOf(`location ${location} {`);
+    assert.notEqual(start, -1);
+    const block = nginx.slice(start, nginx.indexOf("}", start));
+    assert.match(block, /proxy_set_header Host \$http_host;/);
+  }
+});
+
 for (const [name, hostPort] of Object.entries(frontends)) {
   test(`${name} publishes ${hostPort} to nginx and checks the same listener`, () => {
     const service = services[name];
