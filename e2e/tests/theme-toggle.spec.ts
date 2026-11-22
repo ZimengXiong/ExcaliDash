@@ -26,6 +26,18 @@ const isDark = (page: Page) =>
  */
 
 test.describe("Theme preference", () => {
+  test.afterEach(async ({ page }) => {
+    await page.goto("/settings");
+    await page.waitForLoadState("networkidle");
+    const select = themeSelect(page);
+    if (await select.isVisible()) {
+      const current = (await select.textContent())?.trim();
+      if (current && current !== "System") {
+        await chooseTheme(page, "System");
+      }
+    }
+  });
+
   test("should switch theme from Settings page", async ({ page }) => {
     await page.goto("/settings");
     await page.waitForLoadState("networkidle");
