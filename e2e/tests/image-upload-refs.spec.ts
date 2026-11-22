@@ -173,17 +173,14 @@ test.describe("Image upload - metadata-only scene saves", () => {
     expect(persisted.files?.[fileId]).toBeDefined();
     expect(typeof persisted.files?.[fileId]?.dataURL).toBe("string");
 
-    // In database storage mode GET /api/files streams the bytes with immutable
-    // caching so revisits paint from cache (304/hit) with zero transfer. In S3
-    // mode the same endpoint 302-redirects to a presigned URL that carries its
-    // own immutable headers, so only assert on the direct byte response.
     const fileRes = await request.get(
       `${API_URL}/files/${drawing.id}/${fileId}`,
       { maxRedirects: 0 },
     );
     if (fileRes.status() === 200) {
       const cacheControl = fileRes.headers()["cache-control"] || "";
-      expect(cacheControl).toContain("immutable");
+      expect(cacheControl).toContain("private");
+      expect(cacheControl).toContain("no-cache");
       expect(fileRes.headers()["etag"]).toBeTruthy();
     }
   });

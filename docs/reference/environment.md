@@ -19,14 +19,15 @@ Key runtime variables are listed below. For the complete schema, types, and vali
 
 ## Data and limits
 
-| Variable                  | Default            | Purpose                                                                        |
-| ------------------------- | ------------------ | ------------------------------------------------------------------------------ |
-| `DATABASE_PROVIDER`       | `sqlite` (Compose) | Selects `sqlite` or `postgresql` in the Docker entrypoint                      |
-| `DATABASE_URL`            | local SQLite file  | Prisma connection string                                                       |
-| `SNAPSHOT_RETENTION_DAYS` | `2`                | Days to keep drawing snapshots before pruning; shown in the Version history UI |
-| `UPLOAD_MAX_MB`           | `100`              | Max upload size for `.excalidash` imports and database restores                |
-| `FILE_UPLOAD_MAX_MB`      | `100`              | Max size for a single uploaded drawing image                                   |
-| `BODY_LIMIT_MB`           | `50`               | Max size for scene JSON payloads and Socket.IO buffers                         |
+| Variable                        | Default            | Purpose                                                                                                                                                                                                                                                    |
+| ------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_PROVIDER`             | `sqlite` (Compose) | Selects `sqlite` or `postgresql` in the Docker entrypoint                                                                                                                                                                                                  |
+| `DATABASE_URL`                  | local SQLite file  | Prisma connection string                                                                                                                                                                                                                                   |
+| `SNAPSHOT_RETENTION_DAYS`       | `2`                | Days to keep drawing snapshots before pruning; shown in the Version history UI                                                                                                                                                                             |
+| `SNAPSHOT_MIN_INTERVAL_SECONDS` | `0`                | Seconds between history snapshots for ordinary scene PUTs. At `0` each scene PUT takes a snapshot. With positive values, ordinary saves coalesce within the interval. Drops of more than 10% of live elements and history restores always take a snapshot. |
+| `UPLOAD_MAX_MB`                 | `100`              | Max upload size for `.excalidash` imports and database restores                                                                                                                                                                                            |
+| `FILE_UPLOAD_MAX_MB`            | `100`              | Max size for a single uploaded drawing image                                                                                                                                                                                                               |
+| `BODY_LIMIT_MB`                 | `50`               | Max size for scene JSON payloads and Socket.IO buffers                                                                                                                                                                                                     |
 
 The frontend container sets a 50 MB HTTP body limit in `frontend/nginx.conf.template`.
 
