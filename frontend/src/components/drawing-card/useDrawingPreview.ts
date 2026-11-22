@@ -1,20 +1,39 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { Drawing, DrawingSummary } from "../../types";
 import {
-  normalizePreviewSvg,
+  createPreviewIdScope,
+  normalizeSvgElement,
+  scopePreviewSvgIds,
   isDefaultPreviewBackground,
-  previewHasEmbeddedImages,
-  rehydratePreviewSvg,
-  previewHasOrphanedImages,
+  prepareStoredPreview,
+  queuePreviewFetch,
 } from "../../utils/previewSvg";
-import { rehydrateFilesFromUrls } from "../../utils/rehydrateFiles";
+import {
+  isRehydratableRef,
+  rehydrateFilesFromUrls,
+} from "../../utils/rehydrateFiles";
+import { renderPreviewSvg } from "../../utils/renderPreview";
 import * as api from "../../api";
+import {
+  drawingPreviewGeneration,
+  invalidateDrawingPreview,
+  previewCacheKey,
+  readExactCachedPreview,
+  readLatestCachedPreview,
+  subscribeToDrawingPreview,
+  writeCachedPreview,
+} from "./previewCache";
 
-export type HydratedDrawingData = {
-  elements: any[];
-  appState: any;
-  files: Record<string, any>;
-};
+const isAccessLost = (error: unknown) =>
+  api.isAxiosError(error) &&
+  [401, 403, 404].includes(error.response?.status ?? 0);
 
 const normalizeImageElementsForPreview = (
   elements: any[] = [],
@@ -44,45 +63,49 @@ const normalizeImageElementsForPreview = (
 
 export const useDrawingPreview = (
   drawing: DrawingSummary,
-  onPreviewGenerated?: (id: string, preview: string) => void,
   loadPreview = true,
 ) => {
+  const cacheKey = previewCacheKey(drawing);
   const [previewSvg, setPreviewSvg] = useState<string | null>(
-    normalizePreviewSvg(drawing.preview) ?? null,
+    () =>
+      readExactCachedPreview(cacheKey) ??
+      readLatestCachedPreview(drawing.id) ??
+      null,
   );
-  // Parent renders create new callbacks as sibling previews finish. Updating
-  // the notification target must not cancel and restart every pending request.
-  const onPreviewGeneratedRef = useRef(onPreviewGenerated);
-  onPreviewGeneratedRef.current = onPreviewGenerated;
+  const previewRequest = useRef<AbortController | null>(null);
+  const [previewRevision, setPreviewRevision] = useState(0);
+  const evicted = useRef(false);
 
-  // Each drawing revision owns its promise. Old exports retain their own data,
-  // and late responses cannot overwrite the next revision's cache.
-  const ensureFullData = useMemo(() => {
-    let promise: Promise<HydratedDrawingData> | null = null;
-    return (): Promise<HydratedDrawingData> => {
-      promise ??= api
-        .getDrawing(drawing.id)
-        .then((fullDrawing) => ({
-          elements: fullDrawing.elements || [],
-          appState: fullDrawing.appState || {},
-          files: fullDrawing.files || {},
-        }))
-        .catch((error) => {
-          promise = null;
-          throw error;
-        });
-      return promise;
+  useLayoutEffect(() => {
+    evicted.current = false;
+    const unsubscribe = subscribeToDrawingPreview(drawing.id, (wasEvicted) => {
+      previewRequest.current?.abort();
+      if (wasEvicted) {
+        evicted.current = true;
+        setPreviewSvg(null);
+      }
+      setPreviewRevision((previous) => previous + 1);
+    });
+    return () => {
+      previewRequest.current?.abort();
+      unsubscribe();
     };
-    // Version changes invalidate the cache even though the API takes only an ID.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [drawing.id, drawing.version]);
+  }, [drawing.id]);
 
   useEffect(() => {
-    let cancelled = false;
-    setPreviewSvg(normalizePreviewSvg(drawing.preview) ?? null);
-    if (!loadPreview) {
+    if (evicted.current) return;
+    const generation = drawingPreviewGeneration();
+    const exactCached = readExactCachedPreview(cacheKey);
+    if (exactCached !== null) {
+      setPreviewSvg((prev) => (prev === exactCached ? prev : exactCached));
       return;
     }
+    if (!loadPreview) return;
+    const staleCached = readLatestCachedPreview(drawing.id);
+    setPreviewSvg((prev) => prev ?? staleCached);
+    const controller = new AbortController();
+    previewRequest.current = controller;
+    const { signal } = controller;
     const generatePreview = async () => {
       // Previews are no longer inlined in list responses. Prefer the cheap,
       // ETag-cacheable per-drawing preview endpoint; only fall back to
@@ -90,25 +113,39 @@ export const useDrawingPreview = (
       // no stored preview for this drawing.
       try {
         const stored =
-          drawing.preview || (await api.getDrawingPreview(drawing.id));
-        if (cancelled) return;
-        if (stored && !previewHasOrphanedImages(stored)) {
-          const hydrated = await rehydratePreviewSvg(stored);
-          if (cancelled) return;
-          setPreviewSvg(hydrated);
-          if (hydrated !== drawing.preview) {
-            onPreviewGeneratedRef.current?.(drawing.id, hydrated);
+          (previewRevision === 0 && drawing.preview) ||
+          (await queuePreviewFetch(signal, () =>
+            api.getDrawingPreview(drawing.id, signal),
+          ));
+        if (signal.aborted) return;
+        if (stored) {
+          const prepared = await prepareStoredPreview(stored, signal);
+          if (signal.aborted) return;
+          if (prepared !== null) {
+            if (
+              writeCachedPreview(drawing.id, cacheKey, prepared, generation)
+            ) {
+              setPreviewSvg(prepared);
+            }
+            return;
           }
+        }
+      } catch (error) {
+        if (signal.aborted) return;
+        // Lost access or a deleted drawing: stop showing the cached thumbnail.
+        if (isAccessLost(error)) {
+          invalidateDrawingPreview(drawing.id, true);
           return;
         }
-      } catch {
         // An unavailable preview service does not mean the preview is absent.
         // In particular, don't amplify rate limiting with full-drawing fetches.
         return;
       }
       try {
-        const data = await ensureFullData();
-        if (cancelled) return;
+        const data = await queuePreviewFetch(signal, () =>
+          api.getDrawing(drawing.id, { omitPreview: true, signal }),
+        );
+        if (signal.aborted) return;
         if (!data?.elements || !data?.appState) return;
 
         // Ignore old, unreferenced file entries. A deleted image or a failed
@@ -120,57 +157,93 @@ export const useDrawingPreview = (
         );
         const files = await rehydrateFilesFromUrls(
           Object.fromEntries(
-            Object.entries(data.files).filter(([fileId]) =>
+            Object.entries(data.files || {}).filter(([fileId]) =>
               fileIds.has(fileId),
             ),
           ),
+          signal,
+          (fetchFile) => queuePreviewFetch(signal, fetchFile),
         );
-        const { exportToSvg } = await import("@excalidraw/excalidraw");
-        if (cancelled) return;
+        if (signal.aborted) return;
+        const excalidraw = await import("@excalidraw/excalidraw");
+        if (signal.aborted) return;
 
-        const svg = await exportToSvg({
-          elements: normalizeImageElementsForPreview(data.elements, files),
-          appState: {
-            ...data.appState,
-            exportWithDarkMode: false,
-            exportBackground: !isDefaultPreviewBackground(
-              data.appState.viewBackgroundColor,
+        const availableFiles = Object.fromEntries(
+          Object.entries(files).filter(
+            ([, file]) => !isRehydratableRef(file?.dataURL),
+          ),
+        );
+        const preview = await renderPreviewSvg(
+          excalidraw,
+          {
+            elements: normalizeImageElementsForPreview(
+              data.elements,
+              availableFiles,
             ),
-            viewBackgroundColor: data.appState.viewBackgroundColor || "#ffffff",
+            appState: {
+              ...data.appState,
+              exportWithDarkMode: false,
+              exportBackground: !isDefaultPreviewBackground(
+                data.appState.viewBackgroundColor,
+              ),
+              viewBackgroundColor:
+                data.appState.viewBackgroundColor || "#ffffff",
+            },
+            files: availableFiles,
+            exportPadding: 10,
           },
-          files,
-          exportPadding: 10,
-        });
+          normalizeSvgElement,
+        );
 
-        if (cancelled) return;
-        const previewHtml = normalizePreviewSvg(svg.outerHTML) || svg.outerHTML;
-        setPreviewSvg(previewHtml);
-        onPreviewGeneratedRef.current?.(drawing.id, previewHtml);
-      } catch (e) {
-        if (!cancelled) {
-          console.error("Failed to generate preview", e);
+        if (signal.aborted) return;
+        if (generation !== drawingPreviewGeneration()) return;
+        // A failed file fetch should not persist an incomplete preview.
+        if ([...fileIds].every((id) => !id || availableFiles[id]?.dataURL)) {
+          writeCachedPreview(drawing.id, cacheKey, preview, generation);
         }
+        setPreviewSvg(preview);
+      } catch (e) {
+        if (signal.aborted) return;
+        if (isAccessLost(e)) {
+          invalidateDrawingPreview(drawing.id, true);
+          return;
+        }
+        console.error("Failed to generate preview", e);
       }
     };
     generatePreview();
     return () => {
-      cancelled = true;
+      controller.abort();
+      previewRequest.current = null;
     };
-  }, [drawing.id, drawing.preview, ensureFullData, loadPreview]);
+  }, [cacheKey, drawing.id, drawing.preview, loadPreview, previewRevision]);
 
   const buildExportDrawing = useCallback(async (): Promise<Drawing> => {
-    const data = await ensureFullData();
+    const generation = drawingPreviewGeneration();
+    const data = await api.getDrawing(drawing.id, { omitPreview: true });
+    if (generation !== drawingPreviewGeneration() || evicted.current) {
+      throw new DOMException(
+        "The drawing is no longer available",
+        "AbortError",
+      );
+    }
     return {
-      ...drawing,
+      ...data,
       elements: data.elements || [],
       appState: data.appState || {},
       files: data.files || {},
     };
-  }, [drawing, ensureFullData]);
+  }, [drawing.id]);
+
+  // Each inline preview gets its own id namespace in the document.
+  const [idScope] = useState(() => createPreviewIdScope(drawing.id));
+  const scopedPreviewSvg = useMemo(
+    () => (previewSvg ? scopePreviewSvgIds(previewSvg, idScope) : previewSvg),
+    [idScope, previewSvg],
+  );
 
   return {
-    previewSvg,
-    hasEmbeddedImages: previewHasEmbeddedImages(previewSvg),
+    previewSvg: scopedPreviewSvg,
     buildExportDrawing,
   };
 };

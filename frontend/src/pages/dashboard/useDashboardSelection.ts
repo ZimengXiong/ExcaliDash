@@ -1,4 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { DrawingSummary } from "../../types";
 import { getSelectionBounds, type Point, type SelectionBounds } from "./shared";
 
@@ -15,7 +22,11 @@ export const useDashboardSelection = ({
   setSelectedIds,
   searchInputRef,
 }: UseDashboardSelectionParams) => {
-  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+  const lastSelectedIdRef = useRef<string | null>(null);
+  const latestSelection = useRef({ drawings, selectedIds });
+  useLayoutEffect(() => {
+    latestSelection.current = { drawings, selectedIds };
+  }, [drawings, selectedIds]);
   const [isDragSelecting, setIsDragSelecting] = useState(false);
   const [dragStart, setDragStart] = useState<Point | null>(null);
   const [dragCurrent, setDragCurrent] = useState<Point | null>(null);
@@ -93,7 +104,7 @@ export const useDashboardSelection = ({
       if (event.key === "Escape") {
         event.preventDefault();
         setSelectedIds(new Set());
-        setLastSelectedId(null);
+        lastSelectedIdRef.current = null;
       }
       if ((event.metaKey || event.ctrlKey) && event.key === "k") {
         event.preventDefault();
@@ -126,14 +137,12 @@ export const useDashboardSelection = ({
     setDragCurrent({ x: event.clientX, y: event.clientY });
   };
 
-  const handleToggleSelection = (id: string, event: React.MouseEvent) => {
-    setSelectedIds((current) => {
-      const next = new Set(current);
-      if (
-        event.shiftKey &&
-        lastSelectedId &&
-        drawings.some((drawing) => drawing.id === lastSelectedId)
-      ) {
+  const handleToggleSelection = useCallback(
+    (id: string, event: React.MouseEvent) => {
+      const { drawings, selectedIds } = latestSelection.current;
+      const lastSelectedId = lastSelectedIdRef.current;
+      const next = new Set(selectedIds);
+      if (event.shiftKey && lastSelectedId) {
         const currentIndex = drawings.findIndex((drawing) => drawing.id === id);
         const lastIndex = drawings.findIndex(
           (drawing) => drawing.id === lastSelectedId,
@@ -144,19 +153,30 @@ export const useDashboardSelection = ({
           for (let index = start; index <= end; index++) {
             next.add(drawings[index].id);
           }
-          return next;
+          setSelectedIds(next);
+          return;
         }
       }
       if (next.has(id)) {
         next.delete(id);
-        setLastSelectedId(null);
+        lastSelectedIdRef.current = null;
       } else {
         next.add(id);
-        setLastSelectedId(id);
+        lastSelectedIdRef.current = id;
       }
-      return next;
-    });
-  };
+      setSelectedIds(next);
+    },
+    [setSelectedIds],
+  );
+
+  const shouldSelectDrawing = useCallback((event: React.MouseEvent) => {
+    return (
+      latestSelection.current.selectedIds.size > 0 ||
+      event.shiftKey ||
+      event.metaKey ||
+      event.ctrlKey
+    );
+  }, []);
 
   const allSelected =
     drawings.length > 0 && selectedIds.size === drawings.length;
@@ -164,7 +184,7 @@ export const useDashboardSelection = ({
   const handleSelectAll = () => {
     if (allSelected) {
       setSelectedIds(new Set());
-      setLastSelectedId(null);
+      lastSelectedIdRef.current = null;
       return;
     }
     setSelectedIds(new Set(drawings.map((drawing) => drawing.id)));
@@ -180,6 +200,7 @@ export const useDashboardSelection = ({
     resetSelection,
     handleMouseDown,
     handleToggleSelection,
+    shouldSelectDrawing,
     handleSelectAll,
   };
 };

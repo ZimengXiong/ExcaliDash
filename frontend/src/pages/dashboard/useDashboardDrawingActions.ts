@@ -1,9 +1,19 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import type { NavigateFunction } from "react-router-dom";
 import * as api from "../../api";
 import type { Collection, DrawingSummary } from "../../types";
+import type { DrawingSortField, SortDirection } from "../../api";
+import { mutateDashboardDrawings, sortDrawings } from "./useDashboardData";
+import { scopePreviewSvgIds } from "../../utils/previewSvg";
+
+const scopeDragPreview = (svg: string | undefined) =>
+  svg ? scopePreviewSvgIds(svg, "drag-") : svg;
 
 type UseDashboardDrawingActionsParams = {
+  listKey: string;
+  sortField: DrawingSortField;
+  sortDirection: SortDirection;
   drawings: DrawingSummary[];
   setDrawings: React.Dispatch<React.SetStateAction<DrawingSummary[]>>;
   collections: Collection[];
@@ -12,7 +22,8 @@ type UseDashboardDrawingActionsParams = {
   setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   setTotalCount: React.Dispatch<React.SetStateAction<number>>;
   uploadFiles: (files: File[], collectionId: string | null) => Promise<void>;
-  refreshData: () => void;
+  refreshDrawings: () => Promise<void>;
+  refreshCurrentDrawings: () => Promise<void>;
   navigate: NavigateFunction;
 };
 
@@ -24,7 +35,20 @@ const showTemporaryViewerError = (
   setTimeout(() => setViewerActionError(null), 3000);
 };
 
+// A partial failure still has to wait for the other mutations before reloading.
+const runForDrawings = async (
+  ids: string[],
+  mutate: (id: string) => Promise<unknown>,
+) => {
+  const results = await Promise.allSettled(ids.map(mutate));
+  const rejected = results.find((result) => result.status === "rejected");
+  if (rejected) throw rejected.reason;
+};
+
 export const useDashboardDrawingActions = ({
+  listKey,
+  sortField,
+  sortDirection,
   drawings,
   setDrawings,
   collections,
@@ -33,9 +57,11 @@ export const useDashboardDrawingActions = ({
   setSelectedIds,
   setTotalCount,
   uploadFiles,
-  refreshData,
+  refreshDrawings,
+  refreshCurrentDrawings,
   navigate,
 }: UseDashboardDrawingActionsParams) => {
+  const [confirmationView, setConfirmationView] = useState(listKey);
   const [drawingToDelete, setDrawingToDelete] = useState<string | null>(null);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [showImportError, setShowImportError] = useState<{
@@ -45,7 +71,21 @@ export const useDashboardDrawingActions = ({
   const [viewerActionError, setViewerActionError] = useState<string | null>(
     null,
   );
-  const [potentialDragId, setPotentialDragId] = useState<string | null>(null);
+  const [dragPreviewDrawings, setDragPreviewDrawings] = useState<{
+    drawings: DrawingSummary[];
+    count: number;
+  } | null>(null);
+  if (confirmationView !== listKey) {
+    setConfirmationView(listKey);
+    setDrawingToDelete(null);
+    setShowBulkDeleteConfirm(false);
+  }
+  const drawingPreviews = useRef(new Map<string, string>());
+  const dragSelection = useRef({ drawings, selectedIds });
+
+  useLayoutEffect(() => {
+    dragSelection.current = { drawings, selectedIds };
+  }, [drawings, selectedIds]);
 
   const isTrashView = selectedCollectionId === "trash";
   const isSharedView = selectedCollectionId === "shared";
@@ -70,15 +110,23 @@ export const useDashboardDrawingActions = ({
     try {
       const targetCollectionId =
         selectedCollectionId === undefined ? null : selectedCollectionId;
-      const { id } = await api.createDrawing(
-        "Untitled Drawing",
-        targetCollectionId,
+      const { id } = await mutateDashboardDrawings(
+        () => api.createDrawing("Untitled Drawing", targetCollectionId),
+        { changesExisting: false },
       );
       navigate(`/editor/${id}`);
     } catch (err) {
       console.error(err);
     }
   };
+
+  // Imports add drawings to other cached lists (e.g. All Drawings) too.
+  const importFiles = (files: File[], collectionId: string | null) =>
+    mutateDashboardDrawings(() => uploadFiles(files, collectionId), {
+      changesExisting: false,
+    })
+      .catch((error) => console.error("Failed to import drawings:", error))
+      .finally(refreshCurrentDrawings);
 
   const handleImportDrawings = async (files: FileList | null) => {
     if (!files || isTrashView || isSharedView) return;
@@ -88,191 +136,207 @@ export const useDashboardDrawingActions = ({
     }
     const targetCollectionId =
       selectedCollectionId === undefined ? null : selectedCollectionId;
-    uploadFiles(Array.from(files), targetCollectionId).finally(refreshData);
+    void importFiles(Array.from(files), targetCollectionId);
   };
 
-  const handleRenameDrawing = async (id: string, name: string) => {
-    setDrawings((current) =>
-      current.map((drawing) =>
-        drawing.id === id ? { ...drawing, name } : drawing,
+  const isCurrentDrawing = useCallback(
+    (id: string) =>
+      drawings.some(
+        (drawing) =>
+          drawing.id === id &&
+          (!isTrashView || drawing.collectionId === "trash"),
       ),
+    [drawings, isTrashView],
+  );
+  const getSelectedDrawingIds = () =>
+    Array.from(selectedIds).filter(isCurrentDrawing);
+
+  const applyDrawingChanges = useCallback(
+    (update: (drawing: DrawingSummary) => DrawingSummary | null) => {
+      const next = drawings
+        .map(update)
+        .filter((drawing): drawing is DrawingSummary => drawing !== null);
+      setDrawings(next);
+      const removed = drawings.length - next.length;
+      if (removed > 0) setTotalCount((count) => count - removed);
+    },
+    [drawings, setDrawings, setTotalCount],
+  );
+
+  const removeDrawings = useCallback(
+    (ids: Set<string>) => {
+      applyDrawingChanges((drawing) => (ids.has(drawing.id) ? null : drawing));
+      setSelectedIds(
+        (current) => new Set([...current].filter((id) => !ids.has(id))),
+      );
+    },
+    [applyDrawingChanges, setSelectedIds],
+  );
+
+  const changeDrawings = useCallback(
+    async (mutate: () => Promise<unknown>, errorMessage: string) => {
+      try {
+        await mutateDashboardDrawings(mutate);
+      } catch (error) {
+        console.error(errorMessage, error);
+      } finally {
+        await refreshCurrentDrawings();
+      }
+    },
+    [refreshCurrentDrawings],
+  );
+
+  const handleRenameDrawing = useCallback(
+    async (id: string, name: string) => {
+      if (!isCurrentDrawing(id)) return;
+      setDrawings((current) => {
+        const next = current.map((drawing) =>
+          drawing.id === id ? { ...drawing, name } : drawing,
+        );
+        return sortField === "name"
+          ? sortDrawings(next, sortField, sortDirection)
+          : next;
+      });
+      await changeDrawings(
+        () => api.updateDrawing(id, { name }),
+        "Failed to rename drawing:",
+      );
+    },
+    [isCurrentDrawing, setDrawings, sortField, sortDirection, changeDrawings],
+  );
+
+  const moveDrawings = useCallback(
+    async (ids: string[], collectionId: string | null) => {
+      if (ids.length === 0) return;
+      const targets = new Set(ids);
+      applyDrawingChanges((drawing) => {
+        if (!targets.has(drawing.id)) return drawing;
+        const staysInView =
+          selectedCollectionId === undefined
+            ? collectionId !== "trash"
+            : collectionId === selectedCollectionId;
+        return staysInView ? { ...drawing, collectionId } : null;
+      });
+      setSelectedIds(
+        (current) => new Set([...current].filter((id) => !targets.has(id))),
+      );
+      await changeDrawings(
+        () =>
+          runForDrawings(ids, (id) => api.updateDrawing(id, { collectionId })),
+        "Failed to move drawing:",
+      );
+    },
+    [applyDrawingChanges, changeDrawings, selectedCollectionId, setSelectedIds],
+  );
+
+  const handleDeleteDrawing = useCallback(
+    async (id: string) => {
+      if (!isCurrentDrawing(id)) return;
+      if (isTrashView) setDrawingToDelete(id);
+      else await moveDrawings([id], "trash");
+    },
+    [isCurrentDrawing, isTrashView, moveDrawings],
+  );
+
+  const permanentlyDeleteDrawings = async (ids: string[]) => {
+    if (!isTrashView || ids.length === 0) return;
+    let restoredElsewhere = false;
+    const deletedIds = new Set<string>();
+    await changeDrawings(
+      () =>
+        runForDrawings(ids, (id) =>
+          api
+            .deleteDrawing(id, { requireTrashed: true })
+            .then(() => {
+              deletedIds.add(id);
+            })
+            .catch((error) => {
+              if (api.isAxiosError(error) && error.response?.status === 409) {
+                restoredElsewhere = true;
+                return;
+              }
+              throw error;
+            }),
+        ),
+      "Failed to delete drawing:",
     );
-    try {
-      await api.updateDrawing(id, { name });
-    } catch (err) {
-      console.error("Failed to rename drawing:", err);
-      refreshData();
+    if (deletedIds.size > 0) {
+      setSelectedIds(
+        (current) => new Set([...current].filter((id) => !deletedIds.has(id))),
+      );
     }
-  };
-
-  const moveOutOfCurrentView = (
-    update: (drawing: DrawingSummary) => DrawingSummary,
-    keep: (drawing: DrawingSummary) => boolean,
-  ) => {
-    setDrawings((current) => {
-      const updated = current.map(update);
-      const next = updated.filter(keep);
-      setTotalCount((count) => count - (current.length - next.length));
-      return next;
-    });
-  };
-
-  // Drop a single drawing from the current list + selection (optimistic).
-  const removeDrawingFromList = (id: string) => {
-    setDrawings((current) => {
-      const next = current.filter((drawing) => drawing.id !== id);
-      if (next.length !== current.length) setTotalCount((count) => count - 1);
-      return next;
-    });
-    setSelectedIds((current) => {
-      const next = new Set(current);
-      next.delete(id);
-      return next;
-    });
-  };
-
-  const handleDeleteDrawing = async (id: string) => {
-    if (isTrashView) {
-      setDrawingToDelete(id);
-      return;
-    }
-    removeDrawingFromList(id);
-    try {
-      await api.updateDrawing(id, { collectionId: "trash" });
-    } catch (err) {
-      console.error("Failed to move to trash", err);
-      refreshData();
+    if (restoredElsewhere) {
+      handleViewerActionError(
+        "A drawing was restored from Trash elsewhere and was not deleted",
+      );
     }
   };
 
   const executePermanentDelete = async (id: string) => {
     setDrawingToDelete(null);
-    try {
-      await api.deleteDrawing(id);
-      removeDrawingFromList(id);
-    } catch (err) {
-      console.error("Failed to delete drawing", err);
-      refreshData();
-    }
-  };
-
-  const executeBulkMoveToTrash = async () => {
-    const ids = Array.from(selectedIds);
-    setDrawings((current) => {
-      const next = current.filter((drawing) => !selectedIds.has(drawing.id));
-      setTotalCount((count) => count - (current.length - next.length));
-      return next;
-    });
-    setSelectedIds(new Set());
-    try {
-      await Promise.all(
-        ids.map((id) => api.updateDrawing(id, { collectionId: "trash" })),
-      );
-    } catch (err) {
-      console.error("Failed bulk move to trash", err);
-      refreshData();
-    }
+    if (isCurrentDrawing(id)) await permanentlyDeleteDrawings([id]);
   };
 
   const handleBulkDeleteClick = () => {
-    if (selectedIds.size === 0) return;
+    const ids = getSelectedDrawingIds();
+    if (ids.length === 0) return;
     if (isTrashView) setShowBulkDeleteConfirm(true);
-    else void executeBulkMoveToTrash();
+    else void moveDrawings(ids, "trash");
   };
 
   const executeBulkPermanentDelete = async () => {
-    const ids = Array.from(selectedIds);
     setShowBulkDeleteConfirm(false);
-    try {
-      await Promise.all(ids.map((id) => api.deleteDrawing(id)));
-      const toDelete = new Set(ids);
-      setDrawings((current) => {
-        const next = current.filter((drawing) => !toDelete.has(drawing.id));
-        setTotalCount((count) => count - (current.length - next.length));
-        return next;
-      });
-      setSelectedIds(new Set());
-    } catch (err) {
-      console.error("Failed bulk delete", err);
-      refreshData();
-    }
+    await permanentlyDeleteDrawings(getSelectedDrawingIds());
   };
 
-  const handleBulkMove = async (collectionId: string | null) => {
-    if (selectedIds.size === 0) return;
-    const idsToMove = Array.from(selectedIds);
-    moveOutOfCurrentView(
-      (drawing) =>
-        selectedIds.has(drawing.id) ? { ...drawing, collectionId } : drawing,
-      (drawing) => {
-        if (selectedCollectionId === undefined) return true;
-        if (selectedCollectionId === null) return drawing.collectionId === null;
-        return drawing.collectionId === selectedCollectionId;
-      },
-    );
-    setSelectedIds(new Set());
-    try {
-      await Promise.all(
-        idsToMove.map((id) => api.updateDrawing(id, { collectionId })),
+  const handleBulkMove = (collectionId: string | null) =>
+    moveDrawings(getSelectedDrawingIds(), collectionId);
+
+  const handleHideSharedDrawing = useCallback(
+    async (id: string) => {
+      if (!isCurrentDrawing(id)) return;
+      removeDrawings(new Set([id]));
+      await changeDrawings(
+        () => api.setSharedDrawingHidden(id, true),
+        "Failed to hide shared drawing:",
       );
-    } catch (err) {
-      console.error("Failed bulk move", err);
-      refreshData();
-    }
-  };
+    },
+    [changeDrawings, isCurrentDrawing, removeDrawings],
+  );
 
-  const handleHideSharedDrawing = async (id: string) => {
-    // Optimistically drop the shared drawing from the recipient's list.
-    removeDrawingFromList(id);
-    try {
-      await api.setSharedDrawingHidden(id, true);
-    } catch (err) {
-      console.error("Failed to hide shared drawing", err);
-      refreshData();
-    }
-  };
+  const duplicateDrawings = useCallback(
+    async (ids: string[]) => {
+      if (ids.length === 0) return;
+      try {
+        await mutateDashboardDrawings(
+          () => runForDrawings(ids, api.duplicateDrawing),
+          { changesExisting: false },
+        );
+      } catch (error) {
+        console.error("Failed to duplicate drawing:", error);
+      } finally {
+        // This callback is scoped to the view where the action started.
+        await refreshDrawings();
+      }
+    },
+    [refreshDrawings],
+  );
 
-  const handleDuplicateDrawing = async (id: string) => {
-    try {
-      await api.duplicateDrawing(id);
-      refreshData();
-    } catch (err) {
-      console.error("Failed to duplicate drawing:", err);
-    }
-  };
+  const handleDuplicateDrawing = useCallback(
+    (id: string) => {
+      if (isCurrentDrawing(id)) return duplicateDrawings([id]);
+    },
+    [duplicateDrawings, isCurrentDrawing],
+  );
 
-  const handleBulkDuplicate = async () => {
-    if (selectedIds.size === 0) return;
-    try {
-      await Promise.all(
-        Array.from(selectedIds).map((id) => api.duplicateDrawing(id)),
-      );
-      setSelectedIds(new Set());
-      refreshData();
-    } catch (err) {
-      console.error("Failed bulk duplicate:", err);
-    }
-  };
+  const handleBulkDuplicate = () => duplicateDrawings(getSelectedDrawingIds());
 
-  const handleMoveToCollection = async (
-    id: string,
-    collectionId: string | null,
-  ) => {
-    moveOutOfCurrentView(
-      (drawing) => (drawing.id === id ? { ...drawing, collectionId } : drawing),
-      (drawing) => {
-        if (selectedCollectionId === undefined) return true;
-        if (selectedCollectionId === null) return drawing.collectionId === null;
-        return drawing.collectionId === selectedCollectionId;
-      },
-    );
-    try {
-      await api.updateDrawing(id, { collectionId });
-    } catch (error) {
-      console.error("Failed to move drawing:", error);
-      refreshData();
-    }
-  };
+  const handleMoveToCollection = useCallback(
+    (id: string, collectionId: string | null) => {
+      if (isCurrentDrawing(id)) return moveDrawings([id], collectionId);
+    },
+    [isCurrentDrawing, moveDrawings],
+  );
 
   const handleDrop = async (
     event: React.DragEvent,
@@ -297,67 +361,52 @@ export const useDashboardDrawingActions = ({
         (file) => !file.name.endsWith(".excalidrawlib"),
       );
       if (drawingFiles.length > 0) {
-        uploadFiles(drawingFiles, targetCollectionId).finally(refreshData);
+        void importFiles(drawingFiles, targetCollectionId);
       }
       return;
     }
     const draggedDrawingId = event.dataTransfer.getData("drawingId");
-    if (!draggedDrawingId) return;
-    const idsToMove = selectedIds.has(draggedDrawingId)
-      ? new Set(selectedIds)
-      : new Set([draggedDrawingId]);
-    moveOutOfCurrentView(
-      (drawing) =>
-        idsToMove.has(drawing.id)
-          ? { ...drawing, collectionId: targetCollectionId }
-          : drawing,
-      (drawing) => {
-        if (selectedCollectionId === undefined) return true;
-        if (selectedCollectionId === null) return drawing.collectionId === null;
-        return drawing.collectionId === selectedCollectionId;
-      },
-    );
-    if (selectedIds.has(draggedDrawingId)) setSelectedIds(new Set());
-    try {
-      await Promise.all(
-        Array.from(idsToMove).map((id) =>
-          api.updateDrawing(id, { collectionId: targetCollectionId }),
-        ),
-      );
-    } catch (err) {
-      console.error("Failed to move", err);
-      refreshData();
-    }
+    if (!isCurrentDrawing(draggedDrawingId)) return;
+    setDragPreviewDrawings(null);
+    const ids = selectedIds.has(draggedDrawingId)
+      ? getSelectedDrawingIds()
+      : [draggedDrawingId];
+    await moveDrawings(ids, targetCollectionId);
   };
 
-  const dragPreviewDrawings = useMemo(() => {
-    if (!potentialDragId) return [];
-    if (selectedIds.has(potentialDragId) && selectedIds.size > 1) {
-      return drawings.filter((drawing) => selectedIds.has(drawing.id));
-    }
-    const drawing = drawings.find((item) => item.id === potentialDragId);
-    return drawing ? [drawing] : [];
-  }, [potentialDragId, selectedIds, drawings]);
-
-  const handleCardMouseDown = (_event: React.MouseEvent, id: string) => {
-    setPotentialDragId(id);
-  };
-
-  const handleCardDragStart = (event: React.DragEvent) => {
-    const preview = document.getElementById("drag-preview");
-    if (preview) event.dataTransfer.setDragImage(preview, 80, 50);
-  };
-
-  const handlePreviewGenerated = useCallback(
-    (id: string, preview: string) => {
-      setDrawings((current) =>
-        current.map((drawing) =>
-          drawing.id === id ? { ...drawing, preview } : drawing,
-        ),
-      );
+  const handleCardDragStart = useCallback(
+    (event: React.DragEvent, id: string) => {
+      const { drawings, selectedIds } = dragSelection.current;
+      const dragged =
+        selectedIds.has(id) && selectedIds.size > 1
+          ? drawings.filter((drawing) => selectedIds.has(drawing.id))
+          : drawings.filter((drawing) => drawing.id === id);
+      // The browser captures the drag image synchronously during dragstart.
+      flushSync(() => {
+        setDragPreviewDrawings({
+          count: dragged.length,
+          drawings: dragged.slice(0, 3).map((drawing) => ({
+            ...drawing,
+            // The card stays mounted; give this copy its own SVG ids.
+            preview: scopeDragPreview(drawingPreviews.current.get(drawing.id)),
+          })),
+        });
+      });
+      const preview = document.getElementById("drag-preview");
+      if (preview) event.dataTransfer.setDragImage(preview, 80, 50);
     },
-    [setDrawings],
+    [],
   );
+
+  const handleCardDragEnd = useCallback(() => setDragPreviewDrawings(null), []);
+
+  const handlePreviewReady = useCallback((id: string, preview: string) => {
+    const previews = drawingPreviews.current;
+    previews.set(id, preview);
+    return () => {
+      previews.delete(id);
+    };
+  }, []);
 
   return {
     drawingToDelete,
@@ -386,8 +435,8 @@ export const useDashboardDrawingActions = ({
     handleBulkDuplicate,
     handleMoveToCollection,
     handleDrop,
-    handleCardMouseDown,
     handleCardDragStart,
-    handlePreviewGenerated,
+    handleCardDragEnd,
+    handlePreviewReady,
   };
 };

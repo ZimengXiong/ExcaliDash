@@ -12,7 +12,7 @@ vi.mock("@excalidraw/excalidraw", () => ({
   exportToSvg: vi.fn(async () => ({ outerHTML: "<svg />" })),
 }));
 vi.mock("../src/api", () => ({
-  updateDrawing: vi.fn(),
+  saveDrawing: vi.fn(),
   updateLibrary: vi.fn(),
   isAxiosError: (error: any) => Boolean(error?.response),
 }));
@@ -47,7 +47,8 @@ const mountEditor = async () => {
     excalidrawAPI: ref(liveAPI),
     isSyncing: ref(false),
     isUnmounting: ref(false),
-    lastLocalChangeAt: ref(1),
+    localSceneRevision: ref(1),
+    savedSceneRevision: ref(0),
     lastPersistedElements: ref<readonly any[]>([]),
     lastPersistedFiles: ref({}),
     lastSyncedFiles: ref({}),
@@ -81,15 +82,14 @@ const mountEditor = async () => {
       drawingName: "Drawing",
       isSavingOnLeave: false,
       newName: "Drawing",
-      user: null,
       refs: {
         ...refs,
         historyRestorePending: persistence.historyRestorePendingRef,
         saveData: persistence.saveDataRef,
         savePreview: persistence.savePreviewRef,
       },
-      debouncedSaveLibrary: persistence.debouncedSaveLibrary,
       enqueueSceneSave: persistence.enqueueSceneSave,
+      flushBroadcastChanges: vi.fn(),
       resolveSafeSnapshot,
       setAutoHideEnabled: vi.fn(),
       setDrawingName: vi.fn(),
@@ -126,7 +126,7 @@ afterEach(async () => {
 
 describe("back navigation with unsaved changes", () => {
   it("leaves the editor when the drawing was deleted while open", async () => {
-    vi.mocked(api.updateDrawing).mockRejectedValue({
+    vi.mocked(api.saveDrawing).mockRejectedValue({
       response: { status: 404 },
     });
     const commands = await mountEditor();
@@ -143,7 +143,7 @@ describe("back navigation with unsaved changes", () => {
   });
 
   it("still stays in the editor when a save fails for another reason", async () => {
-    vi.mocked(api.updateDrawing).mockRejectedValue({
+    vi.mocked(api.saveDrawing).mockRejectedValue({
       response: { status: 500 },
     });
     const commands = await mountEditor();

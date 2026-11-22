@@ -3,6 +3,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -128,6 +129,16 @@ interface PreferencesContextType {
 const PreferencesContext = createContext<PreferencesContextType | undefined>(
   undefined,
 );
+const UpdatePreferencesContext = createContext<
+  PreferencesContextType["updatePreferences"] | undefined
+>(undefined);
+// Each single-field reader subscribes only to its own stored value.
+const fieldContexts = Object.fromEntries(
+  KNOWN_KEYS.map((key) => [
+    key,
+    createContext<Preferences[PreferenceKey]>(undefined),
+  ]),
+) as Record<PreferenceKey, React.Context<Preferences[PreferenceKey]>>;
 
 export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -224,13 +235,33 @@ export const PreferencesProvider: React.FC<{ children: React.ReactNode }> = ({
     [updatePreferences],
   );
 
+  const value = useMemo(
+    () => ({ preferences, updatePreferences, setPreference }),
+    [preferences, updatePreferences, setPreference],
+  );
   return (
-    <PreferencesContext.Provider
-      value={{ preferences, updatePreferences, setPreference }}
-    >
-      {children}
+    <PreferencesContext.Provider value={value}>
+      <UpdatePreferencesContext.Provider value={updatePreferences}>
+        {KNOWN_KEYS.reduceRight<React.ReactNode>((nested, field) => {
+          const FieldContext = fieldContexts[field];
+          return (
+            <FieldContext.Provider value={preferences[field]}>
+              {nested}
+            </FieldContext.Provider>
+          );
+        }, children)}
+      </UpdatePreferencesContext.Provider>
     </PreferencesContext.Provider>
   );
+};
+
+export const useUpdatePreferences = () => {
+  const updatePreferences = useContext(UpdatePreferencesContext);
+  if (!updatePreferences)
+    throw new Error(
+      "useUpdatePreferences must be used within a PreferencesProvider",
+    );
+  return updatePreferences;
 };
 
 export const usePreferences = (): PreferencesContextType => {
@@ -249,13 +280,13 @@ export const usePreference = <K extends PreferenceKey>(
   key: K,
   defaultValue: NonNullable<Preferences[K]>,
 ): readonly [NonNullable<Preferences[K]>, (value: Preferences[K]) => void] => {
-  const { preferences, setPreference } = usePreferences();
-  const value = (preferences[key] ?? defaultValue) as NonNullable<
+  const updatePreferences = useUpdatePreferences();
+  const value = (useContext(fieldContexts[key]) ?? defaultValue) as NonNullable<
     Preferences[K]
   >;
   const setValue = useCallback(
-    (next: Preferences[K]) => setPreference(key, next),
-    [key, setPreference],
+    (next: Preferences[K]) => updatePreferences({ [key]: next }),
+    [key, updatePreferences],
   );
   return [value, setValue] as const;
 };

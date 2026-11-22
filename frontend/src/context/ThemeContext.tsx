@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import type { ThemePreference } from "../api";
 import { usePreference } from "./PreferencesContext";
 
@@ -69,16 +75,18 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [theme]);
 
-  const toggleTheme = () => {
-    setThemePreference(theme === "light" ? "dark" : "light");
-  };
-
+  const value = useMemo(
+    () => ({
+      theme,
+      themePreference,
+      setThemePreference,
+      toggleTheme: () =>
+        setThemePreference(theme === "light" ? "dark" : "light"),
+    }),
+    [theme, themePreference, setThemePreference],
+  );
   return (
-    <ThemeContext.Provider
-      value={{ theme, themePreference, setThemePreference, toggleTheme }}
-    >
-      {children}
-    </ThemeContext.Provider>
+    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
   );
 };
 

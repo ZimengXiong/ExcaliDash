@@ -3,7 +3,7 @@ import { Calendar, Clock, FileText } from "lucide-react";
 import type { DrawingSortField, SortDirection } from "../../api";
 import {
   usePreference,
-  usePreferences,
+  useUpdatePreferences,
 } from "../../context/PreferencesContext";
 
 const DEFAULT_SORT_FIELD: DrawingSortField = "updatedAt";
@@ -28,7 +28,7 @@ const sortOptions: {
 export const useDashboardSort = () => {
   // Server-backed via the shared preferences context, which owns the
   // no-clobber-on-first-mount gate and refetch-on-user-change behavior.
-  const { updatePreferences } = usePreferences();
+  const updatePreferences = useUpdatePreferences();
   const [field] = usePreference("dashboardSortField", DEFAULT_SORT_FIELD);
   const [direction] = usePreference(
     "dashboardSortDirection",

@@ -4,7 +4,8 @@ import { Loader2 } from "lucide-react";
 import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useDebounce } from "../hooks/useDebounce";
 import { ConfirmModal } from "../components/ConfirmModal";
-import { useUpload } from "../context/UploadContext";
+import { useUploadFiles } from "../context/UploadContext";
+import { useAuth } from "../context/AuthContext";
 import { DragOverlayPortal } from "./dashboard/shared";
 import { DashboardToolbar } from "./dashboard/DashboardToolbar";
 import {
@@ -13,17 +14,37 @@ import {
   FileDropOverlay,
   ViewerActionToast,
 } from "./dashboard/DashboardPanels";
-import { useDashboardData } from "./dashboard/useDashboardData";
+import {
+  matchesDrawingSearch,
+  useDashboardData,
+} from "./dashboard/useDashboardData";
 import { useDashboardCollectionActions } from "./dashboard/useDashboardCollectionActions";
 import { useDashboardDrawingActions } from "./dashboard/useDashboardDrawingActions";
 import { useDashboardSelection } from "./dashboard/useDashboardSelection";
 import { useDashboardSort } from "./dashboard/useDashboardSort";
 import { displayFontFamily } from "../utils/displayFont";
+import { preloadEditor } from "../editorRoute";
+import { prefetchDrawing } from "../utils/drawingPrefetch";
+import type { DrawingSummary } from "../types";
 const PAGE_SIZE = 24;
 export const Dashboard: React.FC = () => {
+  const { sessionGeneration } = useAuth();
+  return <DashboardView key={sessionGeneration} />;
+};
+
+const DashboardView: React.FC = () => {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
+  useEffect(() => {
+    const preload = () => void preloadEditor().catch(() => undefined);
+    if (typeof window.requestIdleCallback === "function") {
+      const handle = window.requestIdleCallback(preload);
+      return () => window.cancelIdleCallback(handle);
+    }
+    const handle = window.setTimeout(preload, 0);
+    return () => window.clearTimeout(handle);
+  }, []);
   const selectedCollectionId = React.useMemo(() => {
     if (location.pathname === "/") return undefined;
     if (location.pathname === "/collections") {
@@ -33,17 +54,8 @@ export const Dashboard: React.FC = () => {
     }
     return undefined;
   }, [location.pathname, searchParams]);
-  const setSelectedCollectionId = (id: string | null | undefined) => {
-    if (id === undefined) {
-      navigate("/");
-    } else if (id === null) {
-      navigate("/collections?id=unorganized");
-    } else {
-      navigate(`/collections?id=${id}`);
-    }
-  };
   const [search, setSearch] = useState("");
-  const debouncedSearch = useDebounce(search, 300);
+  const debouncedSearch = useDebounce(search, 200);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkMoveMenu, setShowBulkMoveMenu] = useState(false);
   const [showSortMenu, setShowSortMenu] = useState(false);
@@ -57,11 +69,22 @@ export const Dashboard: React.FC = () => {
     handleSortFieldChange: setSortField,
     handleSortDirectionToggle,
   } = useDashboardSort();
-  const { uploadFiles } = useUpload();
+  const uploadFiles = useUploadFiles();
   const resetSelection = React.useCallback(() => {
     setSelectedIds(new Set());
-  }, []);
+  }, [setSelectedIds]);
+  const setSelectedCollectionId = (id: string | null | undefined) => {
+    if (id !== selectedCollectionId) resetSelection();
+    if (id === undefined) {
+      navigate("/");
+    } else if (id === null) {
+      navigate("/collections?id=unorganized");
+    } else {
+      navigate(`/collections?id=${id}`);
+    }
+  };
   const {
+    listKey,
     drawings,
     setDrawings,
     collections,
@@ -71,6 +94,8 @@ export const Dashboard: React.FC = () => {
     isLoading,
     hasMore,
     refreshData,
+    refreshDrawings,
+    refreshCurrentDrawings,
     fetchMore,
   } = useDashboardData({
     debouncedSearch,
@@ -80,6 +105,12 @@ export const Dashboard: React.FC = () => {
     pageSize: PAGE_SIZE,
     onRefreshSuccess: resetSelection,
   });
+  const [selectionView, setSelectionView] = useState(listKey);
+  if (selectionView !== listKey) {
+    setSelectionView(listKey);
+    setSelectedIds(new Set());
+    setShowBulkMoveMenu(false);
+  }
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -116,18 +147,48 @@ export const Dashboard: React.FC = () => {
       }
     }
   }, []);
-  const sortedDrawings = drawings;
+  // Filter by the live search term while the debounced request is pending,
+  // so each keystroke narrows the grid immediately.
+  const sortedDrawings = React.useMemo(
+    () => drawings.filter((drawing) => matchesDrawingSearch(drawing, search)),
+    [drawings, search],
+  );
   const selection = useDashboardSelection({
     drawings: sortedDrawings,
     selectedIds,
     setSelectedIds,
     searchInputRef,
   });
+  const { handleToggleSelection, shouldSelectDrawing } = selection;
+  const handleDrawingClick = useCallback(
+    (drawing: DrawingSummary, event: React.MouseEvent) => {
+      if (shouldSelectDrawing(event)) {
+        handleToggleSelection(drawing.id, event);
+      } else {
+        prefetchDrawing(drawing.id);
+        navigate(`/editor/${drawing.id}`, {
+          state: { drawingName: drawing.name },
+        });
+      }
+    },
+    [handleToggleSelection, navigate, shouldSelectDrawing],
+  );
+  const changeSearch = useCallback(
+    (next: string) => {
+      setSearch(next);
+      resetSelection();
+    },
+    [resetSelection, setSearch],
+  );
+  const clearSearch = useCallback(() => changeSearch(""), [changeSearch]);
   const handleSortFieldChange = (field: typeof sortConfig.field) => {
     setSortField(field);
     setShowSortMenu(false);
   };
   const actions = useDashboardDrawingActions({
+    listKey,
+    sortField: sortConfig.field,
+    sortDirection: sortConfig.direction,
     drawings,
     setDrawings,
     collections,
@@ -136,7 +197,8 @@ export const Dashboard: React.FC = () => {
     setSelectedIds,
     setTotalCount,
     uploadFiles,
-    refreshData,
+    refreshDrawings,
+    refreshCurrentDrawings,
     navigate,
   });
   const collectionActions = useDashboardCollectionActions({
@@ -168,7 +230,7 @@ export const Dashboard: React.FC = () => {
       onDrop={actions.isSharedView ? undefined : actions.handleDrop}
     >
       {" "}
-      <DragPreview drawings={actions.dragPreviewDrawings} />{" "}
+      <DragPreview preview={actions.dragPreviewDrawings} />{" "}
       {selection.isDragSelecting && selection.selectionBounds && (
         <DragOverlayPortal>
           {" "}
@@ -208,7 +270,7 @@ export const Dashboard: React.FC = () => {
         showBulkMoveMenu={showBulkMoveMenu}
         selectedCount={selectedIds.size}
         collections={collections}
-        onSearchChange={setSearch}
+        onSearchChange={changeSearch}
         onShowSortMenuChange={setShowSortMenu}
         onSortFieldChange={handleSortFieldChange}
         onSortDirectionToggle={handleSortDirectionToggle}
@@ -248,24 +310,28 @@ export const Dashboard: React.FC = () => {
           drawings={sortedDrawings}
           collections={collections}
           selectedIds={selectedIds}
-          search={search}
-          isLoading={isLoading}
+          emptySearch={sortedDrawings.length === 0 ? search : ""}
+          isLoading={isLoading && sortedDrawings.length === 0}
           isDraggingFile={isDraggingFile}
           isTrashView={actions.isTrashView}
           isSharedView={actions.isSharedView}
           isSharedCollection={actions.isSharedCollection}
-          currentCollection={actions.currentCollection}
-          onClearSearch={() => setSearch("")}
-          onToggleSelection={selection.handleToggleSelection}
+          sharedRole={
+            actions.isSharedCollection
+              ? (actions.currentCollection?.sharedRole ?? undefined)
+              : undefined
+          }
+          onClearSearch={clearSearch}
+          onToggleSelection={handleToggleSelection}
           onRename={actions.handleRenameDrawing}
           onDelete={actions.handleDeleteDrawing}
           onHide={actions.handleHideSharedDrawing}
           onDuplicate={actions.handleDuplicateDrawing}
           onMoveToCollection={actions.handleMoveToCollection}
-          onOpenDrawing={(id) => navigate(`/editor/${id}`)}
-          onMouseDown={actions.handleCardMouseDown}
+          onClick={handleDrawingClick}
           onDragStart={actions.handleCardDragStart}
-          onPreviewGenerated={actions.handlePreviewGenerated}
+          onDragEnd={actions.handleCardDragEnd}
+          onPreviewReady={actions.handlePreviewReady}
         />{" "}
         <div
           ref={loaderRef}

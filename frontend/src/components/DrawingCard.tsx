@@ -1,15 +1,17 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { memo, useState, useEffect, useCallback } from "react";
 import { PenTool, Check, Clock } from "lucide-react";
 import type { DrawingSummary, Collection } from "../types";
 import { formatDistanceToNow } from "date-fns";
 import clsx from "clsx";
-import { exportDrawingToFile } from "../utils/exportUtils";
 import { StorageManageModal } from "./StorageManageModal";
 import { CollectionPicker } from "./drawing-card/CollectionPicker";
 import { DrawingCardContextMenu } from "./drawing-card/DrawingCardContextMenu";
+import { hasCachedDrawingPreview } from "./drawing-card/previewCache";
 import { useDrawingPreview } from "./drawing-card/useDrawingPreview";
+import { usePreviewVisibility } from "./drawing-card/usePreviewVisibility";
 import * as api from "../api";
 import { InlineEditInput } from "./InlineEditInput";
+import { preloadEditor } from "../editorRoute";
 
 interface DrawingCardProps {
   drawing: DrawingSummary;
@@ -18,25 +20,27 @@ interface DrawingCardProps {
   isTrash?: boolean;
   isShared?: boolean;
   isSharedCollection?: boolean;
-  onToggleSelection: (e: React.MouseEvent) => void;
+  sharedRole?: DrawingSummary["accessLevel"];
+  onToggleSelection: (id: string, e: React.MouseEvent) => void;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
   onHide?: (id: string) => void;
   onMoveToCollection: (id: string, collectionId: string | null) => void;
   onDuplicate: (id: string) => void;
-  onClick: (id: string, e: React.MouseEvent) => void;
+  onClick: (drawing: DrawingSummary, e: React.MouseEvent) => void;
   onDragStart?: (e: React.DragEvent, id: string) => void;
-  onMouseDown?: (e: React.MouseEvent, id: string) => void;
-  onPreviewGenerated?: (id: string, preview: string) => void;
+  onDragEnd?: () => void;
+  onPreviewReady?: (id: string, preview: string) => () => void;
 }
 
-export const DrawingCard: React.FC<DrawingCardProps> = ({
-  drawing,
+export const DrawingCard = memo(function DrawingCard({
+  drawing: summary,
   collections,
   isSelected,
   isTrash = false,
   isShared = false,
   isSharedCollection = false,
+  sharedRole,
   onToggleSelection,
   onRename,
   onDelete,
@@ -45,9 +49,12 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
   onDuplicate,
   onClick,
   onDragStart,
-  onMouseDown,
-  onPreviewGenerated,
-}) => {
+  onDragEnd,
+  onPreviewReady,
+}: DrawingCardProps) {
+  const drawing = sharedRole
+    ? { ...summary, accessLevel: sharedRole }
+    : summary;
   const [isRenaming, setIsRenaming] = useState(false);
   const [showMoveSubmenu, setShowMoveSubmenu] = useState(false);
   const [showCollectionDropdown, setShowCollectionDropdown] = useState(false);
@@ -60,60 +67,37 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
   const [showStorageModal, setShowStorageModal] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
-  const previewContainerRef = useRef<HTMLDivElement>(null);
-  const [shouldLoadPreview, setShouldLoadPreview] = useState(
-    Boolean(drawing.preview),
-  );
+  const { previewContainerRef, isNearViewport, hasBeenNearViewport } =
+    usePreviewVisibility(hasCachedDrawingPreview(drawing.id));
   const { previewSvg, buildExportDrawing } = useDrawingPreview(
     drawing,
-    onPreviewGenerated,
-    shouldLoadPreview,
+    hasBeenNearViewport,
   );
 
   useEffect(() => {
-    if (drawing.preview) {
-      setShouldLoadPreview(true);
-      return;
-    }
-
-    setShouldLoadPreview(false);
-    const container = previewContainerRef.current;
-    if (!container || typeof IntersectionObserver === "undefined") {
-      setShouldLoadPreview(true);
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (!entries.some((entry) => entry.isIntersecting)) return;
-        setShouldLoadPreview(true);
-        observer.disconnect();
-      },
-      { rootMargin: "320px 0px" },
-    );
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [drawing.id, drawing.preview]);
+    if (previewSvg) return onPreviewReady?.(drawing.id, previewSvg);
+  }, [drawing.id, onPreviewReady, previewSvg]);
 
   useEffect(() => {
+    if (!contextMenu || isShared || isTrash) return;
     let cancelled = false;
-    if (isShared || isTrash) {
-      setStorageAvailable(false);
-      return;
-    }
     api.isS3Enabled().then((enabled) => {
       if (!cancelled) setStorageAvailable(enabled);
     });
     return () => {
       cancelled = true;
     };
-  }, [drawing.id, isShared, isTrash]);
+  }, [contextMenu, isShared, isTrash]);
 
   const handleExport = useCallback(async () => {
     try {
       setIsExporting(true);
       setExportError(null);
-      await exportDrawingToFile(await buildExportDrawing());
+      const [{ exportDrawingToFile }, data] = await Promise.all([
+        import("../utils/exportUtils"),
+        buildExportDrawing(),
+      ]);
+      await exportDrawingToFile(data);
     } catch (error) {
       console.error("Failed to export drawing", error);
       setExportError("Failed to export drawing. Please try again.");
@@ -124,10 +108,11 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
   }, [buildExportDrawing]);
 
   useEffect(() => {
+    if (!contextMenu) return;
     const handleClick = () => setContextMenu(null);
     document.addEventListener("click", handleClick);
     return () => document.removeEventListener("click", handleClick);
-  }, []);
+  }, [contextMenu]);
 
   const startRename = () => {
     setNewName(drawing.name);
@@ -156,11 +141,18 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
     setShowMoveSubmenu(false);
   };
 
+  const preloadDrawing = () => {
+    if (isTrash) return;
+    void preloadEditor().catch(() => undefined);
+  };
+
   return (
     <>
       <div
         id={`drawing-card-${drawing.id}`}
         onContextMenu={handleContextMenu}
+        onPointerEnter={preloadDrawing}
+        onFocus={preloadDrawing}
         draggable={!isRenaming && !isShared}
         onDragStart={(e) => {
           if (isRenaming) {
@@ -174,7 +166,7 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
           e.dataTransfer.setData("drawingId", drawing.id);
           onDragStart?.(e, drawing.id);
         }}
-        onMouseDown={(e) => onMouseDown?.(e, drawing.id)}
+        onDragEnd={onDragEnd}
         className={clsx(
           "drawing-card group relative flex flex-col bg-white dark:bg-neutral-900 rounded-2xl border-2 transition-all duration-200 ease-out",
           !isTrash &&
@@ -193,7 +185,7 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onToggleSelection(e);
+              onToggleSelection(drawing.id, e);
             }}
             data-testid={`select-drawing-${drawing.id}`}
             aria-pressed={isSelected}
@@ -211,16 +203,25 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
 
         <div
           ref={previewContainerRef}
-          onClick={(e) => !isTrash && onClick(drawing.id, e)}
+          onClick={(e) => !isTrash && onClick(drawing, e)}
+          role={isTrash ? undefined : "button"}
+          tabIndex={isTrash ? undefined : 0}
+          aria-label={isTrash ? undefined : `Open ${drawing.name}`}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.currentTarget.click();
+            }
+          }}
           className={clsx(
-            "aspect-[16/10] bg-slate-50 dark:bg-neutral-800/30 relative overflow-hidden flex items-center justify-center border-b-2 border-slate-800 dark:border-neutral-700 rounded-t-xl transition-colors",
+            "aspect-[16/10] [content-visibility:auto] [contain-intrinsic-size:auto_0px] bg-slate-50 dark:bg-neutral-800/30 relative overflow-hidden flex items-center justify-center border-b-2 border-slate-800 dark:border-neutral-700 rounded-t-xl transition-colors",
             !isTrash &&
-              "cursor-pointer group-hover:bg-neutral-100/10 dark:group-hover:bg-neutral-850",
+              "cursor-pointer group-hover:bg-neutral-100/10 dark:group-hover:bg-neutral-850 active:opacity-70",
             isTrash && "cursor-default",
           )}
         >
           <div className="absolute inset-0 opacity-[0.25] bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] [background-size:24px_24px]"></div>
-          {previewSvg ? (
+          {isNearViewport && previewSvg ? (
             <div
               className={clsx(
                 "w-full h-full p-4 sm:p-5 flex items-center justify-center [&>svg]:w-auto [&>svg]:h-auto [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:drop-shadow-xs transition-transform duration-550",
@@ -228,7 +229,7 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
               )}
               dangerouslySetInnerHTML={{ __html: previewSvg }}
             />
-          ) : (
+          ) : isNearViewport ? (
             <div className="w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 bg-white dark:bg-neutral-900 rounded-2xl shadow-sm flex items-center justify-center text-neutral-300 dark:text-neutral-400 border border-neutral-100 dark:border-neutral-800 transform group-hover:scale-105 group-hover:rotate-1 transition-all duration-500">
               <PenTool
                 size={32}
@@ -236,7 +237,7 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
                 className="sm:w-9 sm:h-9 lg:w-10 lg:h-10"
               />
             </div>
-          )}
+          ) : null}
         </div>
 
         <div className="px-4 pt-3.5 pb-3 bg-white dark:bg-neutral-900 rounded-b-2xl relative z-10 flex-1 flex flex-col justify-between gap-2.5">
@@ -313,7 +314,7 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
           position={contextMenu}
           isTrash={isTrash}
           isShared={isShared}
-          storageAvailable={storageAvailable}
+          storageAvailable={!isShared && !isTrash && storageAvailable}
           isExporting={isExporting}
           exportError={exportError}
           showMoveSubmenu={showMoveSubmenu}
@@ -338,12 +339,14 @@ export const DrawingCard: React.FC<DrawingCardProps> = ({
           }}
         />
       )}
-      <StorageManageModal
-        isOpen={showStorageModal}
-        drawingId={drawing.id}
-        drawingName={drawing.name}
-        onClose={() => setShowStorageModal(false)}
-      />
+      {showStorageModal && (
+        <StorageManageModal
+          isOpen
+          drawingId={drawing.id}
+          drawingName={drawing.name}
+          onClose={() => setShowStorageModal(false)}
+        />
+      )}
     </>
   );
-};
+});

@@ -1,6 +1,6 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo } from "react";
 import { resolveLocale, translate } from "../i18n";
-import { LocaleContext } from "./localeContext";
+import { LocaleContext, type LocaleContextValue } from "./localeContext";
 import { usePreference } from "./PreferencesContext";
 
 export const LocaleProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -15,16 +15,16 @@ export const LocaleProvider: React.FC<{ children: React.ReactNode }> = ({
     document.documentElement.lang = locale;
   }, [locale]);
 
+  const value = useMemo<LocaleContextValue>(
+    () => ({
+      locale,
+      language,
+      setLanguage,
+      t: (key) => translate(locale, key),
+    }),
+    [locale, language, setLanguage],
+  );
   return (
-    <LocaleContext.Provider
-      value={{
-        locale,
-        language,
-        setLanguage,
-        t: (key) => translate(locale, key),
-      }}
-    >
-      {children}
-    </LocaleContext.Provider>
+    <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>
   );
 };

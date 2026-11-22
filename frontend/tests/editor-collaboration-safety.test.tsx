@@ -74,7 +74,7 @@ const makeHarness = () => {
     latestElementsRef: ref<readonly any[]>(live),
     latestFilesRef: ref<any>({}),
     lastSyncedFilesRef: ref({}),
-    lastSyncedElementOrderSigRef: ref(""),
+    lastSyncedElementOrderRef: ref<readonly string[] | null>(null),
   };
   const editor = {
     getSceneElementsIncludingDeleted: () => live,
@@ -96,8 +96,6 @@ const makeHarness = () => {
     me,
     isReady: true,
     excalidrawAPI: ref(editor),
-    computeElementOrderSig: (els: readonly any[]) =>
-      els.map((el) => el.id).join(","),
     recordElementVersion: vi.fn(),
     onAccessDenied: vi.fn(),
   };
@@ -267,6 +265,7 @@ describe("remote collaboration staging", () => {
         canEdit: true,
         drawingId: "drawing",
         isReady: true,
+        markSceneChanged: vi.fn(),
         debouncedSavePreview: vi.fn(),
         emitFilesDeltaIfNeeded: fileEmit,
         refs: {
@@ -274,10 +273,8 @@ describe("remote collaboration staging", () => {
           isSyncing,
           isUnmounting: ref(false),
           hasHydratedInitialScene: ref(true),
-          hasSceneChangesSinceLoad: ref(false),
           initialSceneElements: ref([]),
           isBootstrappingScene: ref(false),
-          lastLocalChangeAt: ref(0),
           latestAppState: ref({}),
           latestElements: h.refs.latestElementsRef,
           latestFiles: h.refs.latestFilesRef,
@@ -423,7 +420,7 @@ describe("remote collaboration staging", () => {
     await mount(h.Harness);
     const first = element("first", 1);
     const second = element("second", 1);
-    h.input.lastSyncedElementOrderSigRef.current = "first,second";
+    h.input.lastSyncedElementOrderRef.current = ["first", "second"];
     h.setLive([second, first]);
     sockets[0].handlers.get("element-update")({
       elements: [first, second],
@@ -432,10 +429,13 @@ describe("remote collaboration staging", () => {
     });
     await flushFrames();
     expect(h.refs.latestElementsRef.current).toEqual([second, first]);
-    expect(h.input.lastSyncedElementOrderSigRef.current).toBe("first,second");
-    expect(
-      h.input.computeElementOrderSig(h.refs.latestElementsRef.current),
-    ).not.toBe(h.input.lastSyncedElementOrderSigRef.current);
+    expect(h.input.lastSyncedElementOrderRef.current).toEqual([
+      "first",
+      "second",
+    ]);
+    expect(h.refs.latestElementsRef.current.map((el) => el.id)).not.toEqual(
+      h.input.lastSyncedElementOrderRef.current,
+    );
     sockets[0].handlers.get("element-update")({
       elements: [],
       elementOrder: ["first", "second"],

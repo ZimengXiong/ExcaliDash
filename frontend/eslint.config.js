@@ -61,6 +61,8 @@ export default tseslint.config(
             "usePreferences",
             "useTheme",
             "useUpload",
+            "useUploadFiles",
+            "useUpdatePreferences",
           ],
         },
       ],

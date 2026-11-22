@@ -74,7 +74,7 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
             onDrop?.(e, id);
           }}
           className={clsx(
-            "w-full flex items-center gap-3 px-3 py-2 text-sm font-semibold rounded-xl transition-colors duration-150 border-2 group cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:focus-visible:ring-2 dark:focus-visible:ring-neutral-500",
+            "w-full flex items-center gap-3 px-3 py-2 text-sm font-semibold rounded-xl border-2 group cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:focus-visible:ring-2 dark:focus-visible:ring-neutral-500",
             isActive || isDragOver
               ? "bg-indigo-50 dark:bg-indigo-500/10 text-indigo-900 dark:text-indigo-100 border-slate-800 dark:border-neutral-600 shadow-[1.5px_1.5px_0px_0px_rgba(30,41,59,0.9)] dark:shadow-[1.5px_1.5px_0px_0px_rgba(255,255,255,0.18)]"
               : "text-slate-600 dark:text-neutral-400 border-transparent hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-neutral-800 dark:hover:text-neutral-100",
@@ -82,7 +82,6 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
         >
           <span
             className={clsx(
-              "transition-colors duration-200",
               isActive || isDragOver
                 ? "text-indigo-600 dark:text-indigo-300"
                 : "text-slate-400 dark:text-neutral-500 group-hover:text-slate-900 dark:group-hover:text-neutral-200",

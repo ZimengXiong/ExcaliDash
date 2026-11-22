@@ -4,6 +4,8 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useMemo,
+  useRef,
 } from "react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
@@ -22,6 +24,12 @@ import {
   clearOidcAutoLoginSuppression,
   suppressOidcAutoLogin,
 } from "../utils/oidcLogout";
+import { clearDrawingPreviewCache } from "../components/drawing-card/previewCache";
+import { clearDashboardDataCache } from "../pages/dashboard/useDashboardData";
+import { clearDrawingPrefetchCache } from "../utils/drawingPrefetch";
+import { clearPreviewThumbnailCache } from "../utils/previewThumbnails";
+import { IMPERSONATION_KEY, USER_KEY } from "../utils/impersonation";
+import { bumpAuthSessionGeneration } from "../utils/authSession";
 
 export interface User {
   id: string;
@@ -30,10 +38,12 @@ export interface User {
   name: string;
   role?: "ADMIN" | "USER" | string;
   mustResetPassword?: boolean;
+  impersonatorId?: string;
 }
 
 interface AuthContextType {
   user: User | null;
+  sessionGeneration: number;
   loading: boolean;
   authEnabled: boolean | null;
   registrationEnabled: boolean;
@@ -60,13 +70,27 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const USER_KEY = "excalidash-user";
+const SESSION_CHANGE_KEY = "excalidash-session-change";
 const AUTH_ENABLED_CACHE_KEY = "excalidash-auth-enabled";
+
+const identityOf = (user: User | null) =>
+  JSON.stringify([user?.id ?? null, user?.impersonatorId ?? null]);
+
+const storedIdentity = (value: string | null) => {
+  try {
+    return identityOf(value ? JSON.parse(value) : null);
+  } catch {
+    return identityOf(null);
+  }
+};
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
   const [user, setUser] = useState<User | null>(null);
+  const currentUser = useRef<User | null>(null);
+  const authRequestVersion = useRef(0);
+  const [sessionGeneration, setSessionGeneration] = useState(0);
   const [loading, setLoading] = useState(true);
   const [authEnabled, setAuthEnabled] = useState<boolean | null>(null);
   const [registrationEnabled, setRegistrationEnabled] = useState(false);
@@ -84,13 +108,65 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   >(null);
   const navigate = useNavigate();
 
-  const loadUser = useCallback(async () => {
-    setLoading(true);
-    try {
-      const isShareFlow = window.location.pathname.startsWith("/shared/");
+  const resetSessionCaches = useCallback(() => {
+    bumpAuthSessionGeneration();
+    clearDrawingPreviewCache();
+    clearDashboardDataCache();
+    clearDrawingPrefetchCache();
+    clearPreviewThumbnailCache();
+    setSessionGeneration((previous) => previous + 1);
+  }, []);
 
+  const applyUser = useCallback(
+    (next: User | null, newSession = false) => {
+      if (newSession || identityOf(currentUser.current) !== identityOf(next)) {
+        resetSessionCaches();
+      }
+      currentUser.current = next;
+      setUser(next);
+    },
+    [resetSessionCaches],
+  );
+
+  const completeAuthChange = useCallback(
+    (next: User | null) => {
+      authRequestVersion.current++;
+      applyUser(next, true);
+      setLoading(false);
+      if (next) {
+        localStorage.setItem(USER_KEY, JSON.stringify(next));
+      } else {
+        localStorage.removeItem(USER_KEY);
+      }
+      // A login to the same account can leave the stored user JSON unchanged.
+      localStorage.setItem(
+        SESSION_CHANGE_KEY,
+        String(crypto.getRandomValues(new Uint32Array(1))[0]),
+      );
+    },
+    [applyUser],
+  );
+
+  const loadUser = useCallback(async () => {
+    const request = ++authRequestVersion.current;
+    const isCurrent = () => request === authRequestVersion.current;
+    setLoading(true);
+    let statusUser: User | null | undefined;
+    const applyLoadedUser = (loaded: User) => {
+      const impersonatorId =
+        statusUser?.id === loaded.id ? statusUser.impersonatorId : undefined;
+      applyUser({ ...loaded, impersonatorId });
+      localStorage.setItem(USER_KEY, JSON.stringify(loaded));
+    };
+    try {
       try {
-        const statusResponse = await authStatus();
+        const statusResponse = (await authStatus()) as Awaited<
+          ReturnType<typeof authStatus>
+        > & {
+          user?: User | null;
+        };
+        if (!isCurrent()) return;
+        statusUser = statusResponse?.user;
         setAuthStatusError(null);
         const enabled =
           typeof statusResponse?.authEnabled === "boolean"
@@ -127,10 +203,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
         if (!enabled) {
           localStorage.removeItem(USER_KEY);
-          setUser(null);
+          applyUser(null);
           return;
         }
       } catch {
+        if (!isCurrent()) return;
         const cachedAuthEnabled = localStorage.getItem(AUTH_ENABLED_CACHE_KEY);
         if (cachedAuthEnabled === "false") {
           setAuthStatusError(null);
@@ -144,7 +221,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           setAuthOnboardingRequired(false);
           setAuthOnboardingMode(null);
           localStorage.removeItem(USER_KEY);
-          setUser(null);
+          applyUser(null);
           return;
         }
         setAuthStatusError(
@@ -160,32 +237,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         setAuthOnboardingRequired(false);
         setAuthOnboardingMode(null);
         localStorage.removeItem(USER_KEY);
-        setUser(null);
+        applyUser(null);
         return;
-      }
-
-      // For share-link flows we treat authentication as strictly server-derived.
-      // Loading a stale localStorage user causes "logged-in" UI while the server returns 401s,
-      // which in turn triggers noisy refresh attempts and failing library saves.
-      if (!isShareFlow) {
-        const storedUser = localStorage.getItem(USER_KEY);
-        if (storedUser) {
-          try {
-            const userData = JSON.parse(storedUser);
-            setUser(userData);
-          } catch {
-            localStorage.removeItem(USER_KEY);
-            setUser(null);
-          }
-        }
       }
 
       try {
         const response = await authMe();
+        if (!isCurrent()) return;
         clearOidcAutoLoginSuppression();
-        setUser(response.user);
-        localStorage.setItem(USER_KEY, JSON.stringify(response.user));
+        applyLoadedUser(response.user);
       } catch {
+        if (!isCurrent()) return;
         try {
           // The shared single-flight refresh: mounting Editor and AuthContext
           // both discover an expired access token on a reloaded background
@@ -196,94 +258,117 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
           // page that never refreshes. Anonymous visitors simply fail the
           // refresh and stay anonymous, as before.
           await refreshAccessToken();
+          if (!isCurrent()) return;
           const userResponse = await authMe();
-          setUser(userResponse.user);
-          localStorage.setItem(USER_KEY, JSON.stringify(userResponse.user));
+          if (!isCurrent()) return;
+          applyLoadedUser(userResponse.user);
         } catch {
+          if (!isCurrent()) return;
           localStorage.removeItem(USER_KEY);
-          setUser(null);
+          applyUser(null);
         }
       }
     } catch (error) {
+      if (!isCurrent()) return;
       console.error("Failed to load user:", error);
       setAuthStatusError(
         "Unable to initialize authentication state. Check backend/API connectivity and refresh.",
       );
       localStorage.removeItem(USER_KEY);
-      setUser(null);
+      applyUser(null);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, []);
+  }, [applyUser]);
 
   useEffect(() => {
     loadUser();
   }, [loadUser]);
 
-  const login = async (email: string, password: string) => {
-    try {
-      if (authEnabled === false) {
-        throw new Error("Authentication is disabled");
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.storageArea !== window.localStorage) return;
+      if (
+        event.key === SESSION_CHANGE_KEY ||
+        event.key === IMPERSONATION_KEY ||
+        event.key === null ||
+        (event.key === USER_KEY &&
+          storedIdentity(event.oldValue) !== storedIdentity(event.newValue))
+      ) {
+        resetSessionCaches();
+        void loadUser();
       }
-      const response = await authLogin(email, password);
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [loadUser, resetSessionCaches]);
 
-      const { user: userData } = response;
+  const login = useCallback(
+    async (email: string, password: string) => {
+      try {
+        if (authEnabled === false) {
+          throw new Error("Authentication is disabled");
+        }
+        const response = await authLogin(email, password);
 
-      localStorage.setItem(USER_KEY, JSON.stringify(userData));
+        const { user: userData } = response;
 
-      setAuthStatusError(null);
-      setAuthEnabled(true);
-      setUser(userData);
-    } catch (error: unknown) {
-      if (isAxiosError(error)) {
-        const message =
-          typeof error.response?.data === "object" &&
-          error.response.data !== null &&
-          "message" in error.response.data &&
-          typeof error.response.data.message === "string"
-            ? error.response.data.message
-            : "Login failed";
-        throw new Error(message);
+        setAuthStatusError(null);
+        setAuthEnabled(true);
+        completeAuthChange(userData);
+      } catch (error: unknown) {
+        if (isAxiosError(error)) {
+          const message =
+            typeof error.response?.data === "object" &&
+            error.response.data !== null &&
+            "message" in error.response.data &&
+            typeof error.response.data.message === "string"
+              ? error.response.data.message
+              : "Login failed";
+          throw new Error(message);
+        }
+        throw error instanceof Error ? error : new Error("Login failed");
       }
-      throw error instanceof Error ? error : new Error("Login failed");
-    }
-  };
+    },
+    [authEnabled, completeAuthChange],
+  );
 
-  const register = async (
-    email: string,
-    password: string,
-    name: string,
-    setupCode?: string,
-  ) => {
-    try {
-      if (authEnabled === false) {
-        throw new Error("Authentication is disabled");
+  const register = useCallback(
+    async (
+      email: string,
+      password: string,
+      name: string,
+      setupCode?: string,
+    ) => {
+      try {
+        if (authEnabled === false) {
+          throw new Error("Authentication is disabled");
+        }
+        const response = await authRegister(email, password, name, setupCode);
+
+        const { user: userData } = response;
+
+        setAuthStatusError(null);
+        setAuthEnabled(true);
+        completeAuthChange(userData);
+      } catch (error: unknown) {
+        if (isAxiosError(error)) {
+          const message =
+            typeof error.response?.data === "object" &&
+            error.response.data !== null &&
+            "message" in error.response.data &&
+            typeof error.response.data.message === "string"
+              ? error.response.data.message
+              : "Registration failed";
+          throw new Error(message);
+        }
+        throw error instanceof Error ? error : new Error("Registration failed");
       }
-      const response = await authRegister(email, password, name, setupCode);
+    },
+    [authEnabled, completeAuthChange],
+  );
 
-      const { user: userData } = response;
-
-      localStorage.setItem(USER_KEY, JSON.stringify(userData));
-
-      setAuthStatusError(null);
-      setAuthEnabled(true);
-      setUser(userData);
-    } catch (error: unknown) {
-      if (isAxiosError(error)) {
-        const message =
-          typeof error.response?.data === "object" &&
-          error.response.data !== null &&
-          "message" in error.response.data &&
-          typeof error.response.data.message === "string"
-            ? error.response.data.message
-            : "Registration failed";
-        throw new Error(message);
-      }
-      throw error instanceof Error ? error : new Error("Registration failed");
-    }
-  };
-
-  const logout = async () => {
+  const logout = useCallback(async () => {
     let oidcLogout = false;
     try {
       oidcLogout = (await authLogout()).oidcLogout;
@@ -295,50 +380,72 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       return;
     }
     suppressOidcAutoLogin();
-    localStorage.removeItem(USER_KEY);
-    setUser(null);
+    completeAuthChange(null);
     if (oidcLogout) {
       startOidcSignOut();
       return;
     }
     navigate("/login");
-  };
+  }, [completeAuthChange, navigate]);
 
-  const updateUser = (updates: Partial<User>) => {
-    setUser((currentUser) => {
-      if (!currentUser) return currentUser;
-      const nextUser = { ...currentUser, ...updates };
-      localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
-      return nextUser;
-    });
-  };
-
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        authEnabled,
-        registrationEnabled,
-        authStatusError,
-        authMode,
-        oidcEnabled,
-        oidcEnforced,
-        oidcProvider,
-        bootstrapRequired,
-        authOnboardingRequired,
-        authOnboardingMode,
-        login,
-        register,
-        logout,
-        updateUser,
-        retryAuthStatus: loadUser,
-        isAuthenticated: !!user,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
+  const updateUser = useCallback(
+    (updates: Partial<User>) => {
+      if (!currentUser.current) return;
+      const nextUser = { ...currentUser.current, ...updates };
+      if (identityOf(currentUser.current) !== identityOf(nextUser)) {
+        completeAuthChange(nextUser);
+      } else {
+        applyUser(nextUser);
+        localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
+      }
+    },
+    [applyUser, completeAuthChange],
   );
+
+  const value = useMemo(
+    () => ({
+      user,
+      sessionGeneration,
+      loading,
+      authEnabled,
+      registrationEnabled,
+      authStatusError,
+      authMode,
+      oidcEnabled,
+      oidcEnforced,
+      oidcProvider,
+      bootstrapRequired,
+      authOnboardingRequired,
+      authOnboardingMode,
+      login,
+      register,
+      logout,
+      updateUser,
+      retryAuthStatus: loadUser,
+      isAuthenticated: !!user,
+    }),
+    [
+      user,
+      sessionGeneration,
+      loading,
+      authEnabled,
+      registrationEnabled,
+      authStatusError,
+      authMode,
+      oidcEnabled,
+      oidcEnforced,
+      oidcProvider,
+      bootstrapRequired,
+      authOnboardingRequired,
+      authOnboardingMode,
+      login,
+      register,
+      logout,
+      updateUser,
+      loadUser,
+    ],
+  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {

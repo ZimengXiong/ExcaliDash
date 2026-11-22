@@ -1,21 +1,21 @@
-import React from "react";
+import React, { memo } from "react";
 import clsx from "clsx";
 import { AlertTriangle, Folder, Inbox, Loader2, Trash2 } from "lucide-react";
 import { DrawingCard } from "../../components/DrawingCard";
 import type { Collection, DrawingSummary } from "../../types";
 
 type DragPreviewProps = {
-  drawings: DrawingSummary[];
+  preview: { drawings: DrawingSummary[]; count: number } | null;
 };
 
-export const DragPreview: React.FC<DragPreviewProps> = ({ drawings }) => (
+export const DragPreview: React.FC<DragPreviewProps> = ({ preview }) => (
   <div
     id="drag-preview"
     className="fixed top-[-1000px] left-[-1000px] w-[160px] aspect-[16/10] pointer-events-none"
   >
-    {drawings.length > 0 && (
+    {preview && (
       <div className="relative w-full h-full">
-        {drawings.slice(0, 3).map((drawing, index) => (
+        {preview.drawings.map((drawing, index) => (
           <div
             key={drawing.id}
             className="absolute inset-0 bg-slate-50 dark:bg-neutral-900 border-2 border-slate-800 dark:border-neutral-700 rounded-xl shadow-sm flex items-center justify-center overflow-hidden"
@@ -39,9 +39,9 @@ export const DragPreview: React.FC<DragPreviewProps> = ({ drawings }) => (
             )}
           </div>
         ))}
-        {drawings.length > 1 && (
+        {preview.count > 1 && (
           <div className="absolute -top-2 -right-2 bg-indigo-600 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-white shadow-sm z-50">
-            {drawings.length}
+            {preview.count}
           </div>
         )}
       </div>
@@ -100,13 +100,13 @@ type DrawingsGridProps = {
   drawings: DrawingSummary[];
   collections: Collection[];
   selectedIds: Set<string>;
-  search: string;
+  emptySearch: string;
   isLoading: boolean;
   isDraggingFile: boolean;
   isTrashView: boolean;
   isSharedView: boolean;
   isSharedCollection: boolean;
-  currentCollection?: Collection;
+  sharedRole?: DrawingSummary["accessLevel"];
   onClearSearch: () => void;
   onToggleSelection: (id: string, event: React.MouseEvent) => void;
   onRename: (id: string, name: string) => void;
@@ -114,23 +114,23 @@ type DrawingsGridProps = {
   onHide: (id: string) => void;
   onDuplicate: (id: string) => void;
   onMoveToCollection: (id: string, collectionId: string | null) => void;
-  onOpenDrawing: (id: string) => void;
-  onMouseDown: (event: React.MouseEvent, id: string) => void;
+  onClick: (drawing: DrawingSummary, event: React.MouseEvent) => void;
   onDragStart: (event: React.DragEvent, id: string) => void;
-  onPreviewGenerated: (id: string, preview: string) => void;
+  onDragEnd: () => void;
+  onPreviewReady: (id: string, preview: string) => () => void;
 };
 
-export const DrawingsGrid: React.FC<DrawingsGridProps> = ({
+export const DrawingsGrid = memo(function DrawingsGrid({
   drawings,
   collections,
   selectedIds,
-  search,
+  emptySearch,
   isLoading,
   isDraggingFile,
   isTrashView,
   isSharedView,
   isSharedCollection,
-  currentCollection,
+  sharedRole,
   onClearSearch,
   onToggleSelection,
   onRename,
@@ -138,11 +138,11 @@ export const DrawingsGrid: React.FC<DrawingsGridProps> = ({
   onHide,
   onDuplicate,
   onMoveToCollection,
-  onOpenDrawing,
-  onMouseDown,
+  onClick,
   onDragStart,
-  onPreviewGenerated,
-}) => {
+  onDragEnd,
+  onPreviewReady,
+}: DrawingsGridProps) {
   if (isLoading && drawings.length === 0) {
     return (
       <div
@@ -184,12 +184,12 @@ export const DrawingsGrid: React.FC<DrawingsGridProps> = ({
           </p>
           {!isTrashView && (
             <p className="text-sm mt-1.5 text-slate-500 dark:text-neutral-400 max-w-xs text-center">
-              {search
-                ? `No results for "${search}"`
+              {emptySearch
+                ? `No results for "${emptySearch}"`
                 : "Create a new drawing to get started!"}
             </p>
           )}
-          {search && (
+          {emptySearch && (
             <button
               onClick={onClearSearch}
               className="ui-button-secondary mt-4"
@@ -199,47 +199,29 @@ export const DrawingsGrid: React.FC<DrawingsGridProps> = ({
           )}
         </div>
       ) : (
-        drawings.map((drawing) => {
-          const cardDrawing =
-            isSharedCollection && currentCollection?.sharedRole
-              ? { ...drawing, accessLevel: currentCollection.sharedRole }
-              : drawing;
-          return (
-            <DrawingCard
-              key={drawing.id}
-              drawing={cardDrawing}
-              collections={collections}
-              isSelected={selectedIds.has(drawing.id)}
-              isTrash={isTrashView}
-              isSharedCollection={isSharedCollection}
-              isShared={isSharedView || isSharedCollection}
-              onToggleSelection={(event) =>
-                onToggleSelection(drawing.id, event)
-              }
-              onRename={onRename}
-              onDelete={onDelete}
-              onHide={isSharedView ? onHide : undefined}
-              onDuplicate={onDuplicate}
-              onMoveToCollection={onMoveToCollection}
-              onClick={(id, event) => {
-                if (
-                  selectedIds.size > 0 ||
-                  event.shiftKey ||
-                  event.metaKey ||
-                  event.ctrlKey
-                ) {
-                  onToggleSelection(id, event);
-                } else {
-                  onOpenDrawing(id);
-                }
-              }}
-              onMouseDown={onMouseDown}
-              onDragStart={onDragStart}
-              onPreviewGenerated={onPreviewGenerated}
-            />
-          );
-        })
+        drawings.map((drawing) => (
+          <DrawingCard
+            key={drawing.id}
+            drawing={drawing}
+            sharedRole={sharedRole}
+            collections={collections}
+            isSelected={selectedIds.has(drawing.id)}
+            isTrash={isTrashView}
+            isSharedCollection={isSharedCollection}
+            isShared={isSharedView || isSharedCollection}
+            onToggleSelection={onToggleSelection}
+            onRename={onRename}
+            onDelete={onDelete}
+            onHide={isSharedView ? onHide : undefined}
+            onDuplicate={onDuplicate}
+            onMoveToCollection={onMoveToCollection}
+            onClick={onClick}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+            onPreviewReady={onPreviewReady}
+          />
+        ))
       )}
     </div>
   );
-};
+});

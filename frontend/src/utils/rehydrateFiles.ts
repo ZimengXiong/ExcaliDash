@@ -1,3 +1,9 @@
+import { blobToDataUrl } from "./dataUrls";
+
+type ScheduleFileFetch = (
+  fetchFile: () => Promise<string | null>,
+) => Promise<string | null>;
+
 /**
  * S3-mode file rehydration.
  *
@@ -20,7 +26,7 @@
  * is not already an inline `data:` URL and points at our file endpoint or an
  * absolute http(s) URL (public S3).
  */
-const isRehydratableRef = (value: unknown): value is string =>
+export const isRehydratableRef = (value: unknown): value is string =>
   typeof value === "string" &&
   value.length > 0 &&
   !value.startsWith("data:") &&
@@ -35,15 +41,6 @@ export const filesNeedRehydration = (
   );
 };
 
-const blobToDataUrl = (blob: Blob): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () =>
-      reject(reader.error ?? new Error("Failed to read blob"));
-    reader.readAsDataURL(blob);
-  });
-
 /**
  * Fetch a stored file reference and return it as a base64 `data:` URL, or null
  * on any failure (network error, non-2xx, unreadable body). Best-effort: a
@@ -54,27 +51,27 @@ const fetchAsDataUrl = async (
   url: string,
   mimeType: unknown,
   fallbackUrl?: string,
+  signal?: AbortSignal,
 ): Promise<string | null> => {
   try {
-    let response = await fetch(url, { credentials: "same-origin" });
+    const options: RequestInit = { credentials: "same-origin" };
+    if (signal) options.signal = signal;
+    let response = await fetch(url, options);
     if (response.status === 404 && fallbackUrl) {
-      response = await fetch(fallbackUrl, { credentials: "same-origin" });
+      response = await fetch(fallbackUrl, options);
     }
     if (!response.ok) return null;
     const blob = await response.blob();
-    const dataUrl = await blobToDataUrl(blob);
-    // When the response has no (or a generic) Content-Type the resulting MIME
-    // is empty / application/octet-stream, which Excalidraw cannot decode as an
-    // image. Repair it from the file's declared image mimeType when we have one.
-    const producedMime = /^data:([^;,]*)[;,]/.exec(dataUrl)?.[1] ?? "";
+    if (signal?.aborted) return null;
+    // Supply a missing image Content-Type before encoding the data URL.
     if (
-      !/^image\//i.test(producedMime) &&
+      !/^image\//i.test(blob.type) &&
       typeof mimeType === "string" &&
       /^image\//i.test(mimeType)
     ) {
-      return dataUrl.replace(/^data:[^;,]*(;base64,)/i, `data:${mimeType}$1`);
+      return await blobToDataUrl(blob.slice(0, blob.size, mimeType));
     }
-    return dataUrl;
+    return await blobToDataUrl(blob);
   } catch {
     return null;
   }
@@ -92,14 +89,22 @@ const fetchAsDataUrl = async (
  */
 export const rehydrateFilesFromUrls = async (
   files: Record<string, any> | null | undefined,
+  signal?: AbortSignal,
+  scheduleFetch?: ScheduleFileFetch,
 ): Promise<Record<string, any>> => {
   if (!files || typeof files !== "object") return files ?? {};
   if (!filesNeedRehydration(files)) return files;
 
   const result: Record<string, any> = { ...files };
-  await rehydrateFilesProgressive(files, (fileId, file) => {
-    result[fileId] = file;
-  });
+  await rehydrateFilesProgressive(
+    files,
+    (fileId, file) => {
+      result[fileId] = file;
+    },
+    undefined,
+    signal,
+    scheduleFetch,
+  );
 
   return result;
 };
@@ -184,6 +189,8 @@ export const rehydrateFilesProgressive = async (
   files: Record<string, any> | null | undefined,
   onFileReady: (fileId: string, file: Record<string, any>) => void,
   isCancelled?: () => boolean,
+  signal?: AbortSignal,
+  scheduleFetch?: ScheduleFileFetch,
 ): Promise<void> => {
   if (!files || typeof files !== "object") return;
   const entries = Object.entries(files).filter(([, file]) =>
@@ -194,13 +201,14 @@ export const rehydrateFilesProgressive = async (
   let cursor = 0;
   const worker = async () => {
     while (cursor < entries.length) {
-      if (isCancelled?.()) return;
+      if (signal?.aborted || isCancelled?.()) return;
       const [fileId, file] = entries[cursor++];
-      const dataURL = await fetchAsDataUrl(
-        (file as any).dataURL,
-        (file as any)?.mimeType,
-      );
-      if (isCancelled?.()) return;
+      const fetchFile = () =>
+        fetchAsDataUrl(file.dataURL, file.mimeType, undefined, signal);
+      const dataURL = await (scheduleFetch
+        ? scheduleFetch(fetchFile)
+        : fetchFile());
+      if (signal?.aborted || isCancelled?.()) return;
       if (dataURL) {
         onFileReady(fileId, { ...(file as any), dataURL });
       }
