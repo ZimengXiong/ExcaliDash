@@ -44,21 +44,29 @@ const fullImage = computed(() => url(isDark.value ? props.dark : props.light));
 <style>
 .theme-screenshot {
   display: block;
-  margin: 24px auto;
+  margin: 18px auto 24px;
   width: fit-content;
   max-width: 100%;
 }
+
 .theme-screenshot img {
   display: block;
   max-width: 100%;
   height: auto;
   border: 1px solid var(--vp-c-border);
-  border-radius: 8px;
+  border-radius: 6px;
+  transition: border-color 140ms ease;
 }
+
+.theme-screenshot:hover img {
+  border-color: var(--vp-c-brand-1);
+}
+
 .theme-screenshot .screenshot-dark,
 .dark .theme-screenshot .screenshot-light {
   display: none;
 }
+
 .dark .theme-screenshot .screenshot-dark {
   display: block;
 }

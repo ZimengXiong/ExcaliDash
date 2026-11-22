@@ -13,7 +13,7 @@ export default defineConfig({
       .replace(/\.md$/, "");
     const url = `https://excalidash.xyz/${path}`;
     const title = pageData.frontmatter.title || pageData.title;
-    return [
+    const head: Array<[string, Record<string, string>, string?]> = [
       ["link", { rel: "canonical", href: url }],
       ["meta", { property: "og:type", content: "website" }],
       ["meta", { property: "og:site_name", content: "ExcaliDash" }],
@@ -29,6 +29,29 @@ export default defineConfig({
       ],
       ["meta", { name: "twitter:card", content: "summary_large_image" }],
     ];
+    if (pageData.relativePath === "index.md") {
+      head.push([
+        "script",
+        { type: "application/ld+json" },
+        JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "SoftwareApplication",
+          name: "ExcaliDash",
+          applicationCategory: "DeveloperApplication",
+          operatingSystem: "Linux, macOS, Windows, Docker",
+          url: "https://excalidash.xyz/",
+          codeRepository: "https://github.com/ZimengXiong/ExcaliDash",
+          license: "https://www.gnu.org/licenses/lgpl-3.0.html",
+          description: pageData.description,
+          offers: {
+            "@type": "Offer",
+            price: "0",
+            priceCurrency: "USD",
+          },
+        }),
+      ]);
+    }
+    return head;
   },
   cleanUrls: true,
   lastUpdated: true,

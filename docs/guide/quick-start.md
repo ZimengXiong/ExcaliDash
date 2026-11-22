@@ -1,6 +1,6 @@
 ---
-title: "Self-host Excalidraw: Quick Start"
-description: Install ExcaliDash with Docker Compose, create your administrator account, and start a self-hosted Excalidraw workspace.
+title: "Quick Start — ExcaliDash"
+description: Start a self-hosted ExcaliDash workspace locally with Docker Compose and create your administrator account.
 ---
 
 <script setup>
@@ -9,15 +9,15 @@ import { setupSlides } from "../.vitepress/theme/screenshot-flows";
 
 # Quick start
 
-Run ExcaliDash with Docker Compose.
+Launch ExcaliDash locally with Docker Compose in under two minutes.
 
-## Prerequisites
+## Requirements
 
 - Docker Engine or Docker Desktop
 - Docker Compose v2
-- Port `6767` available on the host
+- Host port `6767` free
 
-## Start ExcaliDash
+## Start the stack
 
 1. Clone the repository:
 
@@ -26,22 +26,22 @@ Run ExcaliDash with Docker Compose.
    cd ExcaliDash
    ```
 
-2. Start the services:
+2. Start the frontend and backend containers:
 
    ```bash
    docker compose -f docker-compose.prod.yml up -d
    ```
 
 3. Open `http://localhost:6767`.
-4. [Create the administrator account](/guide/first-run#create-the-administrator).
+4. [Create your administrator account](/guide/first-run#create-the-administrator).
 
-## Set up your administrator account
+## First-run walkthrough
 
-Use the arrows to follow the complete first-run flow, from choosing authentication to opening your first drawing. Each screenshot follows this page's light or dark theme.
+Step through the initial setup below, from enabling authentication to opening your first blank canvas.
 
 <ScreenshotCarousel label="First-run setup from authentication to your first drawing" :slides="setupSlides" />
 
-## Check the services
+## Inspect running services
 
 ```bash
 docker compose -f docker-compose.prod.yml ps
@@ -54,4 +54,4 @@ docker compose -f docker-compose.prod.yml logs -f
 docker compose -f docker-compose.prod.yml down
 ```
 
-For a server deployment, see [Deploy with Docker Compose](/deploy/docker).
+Your drawings remain in the `backend-data` Docker volume. To put ExcaliDash behind HTTPS with scheduled backups on a server, continue to [Deploy with Docker Compose](/deploy/docker).

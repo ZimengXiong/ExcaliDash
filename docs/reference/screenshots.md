@@ -1,6 +1,6 @@
 ---
-title: "ExcaliDash Screenshots: Dashboard, Editor, and Collaboration"
-description: See ExcaliDash screenshots of the Excalidraw dashboard, collections, editor, real-time collaboration, and tablet and mobile layouts.
+title: "Screenshots — ExcaliDash"
+description: Light and dark mode screenshots of the ExcaliDash dashboard, collections, Excalidraw editor, live collaboration, sharing, history, and settings.
 ---
 
 <script setup>
@@ -9,146 +9,152 @@ import { setupSlides, passwordResetSlides } from "../.vitepress/theme/screenshot
 
 # Screenshots
 
-Explore the ExcaliDash workspace, editor, and real-time collaboration. Select any screenshot to open the full-size image.
+Click any screenshot to open the full-resolution image. Every image automatically follows this site's light or dark theme—toggle the theme switch in the top bar to compare both.
 
-Try toggling dark mode on this page!!
+## Dashboard and collections
 
-## Drawing dashboard
+### All drawings
 
-Browse your drawings as visual cards, search your workspace, and organize drawings into collections.
+Browse saved canvases as visual cards, filter by collection, sort, and search across your workspace.
 
-<ThemeScreenshot light="/images/workspace-light.png" dark="/images/workspace.png" alt="Drawing dashboard — Browse your drawings as visual cards, search your workspace, and organize drawings into collections." />
+<ThemeScreenshot light="/images/workspace-light.png" dark="/images/workspace.png" alt="ExcaliDash dashboard showing drawing previews, collections, and search" />
 
-## Platform engineering collection
+### Platform engineering collection
 
-Keep deployment diagrams together in a collection.
+Group infrastructure and deployment diagrams in one collection.
 
-<ThemeScreenshot light="/images/screenshots/platform-engineering-light.png" dark="/images/screenshots/platform-engineering.png" alt="Platform engineering collection — Keep deployment diagrams together in a collection." />
+<ThemeScreenshot light="/images/screenshots/platform-engineering-light.png" dark="/images/screenshots/platform-engineering.png" alt="Platform engineering collection view" />
 
-## Interface design collection
+### Interface design collection
 
-Group wireframes and reusable interface patterns in one workspace.
+Keep wireframes and UI flows organized together.
 
-<ThemeScreenshot light="/images/screenshots/interface-design-light.png" dark="/images/screenshots/interface-design.png" alt="Interface design collection — Group wireframes and reusable interface patterns in one workspace." />
+<ThemeScreenshot light="/images/screenshots/interface-design-light.png" dark="/images/screenshots/interface-design.png" alt="Interface design collection view" />
 
-## Data and observability collection
+### Data and observability collection
 
-Browse pipeline diagrams, dashboards, and observability sketches.
+Collect pipeline diagrams, telemetry sketches, and architecture notes.
 
-<ThemeScreenshot light="/images/screenshots/data-observability-light.png" dark="/images/screenshots/data-observability.png" alt="Data and observability collection — Browse pipeline diagrams, dashboards, and observability sketches." />
+<ThemeScreenshot light="/images/screenshots/data-observability-light.png" dark="/images/screenshots/data-observability.png" alt="Data and observability collection view" />
 
-## Deployment diagram editor
+## Editor and responsive views
 
-Open a drawing in the Excalidraw editor to work on a deployment diagram.
+### Deployment diagram editor
 
-<ThemeScreenshot light="/images/screenshots/deployment-editor-light.png" dark="/images/screenshots/deployment-editor.png" alt="Deployment diagram editor — Open a drawing in the Excalidraw editor to work on a deployment diagram." />
+Full Excalidraw canvas with auto-save, sharing, and version history in the top bar.
 
-## Pipeline diagram editor
+<ThemeScreenshot light="/images/screenshots/deployment-editor-light.png" dark="/images/screenshots/deployment-editor.png" alt="Deployment diagram open in the Excalidraw editor" />
 
-Use the canvas for detailed architecture and data-flow diagrams.
+### Pipeline diagram editor
 
-<ThemeScreenshot light="/images/screenshots/pipeline-editor-light.png" dark="/images/screenshots/pipeline-editor.png" alt="Pipeline diagram editor — Use the canvas for detailed architecture and data-flow diagrams." />
+Large multi-stage architecture diagrams fit cleanly into the viewport on open.
 
-## Tablet workspace
+<ThemeScreenshot light="/images/screenshots/pipeline-editor-light.png" dark="/images/screenshots/pipeline-editor.png" alt="Pipeline diagram open in the Excalidraw editor" />
 
-Browse drawing cards and collections on a tablet-sized screen.
+### Tablet workspace
 
-<ThemeScreenshot light="/images/screenshots/tablet-workspace-light.png" dark="/images/screenshots/tablet-workspace.png" alt="Tablet workspace — Browse drawing cards and collections on a tablet-sized screen." width="1024" height="1100" />
+Responsive grid and sidebar layout on tablet screens.
 
-## Mobile workspace
+<ThemeScreenshot light="/images/screenshots/tablet-workspace-light.png" dark="/images/screenshots/tablet-workspace.png" alt="ExcaliDash dashboard on a tablet screen" width="1024" height="1100" />
 
-Access the drawing dashboard on a narrow mobile screen.
+### Mobile workspace
 
-<ThemeScreenshot light="/images/screenshots/mobile-workspace-light.png" dark="/images/screenshots/mobile-workspace.png" alt="Mobile workspace — Access the drawing dashboard on a narrow mobile screen." width="430" height="932" />
+Compact mobile dashboard for browsing and opening drawings on the go.
 
-## Live deployment review
+<ThemeScreenshot light="/images/screenshots/mobile-workspace-light.png" dark="/images/screenshots/mobile-workspace.png" alt="ExcaliDash dashboard on a mobile screen" width="430" height="932" />
 
-Review a deployment diagram together with named cursors and collaborator presence.
+## Collaboration and sharing
 
-<ThemeScreenshot light="/images/collaboration-light.png" dark="/images/collaboration-dark.png" alt="Live deployment review — Review a deployment diagram together with named cursors and collaborator presence." />
+### Live deployment review
 
-## Live pipeline workshop
+Named collaborator cursors and presence avatars during an active session.
 
-Collaborate on a larger pipeline diagram with multiple people in the editor.
+<ThemeScreenshot light="/images/collaboration-light.png" dark="/images/collaboration-dark.png" alt="Live deployment review with collaborator avatars and named cursors" />
 
-<ThemeScreenshot light="/images/screenshots/live-pipeline-workshop-light.png" dark="/images/screenshots/live-pipeline-workshop.png" alt="Live pipeline workshop — Collaborate on a larger pipeline diagram with multiple people in the editor." />
+### Live pipeline workshop
 
-## Fresh instance setup
+Multiple editors working across a larger pipeline diagram simultaneously.
 
-Follow the real setup flow, including the initially empty workspace and first blank drawing.
+<ThemeScreenshot light="/images/screenshots/live-pipeline-workshop-light.png" dark="/images/screenshots/live-pipeline-workshop.png" alt="Live collaborative pipeline workshop" />
+
+### Drawing sharing
+
+Invite local accounts with viewing or editing permissions directly from the editor.
+
+<ThemeScreenshot light="/images/screenshots/share-drawing-light.png" dark="/images/screenshots/share-drawing.png" alt="Drawing Share dialog with account search and access levels" />
+
+### Collection sharing
+
+Share an entire collection from the sidebar context menu.
+
+<ThemeScreenshot light="/images/screenshots/share-collection-light.png" dark="/images/screenshots/share-collection.png" alt="Share Collection dialog for Platform engineering" />
+
+### Link access
+
+Toggle between restricted access and link sharing with view/edit permissions.
+
+<ThemeScreenshot light="/images/screenshots/share-link-light.png" dark="/images/screenshots/share-link.png" alt="Link access selector inside the Share dialog" />
+
+### Version history
+
+Preview automatic snapshots and restore any previous version.
+
+<ThemeScreenshot light="/images/screenshots/drawing-history-light.png" dark="/images/screenshots/drawing-history.png" alt="Version history panel with snapshot preview and restore controls" />
+
+## Setup, accounts, and settings
+
+### Fresh-instance setup
+
+Complete first-run flow from enabling authentication to opening the first canvas.
 
 <ScreenshotCarousel label="Complete fresh-instance setup" :slides="setupSlides" />
 
-## Create an account
+### Create an account
 
-Register a local account when self-registration is enabled.
+Self-registration form when open sign-up is enabled by an administrator.
 
-<ThemeScreenshot light="/images/screenshots/registration-light.png" dark="/images/screenshots/registration.png" alt="Create an account — Register a local account when self-registration is enabled." />
+<ThemeScreenshot light="/images/screenshots/registration-light.png" dark="/images/screenshots/registration.png" alt="Local account registration form" />
 
-## Sign in
+### Sign in
 
-Sign in with a local email address and password.
+Email and password sign-in screen.
 
-<ThemeScreenshot light="/images/screenshots/signin-light.png" dark="/images/screenshots/signin.png" alt="Sign in — Sign in with a local email address and password." />
+<ThemeScreenshot light="/images/screenshots/signin-light.png" dark="/images/screenshots/signin.png" alt="Local sign-in page" />
 
-## Reset your password
+### Password reset
 
-Follow the request, email-link, new-password, and success screens.
+End-to-end password reset flow when email delivery is configured.
 
 <ScreenshotCarousel label="Password reset walkthrough" :slides="passwordResetSlides" />
 
-## Drawing sharing
+### Admin controls
 
-Open Share to invite accounts and manage access.
+Manage self-registration and user accounts.
 
-<ThemeScreenshot light="/images/screenshots/share-drawing-light.png" dark="/images/screenshots/share-drawing.png" alt="Drawing sharing — Open Share to invite accounts and manage access." />
+<ThemeScreenshot light="/images/screenshots/admin-light.png" dark="/images/screenshots/admin.png" alt="Admin panel with registration toggle and user list" />
 
-## Collection sharing
+### Create a user
 
-Open Share Collection from the sidebar context menu.
+Add local accounts directly from the Admin panel.
 
-<ThemeScreenshot light="/images/screenshots/share-collection-light.png" dark="/images/screenshots/share-collection.png" alt="Collection sharing — Open Share Collection from the sidebar context menu." />
+<ThemeScreenshot light="/images/screenshots/new-user-light.png" dark="/images/screenshots/new-user.png" alt="New User creation modal" />
 
-## Link access
+### Workspace settings
 
-Open the link-access choices in the drawing sharing controls.
+Configure language, appearance (`Light` / `Dark` / `System`), editor behavior, image optimization, and backup exports.
 
-<ThemeScreenshot light="/images/screenshots/share-link-light.png" dark="/images/screenshots/share-link.png" alt="Link access — Open the link-access choices in the drawing sharing controls." />
+<ThemeScreenshot light="/images/screenshots/settings-light.png" dark="/images/screenshots/settings.png" alt="Workspace settings page" />
 
-## Drawing history
+### Advanced settings
 
-Select a snapshot in Version History to preview and restore it.
+Expand **Advanced** to import `.excalidash` backups and inspect instance details.
 
-<ThemeScreenshot light="/images/screenshots/drawing-history-light.png" dark="/images/screenshots/drawing-history.png" alt="Drawing history — Select a snapshot in Version History to preview and restore it." />
+<ThemeScreenshot light="/images/screenshots/advanced-settings-light.png" dark="/images/screenshots/advanced-settings.png" alt="Advanced settings with backup import controls" />
 
-## Administrator controls
+### Backup import confirmation
 
-Manage registration settings and local users.
+Review drawing, collection, and image counts before confirming an import.
 
-<ThemeScreenshot light="/images/screenshots/admin-light.png" dark="/images/screenshots/admin.png" alt="Administrator controls — Manage registration settings and local users." />
-
-## Create a user in Admin
-
-Open New User to create an account as an administrator.
-
-<ThemeScreenshot light="/images/screenshots/new-user-light.png" dark="/images/screenshots/new-user.png" alt="Create a user in Admin — Open New User to create an account as an administrator." />
-
-## Workspace settings
-
-Change appearance and editor preferences or export a backup.
-
-<ThemeScreenshot light="/images/screenshots/settings-light.png" dark="/images/screenshots/settings.png" alt="Workspace settings — Change appearance and editor preferences or export a backup." />
-
-## Advanced settings
-
-Expand Advanced to access library backup import and instance information.
-
-<ThemeScreenshot light="/images/screenshots/advanced-settings-light.png" dark="/images/screenshots/advanced-settings.png" alt="Advanced settings — Expand Advanced to access library backup import and instance information." />
-
-## Backup import confirmation
-
-Select a real backup to review the import confirmation.
-
-<ThemeScreenshot light="/images/screenshots/import-backup-light.png" dark="/images/screenshots/import-backup.png" alt="Backup import confirmation — Select a real backup to review the import confirmation." />
+<ThemeScreenshot light="/images/screenshots/import-backup-light.png" dark="/images/screenshots/import-backup.png" alt="Backup import confirmation modal" />
 
 [Sample drawing credits and licenses](/images/CREDITS.txt).

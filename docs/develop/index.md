@@ -1,6 +1,6 @@
 ---
-title: ExcaliDash Local Development
-description: Set up the ExcaliDash frontend and backend locally to develop a self-hosted Excalidraw workspace.
+title: "Local Development — ExcaliDash"
+description: Run the ExcaliDash backend, frontend, and documentation site locally for development.
 ---
 
 <script setup>
@@ -9,12 +9,12 @@ import { setupSlides } from "../.vitepress/theme/screenshot-flows";
 
 # Local development
 
-Run the backend and frontend in separate terminals.
+Run the backend and frontend dev servers in separate terminals from a local clone.
 
-## Requirements
+## Prerequisites
 
-- Node.js 24.22.1+ (`nvm use` selects the version in `.nvmrc`)
-- npm 10
+- Node.js `24.22.1+` (`nvm use` picks up `.nvmrc`)
+- npm `10`
 - Git
 
 ## Install dependencies
@@ -26,14 +26,14 @@ npm run install:all
 npm install
 ```
 
-## Configure the apps
+## Configure environment files
 
 ```bash
 cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env
 ```
 
-Replace the generated path placeholders in `backend/.env`:
+Update the placeholder paths in `backend/.env`:
 
 ```dotenv
 DATABASE_URL=file:./dev.db
@@ -49,13 +49,24 @@ npm run dev
 
 ## Start the frontend
 
-In another terminal:
+In a second terminal:
 
 ```bash
 cd frontend
 npm run dev
 ```
 
-Open `http://localhost:6767`, then follow the first-run screens below. Select the arrows to move from authentication setup through creating an administrator and opening your first drawing.
+Open `http://localhost:6767` and walk through the first-run setup below.
 
 <ScreenshotCarousel label="First-run setup after starting the local services" :slides="setupSlides" />
+
+## Useful workspace scripts
+
+Run from the repository root:
+
+| Command            | Purpose                                                      |
+| ------------------ | ------------------------------------------------------------ |
+| `npm run check`    | Run Prettier, ESLint, version parity, and env boundary check |
+| `npm run build`    | Build both backend and frontend bundles                      |
+| `npm run test`     | Run backend integration tests and Playwright e2e suites      |
+| `npm run docs:dev` | Start this VitePress docs site locally with live reload      |

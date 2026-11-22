@@ -3,116 +3,135 @@ import { useData, withBase } from "vitepress";
 import { ref } from "vue";
 import imageVersions from "../../public/images/image-versions.json";
 
-const { frontmatter } = useData();
+const { frontmatter, isDark } = useData();
 const activeImage = ref(0);
+
 const imageUrl = (
   image: { light: string; dark: string },
   theme: "light" | "dark",
 ) =>
   `${withBase(image[theme])}?v=${(imageVersions as Record<string, string>)[image[theme]] || "1"}`;
+
+function cycleImage() {
+  const images = frontmatter.value.canvasImages || [];
+  if (images.length < 2) return;
+  activeImage.value = (activeImage.value + 1) % images.length;
+}
+
+function toggleTheme() {
+  isDark.value = !isDark.value;
+}
 </script>
 
 <template>
   <section v-if="frontmatter.pageClass === 'canvas-home'" class="drawing-home">
-    <header class="drawing-heading">
+    <header class="hero">
       <h1>
-        {{ frontmatter.canvasHero.name }}
-        <span class="drawing-headline">{{
-          frontmatter.canvasHero.headline
-        }}</span>
-        <svg viewBox="0 0 600 20" aria-hidden="true">
-          <path d="M8 12 Q235 3 591 8 M209 17 Q393 12 581 14" />
+        <span>{{ frontmatter.canvasHero.name }}</span>
+        <svg class="hero-underline" viewBox="0 0 360 18" aria-hidden="true">
+          <path pathLength="1" d="M6 11 Q150 3 352 8" />
+          <path pathLength="1" d="M96 15 Q230 10 342 13" />
         </svg>
       </h1>
-      <p class="drawing-tagline">{{ frontmatter.canvasHero.tagline }}</p>
-      <div class="drawing-actions">
+      <p class="hero-tagline">{{ frontmatter.canvasHero.tagline }}</p>
+      <div class="hero-actions">
         <a
           v-for="action in frontmatter.canvasHero.actions"
           :key="action.link"
           :href="withBase(action.link)"
-          :class="['drawing-action', action.theme]"
-          :target="action.link.startsWith('https://') ? '_blank' : undefined"
-          :rel="action.link.startsWith('https://') ? 'noreferrer' : undefined"
+          :class="['hero-action', action.theme]"
         >
-          {{ action.text }}
-          <svg viewBox="0 0 30 18" aria-hidden="true">
-            <path d="M2 10 Q13 7 26 9 M19 2 L27 9 L20 16" />
+          <span>{{ action.text }}</span>
+          <svg viewBox="0 0 24 14" aria-hidden="true">
+            <path d="M1 7 Q10 6 21 7 M15 2 L22 7 L15 12" />
           </svg>
         </a>
       </div>
     </header>
 
-    <section class="drawing-board">
-      <figure class="drawing-scene" aria-label="ExcaliDash screenshots">
-        <div class="scene-stack">
-          <button
-            v-for="(image, index) in frontmatter.canvasImages"
-            :key="image.label"
-            type="button"
-            :class="[
-              'scene-frame',
-              `scene-position-${index}`,
-              { 'scene-front': activeImage === index },
-            ]"
-            :aria-label="`Show ${image.label} screenshot`"
-            :aria-pressed="activeImage === index"
-            @click="activeImage = index"
-          >
-            <span class="drawing-corner top" aria-hidden="true" />
-            <img
-              class="scene-light"
-              :src="imageUrl(image, 'light')"
-              :alt="image.alt"
-              width="3200"
-              height="2100"
-              :fetchpriority="index === 0 ? 'high' : 'auto'"
-              draggable="false"
-            />
-            <img
-              class="scene-dark"
-              :src="imageUrl(image, 'dark')"
-              alt=""
-              aria-hidden="true"
-              width="3200"
-              height="2100"
-              draggable="false"
-            />
-            <span class="drawing-corner bottom" aria-hidden="true" />
-          </button>
-        </div>
-        <figcaption
-          class="scene-caption"
-          :style="{ '--caption-angle': activeImage === 0 ? '-2deg' : '3deg' }"
-        >
-          <div class="scene-switcher" aria-label="Choose a screenshot">
-            <button
-              v-for="(image, index) in frontmatter.canvasImages"
-              :key="image.label"
-              type="button"
-              :aria-pressed="activeImage === index"
-              @click="activeImage = index"
-            >
-              {{ image.label }}
-            </button>
-          </div>
-          <a :href="withBase('/reference/screenshots')"
-            >View more screenshots →</a
-          >
-          <p class="scene-theme-note">Try toggling dark mode!!</p>
-        </figcaption>
-      </figure>
-
-      <article
-        v-for="(feature, index) in frontmatter.canvasFeatures"
-        :key="feature.title"
-        :class="['drawing-note', `note-${index + 1}`]"
+    <section class="stage" aria-label="ExcaliDash workspace preview">
+      <button
+        type="button"
+        class="stack"
+        :aria-label="`Showing ${frontmatter.canvasImages[activeImage]?.label}. Click to view next screenshot.`"
+        @click="cycleImage"
       >
-        <span class="drawing-number" aria-hidden="true">{{
-          feature.icon
-        }}</span>
-        <h2>{{ feature.title }}</h2>
+        <div
+          v-for="(image, index) in frontmatter.canvasImages"
+          :key="image.label"
+          class="sheet"
+          :class="activeImage === index ? 'front' : 'back'"
+          :aria-hidden="activeImage !== index"
+        >
+          <img
+            class="scene-light"
+            :src="imageUrl(image, 'light')"
+            :alt="image.alt"
+            width="3200"
+            height="2100"
+            :fetchpriority="index === 0 ? 'high' : 'auto'"
+            draggable="false"
+          />
+          <img
+            class="scene-dark"
+            :src="imageUrl(image, 'dark')"
+            alt=""
+            aria-hidden="true"
+            width="3200"
+            height="2100"
+            draggable="false"
+          />
+        </div>
+      </button>
+
+      <div class="stage-foot">
+        <span class="stage-label" aria-hidden="true">
+          <svg viewBox="0 0 30 22">
+            <path d="M27 19 Q10 18 5 4 M2 10 L5 3 L11 7" />
+          </svg>
+          {{ frontmatter.canvasImages[activeImage]?.label }}
+        </span>
+        <button
+          type="button"
+          class="theme-doodle"
+          :aria-label="isDark ? 'Switch to light mode' : 'Switch to dark mode'"
+          @click="toggleTheme"
+        >
+          <svg viewBox="0 0 32 32" aria-hidden="true">
+            <path
+              class="moon"
+              d="M19.5 5.5 C13 6.5 9.5 11.5 10.2 17 C11 22.6 16.5 26.6 22.3 25.4 C24.3 25 26 24 27.2 22.6 C20.5 23.6 15.2 18.6 15.6 12.4 C15.8 9.6 17.2 7.2 19.5 5.5 Z"
+            />
+            <g class="sun">
+              <circle cx="16" cy="16" r="5.2" />
+              <path
+                d="M16 3.5 V7 M16 25 V28.5 M3.5 16 H7 M25 16 H28.5 M7.2 7.2 L9.6 9.6 M22.4 22.4 L24.8 24.8 M24.8 7.2 L22.4 9.6 M9.6 22.4 L7.2 24.8"
+              />
+            </g>
+          </svg>
+        </button>
+      </div>
+    </section>
+
+    <section class="notes" aria-label="Core capabilities">
+      <a
+        v-for="feature in frontmatter.canvasFeatures"
+        :key="feature.title"
+        :href="withBase(feature.link)"
+        class="note"
+      >
+        <h2>
+          {{ feature.title }}
+          <svg
+            viewBox="0 0 120 8"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <path pathLength="1" d="M2 5 Q40 1 70 4 T118 3" />
+          </svg>
+        </h2>
         <p>{{ feature.details }}</p>
-      </article>
+      </a>
     </section>
   </section>
 </template>
@@ -120,460 +139,407 @@ const imageUrl = (
 <style scoped>
 .drawing-home {
   display: grid;
-  grid-template-rows: auto auto;
-  gap: clamp(16px, 3dvh, 32px);
-  min-height: calc(var(--home-view-height, 100dvh) - var(--vp-nav-height));
-  max-width: 1440px;
+  gap: clamp(36px, 6cqi, 64px);
+  max-width: 1040px;
   margin: 0 auto;
-  padding: clamp(16px, 3dvh, 32px) clamp(24px, 4cqi, 64px);
+  padding: clamp(36px, 6cqi, 72px) clamp(20px, 4cqi, 40px) 24px;
 }
 
-.drawing-heading {
+/* Hero */
+.hero {
   display: grid;
-  gap: 12px;
-  align-items: center;
+  justify-items: center;
+  text-align: center;
 }
 
-h1 {
-  position: relative;
-  width: fit-content;
-  max-width: 100%;
+.hero h1 {
+  margin: 0;
   font:
-    400 clamp(42px, min(8cqi, 11dvh), 108px) / 1.15 "Excalifont",
+    400 clamp(54px, 9cqi, 96px) / 1 "Excalifont",
     cursive;
-  letter-spacing: -0.055em;
-  transform: rotate(-2deg);
+  letter-spacing: -0.04em;
   color: var(--vp-c-text-1);
+  transform: rotate(-1.5deg);
+  transition: transform 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-h1 svg {
+.hero h1:hover {
+  transform: rotate(1deg) scale(1.02);
+}
+
+.hero-underline {
   display: block;
-  width: 90%;
-  height: 20px;
-  margin: -6px 0 0 8%;
+  width: 100%;
+  height: 16px;
+  margin-top: 2px;
   fill: none;
   stroke: var(--violet);
   stroke-width: 3;
   stroke-linecap: round;
 }
 
-.drawing-headline {
-  display: block;
-  margin-top: 12px;
-  font-size: clamp(22px, 3cqi, 36px);
-  line-height: 1.25;
-  letter-spacing: -0.03em;
+.hero-underline path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw 700ms 200ms ease-out forwards;
 }
 
-.drawing-tagline {
-  max-width: 360px;
+.hero-underline path + path {
+  animation-delay: 650ms;
+  animation-duration: 450ms;
+}
+
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.hero-tagline {
+  max-width: 46ch;
+  margin: 22px 0 0;
   color: var(--vp-c-text-2);
-  font-size: clamp(14px, 2dvh, 18px);
-  line-height: 1.5;
+  font-size: clamp(16px, 1.7cqi, 18px);
+  line-height: 1.6;
 }
 
-.drawing-actions {
+.hero-actions {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
-  gap: 8px 20px;
+  gap: 10px 24px;
+  margin-top: 28px;
 }
 
-.drawing-action {
+.hero-action {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 10px;
-  min-height: 42px;
-  padding: 10px 0;
-  font-size: 14px;
-  line-height: 1.4;
+  min-height: 44px;
+  font-size: 15px;
   font-weight: 600;
+  text-decoration: none;
   color: var(--vp-c-text-1);
-  transition: color 150ms ease;
+  transition:
+    transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    background-color 140ms ease,
+    color 140ms ease;
 }
 
-.drawing-action.brand {
-  padding-inline: 20px;
-  color: var(--vp-c-bg);
-  background: var(--vp-c-text-1);
-  border-radius: 3px 7px 4px 6px;
+.hero-action.brand {
+  padding: 10px 20px;
+  border-radius: 9px 6px 10px 5px;
+  background: var(--violet);
+  color: #ffffff;
 }
 
-.drawing-action svg {
-  width: 24px;
-  height: 18px;
+.hero-action.brand:hover {
+  background: var(--vp-c-brand-2);
+  transform: rotate(-1.5deg);
+}
+
+.hero-action.alt:hover {
+  color: var(--vp-c-brand-1);
+}
+
+.hero-action svg {
+  width: 20px;
+  height: 12px;
+  fill: none;
   stroke: currentColor;
-  stroke-width: 1.5;
+  stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
-  fill: none;
-  transition: transform 150ms ease;
+  transition: transform 200ms ease;
 }
 
-.drawing-action:hover svg {
-  transform: translateX(3px);
+.hero-action:hover svg {
+  transform: translateX(4px);
 }
 
-.drawing-action.alt:hover {
-  color: var(--vp-c-brand-1);
-}
-
-.drawing-action:focus-visible {
+.hero-action:focus-visible,
+.stack:focus-visible,
+.theme-doodle:focus-visible,
+.note:focus-visible {
   outline: 2px solid var(--vp-c-brand-1);
-  outline-offset: 5px;
+  outline-offset: 4px;
 }
 
-.drawing-board {
-  position: relative;
+/* Shuffleable sheet stack */
+.stage {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: auto repeat(3, auto);
-  min-height: 0;
-  gap: clamp(12px, 2dvh, 24px);
+  gap: 18px;
+  width: min(100%, 940px);
+  justify-self: center;
 }
 
-.drawing-scene {
+.stack {
   position: relative;
-  display: grid;
-  place-items: center;
-  grid-template-rows: auto auto;
-  align-content: center;
-  gap: 8px;
-  grid-column: 1 / -1;
+  display: block;
   width: 100%;
-  min-width: 0;
-  margin: 0;
-}
-
-.scene-stack {
-  position: relative;
-  width: 90%;
-  /* Reserve space for both fixed offsets and the rotated card corners. */
-  margin-block: calc(6% + 8px);
   aspect-ratio: 32 / 21;
-  isolation: isolate;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.scene-frame {
+.sheet {
   position: absolute;
   inset: 0;
-  width: 100%;
-  padding: 0;
-  background: var(--vp-c-bg);
-  cursor: pointer;
-  z-index: 0;
-  animation: scene-nudge 6s ease-in-out infinite;
+  overflow: hidden;
   border: 1px solid var(--vp-c-border);
-  border-radius: 5px;
-  box-shadow: 0 16px 40px rgb(0 0 0 / 12%);
+  border-radius: 10px;
+  background: var(--vp-c-bg-elv);
+  transform-origin: 50% 60%;
+  transition:
+    transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 260ms ease,
+    border-color 220ms ease;
+  will-change: transform, opacity;
 }
 
-.scene-position-0 {
-  --scene-x: -3%;
-  --scene-y: -3%;
-  --scene-angle: -2deg;
-  transform: translate(var(--scene-x), var(--scene-y))
-    rotate(var(--scene-angle));
-}
-
-.scene-position-1 {
-  --scene-x: 4%;
-  --scene-y: 4%;
-  --scene-angle: 3deg;
-  transform: translate(var(--scene-x), var(--scene-y))
-    rotate(var(--scene-angle));
-}
-
-.scene-frame.scene-front {
-  z-index: 1;
-  animation: none;
-}
-
-.scene-stack:hover .scene-frame,
-.scene-stack:focus-within .scene-frame {
-  animation: none;
-}
-
-@keyframes scene-nudge {
-  0%,
-  80%,
-  100% {
-    transform: translate(var(--scene-x), var(--scene-y))
-      rotate(var(--scene-angle));
-  }
-  84%,
-  92% {
-    transform: translate(var(--scene-x), var(--scene-y))
-      rotate(calc(var(--scene-angle) + 1deg));
-  }
-  88%,
-  96% {
-    transform: translate(var(--scene-x), var(--scene-y))
-      rotate(calc(var(--scene-angle) - 1deg));
-  }
-}
-
-.scene-frame:focus-visible {
-  outline: 3px solid var(--vp-c-brand-1);
-  outline-offset: 5px;
-}
-
-.scene-caption {
-  transform: rotate(var(--caption-angle, -2deg));
-  position: relative;
+.sheet.front {
   z-index: 2;
-  display: grid;
-  justify-items: center;
-  gap: 6px;
-  font-size: 12px;
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1) rotate(-0.6deg);
 }
 
-.scene-theme-note {
-  font:
-    14px "Excalifont",
-    cursive;
-  color: var(--vp-c-text-2);
+.sheet.back {
+  z-index: 1;
+  opacity: 0.45;
+  transform: translate3d(1.6%, 2.2%, 0) scale(0.975) rotate(1.8deg);
 }
 
-.scene-switcher {
-  display: flex;
-  gap: 6px;
+.stack:hover .sheet.front {
+  transform: translate3d(0, -3px, 0) scale(1.005) rotate(-0.9deg);
 }
 
-.scene-switcher button {
-  padding: 3px 10px;
-  border: 1px solid var(--vp-c-border);
-  border-radius: 20px;
-  background: var(--vp-c-bg);
-  color: var(--vp-c-text-2);
-  cursor: pointer;
+.stack:hover .sheet.back {
+  opacity: 0.58;
+  transform: translate3d(2.3%, 3%, 0) scale(0.975) rotate(2.5deg);
 }
 
-.scene-switcher button[aria-pressed="true"] {
-  border-color: var(--vp-c-brand-1);
-  color: var(--vp-c-brand-1);
+.stack:active .sheet.front {
+  transform: translate3d(0, -1px, 0) scale(0.992) rotate(-0.5deg);
+  transition-duration: 120ms;
 }
 
-.scene-switcher button:focus-visible,
-.scene-caption a:focus-visible {
-  outline: 2px solid var(--vp-c-brand-1);
-  outline-offset: 3px;
-}
-
-.scene-caption a {
-  color: var(--vp-c-brand-1);
-}
-
-.scene-caption a:hover {
-  text-decoration: underline;
-}
-
-.scene-frame img {
+.sheet img {
   position: absolute;
   inset: 0;
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  border-radius: inherit;
-  transition: opacity 350ms ease-in-out;
+  object-fit: cover;
+  transition: opacity 320ms ease;
 }
 
-.drawing-scene img.scene-dark {
+.sheet img.scene-dark,
+.dark .sheet img.scene-light {
   opacity: 0;
 }
 
-.drawing-scene img.scene-light {
+.sheet img.scene-light,
+.dark .sheet img.scene-dark {
   opacity: 1;
 }
 
-/* Follow the root theme class, including before Vue hydrates on refresh. */
-.dark .drawing-scene img.scene-light {
-  opacity: 0;
+.stage-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-inline: 4px;
 }
 
-.dark .drawing-scene img.scene-dark {
-  opacity: 1;
-}
-
-.drawing-corner {
-  position: absolute;
-  width: 26px;
-  height: 26px;
-  border-color: var(--violet);
-  opacity: 0.7;
-}
-
-.drawing-corner.top {
-  top: -8px;
-  left: -8px;
-  border-top: 2px solid;
-  border-left: 2px solid;
-  transform: rotate(-4deg);
-}
-
-.drawing-corner.bottom {
-  bottom: -8px;
-  right: -8px;
-  border-bottom: 2px solid;
-  border-right: 2px solid;
-  transform: rotate(3deg);
-}
-
-.drawing-note {
-  position: relative;
-  min-width: 0;
-  padding-left: 28px;
-}
-
-.drawing-number {
-  position: absolute;
-  top: 4px;
-  left: 0;
-  color: var(--vp-c-text-3);
+.stage-label {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 8px;
   font:
-    14px "Excalifont",
+    400 19px / 1 "Excalifont",
     cursive;
+  color: var(--vp-c-text-2);
+  transform: rotate(-1deg);
 }
 
-.drawing-note h2 {
+.stage-label svg {
+  width: 26px;
+  height: 20px;
+  fill: none;
+  stroke: var(--violet);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.theme-doodle {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--vp-c-text-2);
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.theme-doodle:hover {
+  color: var(--violet);
+  transform: rotate(-12deg) scale(1.1);
+}
+
+.theme-doodle:active {
+  transform: rotate(-24deg) scale(0.9);
+}
+
+.theme-doodle svg {
+  width: 30px;
+  height: 30px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.theme-doodle .moon,
+.theme-doodle .sun {
+  transform-origin: 16px 16px;
+  transition:
+    opacity 260ms ease,
+    transform 480ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.theme-doodle .sun,
+.dark .theme-doodle .moon {
+  opacity: 0;
+  transform: rotate(-90deg) scale(0.4);
+}
+
+.theme-doodle .moon,
+.dark .theme-doodle .sun {
+  opacity: 1;
+  transform: none;
+}
+
+/* Feature notes */
+.notes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 28px 48px;
+  margin-top: clamp(8px, 2cqi, 24px);
+}
+
+.note {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.note h2 {
+  position: relative;
   width: fit-content;
-  margin-bottom: 6px;
+  margin: 0 0 6px;
   font:
-    400 clamp(20px, 3dvh, 28px) / 1.2 "Excalifont",
+    400 23px / 1.2 "Excalifont",
     cursive;
   color: var(--vp-c-text-1);
+  transition: color 140ms ease;
 }
 
-.drawing-note p {
-  max-width: 260px;
+.note h2 svg {
+  position: absolute;
+  left: 0;
+  bottom: -5px;
+  width: 100%;
+  height: 7px;
+  fill: none;
+  stroke: var(--violet);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.note h2 path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  opacity: 0;
+  transition:
+    stroke-dashoffset 360ms ease,
+    opacity 120ms ease;
+}
+
+.note:hover h2 {
+  color: var(--vp-c-brand-1);
+}
+
+.note:hover h2 path,
+.note:focus-visible h2 path {
+  stroke-dashoffset: 0;
+  opacity: 1;
+}
+
+.note p {
+  margin: 0;
+  max-width: 34ch;
+  font-size: 14.5px;
+  line-height: 1.55;
   color: var(--vp-c-text-2);
-  font-size: 13px;
-  line-height: 1.5;
 }
 
-@container (min-width: 640px) {
-  .drawing-heading {
-    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
-    column-gap: 32px;
-    row-gap: 12px;
-  }
-
-  h1 {
-    grid-row: 1 / 3;
-  }
-
-  .drawing-scene {
-    grid-column: 1 / -1;
-    max-width: 820px;
-    justify-self: center;
+@container (min-width: 600px) {
+  .notes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@container (min-width: 1100px) {
-  .drawing-board {
-    grid-template-columns: repeat(12, minmax(0, 1fr));
-    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) auto;
-    column-gap: 16px;
-    row-gap: clamp(12px, 2dvh, 24px);
-    align-items: center;
-  }
-
-  .drawing-scene {
-    grid-column: 4 / 10;
-    grid-row: 1 / 3;
-    align-self: center;
-    margin: 0;
-  }
-
-  .drawing-note {
-    z-index: 1;
-  }
-
-  .note-1 {
-    grid-column: 1 / 3;
-    grid-row: 1;
-    transform: rotate(-3deg);
-  }
-
-  .note-2 {
-    grid-column: 11 / 13;
-    grid-row: 1;
-    transform: rotate(2deg);
-  }
-
-  .note-3 {
-    grid-column: 1 / 3;
-    grid-row: 2;
-    transform: rotate(1deg);
-  }
-
-  .note-4 {
-    grid-column: 11 / 13;
-    grid-row: 2;
-    transform: rotate(-2deg);
-  }
-
-  .note-5 {
-    grid-column: 3 / 6;
-    grid-row: 3;
-    transform: rotate(-2deg);
-  }
-
-  .note-6 {
-    grid-column: 8 / 11;
-    grid-row: 3;
-    transform: rotate(1deg);
+@container (min-width: 900px) {
+  .notes {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 40px;
   }
 }
 
-@container (max-width: 639px) {
-  .drawing-note p {
-    display: none;
+@container (max-width: 1099px) {
+  .drawing-home {
+    overflow-x: clip;
   }
 }
 
-@media (max-height: 740px) {
-  .drawing-note p {
-    display: none;
-  }
-}
-
-@media (max-width: 959px) {
-  .docs-review-open .drawing-heading {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 8px;
-  }
-
-  .docs-review-open .drawing-heading h1 {
-    grid-row: 1 / 3;
-    font-size: clamp(28px, 5cqi, 48px);
-  }
-
-  .docs-review-open .drawing-headline {
-    display: block;
-    margin-top: 12px;
-    font-size: clamp(22px, 3cqi, 36px);
-    line-height: 1.25;
-    letter-spacing: -0.03em;
-  }
-
-  .drawing-tagline {
-    display: none;
-  }
-
-  .docs-review-open .drawing-note p {
-    display: none;
+@container (max-width: 599px) {
+  .sheet.back,
+  .stack:hover .sheet.back {
+    transform: translate(0.8%, 2.4%) rotate(1.4deg);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .drawing-action,
-  .drawing-action svg,
-  .drawing-scene img,
-  .scene-frame {
+  .hero h1,
+  .hero-action,
+  .hero-action svg,
+  .sheet,
+  .sheet img,
+  .sheet::after,
+  .theme-doodle,
+  .theme-doodle .moon,
+  .theme-doodle .sun,
+  .note h2 path {
     transition: none;
+  }
+
+  .hero-underline path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .stack.shuffled .sheet {
     animation: none;
   }
 }
