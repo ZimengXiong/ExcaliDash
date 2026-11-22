@@ -72,7 +72,7 @@ export const registerDrawingHistoryRoutes = (
       return res.json({
         snapshots,
         totalCount,
-        retentionDays: config.snapshotRetentionMs / (24 * 60 * 60 * 1000),
+        retentionDays: config.snapshotRetentionDays,
       });
     }),
   );

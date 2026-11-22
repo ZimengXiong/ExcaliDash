@@ -75,6 +75,7 @@ interface Config {
   rateLimitWindowMs: number;
   csrfMaxRequests: number;
   csrfRateLimitWindowMs: number;
+  snapshotRetentionDays: number;
   snapshotRetentionMs: number;
   uploadMaxBytes: number;
   bodyLimitMb: number;
@@ -332,6 +333,8 @@ const resolveS3Config = (): S3Config => ({
   secretAccessKey: readOptionalString("AWS_SECRET_ACCESS_KEY"),
 });
 
+const snapshotRetentionDays = readNumber("SNAPSHOT_RETENTION_DAYS", 2);
+
 export const config: Config = {
   port: readNumber("PORT", 8000),
   listenHost: readString("BACKEND_HOST", "0.0.0.0"),
@@ -351,8 +354,8 @@ export const config: Config = {
   rateLimitWindowMs: readNumber("RATE_LIMIT_WINDOW_MS", 900000),
   csrfMaxRequests: readNumber("CSRF_MAX_REQUESTS", 60),
   csrfRateLimitWindowMs: readNumber("CSRF_RATE_LIMIT_WINDOW_MS", 60000),
-  snapshotRetentionMs:
-    readNumber("SNAPSHOT_RETENTION_DAYS", 2) * 24 * 60 * 60 * 1000,
+  snapshotRetentionDays,
+  snapshotRetentionMs: snapshotRetentionDays * 24 * 60 * 60 * 1000,
   uploadMaxBytes: readNumber("UPLOAD_MAX_MB", 100) * 1024 * 1024,
   bodyLimitMb: readNumber("BODY_LIMIT_MB", 50),
   fileUploadMaxMb,

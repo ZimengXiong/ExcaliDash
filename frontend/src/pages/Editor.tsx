@@ -158,23 +158,24 @@ const ExcalidrawEditor: React.FC = () => {
     latestFiles: latestFilesRef,
     uploadedRefs: uploadedFileRefsRef,
   });
-  const { emitFilesDeltaIfNeeded, setExcalidrawAPI } = useEditorSceneApi({
-    canEdit,
-    drawingId: id,
-    excalidrawAPIRef: excalidrawAPI,
-    isSyncing,
-    socketRef,
-    socketMeRef,
-    lastSyncedFilesRef,
-    latestFilesRef,
-    latestElementsRef,
-    latestAppStateRef,
-    debouncedSaveRef,
-    hasSceneChangesSinceLoadRef,
-    uploadedRefs: uploadedFileRefsRef,
-    scanFileUploads,
-    setIsReady,
-  });
+  const { emitFilesDeltaIfNeeded, fitInitialScene, setExcalidrawAPI } =
+    useEditorSceneApi({
+      canEdit,
+      drawingId: id,
+      excalidrawAPIRef: excalidrawAPI,
+      isSyncing,
+      socketRef,
+      socketMeRef,
+      lastSyncedFilesRef,
+      latestFilesRef,
+      latestElementsRef,
+      latestAppStateRef,
+      debouncedSaveRef,
+      hasSceneChangesSinceLoadRef,
+      uploadedRefs: uploadedFileRefsRef,
+      scanFileUploads,
+      setIsReady,
+    });
   useLibraryImportFromUrl({ excalidrawAPIRef: excalidrawAPI, isReady, user });
   useEditorGridStep({ excalidrawAPI, isReady, gridStep });
   const persistenceRefs = React.useMemo(
@@ -303,6 +304,13 @@ const ExcalidrawEditor: React.FC = () => {
       resolveSafeSnapshot,
       broadcastChanges,
     });
+  const handleSceneChange = useCallback<typeof handleCanvasChange>(
+    (elements, appState, files) => {
+      fitInitialScene(appState);
+      handleCanvasChange(elements, appState, files);
+    },
+    [fitInitialScene, handleCanvasChange],
+  );
   const commandRefs = React.useMemo(
     () => ({
       currentDrawingVersion: currentDrawingVersionRef,
@@ -372,7 +380,7 @@ const ExcalidrawEditor: React.FC = () => {
         onToggleFollow={toggleFollow}
         theme={theme}
         onBackClick={handleBackClick}
-        onCanvasChange={handleCanvasChange}
+        onCanvasChange={handleSceneChange}
         onCanvasDropCapture={handleCanvasDropCapture}
         onExportClick={handleExportClick}
         onLibraryChange={handleLibraryChange}

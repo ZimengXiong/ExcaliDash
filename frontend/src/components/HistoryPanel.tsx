@@ -63,9 +63,9 @@ export const HistoryPanel: React.FC<Props> = ({
       const data = await api.getDrawingHistory(drawingId, { limit: 100 });
       setSnapshots(data.snapshots);
       setTotalCount(data.totalCount);
-      if (typeof data.retentionDays === "number") {
-        setRetentionDays(data.retentionDays);
-      }
+      setRetentionDays(
+        typeof data.retentionDays === "number" ? data.retentionDays : null,
+      );
     } catch {
       // ignore
     } finally {

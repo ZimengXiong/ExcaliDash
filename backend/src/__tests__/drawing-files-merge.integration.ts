@@ -234,9 +234,7 @@ describe("Drawing file save-merge (B2)", () => {
       .set("Authorization", `Bearer ${ownerToken}`);
     expect(list.status).toBe(200);
     expect(list.body.totalCount).toBe(1);
-    expect(list.body.retentionDays).toBe(
-      config.snapshotRetentionMs / (24 * 60 * 60 * 1000),
-    );
+    expect(list.body.retentionDays).toBe(config.snapshotRetentionDays);
     const read = await request(app)
       .get(`/drawings/${drawing.id}/history/${snapshot.id}`)
       .set("Authorization", `Bearer ${ownerToken}`);

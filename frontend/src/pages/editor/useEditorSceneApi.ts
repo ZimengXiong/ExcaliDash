@@ -1,5 +1,6 @@
 import { useCallback, useLayoutEffect, useRef } from "react";
 import type { MutableRefObject } from "react";
+import type { AppState } from "@excalidraw/excalidraw/types";
 import { applyUploadedFileRefs, getFilesDelta } from "./shared";
 import type { UploadedFileRefs } from "./shared";
 
@@ -88,6 +89,37 @@ export const useEditorSceneApi = ({
 
   const fittedApisRef = useRef(new WeakSet<object>());
 
+  const fitInitialScene = useCallback(
+    ({
+      isLoading,
+      width,
+      height,
+    }: Pick<AppState, "isLoading" | "width" | "height">) => {
+      const api = excalidrawAPIRef.current;
+      if (
+        !api ||
+        fittedApisRef.current.has(api) ||
+        isLoading ||
+        !(width > 0 && height > 0)
+      ) {
+        return;
+      }
+
+      fittedApisRef.current.add(api);
+      if (new URLSearchParams(window.location.search).has("element")) return;
+
+      const elements = api.getSceneElements?.();
+      if (elements?.length) {
+        api.scrollToContent?.(elements, {
+          fitToViewport: true,
+          viewportZoomFactor: 0.9,
+          maxZoom: 1,
+        });
+      }
+    },
+    [excalidrawAPIRef],
+  );
+
   const setExcalidrawAPI = useCallback(
     (api: any) => {
       excalidrawAPIRef.current = api;
@@ -128,22 +160,6 @@ export const useEditorSceneApi = ({
           void scanFileUploads();
         };
       }
-      if (api && !fittedApisRef.current.has(api as object)) {
-        fittedApisRef.current.add(api as object);
-        // initialData.scrollToContent centers on the element closest to the
-        // origin when the scene is larger than the viewport, so big drawings
-        // open with their top-left corner mid-screen. Fit the whole scene
-        // once the canvas has measured itself instead.
-        requestAnimationFrame(() => {
-          const elements = api.getSceneElements?.() || [];
-          if (elements.length === 0) return;
-          api.scrollToContent?.(elements, {
-            fitToViewport: true,
-            viewportZoomFactor: 0.9,
-            maxZoom: 1,
-          });
-        });
-      }
       setIsReady(true);
     },
     [
@@ -161,5 +177,5 @@ export const useEditorSceneApi = ({
     ],
   );
 
-  return { emitFilesDeltaIfNeeded, setExcalidrawAPI };
+  return { emitFilesDeltaIfNeeded, fitInitialScene, setExcalidrawAPI };
 };
