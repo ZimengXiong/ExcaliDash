@@ -117,4 +117,23 @@ describe("account backup image storage integration", () => {
       embedDrawingFilesForExport(files(), [{ ...record, storage: "unknown" }]),
     ).rejects.toThrow("Unsupported drawing file storage: unknown");
   });
+  it("does not conceal corrupt tracked bytes in recovery mode", async () => {
+    const reportMissing = vi.fn();
+    await expect(
+      embedDrawingFilesForExport(
+        files(),
+        [{ ...record, data: Buffer.alloc(0) }],
+        reportMissing,
+      ),
+    ).rejects.toThrow("missing database bytes");
+    vi.mocked(downloadBuffer).mockResolvedValue(Buffer.alloc(0));
+    await expect(
+      embedDrawingFilesForExport(
+        files(),
+        [{ ...record, storage: "s3", s3Key: "managed/image.png", data: null }],
+        reportMissing,
+      ),
+    ).rejects.toThrow("has no bytes");
+    expect(reportMissing).not.toHaveBeenCalled();
+  });
 });

@@ -7,6 +7,7 @@ import {
   beforeEach,
   vi,
 } from "vitest";
+import { randomBytes } from "crypto";
 import request from "supertest";
 import fs from "fs";
 import path from "path";
@@ -22,7 +23,10 @@ import {
 import { getTestPrisma, setupTestDb, cleanupTestDb } from "./testUtils";
 import { BOOTSTRAP_USER_ID } from "../auth/authMode";
 import { downloadBuffer } from "../s3";
-import { decodeSnapshotField } from "../snapshots/snapshotCodec";
+import {
+  encodeSnapshotField,
+  decodeSnapshotField,
+} from "../snapshots/snapshotCodec";
 import { replaceImportedDrawing } from "../routes/importExport/shared";
 import { internDrawingFiles } from "../fileProcessing";
 
@@ -780,6 +784,141 @@ describe("Import compatibility (legacy exports)", () => {
       },
     });
 
+  it("verifies and restores shared snapshot image bytes under a 5 MiB upload limit", async () => {
+    const uploadLimit = 5 * 1024 * 1024;
+    let tightApp: typeof app;
+    vi.stubEnv("UPLOAD_MAX_MB", "5");
+    try {
+      vi.resetModules();
+      ({ app: tightApp } = await import("../index"));
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    const tightAgent = request.agent(tightApp);
+    const csrf = await tightAgent
+      .get("/csrf-token")
+      .set("User-Agent", userAgent);
+    const upload = (endpoint: string, archive: Buffer) =>
+      tightAgent
+        .post(endpoint)
+        .set("User-Agent", userAgent)
+        .set(csrf.body.header, csrf.body.token)
+        .attach("archive", archive, "backup.excalidash");
+
+    const imageBytes = randomBytes(2 * 1024 * 1024 + 20 * 1024);
+    const imageUrl = "/api/files/backup-images/managed";
+    const image = { id: "managed", mimeType: "image/png", dataURL: imageUrl };
+    const drawing = await createBackupImageDrawing({ managed: image });
+    await prisma.drawingFile.create({
+      data: {
+        drawingId: drawing.id,
+        fileId: image.id,
+        mimeType: image.mimeType,
+        sizeBytes: imageBytes.length,
+        storage: "db",
+        data: imageBytes,
+      },
+    });
+    const versions = [1, 2];
+    for (const version of versions) {
+      await prisma.drawingSnapshot.create({
+        data: {
+          id: `shared-image-history-${version}`,
+          drawingId: drawing.id,
+          version,
+          createdAt: new Date(version * 1000),
+          elements: encodeSnapshotField(drawing.elements),
+          appState: encodeSnapshotField(drawing.appState),
+          files: encodeSnapshotField(
+            JSON.stringify({ managed: { ...image, created: version } }),
+          ),
+        },
+      });
+    }
+
+    const archive = await downloadExport();
+    const zip = await JSZip.loadAsync(archive);
+    const manifest = JSON.parse(
+      await zip.file("excalidash.manifest.json")!.async("string"),
+    );
+    const drawingPath = manifest.drawings[0].filePath;
+    const raw = await zip.file(drawingPath)!.async("string");
+    expect(Buffer.byteLength(raw)).toBeLessThan(uploadLimit);
+    const scene = JSON.parse(raw);
+    expect(scene.excalidash.history).toHaveLength(versions.length);
+    for (const snapshot of scene.excalidash.history) {
+      expect(snapshot.sharedFileIds).toEqual([image.id]);
+      expect(snapshot.files.managed).toEqual({
+        id: image.id,
+        mimeType: image.mimeType,
+        created: snapshot.version,
+      });
+    }
+
+    await cleanupTestDb(prisma);
+    await prisma.drawingFile.deleteMany({});
+    const verified = await upload("/import/excalidash/verify", archive);
+    expect(verified.status).toBe(200);
+    const restored = await upload("/import/excalidash", archive);
+    expect(restored.status).toBe(200);
+    const live = await prisma.drawing.findUniqueOrThrow({
+      where: { id: drawing.id },
+      include: { snapshots: { orderBy: { version: "asc" } } },
+    });
+    expect(JSON.parse(live.files).managed).toEqual(image);
+    expect(live.snapshots.map((snapshot) => snapshot.version)).toEqual(
+      versions,
+    );
+    for (const snapshot of live.snapshots) {
+      expect(JSON.parse(decodeSnapshotField(snapshot.files)).managed).toEqual({
+        ...image,
+        created: snapshot.version,
+      });
+    }
+    const stored = await prisma.drawingFile.findMany({
+      where: { drawingId: drawing.id },
+    });
+    expect(stored).toHaveLength(1);
+    expect(Buffer.from(stored[0].data!).equals(imageBytes)).toBe(true);
+
+    // The old encoding fits as a ZIP but exceeds the extracted entry limit.
+    const [firstSnapshot] = scene.excalidash.history;
+    delete firstSnapshot.sharedFileIds;
+    firstSnapshot.files.managed.dataURL = scene.files.managed.dataURL;
+    scene.excalidash.history = [firstSnapshot];
+    zip.file(drawingPath, JSON.stringify(scene));
+    const legacy = await zip.generateAsync({
+      type: "nodebuffer",
+      compression: "DEFLATE",
+    });
+    expect(legacy.length).toBeLessThan(uploadLimit);
+    for (const endpoint of [
+      "/import/excalidash/verify",
+      "/import/excalidash",
+    ]) {
+      const rejected = await upload(endpoint, legacy);
+      expect(rejected.status).toBe(400);
+      expect(rejected.body.message).toBe(
+        `Drawing is too large: ${drawingPath}`,
+      );
+    }
+
+    await cleanupTestDb(prisma);
+    await prisma.drawingFile.deleteMany({});
+    const legacyRestore = await agent
+      .post("/import/excalidash")
+      .set("User-Agent", userAgent)
+      .set(csrfHeaderName, csrfToken)
+      .attach("archive", legacy, "backup.excalidash");
+    expect(legacyRestore.status).toBe(200);
+    const legacySnapshot = await prisma.drawingSnapshot.findUniqueOrThrow({
+      where: { id: firstSnapshot.id },
+    });
+    expect(
+      JSON.parse(decodeSnapshotField(legacySnapshot.files)).managed.dataURL,
+    ).toBe(imageUrl);
+  });
+
   it("round-trips unmanaged HTTP(S) references alongside bundled managed images", async () => {
     const externalUrls = {
       external: "https://external.example/imported.png?version=1",
@@ -859,23 +998,347 @@ describe("Import compatibility (legacy exports)", () => {
     expect(await downloadExport()).toEqual(expect.any(Buffer));
   });
 
-  it.each([
-    "missing row",
-    "missing db bytes",
-    "missing s3 key",
-    "s3 missing",
-    "s3 error",
-  ])(
-    "returns a complete HTTP 500 before streaming when managed storage has %s",
-    async (failure) => {
+  it("exports dangling legacy image references with warnings and preserves compressed history on restore", async () => {
+    const missingFiles = Object.fromEntries(
+      ["missing-1", "missing-2", "deleted-1", "deleted-2"].map((id) => [
+        id,
+        {
+          id,
+          mimeType: "image/png",
+          dataURL: `/api/files/deleted-source/${id}`,
+          created: 123,
+        },
+      ]),
+    );
+    const drawing = await createBackupImageDrawing(missingFiles);
+    const historyElements = [
+      { id: "old-element", type: "image", fileId: "history-only" },
+    ];
+    const historyBytes = Buffer.from("retained historical image");
+    const historyFiles = {
+      ...missingFiles,
+      "history-only": {
+        id: "history-only",
+        mimeType: "image/png",
+        dataURL: `/api/files/${drawing.id}/history-only`,
+      },
+    };
+    const snapshot = await prisma.drawingSnapshot.create({
+      data: {
+        id: "retained-snapshot",
+        drawingId: drawing.id,
+        version: 0,
+        elements: encodeSnapshotField(JSON.stringify(historyElements)),
+        appState: encodeSnapshotField(
+          JSON.stringify({ viewBackgroundColor: "#123456" }),
+        ),
+        files: encodeSnapshotField(JSON.stringify(historyFiles)),
+        createdAt: new Date("2026-09-01T12:00:00Z"),
+      },
+    });
+    await prisma.drawingFile.create({
+      data: {
+        drawingId: drawing.id,
+        fileId: "history-only",
+        mimeType: "image/png",
+        storage: "db",
+        data: historyBytes,
+        sizeBytes: historyBytes.length,
+      },
+    });
+    const blocked = await agent
+      .get("/export/excalidash")
+      .set("User-Agent", userAgent);
+    expect(blocked.status).toBe(409);
+    expect(blocked.body.code).toBe("BACKUP_MISSING_IMAGES");
+    expect(blocked.headers["content-disposition"]).toBeUndefined();
+    const response = await agent
+      .get("/export/excalidash?recovery=1")
+      .set("User-Agent", userAgent)
+      .buffer(true)
+      .parse((res, callback) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+        res.on("end", () => callback(null, Buffer.concat(chunks)));
+        res.on("error", callback);
+      });
+    expect(response.status).toBe(200);
+    expect(response.headers["x-excalidash-missing-images"]).toBe("4");
+    const zip = await JSZip.loadAsync(response.body);
+    const manifest = JSON.parse(
+      await zip.file("excalidash.manifest.json")!.async("string"),
+    );
+    expect(manifest.missingImages).toHaveLength(4);
+    const scene = JSON.parse(
+      await zip.file(manifest.drawings[0].filePath)!.async("string"),
+    );
+    expect(scene.files).toEqual(missingFiles);
+    expect(scene.excalidash.history[0].files["history-only"].dataURL).toBe(
+      `data:image/png;base64,${historyBytes.toString("base64")}`,
+    );
+    expect(scene.excalidash.history[0].elements).toEqual(historyElements);
+    // Export is read-only, including the original compressed snapshot payload.
+    expect(
+      await prisma.drawingSnapshot.findUnique({ where: { id: snapshot.id } }),
+    ).toEqual(snapshot);
+    await cleanupTestDb(prisma);
+    await prisma.drawingFile.deleteMany({});
+    const verify = await agent
+      .post("/import/excalidash/verify")
+      .set("User-Agent", userAgent)
+      .set(csrfHeaderName, csrfToken)
+      .attach("archive", response.body, "backup.excalidash");
+    expect(verify.status).toBe(200);
+    expect(verify.body.missingImages).toBe(4);
+    const restored = await agent
+      .post("/import/excalidash")
+      .set("User-Agent", userAgent)
+      .set(csrfHeaderName, csrfToken)
+      .attach("archive", response.body, "backup.excalidash");
+    expect(restored.status).toBe(200);
+    const live = await prisma.drawing.findUniqueOrThrow({
+      where: { id: drawing.id },
+    });
+    expect(JSON.parse(live.elements)).toEqual(JSON.parse(drawing.elements));
+    expect(JSON.parse(live.files)).toEqual(missingFiles);
+    const retained = await prisma.drawingSnapshot.findUniqueOrThrow({
+      where: { id: snapshot.id },
+    });
+    expect(retained.version).toBe(snapshot.version);
+    expect(retained.createdAt).toEqual(snapshot.createdAt);
+    expect(JSON.parse(decodeSnapshotField(retained.elements))).toEqual(
+      historyElements,
+    );
+    expect(
+      JSON.parse(decodeSnapshotField(retained.files))["history-only"].dataURL,
+    ).toBe(`/api/files/${drawing.id}/history-only`);
+    const bytes = await prisma.drawingFile.findUniqueOrThrow({
+      where: {
+        drawingId_fileId: { drawingId: drawing.id, fileId: "history-only" },
+      },
+    });
+    expect(Buffer.from(bytes.data!)).toEqual(historyBytes);
+    // Merging the same archive retains history without duplicating its IDs.
+    const again = await agent
+      .post("/import/excalidash")
+      .set("User-Agent", userAgent)
+      .set(csrfHeaderName, csrfToken)
+      .attach("archive", response.body, "backup.excalidash");
+    expect(again.status).toBe(200);
+    expect(
+      await prisma.drawingSnapshot.count({ where: { id: snapshot.id } }),
+    ).toBe(1);
+  });
+
+  it.each(["db", "s3"])(
+    "preserves complete live scenes, historical scenes and %s image bytes through an empty-account restore",
+    async (storage) => {
       const drawing = await createBackupImageDrawing({
         managed: {
           id: "managed",
           mimeType: "image/png",
-          dataURL:
-            failure === "missing row"
-              ? "/api/files/backup-images/managed"
-              : "https://cdn.example/managed.png",
+          dataURL: "/api/files/backup-images/managed",
+        },
+      });
+      const oldFiles = {
+        previous: {
+          id: "previous",
+          mimeType: "image/png",
+          dataURL: "/api/files/backup-images/previous",
+          created: 456,
+        },
+      };
+      const snapshot = await prisma.drawingSnapshot.create({
+        data: {
+          id: "complete-history",
+          drawingId: drawing.id,
+          version: 0,
+          elements: encodeSnapshotField(
+            JSON.stringify([
+              { id: "old-shape", type: "image", fileId: "previous" },
+            ]),
+          ),
+          appState: encodeSnapshotField(
+            JSON.stringify({ viewBackgroundColor: "#123456" }),
+          ),
+          files: encodeSnapshotField(JSON.stringify(oldFiles)),
+        },
+      });
+      const bytesById = {
+        managed: Buffer.from("live image"),
+        previous: Buffer.from("historical image"),
+      };
+      for (const [fileId, data] of Object.entries(bytesById))
+        await prisma.drawingFile.create({
+          data: {
+            drawingId: drawing.id,
+            fileId,
+            mimeType: "image/png",
+            sizeBytes: data.length,
+            storage,
+            data: storage === "db" ? data : null,
+            s3Key: storage === "s3" ? `fixture/${fileId}.png` : null,
+          },
+        });
+      vi.mocked(downloadBuffer).mockImplementation(
+        async (key) =>
+          bytesById[key.includes("previous") ? "previous" : "managed"],
+      );
+      const archive = await downloadExport();
+      const zip = await JSZip.loadAsync(archive);
+      const manifest = JSON.parse(
+        await zip.file("excalidash.manifest.json")!.async("string"),
+      );
+      expect(manifest.missingImages).toEqual([]);
+      const scene = JSON.parse(
+        await zip.file(manifest.drawings[0].filePath)!.async("string"),
+      );
+      expect(scene.elements).toEqual(JSON.parse(drawing.elements));
+      expect(scene.excalidash.history).toHaveLength(1);
+      await cleanupTestDb(prisma);
+      await prisma.drawingFile.deleteMany({});
+      const imported = await agent
+        .post("/import/excalidash")
+        .set("User-Agent", userAgent)
+        .set(csrfHeaderName, csrfToken)
+        .attach("archive", archive, "backup.excalidash");
+      expect(imported.status).toBe(200);
+      const live = await prisma.drawing.findUniqueOrThrow({
+        where: { id: drawing.id },
+      });
+      expect(live.version).toBe(drawing.version);
+      expect(JSON.parse(live.elements)).toEqual(scene.elements);
+      expect(JSON.parse(live.appState)).toEqual(scene.appState);
+      const retained = await prisma.drawingSnapshot.findUniqueOrThrow({
+        where: { id: snapshot.id },
+      });
+      expect(JSON.parse(decodeSnapshotField(retained.elements))).toEqual(
+        scene.excalidash.history[0].elements,
+      );
+      expect(JSON.parse(decodeSnapshotField(retained.appState))).toEqual(
+        scene.excalidash.history[0].appState,
+      );
+      expect(retained.createdAt).toEqual(snapshot.createdAt);
+      for (const [fileId, data] of Object.entries(bytesById)) {
+        const row = await prisma.drawingFile.findUniqueOrThrow({
+          where: { drawingId_fileId: { drawingId: drawing.id, fileId } },
+        });
+        expect(Buffer.from(row.data!)).toEqual(data);
+      }
+      const restoredSnapshot = await agent
+        .post(`/drawings/${drawing.id}/history/${snapshot.id}/restore`)
+        .set("User-Agent", userAgent)
+        .set(csrfHeaderName, csrfToken)
+        .send({});
+      expect(restoredSnapshot.status).toBe(200);
+      const historical = await prisma.drawing.findUniqueOrThrow({
+        where: { id: drawing.id },
+      });
+      expect(JSON.parse(historical.elements)).toEqual(
+        scene.excalidash.history[0].elements,
+      );
+      expect(JSON.parse(historical.files).previous.dataURL).toBe(
+        `/api/files/${drawing.id}/previous`,
+      );
+    },
+  );
+
+  it.each(["backup", "legacy"])(
+    "rejects unresolved managed references in an ordinary %s import without changing scenes or history",
+    async (format) => {
+      const existing = await prisma.drawing.create({
+        data: {
+          id: "legacy-drawing-1",
+          name: "Keep me",
+          elements: "[]",
+          appState: "{}",
+          files: "{}",
+          userId: BOOTSTRAP_USER_ID,
+        },
+      });
+      const dangling = {
+        image: {
+          id: "image",
+          mimeType: "image/png",
+          dataURL: "/api/files/deleted-source/image",
+        },
+      };
+      let payload: Buffer | string;
+      if (format === "legacy") {
+        payload = createLegacySqliteDb({
+          tableStyle: "prisma",
+          includeCollections: true,
+          includeMigrationsTable: false,
+          includeTrashDrawing: false,
+        });
+        const db = openWritableDb(payload);
+        db.prepare("UPDATE Drawing SET files = ? WHERE id = ?").run(
+          JSON.stringify(dangling),
+          existing.id,
+        );
+        db.close();
+      } else {
+        const zip = new JSZip();
+        zip.file(
+          "excalidash.manifest.json",
+          JSON.stringify({
+            format: "excalidash",
+            formatVersion: 1,
+            exportedAt: new Date().toISOString(),
+            unorganizedFolder: "Unorganized",
+            collections: [],
+            drawings: [
+              {
+                id: existing.id,
+                name: "Do not replace",
+                filePath: "drawing.excalidraw",
+                collectionId: null,
+              },
+            ],
+          }),
+        );
+        zip.file(
+          "drawing.excalidraw",
+          JSON.stringify({ elements: [], appState: {}, files: dangling }),
+        );
+        payload = await zip.generateAsync({ type: "nodebuffer" });
+      }
+      const result = await agent
+        .post(
+          format === "legacy" ? "/import/sqlite/legacy" : "/import/excalidash",
+        )
+        .set("User-Agent", userAgent)
+        .set(csrfHeaderName, csrfToken)
+        .attach(
+          format === "legacy" ? "db" : "archive",
+          payload,
+          format === "legacy" ? "fixture.db" : "fixture.excalidash",
+        );
+      expect(result.status).toBe(400);
+      expect(result.body.message).toContain(
+        "unresolved drawing image references",
+      );
+      expect(
+        await prisma.drawing.findUnique({ where: { id: existing.id } }),
+      ).toEqual(existing);
+      expect(await prisma.drawingSnapshot.count()).toBe(0);
+      expect(await prisma.collection.count()).toBe(0);
+    },
+  );
+
+  it.each(
+    ["missing db bytes", "missing s3 key", "s3 missing", "s3 error"].flatMap(
+      (failure) =>
+        [false, true].map((recovery) => [failure, recovery] as const),
+    ),
+  )(
+    "returns a complete HTTP 500 before streaming when managed storage has %s (recovery=%s)",
+    async (failure, recovery) => {
+      const drawing = await createBackupImageDrawing({
+        managed: {
+          id: "managed",
+          mimeType: "image/png",
+          dataURL: "https://cdn.example/managed.png",
         },
         external: {
           id: "external",
@@ -883,7 +1346,7 @@ describe("Import compatibility (legacy exports)", () => {
           dataURL: "https://external.example/image.png",
         },
       });
-      if (failure !== "missing row") {
+      {
         await prisma.drawingFile.create({
           data: {
             drawingId: drawing.id,
@@ -904,6 +1367,7 @@ describe("Import compatibility (legacy exports)", () => {
       const response = await agent
         .get("/export/excalidash")
         .set("User-Agent", userAgent)
+        .query(recovery ? { recovery: "1" } : {})
         .timeout({ response: 5000, deadline: 10000 });
       expect(response.status).toBe(500);
       expect(response.headers["content-type"]).toContain("application/json");

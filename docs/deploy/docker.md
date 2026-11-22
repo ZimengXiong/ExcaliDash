@@ -120,6 +120,14 @@ docker compose -f docker-compose.prod.yml -f compose.override.yml up -d
 
 Check the backend logs for backup errors and test restoring a backup. For PostgreSQL, use your database's backup tools. If you use S3, back up its objects too.
 
+### Account exports and recovery copies
+
+Settings → Export Backup creates a `.excalidash` archive of the account's drawings, collections, retained history and managed image bytes. History is stored in each drawing's `excalidash.history` field. Use a version with backup history support to restore it; older importers ignore this field. Unmanaged external image URLs remain dependent on their original host.
+
+A normal export fails if a managed image has no stored bytes. The export error offers **Export Recovery Copy** for references with missing file records. This explicit option downloads an `excalidash-recovery-…` archive with the original missing references, available image bytes and history. It is **incomplete** and cannot recover absent images. The manifest's `missingImages` list, archive README, download dialog and import confirmation report that limitation.
+
+Storage outages, corrupt tracked files and unreadable history still fail before an archive starts downloading, including in recovery mode. Ordinary backup and legacy database imports reject unresolved managed references instead of silently introducing broken images. Recovery copies explicitly declare the missing images they preserve.
+
 ## Upgrade
 
 ```bash

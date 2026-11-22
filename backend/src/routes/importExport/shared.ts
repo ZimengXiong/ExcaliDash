@@ -24,6 +24,15 @@ export const excalidashManifestSchemaV1 = z.object({
   excalidashBackendVersion: z.string().optional(),
   userId: z.string().optional(),
   unorganizedFolder: z.string().min(1),
+  // Optional recovery metadata: missing bytes are never represented as bundled.
+  missingImages: z
+    .array(
+      z.object({
+        drawingId: z.string().min(1),
+        fileId: z.string().regex(/^[\w-]{1,200}$/),
+      }),
+    )
+    .optional(),
   collections: z.array(
     z.object({
       id: z.string().min(1),
@@ -45,6 +54,20 @@ export const excalidashManifestSchemaV1 = z.object({
     }),
   ),
 });
+
+export const backupHistorySchema = z
+  .array(
+    z.object({
+      id: z.string().min(1),
+      version: z.number().int().nonnegative(),
+      createdAt: z.string().datetime(),
+      elements: z.array(z.unknown()),
+      appState: z.record(z.string(), z.unknown()),
+      files: z.record(z.string(), z.unknown()),
+      sharedFileIds: z.array(z.string().regex(/^[\w-]{1,200}$/)).optional(),
+    }),
+  )
+  .max(10000);
 
 export type RegisterImportExportDeps = {
   app: express.Express;
@@ -218,17 +241,46 @@ export const assertImportedScene = (scene: {
   }
 };
 
+const managedReferencePath = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  let pathname = value;
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      pathname = new URL(value).pathname;
+    } catch {
+      return null;
+    }
+  }
+  return /^\/api\/files(?:\/|$)/i.test(pathname) ? pathname : null;
+};
+
 export const getRequiredImportedFileIds = (
   sourceFiles: Record<string, unknown>,
   processedFiles: Record<string, unknown>,
   drawingId: string,
   knownBefore: Set<string>,
+  declaredMissing = new Set<string>(),
 ): string[] =>
   Object.entries(processedFiles)
     .filter(([fileId, file]) => {
       const processedUrl = (file as { dataURL?: unknown } | null)?.dataURL;
       const sourceUrl = (sourceFiles[fileId] as { dataURL?: unknown } | null)
         ?.dataURL;
+      const managedPath = managedReferencePath(processedUrl);
+      if (managedPath && sourceUrl === processedUrl) {
+        if (declaredMissing.has(fileId) && !knownBefore.has(fileId))
+          return false;
+        // An imported scene cannot borrow managed URLs from another drawing
+        // or host. Only already-owned files or newly interned bytes are usable.
+        if (
+          managedPath !== `/api/files/${drawingId}/${fileId}` ||
+          !knownBefore.has(fileId)
+        ) {
+          throw new ImportValidationError(
+            "Backup contains unresolved drawing image references. Export from the source server with image bytes included, or use an explicitly marked recovery copy.",
+          );
+        }
+      }
       return (
         knownBefore.has(fileId) ||
         processedUrl === `/api/files/${drawingId}/${fileId}` ||

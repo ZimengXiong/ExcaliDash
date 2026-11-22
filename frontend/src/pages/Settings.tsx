@@ -78,8 +78,15 @@ export const Settings: React.FC = () => {
       excalidashBackendVersion: string | null;
       collections: number;
       drawings: number;
+      missingImages: number;
     };
   }>({ isOpen: false, file: null, info: null });
+  const [backupExportDialog, setBackupExportDialog] = useState({
+    isOpen: false,
+    message: "",
+    canRecover: false,
+    recovered: false,
+  });
   const [backupImportLoading, setBackupImportLoading] = useState(false);
   const [backupImportSuccess, setBackupImportSuccess] = useState(false);
   const [backupImportError, setBackupImportError] = useState<{
@@ -194,26 +201,58 @@ export const Settings: React.FC = () => {
     if (authToggleLoading) return;
     setAuthToggleConfirm({ isOpen: true, nextEnabled: !authEnabled });
   };
-  const exportBackup = async () => {
+  const exportBackup = async (recovery = false) => {
     try {
       const response = await api.api.get("/export/excalidash", {
         responseType: "blob",
+        params: recovery ? { recovery: "1" } : undefined,
       });
       const blob = new Blob([response.data], { type: "application/zip" });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
       const date = new Date().toISOString().split("T")[0];
-      link.download = `excalidash-backup-${date}.excalidash`;
+      const missingImages = Number(
+        response.headers["x-excalidash-missing-images"] || 0,
+      );
+      link.download = `excalidash-${missingImages ? "recovery" : "backup"}-${date}.excalidash`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
+      if (missingImages > 0) {
+        setBackupExportDialog({
+          isOpen: true,
+          canRecover: false,
+          recovered: true,
+          message: `Recovery copy downloaded with ${missingImages} missing image(s). Available drawings, history and stored images were preserved. Missing image bytes cannot be recovered from this file. This is an incomplete backup.`,
+        });
+      }
     } catch (err: unknown) {
       console.error("Backup export failed:", err);
-      setBackupImportError({
+      let message = "Failed to export backup. Please try again.";
+      let canRecover = false;
+      if (api.isAxiosError(err)) {
+        let data = err.response?.data;
+        if (data instanceof Blob) {
+          try {
+            data = JSON.parse(await data.text());
+          } catch {
+            data = null;
+          }
+        }
+        if (data && typeof data === "object") {
+          if (typeof data.message === "string") message = data.message;
+          canRecover =
+            err.response?.status === 409 &&
+            data.code === "BACKUP_MISSING_IMAGES";
+        }
+      }
+      setBackupExportDialog({
         isOpen: true,
-        message: "Failed to export backup. Please try again.",
+        message,
+        canRecover,
+        recovered: false,
       });
     }
   };
@@ -236,6 +275,7 @@ export const Settings: React.FC = () => {
         excalidashBackendVersion: string | null;
         collections: number;
         drawings: number;
+        missingImages?: number;
       }>("/import/excalidash/verify", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
@@ -249,6 +289,7 @@ export const Settings: React.FC = () => {
             response.data.excalidashBackendVersion ?? null,
           collections: response.data.collections,
           drawings: response.data.drawings,
+          missingImages: response.data.missingImages ?? 0,
         },
       });
     } catch (err: unknown) {
@@ -364,7 +405,7 @@ export const Settings: React.FC = () => {
         )}
         <div>
           <SettingsMainGrid
-            exportBackup={exportBackup}
+            exportBackup={() => void exportBackup()}
             theme={theme}
             themePreference={themePreference}
             onThemePreferenceChange={setThemePreference}
@@ -426,6 +467,24 @@ export const Settings: React.FC = () => {
           setBackupImportConfirmation={setBackupImportConfirmation}
           backupImportSuccess={backupImportSuccess}
           setBackupImportSuccess={setBackupImportSuccess}
+          backupExportDialog={backupExportDialog}
+          closeBackupExportDialog={() =>
+            setBackupExportDialog({
+              isOpen: false,
+              message: "",
+              canRecover: false,
+              recovered: false,
+            })
+          }
+          exportRecoveryCopy={() => {
+            setBackupExportDialog({
+              isOpen: false,
+              message: "",
+              canRecover: false,
+              recovered: false,
+            });
+            void exportBackup(true);
+          }}
           backupImportError={backupImportError}
           setBackupImportError={setBackupImportError}
           setBackupImportLoading={setBackupImportLoading}

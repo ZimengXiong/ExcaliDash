@@ -478,6 +478,12 @@ export const sanitizeDrawingData = (data: {
           for (const key in file) {
             const value = file[key];
             if (typeof value !== "string") {
+              if (
+                (key === "created" || key === "lastRetrieved") &&
+                typeof value === "number" &&
+                Number.isFinite(value)
+              )
+                continue;
               file[key] = sanitizeText(value, 1000);
               continue;
             }

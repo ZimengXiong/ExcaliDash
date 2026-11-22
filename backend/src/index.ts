@@ -288,7 +288,11 @@ app.use(
       "x-csrf-token",
       "x-imported-file",
     ],
-    exposedHeaders: ["x-csrf-token", "x-request-id"],
+    exposedHeaders: [
+      "x-csrf-token",
+      "x-request-id",
+      "x-excalidash-missing-images",
+    ],
   }),
 );
 app.use(express.json({ limit: BODY_LIMIT }));

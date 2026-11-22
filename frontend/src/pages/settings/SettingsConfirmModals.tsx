@@ -22,6 +22,7 @@ type BackupImportConfirmation = {
     excalidashBackendVersion: string | null;
     collections: number;
     drawings: number;
+    missingImages: number;
   };
 };
 
@@ -49,6 +50,9 @@ type SettingsConfirmModalsProps = {
   >;
   backupImportSuccess: boolean;
   setBackupImportSuccess: React.Dispatch<React.SetStateAction<boolean>>;
+  backupExportDialog: DialogState & { canRecover: boolean; recovered: boolean };
+  closeBackupExportDialog: () => void;
+  exportRecoveryCopy: () => void;
   backupImportError: DialogState;
   setBackupImportError: React.Dispatch<React.SetStateAction<DialogState>>;
   setBackupImportLoading: React.Dispatch<React.SetStateAction<boolean>>;
@@ -70,6 +74,9 @@ export const SettingsConfirmModals = ({
   setBackupImportConfirmation,
   backupImportSuccess,
   setBackupImportSuccess,
+  backupExportDialog,
+  closeBackupExportDialog,
+  exportRecoveryCopy,
   backupImportError,
   setBackupImportError,
   setBackupImportLoading,
@@ -231,7 +238,7 @@ export const SettingsConfirmModals = ({
       title="Import backup?"
       message={
         backupImportConfirmation.info
-          ? `This will merge ${backupImportConfirmation.info.collections} collection(s) and ${backupImportConfirmation.info.drawings} drawing(s) from a Format v${backupImportConfirmation.info.formatVersion} backup exported at ${backupImportConfirmation.info.exportedAt}.`
+          ? `This will merge ${backupImportConfirmation.info.collections} collection(s) and ${backupImportConfirmation.info.drawings} drawing(s) from a Format v${backupImportConfirmation.info.formatVersion} backup exported at ${backupImportConfirmation.info.exportedAt}.${backupImportConfirmation.info.missingImages ? ` This recovery copy is incomplete: ${backupImportConfirmation.info.missingImages} image(s) have no stored bytes and cannot be restored.` : ""}`
           : "This will merge the backup into your account."
       }
       confirmText="Import"
@@ -290,6 +297,27 @@ export const SettingsConfirmModals = ({
       variant="success"
       onConfirm={() => setBackupImportSuccess(false)}
       onCancel={() => setBackupImportSuccess(false)}
+    />
+    <ConfirmModal
+      isOpen={backupExportDialog.isOpen}
+      title={
+        backupExportDialog.recovered
+          ? "Recovery Copy Exported"
+          : "Backup Export Failed"
+      }
+      message={backupExportDialog.message}
+      confirmText={
+        backupExportDialog.canRecover ? "Export Recovery Copy" : "OK"
+      }
+      cancelText="Cancel"
+      showCancel={backupExportDialog.canRecover}
+      isDangerous={false}
+      onConfirm={
+        backupExportDialog.canRecover
+          ? exportRecoveryCopy
+          : closeBackupExportDialog
+      }
+      onCancel={closeBackupExportDialog}
     />
     <ConfirmModal
       isOpen={backupImportError.isOpen}

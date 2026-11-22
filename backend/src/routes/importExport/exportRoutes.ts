@@ -9,7 +9,11 @@ import {
   sanitizePathSegment,
   toPublicTrashCollectionId,
 } from "./shared";
-import { embedDrawingFilesForExport } from "./exportFiles";
+import {
+  embedDrawingFilesForExport,
+  MissingBackupImagesError,
+} from "./exportFiles";
+import { decodeSnapshotPayload } from "../../snapshots/snapshotCodec";
 
 export const registerExcalidashExportRoute = (
   deps: RegisterImportExportDeps,
@@ -41,7 +45,10 @@ export const registerExcalidashExportRoute = (
       const exportedAt = new Date().toISOString();
       const drawings = await prisma.drawing.findMany({
         where: { userId: req.user.id },
-        include: { collection: true },
+        include: {
+          collection: true,
+          snapshots: { orderBy: { createdAt: "asc" } },
+        },
       });
       const userCollections = await prisma.collection.findMany({
         where: { userId: req.user.id },
@@ -128,6 +135,11 @@ export const registerExcalidashExportRoute = (
             all.findIndex((c) => c.id === collection.id) === index,
         );
 
+      const recovery = req.query.recovery === "1";
+      const missingImages = new Map<
+        string,
+        { drawingId: string; fileId: string }
+      >();
       const manifest = {
         format: "excalidash" as const,
         formatVersion: 1 as const,
@@ -137,6 +149,7 @@ export const registerExcalidashExportRoute = (
         unorganizedFolder,
         collections: manifestCollections,
         drawings: drawingsManifest,
+        missingImages: [] as { drawingId: string; fileId: string }[],
       };
 
       // Finish all fallible image bundling before starting the response. A
@@ -145,33 +158,96 @@ export const registerExcalidashExportRoute = (
         string,
         Record<string, unknown>
       >();
-      for (const drawing of drawings) {
-        const storedFiles = await prisma.drawingFile.findMany({
-          where: { drawingId: drawing.id },
-          select: {
-            fileId: true,
-            mimeType: true,
-            storage: true,
-            s3Key: true,
-            data: true,
-          },
-        });
-        exportedFilesByDrawingId.set(
-          drawing.id,
-          await embedDrawingFilesForExport(
+      const historyByDrawingId = new Map<string, unknown[]>();
+      try {
+        for (const drawing of drawings) {
+          const reportMissing = (fileId: string) =>
+            missingImages.set(JSON.stringify([drawing.id, fileId]), {
+              drawingId: drawing.id,
+              fileId,
+            });
+          const storedFiles = await prisma.drawingFile.findMany({
+            where: { drawingId: drawing.id },
+            select: {
+              fileId: true,
+              mimeType: true,
+              storage: true,
+              s3Key: true,
+              data: true,
+            },
+          });
+          const managedDataUrls = new Map<string, string>();
+          const liveFiles = await embedDrawingFilesForExport(
             parseJsonField(drawing.files, {} as Record<string, unknown>),
             storedFiles,
-          ),
-        );
+            recovery ? reportMissing : undefined,
+            managedDataUrls,
+          );
+          exportedFilesByDrawingId.set(drawing.id, liveFiles);
+
+          // A snapshot can reuse the last inline copy of a file in the same drawing.
+          const bundledDataUrls = new Map<string, string>();
+          for (const [fileId, file] of Object.entries(liveFiles)) {
+            const dataURL = (file as { dataURL?: unknown } | null)?.dataURL;
+            if (typeof dataURL === "string" && dataURL.startsWith("data:"))
+              bundledDataUrls.set(fileId, dataURL);
+          }
+          const history = [];
+          for (const raw of drawing.snapshots) {
+            const snapshot = decodeSnapshotPayload(raw);
+            const files = await embedDrawingFilesForExport(
+              JSON.parse(snapshot.files),
+              storedFiles,
+              recovery ? reportMissing : undefined,
+              managedDataUrls,
+            );
+            const sharedFileIds: string[] = [];
+            for (const [fileId, file] of Object.entries(files)) {
+              if (!file || typeof file !== "object" || Array.isArray(file))
+                continue;
+              const { dataURL, ...metadata } = file as Record<string, unknown>;
+              if (typeof dataURL !== "string" || !dataURL.startsWith("data:"))
+                continue;
+              if (bundledDataUrls.get(fileId) === dataURL) {
+                files[fileId] = metadata;
+                sharedFileIds.push(fileId);
+              } else {
+                bundledDataUrls.set(fileId, dataURL);
+              }
+            }
+            history.push({
+              id: snapshot.id,
+              version: snapshot.version,
+              createdAt: snapshot.createdAt.toISOString(),
+              elements: JSON.parse(snapshot.elements),
+              appState: JSON.parse(snapshot.appState),
+              files,
+              ...(sharedFileIds.length ? { sharedFileIds } : {}),
+            });
+          }
+          historyByDrawingId.set(drawing.id, history);
+        }
+      } catch (error) {
+        if (error instanceof MissingBackupImagesError) {
+          return res.status(409).json({
+            error: "Backup images missing",
+            code: "BACKUP_MISSING_IMAGES",
+            message:
+              "Some drawing images have no stored bytes. Restore the missing image data, or export an incomplete recovery copy to preserve the available drawings and history.",
+          });
+        }
+        throw error;
       }
+      manifest.missingImages = [...missingImages.values()];
       for (const meta of drawingsManifest) {
         assertSafeArchivePath(meta.filePath);
       }
 
+      res.setHeader("X-Excalidash-Missing-Images", String(missingImages.size));
       res.setHeader("Content-Type", "application/zip");
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename="${filename}"`,
+        `attachment; filename="${missingImages.size ? filename.replace("backup-", "recovery-") : filename}"`,
       );
 
       const archive = new ZipArchive({ zlib: { level: 9 } });
@@ -213,6 +289,7 @@ export const registerExcalidashExportRoute = (
           drawingId: drawing.id,
           collectionId: drawing.collectionId ?? null,
           exportedAt,
+          history: historyByDrawingId.get(drawing.id),
         };
         const drawingData = {
           type: "excalidraw" as const,
@@ -245,6 +322,10 @@ FormatVersion: 1
 BackendVersion: ${getBackendVersion()}
 Collections: ${collectionsToExport.length}
 Drawings: ${drawings.length}
+History snapshots: ${drawings.reduce((count, drawing) => count + drawing.snapshots.length, 0)}
+Missing images: ${missingImages.size}
+${missingImages.size ? "WARNING: Some image bytes were already missing from storage. Their original references are preserved, but this backup cannot recover those images. See missingImages in the manifest.\n" : ""}
+History is included in each drawing's excalidash.history field. Restore with a version of ExcaliDash that supports backup history; older importers ignore it.
 `;
       archive.append(readme, { name: "README.txt" });
       await archive.finalize();
