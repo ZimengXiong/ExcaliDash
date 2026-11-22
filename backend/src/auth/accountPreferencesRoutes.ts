@@ -6,14 +6,7 @@ import type { RegisterAccountRoutesDeps } from "./accountRoutes";
 export const registerAccountPreferencesRoutes = (
   deps: RegisterAccountRoutesDeps,
 ) => {
-  const {
-    router,
-    prisma,
-    requireAuth,
-    ensureAuthEnabled,
-    config,
-    requireCsrf,
-  } = deps;
+  const { router, prisma, requireAuth, config, requireCsrf } = deps;
   const parseStoredPreferences = (raw: string | null | undefined) => {
     if (!raw) return {};
     try {
@@ -30,7 +23,6 @@ export const registerAccountPreferencesRoutes = (
     requireAuth,
     async (req: Request, res: Response) => {
       try {
-        if (!(await ensureAuthEnabled(res))) return;
         if (!req.user) {
           return res
             .status(401)
@@ -65,7 +57,6 @@ export const registerAccountPreferencesRoutes = (
     requireAuth,
     async (req: Request, res: Response) => {
       try {
-        if (!(await ensureAuthEnabled(res))) return;
         if (!requireCsrf(req, res)) return;
         if (!req.user) {
           return res

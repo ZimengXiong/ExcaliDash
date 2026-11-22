@@ -4,8 +4,7 @@ import {
   CaptureUpdateAction,
   convertToExcalidrawElements,
   getCommonBounds,
-  loadSceneOrLibraryFromBlob,
-  MIME_TYPES,
+  restoreElements,
   viewportCoordsToSceneCoords,
 } from "@excalidraw/excalidraw";
 import { toast } from "sonner";
@@ -20,9 +19,14 @@ import {
   MULTI_IMAGE_DROP_GAP,
 } from "./droppedImages";
 import {
-  isMissingSceneError,
+  createDroppedFileMerger,
+  type DroppedSceneFile,
+  MAX_DROP_BYTES,
+  MAX_DROP_FILE_BYTES,
   mayContainExcalidrawScene,
   prepareSceneElementsForAppend,
+  readDroppedScene,
+  validateDroppedScene,
   withSceneMimeType,
 } from "./droppedScenes";
 import {
@@ -66,10 +70,11 @@ type CanvasHandlerRefs = {
 type DroppedItem = {
   width: number;
   height: number;
-  place: (topLeft: { x: number; y: number }) => {
-    elements: any[];
-    files: any[];
-  };
+  files: readonly DroppedSceneFile[];
+  place: (
+    topLeft: { x: number; y: number },
+    fileIds: ReadonlyMap<string, string>,
+  ) => any[];
 };
 
 const imageItem = (
@@ -80,84 +85,58 @@ const imageItem = (
   return {
     width,
     height,
-    place: ({ x, y }) => ({
-      elements: convertToExcalidrawElements([
+    files: [
+      {
+        id: image.fileId,
+        mimeType: image.mimeType,
+        dataURL: image.dataURL,
+        created: image.created,
+      },
+    ],
+    place: ({ x, y }, fileIds) =>
+      convertToExcalidrawElements([
         {
           type: "image" as const,
           x,
           y,
           width,
           height,
-          fileId: image.fileId as any,
+          fileId: (fileIds.get(image.fileId) ?? image.fileId) as any,
           scale: [1, 1] as [number, number],
           status: "saved" as const,
         },
       ]),
-      files: [
-        {
-          id: image.fileId,
-          mimeType: image.mimeType,
-          dataURL: image.dataURL,
-          created: image.created,
-        },
-      ],
-    }),
   };
 };
 
-/**
- * Decode a dropped file as an Excalidraw scene to append.
- * A PNG or SVG with no scene embedded becomes a plain image.
- * A `.json` file can hold a library instead, and this passes it to
- * `importLibrary`, as Excalidraw's own drop handler does.
- * Return null when there is nothing to place: a library, or an empty scene.
- */
-const loadDroppedItem = async (
-  file: File,
-  viewport: DropViewport,
-  importLibrary: (library: Blob) => Promise<void>,
-): Promise<DroppedItem | null> => {
-  if (!mayContainExcalidrawScene(file)) {
-    return imageItem(await loadDroppedImageData(file), viewport);
-  }
-  // Read the file into memory once.
-  // The fallback below decodes a PNG or SVG without a scene a second time.
-  const typed = withSceneMimeType(file);
-  const inMemory = new File([await typed.arrayBuffer()], typed.name, {
-    type: typed.type,
-    lastModified: typed.lastModified,
-  });
-  let loaded;
-  try {
-    loaded = await loadSceneOrLibraryFromBlob(inMemory, null, null);
-  } catch (err) {
-    if (isMissingSceneError(err) && isSupportedDroppedImageFile(inMemory)) {
-      return imageItem(await loadDroppedImageData(inMemory), viewport);
-    }
-    throw err;
-  }
-  if (loaded.type === MIME_TYPES.excalidrawlib) {
-    await importLibrary(inMemory);
-    return null;
-  }
-  const scene = loaded.data;
-  // restoreElements keeps deleted elements.
-  // Drop them so they neither count as content nor stretch the bounds that
-  // position the scene.
-  const elements = scene.elements.filter((element) => !element.isDeleted);
+const sceneItem = (
+  scene: Extract<ReturnType<typeof validateDroppedScene>, { type: "scene" }>,
+  destination: URL,
+): DroppedItem | null => {
+  const elements = restoreElements(scene.elements, null, {
+    repairBindings: true,
+    refreshDimensions: false,
+  }).filter((element) => !element.isDeleted);
   if (elements.length === 0) return null;
   const bounds = getCommonBounds(elements);
+  const width = bounds[2] - bounds[0];
+  const height = bounds[3] - bounds[1];
+  if (![...bounds, width, height].every(Number.isFinite)) {
+    throw new Error("Invalid drawing bounds");
+  }
   return {
-    width: bounds[2] - bounds[0],
-    height: bounds[3] - bounds[1],
-    place: (origin) => ({
-      elements: prepareSceneElementsForAppend(elements, {
+    width,
+    height,
+    files: scene.files,
+    place: (origin, fileIds) =>
+      prepareSceneElementsForAppend(elements, {
         bounds,
         origin,
         createId: createDroppedId,
+        destination,
+        source: scene.source,
+        fileIds,
       }),
-      files: Object.values(scene.files || {}),
-    }),
   };
 };
 
@@ -272,24 +251,35 @@ export const useEditorCanvasHandlers = ({
     (items: DroppedItem[], dropPoint: { x: number; y: number }) => {
       const api = excalidrawAPIRef.current;
       if (!api || items.length === 0) return;
+      const existingElements: readonly any[] =
+        api.getSceneElementsIncludingDeleted();
+      const existingFileIds = existingElements.flatMap((element) =>
+        typeof element.fileId === "string" ? [element.fileId] : [],
+      );
+      const { merge, files } = createDroppedFileMerger(
+        api.getFiles(),
+        existingFileIds,
+        createDroppedId,
+      );
       const newElements: any[] = [];
-      const newFiles: any[] = [];
       let nextY = dropPoint.y - items[0].height / 2;
       for (const item of items) {
-        const placed = item.place({
-          x: dropPoint.x - item.width / 2,
-          y: nextY,
-        });
-        newElements.push(...placed.elements);
-        newFiles.push(...placed.files);
+        const placed = item.place(
+          {
+            x: dropPoint.x - item.width / 2,
+            y: nextY,
+          },
+          merge(item.files),
+        );
+        for (const element of placed) newElements.push(element);
         nextY += item.height + MULTI_IMAGE_DROP_GAP;
       }
-      if (newFiles.length > 0) api.addFiles(newFiles);
+      if (files.length > 0) api.addFiles(files);
       // Select a frame without its children, as Excalidraw does.
       // Selecting both moves the children twice when you drag the selection.
       const topLevel = newElements.filter((element) => !element.frameId);
       api.updateScene({
-        elements: [...api.getSceneElementsIncludingDeleted(), ...newElements],
+        elements: [...existingElements, ...newElements],
         appState: {
           selectedElementIds: Object.fromEntries(
             topLevel
@@ -314,16 +304,12 @@ export const useEditorCanvasHandlers = ({
 
   const handleCanvasDropCapture = useCallback(
     async (event: React.DragEvent<HTMLDivElement>) => {
-      if (!canEdit || !excalidrawAPIRef.current) return;
+      const api = excalidrawAPIRef.current;
+      if (!canEdit || !api) return;
       const allDroppedFiles = Array.from(event.dataTransfer?.files || []);
       const appendScenes =
         appendDroppedDrawings &&
-        allDroppedFiles.some(mayContainExcalidrawScene) &&
-        allDroppedFiles.every(
-          (file) =>
-            mayContainExcalidrawScene(file) ||
-            isSupportedDroppedImageFile(file),
-        );
+        allDroppedFiles.some(mayContainExcalidrawScene);
       const droppedImages = getDroppedImageFiles(event.dataTransfer);
       const insertMultipleImages =
         droppedImages.length > 1 &&
@@ -332,7 +318,12 @@ export const useEditorCanvasHandlers = ({
       event.preventDefault();
       event.stopPropagation();
       try {
-        const appState = excalidrawAPIRef.current.getAppState?.();
+        const destination = new URL(window.location.href);
+        const stillOnDrawing = () =>
+          !isUnmountingRef.current &&
+          excalidrawAPIRef.current === api &&
+          window.location.pathname === destination.pathname;
+        const appState = api.getAppState?.();
         if (!appState) return;
         const dropPoint = viewportCoordsToSceneCoords(
           { clientX: event.clientX, clientY: event.clientY },
@@ -342,52 +333,69 @@ export const useEditorCanvasHandlers = ({
           height: appState.height,
           zoom: appState.zoom.value,
         };
-        if (!appendScenes) {
-          const loadedImages = await Promise.all(
-            droppedImages.map(loadDroppedImageData),
-          );
-          insertDroppedItems(
-            loadedImages.map((image) => imageItem(image, viewport)),
-            dropPoint,
-          );
-          return;
-        }
-        // Merge a dropped library into the open one, as Excalidraw does.
-        const importLibrary = async (library: Blob) => {
-          await excalidrawAPIRef.current?.updateLibrary({
-            libraryItems: library,
-            merge: true,
-            openLibraryMenu: true,
-          });
-        };
-        // Load the files in parallel.
-        // Report a file that fails, and leave it out.
-        const results = await Promise.allSettled(
-          allDroppedFiles.map((file) =>
-            loadDroppedItem(file, viewport, importLibrary),
-          ),
-        );
         const items: DroppedItem[] = [];
-        results.forEach((result, index) => {
-          if (result.status === "fulfilled") {
-            if (result.value) items.push(result.value);
-            return;
+        let inputBytes = 0;
+        const sceneBudget = { remaining: MAX_DROP_BYTES };
+        for (const file of allDroppedFiles) {
+          if (!stillOnDrawing()) return;
+          const name = file.name || "dropped file";
+          const isSceneCandidate =
+            appendScenes && mayContainExcalidrawScene(file);
+          if (!isSceneCandidate && !isSupportedDroppedImageFile(file)) {
+            toast.error(`Skipped unsupported file: ${name}`);
+            continue;
           }
-          console.error(
-            "[Editor] Failed to import dropped file",
-            result.reason,
-          );
-          toast.error(
-            `Could not import ${allDroppedFiles[index].name || "dropped file"}`,
-          );
-        });
-        insertDroppedItems(items, dropPoint);
+          if (
+            file.size > MAX_DROP_FILE_BYTES ||
+            inputBytes + file.size > MAX_DROP_BYTES
+          ) {
+            toast.error(`Skipped ${name}: drop size limit exceeded`);
+            continue;
+          }
+          inputBytes += file.size;
+          try {
+            const typed = isSceneCandidate ? withSceneMimeType(file) : file;
+            const decoded = isSceneCandidate
+              ? await readDroppedScene(typed, sceneBudget)
+              : null;
+            if (!stillOnDrawing()) return;
+            if (decoded === null) {
+              items.push(
+                imageItem(await loadDroppedImageData(typed), viewport),
+              );
+              continue;
+            }
+            const scene = validateDroppedScene(decoded.data);
+            if (scene.type === "library") {
+              await api.updateLibrary({
+                libraryItems: new Blob([decoded.text], {
+                  type: "application/vnd.excalidrawlib+json",
+                }),
+                merge: true,
+                openLibraryMenu: true,
+              });
+              continue;
+            }
+            const item = sceneItem(scene, destination);
+            if (item) items.push(item);
+          } catch (error) {
+            console.error("[Editor] Failed to import dropped file", error);
+            toast.error(`Could not import ${name}`);
+          }
+        }
+        if (stillOnDrawing()) insertDroppedItems(items, dropPoint);
       } catch (err) {
         console.error("[Editor] Failed to import dropped files", err);
         toast.error("Failed to import dropped files");
       }
     },
-    [appendDroppedDrawings, canEdit, excalidrawAPIRef, insertDroppedItems],
+    [
+      appendDroppedDrawings,
+      canEdit,
+      excalidrawAPIRef,
+      insertDroppedItems,
+      isUnmountingRef,
+    ],
   );
 
   useEffect(() => {

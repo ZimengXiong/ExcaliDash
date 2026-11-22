@@ -200,4 +200,34 @@ describe("Auth Enabled Toggle Authorization", () => {
     expect(drawingsResponse.status).toBe(200);
     expect(Array.isArray(drawingsResponse.body?.drawings)).toBe(true);
   });
+
+  it("persists preferences for the single-user bootstrap account", async () => {
+    const previousMode = config.authMode;
+    const { authModeService } = await import("../middleware/auth");
+    config.authMode = "disabled";
+    try {
+      const save = () =>
+        agent.put("/auth/preferences").set("User-Agent", userAgent);
+      expect((await save().send({ appendDroppedDrawings: true })).status).toBe(
+        403,
+      );
+      const saved = await save()
+        .set(csrfHeaderName, csrfToken)
+        .send({ appendDroppedDrawings: true });
+      expect(saved.status).toBe(200);
+
+      const fetched = await request(app).get("/auth/preferences");
+      expect(fetched.status).toBe(200);
+      expect(fetched.body.preferences).toEqual({ appendDroppedDrawings: true });
+      const bootstrap = await prisma.user.findUniqueOrThrow({
+        where: { id: "bootstrap-admin" },
+      });
+      expect(JSON.parse(bootstrap.preferences!)).toEqual(
+        fetched.body.preferences,
+      );
+    } finally {
+      config.authMode = previousMode;
+      authModeService.clearAuthEnabledCache();
+    }
+  });
 });

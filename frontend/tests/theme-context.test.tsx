@@ -2,7 +2,22 @@ import React, { useLayoutEffect, useState } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider, useTheme } from "../src/context/ThemeContext";
-import type { ThemePreference } from "../src/api";
+import {
+  PreferencesProvider,
+  usePreferences,
+} from "../src/context/PreferencesContext";
+import { useAuth } from "../src/context/AuthContext";
+import {
+  getUserPreferences,
+  updateUserPreferences,
+  type ThemePreference,
+} from "../src/api";
+
+vi.mock("../src/context/AuthContext", () => ({ useAuth: vi.fn() }));
+vi.mock("../src/api", () => ({
+  getUserPreferences: vi.fn(),
+  updateUserPreferences: vi.fn(),
+}));
 
 // Stateful stand-in for the server-backed preference so the provider can be
 // exercised without the auth/preferences stack.
@@ -12,7 +27,10 @@ const { preferenceStub } = vi.hoisted(() => ({
     writes: [] as Array<ThemePreference | undefined>,
   },
 }));
-vi.mock("../src/context/PreferencesContext", () => ({
+vi.mock("../src/context/PreferencesContext", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("../src/context/PreferencesContext")
+  >()),
   usePreference: (_key: string, fallback: ThemePreference) => {
     const [value, setValue] = useState<ThemePreference | undefined>(
       preferenceStub.initial,
@@ -172,5 +190,100 @@ describe("ThemeProvider", () => {
     renderers.length = 0;
 
     expect(removeSpy).toHaveBeenCalledWith("change", expect.any(Function));
+  });
+});
+
+describe("PreferencesProvider", () => {
+  let values: ReturnType<typeof usePreferences>;
+  const storageKey = "excalidash-preferences";
+  const useSession = (id: string | undefined, authEnabled: boolean) => {
+    vi.mocked(useAuth).mockReturnValue({
+      user: id ? { id } : null,
+      authEnabled,
+    } as ReturnType<typeof useAuth>);
+  };
+  const PreferencesProbe = () => {
+    const current = usePreferences();
+    useLayoutEffect(() => {
+      values = current;
+    }, [current]);
+    return null;
+  };
+  const tree = () => (
+    <PreferencesProvider>
+      <PreferencesProbe />
+    </PreferencesProvider>
+  );
+  const render = async () => {
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(tree());
+    });
+    renderers.push(renderer);
+    return renderer;
+  };
+
+  beforeEach(() => {
+    const storage = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+    });
+    vi.mocked(getUserPreferences).mockReset();
+    vi.mocked(updateUserPreferences).mockReset().mockResolvedValue({});
+  });
+
+  it("resets unset keys when switching accounts, even with cached values", async () => {
+    localStorage.setItem(storageKey, JSON.stringify({ compactSidebar: false }));
+    localStorage.setItem(
+      `${storageKey}:second`,
+      JSON.stringify({ appendDroppedDrawings: true }),
+    );
+    useSession("first", true);
+    vi.mocked(getUserPreferences).mockResolvedValueOnce({
+      appendDroppedDrawings: true,
+      theme: "dark",
+    });
+    const renderer = await render();
+    expect(values.preferences).toEqual({
+      appendDroppedDrawings: true,
+      theme: "dark",
+    });
+
+    useSession("second", true);
+    vi.mocked(getUserPreferences).mockResolvedValueOnce({});
+    await act(async () => {
+      renderer.update(tree());
+    });
+    expect(values.preferences).toEqual({});
+    expect(localStorage.getItem(`${storageKey}:second`)).toBe("{}");
+    expect(updateUserPreferences).not.toHaveBeenCalled();
+  });
+
+  it("saves a single-user preference edited while server preferences load", async () => {
+    useSession(undefined, false);
+    let finish!: (value: { appendDroppedDrawings: boolean }) => void;
+    vi.mocked(getUserPreferences).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    localStorage.setItem(storageKey, JSON.stringify({ theme: "dark" }));
+    await render();
+
+    await act(async () => {
+      values.setPreference("appendDroppedDrawings", true);
+    });
+    expect(updateUserPreferences).not.toHaveBeenCalled();
+    await act(async () => {
+      finish({ appendDroppedDrawings: false });
+    });
+    expect(values.preferences).toEqual({
+      appendDroppedDrawings: true,
+      theme: "dark",
+    });
+    expect(updateUserPreferences).toHaveBeenCalledWith({
+      appendDroppedDrawings: true,
+    });
   });
 });
