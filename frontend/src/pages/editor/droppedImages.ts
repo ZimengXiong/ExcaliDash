@@ -11,12 +11,33 @@ export type DroppedImageData = {
   height: number;
 };
 
-const createDroppedFileId = (): string =>
+export const createDroppedId = (): string =>
   typeof crypto.randomUUID === "function"
     ? crypto.randomUUID()
     : `dropped-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
-const isSupportedDroppedImageFile = (file: File): boolean => {
+export type DropViewport = { height: number; zoom: number };
+
+/**
+ * Size an image the way Excalidraw sizes one dropped on its own.
+ * The on-screen height stays within half the viewport, a small image keeps its
+ * natural size, and the aspect ratio holds.
+ * This copies `initializeImageDimensions` from @excalidraw/excalidraw 0.18.
+ */
+export const fitDroppedImageToViewport = (
+  size: { width: number; height: number },
+  viewport: DropViewport,
+): { width: number; height: number } => {
+  const minHeight = Math.max(viewport.height - 120, 160);
+  const maxHeight = Math.min(
+    minHeight,
+    Math.floor(viewport.height * 0.5) / viewport.zoom,
+  );
+  const height = Math.min(size.height, maxHeight);
+  return { width: height * (size.width / size.height), height };
+};
+
+export const isSupportedDroppedImageFile = (file: File): boolean => {
   if (typeof file?.type === "string" && file.type.startsWith("image/")) {
     return true;
   }
@@ -92,7 +113,7 @@ export const loadDroppedImageData = async (
     // Keep the original dropped image if compression is unavailable.
   }
   return {
-    fileId: createDroppedFileId(),
+    fileId: createDroppedId(),
     mimeType,
     dataURL,
     created: Date.now(),
