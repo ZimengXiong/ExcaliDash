@@ -1,10 +1,18 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig } from "vitepress";
 import { docsReviewPlugin } from "./review/plugin.mjs";
 
 const SITE_URL = "https://excalidash.xyz";
-const OG_IMAGE = `${SITE_URL}/images/workspace.png`;
+const OG_IMAGE = `${SITE_URL}/images/og-card.png`;
+const SCREENSHOT = `${SITE_URL}/images/workspace.png`;
+const AUTHOR = {
+  "@type": "Person",
+  "@id": "https://zimengxiong.com/#person",
+  name: "Zimeng Xiong",
+  url: "https://zimengxiong.com/",
+  sameAs: ["https://github.com/ZimengXiong"],
+};
 const VERSION = readFileSync(
   resolve(__dirname, "../../VERSION"),
   "utf8",
@@ -51,6 +59,13 @@ function toCleanPath(relativePath: string): string {
   return relativePath.replace(/(^|\/)index\.md$/, "").replace(/\.md$/, "");
 }
 
+function sitemapLastmod(url: string): string {
+  const base = url === "" || url.endsWith("/") ? `${url}index` : url;
+  const file = resolve(__dirname, "..", `${base}.md`);
+  const date = existsSync(file) ? statSync(file).mtime : new Date();
+  return date.toISOString();
+}
+
 function toCanonicalUrl(relativePath: string): string {
   const clean = toCleanPath(relativePath);
   return clean ? `${SITE_URL}/${clean}` : `${SITE_URL}/`;
@@ -66,6 +81,7 @@ export default defineConfig({
     transformItems(items) {
       return items.map((item) => ({
         ...item,
+        lastmod: item.lastmod ?? sitemapLastmod(item.url),
         url:
           item.url === "" || item.url === "/"
             ? ""
@@ -96,14 +112,14 @@ export default defineConfig({
       ["meta", { property: "og:description", content: pageData.description }],
       ["meta", { property: "og:url", content: url }],
       ["meta", { property: "og:image", content: OG_IMAGE }],
-      ["meta", { property: "og:image:width", content: "3200" }],
-      ["meta", { property: "og:image:height", content: "2100" }],
+      ["meta", { property: "og:image:width", content: "1200" }],
+      ["meta", { property: "og:image:height", content: "630" }],
       [
         "meta",
         {
           property: "og:image:alt",
           content:
-            "ExcaliDash self-hosted Excalidraw workspace showing drawing previews and collections",
+            "ExcaliDash logo and self-hosted Excalidraw workspace dashboard with drawing previews and collections",
         },
       ],
       ["meta", { name: "twitter:card", content: "summary_large_image" }],
@@ -136,7 +152,9 @@ export default defineConfig({
             applicationCategory: "DeveloperApplication",
             operatingSystem: "Linux, macOS, Windows, Docker",
             url: `${SITE_URL}/`,
-            screenshot: OG_IMAGE,
+            screenshot: SCREENSHOT,
+            author: AUTHOR,
+            creator: AUTHOR,
             codeRepository: "https://github.com/ZimengXiong/ExcaliDash",
             sameAs: ["https://github.com/ZimengXiong/ExcaliDash"],
             license: "https://www.gnu.org/licenses/lgpl-3.0.html",
@@ -349,7 +367,8 @@ export default defineConfig({
       { icon: "github", link: "https://github.com/ZimengXiong/ExcaliDash" },
     ],
     footer: {
-      message: "Self-hosted, open source, and built around Excalidraw.",
+      message:
+        'Self-hosted, open source, and built around Excalidraw by <a href="https://zimengxiong.com/">Zimeng Xiong</a>.',
       copyright: "Released under the GNU LGPL v3.0.",
     },
     docFooter: {

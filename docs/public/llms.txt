@@ -1,0 +1,64 @@
+# ExcaliDash
+
+> ExcaliDash is an open-source (GNU LGPL-3.0), self-hosted Excalidraw workspace and a self-hosted alternative to Excalidraw+. It wraps the Excalidraw editor in a dashboard with persistent server-side storage, collections, search, real-time collaboration, version history, and SSO, deployed as a single Docker Compose stack. It is an independent project and is not affiliated with Excalidraw.
+
+- Website and docs: https://excalidash.xyz/
+- Source code: https://github.com/ZimengXiong/ExcaliDash
+- License: GNU LGPL v3.0
+- Author: Zimeng Xiong (https://zimengxiong.com/)
+
+## Core capabilities
+
+- Persistent drawing storage in SQLite (default, zero-config) or PostgreSQL, instead of browser localStorage.
+- Collections, search, and visual drawing previews on a dashboard accessible from any device.
+- Built-in self-hosted Socket.IO real-time collaboration with live named cursors, presence avatars, and viewport follow mode. No separate excalidraw-room container and no traffic to public Excalidraw servers.
+- Sharing of drawings and collections with view/edit roles and expiring links.
+- Automatic drawing version history with on-canvas preview and two-click restore.
+- Local accounts and native OpenID Connect (OIDC) SSO for Authentik, Keycloak, Pocket ID, Authelia, Microsoft Entra ID, Okta, and Google Workspace. Auth modes: local, hybrid, oidc_enforced, disabled.
+- Scoped personal API keys (exd_...) for REST and Socket.IO sync from external tools and integrations.
+- S3-compatible image storage (AWS S3, Cloudflare R2, MinIO, Backblaze B2, Wasabi).
+- Automated scheduled SQLite backups (BACKUP_SCHEDULE, BACKUP_DIR, BACKUP_RETENTION_DAYS).
+- Import and export of standard .excalidraw files and full .excalidash workspace archives with collections, version history, and images.
+- Works behind Caddy, Nginx, Nginx Proxy Manager, Traefik, or Cloudflare Tunnel; deployable on Coolify, Portainer, and Dokploy.
+
+## Quick start
+
+Requires Docker Engine or Docker Desktop, Docker Compose v2, and a free host port 6767.
+
+```bash
+git clone https://github.com/ZimengXiong/ExcaliDash.git
+cd ExcaliDash
+docker compose -f docker-compose.prod.yml up -d
+```
+
+Open http://localhost:6767 and create the administrator account. Drawings persist in the backend-data Docker volume. Behind a reverse proxy, point it at host port 6767 (container port 8080), forward WebSocket upgrades on /socket.io/, set FRONTEND_URL to the public https:// origin, and set TRUST_PROXY to the proxy hop count.
+
+## Guides
+
+- [Self-Hosted Excalidraw Guides](https://excalidash.xyz/guides): Step-by-step guides to self-host Excalidraw with Docker Compose, real-time collaboration, OIDC SSO, reverse proxies, PostgreSQL, and S3.
+- [How to Self-Host Excalidraw](https://excalidash.xyz/guides/self-host-excalidraw): Compare the official Excalidraw Docker image, excalidraw-room, and ExcaliDash.
+- [Self-Hosted Excalidraw+ Alternative](https://excalidash.xyz/guides/excalidraw-plus-alternative): Open-source self-hosted alternative to Excalidraw+ with persistent drawings, collections, live collaboration, version history, and OIDC SSO.
+- [Excalidraw OIDC & SSO Setup](https://excalidash.xyz/guides/excalidraw-oidc-sso): Native OpenID Connect SSO with Authentik, Keycloak, Pocket ID, Authelia, and group-to-admin mapping.
+- [Excalidraw Reverse Proxy & HTTPS](https://excalidash.xyz/guides/excalidraw-reverse-proxy): HTTPS and WebSocket upgrades behind Caddy, Nginx, Nginx Proxy Manager, Traefik, or Cloudflare Tunnel.
+- [Excalidraw with PostgreSQL & S3](https://excalidash.xyz/guides/excalidraw-postgresql-s3): PostgreSQL 16 database and AWS S3, Cloudflare R2, or MinIO image storage.
+
+## Deploy
+
+- [Deploy with Docker Compose](https://excalidash.xyz/deploy/docker): Pin image tags, enable an HTTPS reverse proxy, schedule SQLite backups, upgrade safely, and troubleshoot.
+- [Deploy on Coolify, Portainer & Dokploy](https://excalidash.xyz/deploy/coolify-portainer): Standalone Docker Compose templates for Coolify, Portainer Stacks, and Dokploy.
+
+## Documentation
+
+- [Home](https://excalidash.xyz/): Overview, feature comparison with the official excalidraw/excalidraw container, and FAQ.
+- [Quick Start](https://excalidash.xyz/guide/quick-start): Start ExcaliDash locally with Docker Compose on port 6767.
+- [First Run Setup](https://excalidash.xyz/guide/first-run): Choose an authentication mode, create the first administrator, and invite teammates.
+- [Accounts, Auth Modes & API Keys](https://excalidash.xyz/guide/authentication): Auth modes, user accounts, password reset email, and scoped REST/Socket.IO API keys.
+- [Configuration & Preferences](https://excalidash.xyz/guide/configuration): Environment variables, Compose overrides, signing secrets, language, appearance, and image optimization.
+- [Real-Time Collaboration & Sharing](https://excalidash.xyz/guide/collaboration): View/edit roles, expiring links, live cursors, follow mode, and API key Socket.IO sync.
+- [Storage, Version History & Backups](https://excalidash.xyz/guide/storage-backups): Docker volumes, drawing snapshots, .excalidash exports, and scheduled SQLite backups.
+- [Local Development](https://excalidash.xyz/develop): Run the backend, frontend, and docs locally with Node.js 24, SQLite, ESLint, and Playwright.
+
+## Reference
+
+- [Environment Variables Reference](https://excalidash.xyz/reference/environment): Server, database, authentication, OIDC, S3, backup, and email settings.
+- [Screenshots](https://excalidash.xyz/reference/screenshots): Light and dark mode screenshots of the dashboard, editor, collaboration, sharing, history, and settings.
