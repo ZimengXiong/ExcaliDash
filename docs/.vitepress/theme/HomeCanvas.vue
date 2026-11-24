@@ -26,13 +26,14 @@ function toggleTheme() {
 <template>
   <section v-if="frontmatter.pageClass === 'canvas-home'" class="drawing-home">
     <header class="hero">
-      <h1>
+      <p class="hero-brand">
         <span>{{ frontmatter.canvasHero.name }}</span>
         <svg class="hero-underline" viewBox="0 0 360 18" aria-hidden="true">
           <path pathLength="1" d="M6 11 Q150 3 352 8" />
           <path pathLength="1" d="M96 15 Q230 10 342 13" />
         </svg>
-      </h1>
+      </p>
+      <h1 class="hero-headline">{{ frontmatter.canvasHero.headline }}</h1>
       <p class="hero-tagline">{{ frontmatter.canvasHero.tagline }}</p>
       <div class="hero-actions">
         <a
@@ -69,6 +70,7 @@ function toggleTheme() {
             :alt="image.alt"
             width="3200"
             height="2100"
+            :loading="index === 0 ? 'eager' : 'lazy'"
             :fetchpriority="index === 0 ? 'high' : 'auto'"
             draggable="false"
           />
@@ -79,6 +81,7 @@ function toggleTheme() {
             aria-hidden="true"
             width="3200"
             height="2100"
+            :loading="index === 0 ? 'eager' : 'lazy'"
             draggable="false"
           />
         </div>
@@ -120,7 +123,7 @@ function toggleTheme() {
         :href="withBase(feature.link)"
         class="note"
       >
-        <h2>
+        <span class="note-title">
           {{ feature.title }}
           <svg
             viewBox="0 0 120 8"
@@ -129,7 +132,7 @@ function toggleTheme() {
           >
             <path pathLength="1" d="M2 5 Q40 1 70 4 T118 3" />
           </svg>
-        </h2>
+        </span>
         <p>{{ feature.details }}</p>
       </a>
     </section>
@@ -152,7 +155,7 @@ function toggleTheme() {
   text-align: center;
 }
 
-.hero h1 {
+.hero-brand {
   margin: 0;
   font:
     400 clamp(54px, 9cqi, 96px) / 1 "Excalifont",
@@ -163,8 +166,18 @@ function toggleTheme() {
   transition: transform 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.hero h1:hover {
+.hero-brand:hover {
   transform: rotate(1deg) scale(1.02);
+}
+
+.hero-headline {
+  margin: 18px 0 0;
+  max-width: 28ch;
+  font-size: clamp(20px, 2.4cqi, 26px);
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--vp-c-text-1);
 }
 
 .hero-underline {
@@ -196,10 +209,10 @@ function toggleTheme() {
 }
 
 .hero-tagline {
-  max-width: 46ch;
-  margin: 22px 0 0;
+  max-width: 50ch;
+  margin: 12px 0 0;
   color: var(--vp-c-text-2);
-  font-size: clamp(16px, 1.7cqi, 18px);
+  font-size: clamp(15px, 1.6cqi, 17px);
   line-height: 1.6;
 }
 
@@ -444,7 +457,8 @@ function toggleTheme() {
   text-decoration: none;
 }
 
-.note h2 {
+.note-title {
+  display: block;
   position: relative;
   width: fit-content;
   margin: 0 0 6px;
@@ -455,7 +469,7 @@ function toggleTheme() {
   transition: color 140ms ease;
 }
 
-.note h2 svg {
+.note-title svg {
   position: absolute;
   left: 0;
   bottom: -5px;
@@ -467,7 +481,7 @@ function toggleTheme() {
   stroke-linecap: round;
 }
 
-.note h2 path {
+.note-title path {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
   opacity: 0;
@@ -476,12 +490,12 @@ function toggleTheme() {
     opacity 120ms ease;
 }
 
-.note:hover h2 {
+.note:hover .note-title {
   color: var(--vp-c-brand-1);
 }
 
-.note:hover h2 path,
-.note:focus-visible h2 path {
+.note:hover .note-title path,
+.note:focus-visible .note-title path {
   stroke-dashoffset: 0;
   opacity: 1;
 }
@@ -521,7 +535,7 @@ function toggleTheme() {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero h1,
+  .hero-brand,
   .hero-action,
   .hero-action svg,
   .sheet,
@@ -530,7 +544,7 @@ function toggleTheme() {
   .theme-doodle,
   .theme-doodle .moon,
   .theme-doodle .sun,
-  .note h2 path {
+  .note-title path {
     transition: none;
   }
 

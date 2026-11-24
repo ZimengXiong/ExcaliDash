@@ -1,6 +1,6 @@
 ---
-title: Self-Host Excalidraw Quick Start
-description: Launch a self-hosted Excalidraw workspace with ExcaliDash and Docker Compose in under two minutes.
+title: Quick Start
+description: Start ExcaliDash locally with Docker Compose in under two minutes and open your self-hosted Excalidraw dashboard on port 6767.
 ---
 
 <script setup>

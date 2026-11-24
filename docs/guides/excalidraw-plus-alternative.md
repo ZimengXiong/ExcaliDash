@@ -1,48 +1,71 @@
 ---
-title: Self-Hosted Excalidraw+ Alternative (Open Source)
-description: Compare ExcaliDash vs Excalidraw+ and the official Excalidraw Docker image. Self-host saved drawings, collections, live collaboration, version history, and OIDC SSO with Docker Compose.
+title: Self-Hosted Excalidraw+ Alternative
+description: Open-source self-hosted alternative to Excalidraw+ with persistent drawings, collections, live collaboration, version history, and OIDC SSO.
 ---
 
 # Self-hosted Excalidraw+ alternative
 
-If you like the Excalidraw canvas and want **Excalidraw+**-style workspace features—persistent cloud-like storage, folders/collections, team collaboration, access controls, and version history—running on your own server, **ExcaliDash** is an open-source (LGPL-3.0) self-hosted workspace built around the Excalidraw editor.
+Excalidraw's open-source canvas is fast and familiar, but teams who want cloud-style workspaces—saved drawings across devices, folders, permissions, live multiplayer collaboration, and version history—normally have to pay for **Excalidraw+** or stitch together custom backends.
+
+**ExcaliDash** is an open-source (GNU LGPL v3.0) self-hosted workspace built around the Excalidraw editor. It gives individuals, homelabs, and engineering teams a persistent dashboard, collections, built-in real-time collaboration, automatic version snapshots, and native OIDC SSO on their own servers.
 
 ExcaliDash is an independent project and is not affiliated with Excalidraw.
 
-## Feature comparison
+## ExcaliDash vs Excalidraw+ vs official Excalidraw Docker
 
-| Feature                          | Official `excalidraw/excalidraw`          | Excalidraw+ (Hosted)   | ExcaliDash (Self-Hosted)                               |
-| -------------------------------- | ----------------------------------------- | ---------------------- | ------------------------------------------------------ |
-| Hosting                          | Self-hosted static frontend               | Managed cloud          | Self-hosted Docker Compose                             |
-| Saved drawings across devices    | No (browser storage only)                 | Yes                    | Yes (SQLite or PostgreSQL)                             |
-| Collections / folders & search   | No                                        | Yes                    | Yes                                                    |
-| Real-time collaboration          | Public server or manual `excalidraw-room` | Yes                    | Yes (built-in Socket.IO + follow mode)                 |
-| Drawing & collection permissions | No                                        | Yes                    | Yes (account-level + expiring share links)             |
-| Version history & restore        | No                                        | Yes                    | Yes (automatic snapshots)                              |
-| Authentication & SSO             | No                                        | Managed accounts / SSO | Local accounts + OIDC (Authentik, Keycloak, Pocket ID) |
-| Image storage                    | Embedded in local file                    | Managed cloud          | Local volume or S3 / MinIO / R2                        |
-| Import / export `.excalidraw`    | Yes                                       | Yes                    | Yes + full `.excalidash` workspace archives            |
-| License / pricing                | MIT (free)                                | Paid subscription      | GNU LGPL v3.0 (free, self-hosted)                      |
+| Capability                     | Official `excalidraw/excalidraw`          | Excalidraw+ (Hosted Cloud)                     | ExcaliDash (Self-Hosted)                                                |
+| ------------------------------ | ----------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------- |
+| Deployment model               | Self-hosted static frontend               | Managed SaaS (enterprise self-host on request) | Self-hosted Docker Compose (SQLite or PostgreSQL)                       |
+| Saved drawings across devices  | No (browser `localStorage` only)          | Yes                                            | Yes (server-side database)                                              |
+| Collections / folders & search | No                                        | Yes                                            | Yes                                                                     |
+| Real-time collaboration        | Public server or custom `excalidraw-room` | Yes                                            | Yes (built-in Socket.IO + named cursors + follow mode)                  |
+| Permissions & link sharing     | Anonymous room links                      | Workspace roles & links                        | Per-drawing & per-collection view/edit + expiring links                 |
+| Version history & restore      | No                                        | Yes                                            | Yes (automatic snapshots, configurable retention)                       |
+| Authentication & SSO           | No                                        | Managed accounts / SSO                         | Local accounts + native OIDC (Authentik, Keycloak, Pocket ID, Authelia) |
+| Image storage                  | Embedded in local scene                   | Managed cloud                                  | Local volume or S3 / MinIO / Cloudflare R2                              |
+| File portability               | `.excalidraw`                             | `.excalidraw`                                  | Standard `.excalidraw` + full `.excalidash` workspace archives          |
+| Automation & API               | No                                        | Limited                                        | Scoped personal API keys (`exd_...`) for REST & Socket.IO               |
+| License & pricing              | MIT (free)                                | Paid per-seat subscription                     | GNU LGPL v3.0 (free, unlimited users)                                   |
 
-## What you get out of the box
+## What ExcaliDash includes out of the box
 
-### Organized dashboard instead of loose files
+### Visual dashboard, collections, and search
 
-All drawings are stored in your own database and shown with light/dark previews in a searchable dashboard. Group related diagrams into collections, sort by recency or title, and pick up any drawing from another machine.
+Instead of hunting through local downloads for `architecture-final-v3.excalidraw`, ExcaliDash renders light and dark previews for every drawing in a searchable dashboard. Group diagrams into collections, sort by update time or title, and switch devices without losing state.
 
 <ThemeScreenshot light="/images/workspace-light.png" dark="/images/workspace.png" alt="ExcaliDash self-hosted Excalidraw dashboard with drawing previews and collections" />
 
-### Built-in multiplayer collaboration
+### Self-hosted real-time collaboration and follow mode
 
-Share individual drawings or entire collections with teammates (view or edit access), or create optional expiring links. Active collaborators see live named cursors, presence avatars, and can click any avatar to follow that presenter's viewport.
+Share a single drawing or an entire collection with teammates using **View** or **Edit** permissions, or generate an optional expiring link for external reviewers. Active collaborators appear in the editor header with live named cursors, and clicking any avatar follows that presenter's viewport during design reviews.
 
 <ThemeScreenshot light="/images/collaboration-light.png" dark="/images/collaboration-dark.png" alt="Real-time Excalidraw collaboration with live cursors and presence avatars in ExcaliDash" />
 
-### Version history and portable backups
+### Automatic version history and zero lock-in exports
 
-ExcaliDash records snapshots automatically as you edit so you can preview earlier states and restore them in two clicks. Your data stays portable: import or export standard `.excalidraw` files anytime, or export a `.excalidash` archive containing drawings, collections, snapshots, and uploaded images.
+ExcaliDash captures snapshots automatically as you edit (controlled by `SNAPSHOT_RETENTION_DAYS` and `SNAPSHOT_MIN_INTERVAL_SECONDS`). Open **Version history** in the editor header to preview any earlier state directly on the canvas and restore it in two clicks.
 
-## Deploy in two minutes
+Your diagrams stay portable: export any canvas as a standard `.excalidraw` file anytime, or download a `.excalidash` archive containing your drawings, collections, snapshots, and deduplicated uploaded images.
+
+<ThemeScreenshot light="/images/screenshots/drawing-history-light.png" dark="/images/screenshots/drawing-history.png" alt="ExcaliDash version history panel showing snapshots and restore controls" />
+
+### Team authentication with OIDC SSO and API keys
+
+Start with local accounts or integrate your existing identity provider using `AUTH_MODE=hybrid` or `AUTH_MODE=oidc_enforced`. ExcaliDash supports just-in-time user provisioning and automatic admin assignment from IdP group claims—plus scoped `exd_...` API keys for scripts and integrations.
+
+## How to migrate from Excalidraw or Excalidraw+
+
+1. **Export existing scenes:** Save your drawings as `.excalidraw` files from `excalidraw.com` or Excalidraw+.
+2. **Deploy ExcaliDash:** Start the Docker Compose stack on your server or homelab.
+3. **Import into your workspace:** Use the dashboard import flow (or drag `.excalidraw` files directly into a canvas when **Append dropped drawings** is enabled in Settings) and organize them into collections.
+
+## When another tool might be a better fit
+
+- **Choose official Excalidraw+** if you want zero infrastructure management, mobile apps, or official commercial SLAs directly from the Excalidraw team.
+- **Choose Nextcloud Whiteboard** if your organization already runs Nextcloud and wants whiteboards stored directly inside Nextcloud Files without running another app.
+- **Choose AFFiNE or Penpot** if you want a full Notion-style document/database suite or a Figma-class vector UI design tool rather than Excalidraw's hand-drawn diagramming workflow.
+
+## Deploy ExcaliDash now
 
 ```bash
 git clone https://github.com/ZimengXiong/ExcaliDash.git
@@ -50,8 +73,9 @@ cd ExcaliDash
 docker compose -f docker-compose.prod.yml up -d
 ```
 
-Open `http://localhost:6767` to create your administrator account.
+Open `http://localhost:6767` to create your administrator account, then continue with:
 
-- [Full self-hosting walkthrough with reverse proxy configs](/guides/self-host-excalidraw)
-- [Configure OIDC / SSO for your team](/guides/excalidraw-oidc-sso)
-- [Production Docker Compose guide](/deploy/docker)
+- [How to self-host Excalidraw with Docker Compose](/guides/self-host-excalidraw)
+- [Configure OIDC / SSO (Authentik, Keycloak, Pocket ID, Authelia)](/guides/excalidraw-oidc-sso)
+- [Reverse proxy, HTTPS & WebSocket setup](/guides/excalidraw-reverse-proxy)
+- [PostgreSQL & S3 storage](/guides/excalidraw-postgresql-s3)

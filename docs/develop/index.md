@@ -1,6 +1,6 @@
 ---
 title: Local Development
-description: Run the ExcaliDash backend, frontend, and documentation site locally for development.
+description: Run the ExcaliDash backend, frontend, and VitePress documentation site locally with Node.js 24, SQLite, ESLint, and Playwright tests.
 ---
 
 <script setup>

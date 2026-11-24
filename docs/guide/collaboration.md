@@ -1,6 +1,6 @@
 ---
-title: Self-Hosted Excalidraw Real-Time Collaboration
-description: Run real-time Excalidraw collaboration on your own server with ExcaliDash. Live cursors, follow mode, drawing and collection sharing, link access, and WebSocket proxy setup.
+title: Real-Time Collaboration & Sharing
+description: Share Excalidraw drawings and collections with view/edit roles, expiring links, live cursors, viewport follow mode, and API key Socket.IO sync.
 ---
 
 # Self-hosted Excalidraw collaboration
@@ -52,7 +52,7 @@ const socket = io("https://draw.example.com", {
 
 ## Reverse proxy WebSocket setup
 
-When terminating HTTPS in front of ExcaliDash, your proxy must upgrade WebSocket connections on `/socket.io/`. Set `FRONTEND_URL` to your public origin and `TRUST_PROXY` to the number of trusted proxy hops. See [Configure HTTPS](/deploy/docker#configure-https).
+When terminating HTTPS in front of ExcaliDash, your proxy must upgrade WebSocket connections on `/socket.io/`. Set `FRONTEND_URL` to your public origin and `TRUST_PROXY` to the number of trusted proxy hops. See [Reverse proxy & HTTPS](/guides/excalidraw-reverse-proxy).
 
 ## Troubleshoot live editing
 

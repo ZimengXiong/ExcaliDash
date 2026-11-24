@@ -1,6 +1,6 @@
 ---
 title: First Run Setup
-description: Choose an authentication mode, create your first ExcaliDash administrator, invite teammates, and harden your workspace.
+description: Choose an authentication mode, create your first ExcaliDash administrator, invite teammates, and harden your self-hosted workspace.
 ---
 
 <script setup>

@@ -1,6 +1,6 @@
 ---
-title: Configuration
-description: Configure ExcaliDash environment variables, Docker overrides, signing secrets, and per-account workspace preferences.
+title: Configuration & Preferences
+description: Configure ExcaliDash environment variables, Compose overrides, signing secrets, language, appearance, and image optimization settings.
 ---
 
 # Configuration

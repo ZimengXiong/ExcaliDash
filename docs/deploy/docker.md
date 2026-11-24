@@ -1,15 +1,15 @@
 ---
-title: How to Self-Host Excalidraw with Docker Compose
-description: Step-by-step guide to self-host Excalidraw with Docker Compose using ExcaliDash. Includes persistent SQLite or PostgreSQL storage, HTTPS reverse proxy (Caddy, Nginx, Traefik), WebSockets, and backups.
+title: Deploy with Docker Compose
+description: "Deploy ExcaliDash with Docker Compose: pin image tags, enable HTTPS reverse proxy, schedule SQLite backups, upgrade safely, and troubleshoot."
 ---
 
 <script setup>
 import { setupSlides } from "../.vitepress/theme/screenshot-flows";
 </script>
 
-# How to self-host Excalidraw with Docker Compose
+# Deploy ExcaliDash with Docker Compose
 
-Run a self-hosted Excalidraw workspace with saved drawings, collections, and real-time collaboration on your server, VPS, or homelab using ExcaliDash's production Docker Compose stack (`frontend` + `backend` + persistent SQLite volume).
+Run the production ExcaliDash stack (`frontend` + `backend` + persistent SQLite volume) on a Linux server, VPS, or homelab using Docker Compose. For a broader overview comparing Excalidraw self-hosting options, see [How to self-host Excalidraw](/guides/self-host-excalidraw); for web panels, see [Coolify, Portainer & Dokploy](/deploy/coolify-portainer).
 
 ## Prerequisites
 
@@ -49,7 +49,7 @@ Set `EXCALIDASH_TAG` in a `.env` file next to `docker-compose.prod.yml` so front
 EXCALIDASH_TAG=latest
 ```
 
-Pin an explicit version tag (for example `0.6.10`) in production for repeatable deployments, then pull and recreate:
+Pin an explicit version tag (for example `0.7.0`) in production for repeatable deployments, then pull and recreate:
 
 ```bash
 docker compose -f docker-compose.prod.yml pull
@@ -120,6 +120,8 @@ services:
 ```
 
 :::
+
+For Nginx Proxy Manager, Cloudflare Tunnel, and multi-hop `TRUST_PROXY` verification steps, see [Reverse proxy & HTTPS](/guides/excalidraw-reverse-proxy). For PostgreSQL and S3/MinIO/R2 setups, see [PostgreSQL & S3 storage](/guides/excalidraw-postgresql-s3).
 
 ## Non-root port binding
 

@@ -1,6 +1,6 @@
 ---
-title: Excalidraw Storage, Version History & Backups
-description: Understand persistent Docker volumes, version history retention, .excalidash backup exports and recovery copies, and scheduled SQLite backups.
+title: Storage, Version History & Backups
+description: Understand Docker volumes, automatic drawing snapshots, .excalidash exports and recovery copies, and scheduled SQLite backups in ExcaliDash.
 ---
 
 <script setup>
@@ -60,4 +60,4 @@ Scheduled backups copy the SQLite database file only. Store `JWT_SECRET`, `CSRF_
 - **PostgreSQL:** use `pg_dump` or your managed database's snapshot schedule.
 - **S3 storage:** back up or replicate the configured `S3_BUCKET` alongside your database so image references remain intact on restore.
 
-Before upgrading ExcaliDash, take a fresh backup and record your current `EXCALIDASH_TAG`. See [Upgrade](/deploy/docker#upgrade).
+See [PostgreSQL & S3 storage](/guides/excalidraw-postgresql-s3) for full Compose and bucket recipes. Before upgrading ExcaliDash, take a fresh backup and record your current `EXCALIDASH_TAG`. See [Upgrade](/deploy/docker#upgrade).

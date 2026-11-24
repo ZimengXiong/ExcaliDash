@@ -1,13 +1,13 @@
 ---
-title: Self-Hosted Excalidraw Authentication & OIDC SSO
-description: Configure local accounts, OpenID Connect (OIDC) SSO with Authentik, Keycloak, or Pocket ID, password reset email, and scoped API keys in ExcaliDash.
+title: Accounts, Auth Modes & API Keys
+description: Manage ExcaliDash auth modes (local, hybrid, oidc_enforced, disabled), user accounts, password reset email, and scoped REST/Socket.IO API keys.
 ---
 
 <script setup>
 import { userManagementSlides, passwordResetSlides } from "../.vitepress/theme/screenshot-flows";
 </script>
 
-# Authentication and OIDC SSO
+# Accounts, auth modes, and API keys
 
 Control how people and scripts authenticate with `AUTH_MODE`:
 
@@ -82,7 +82,7 @@ Verify that `OIDC_REDIRECT_URI` matches the provider registration character-for-
 docker compose -f docker-compose.prod.yml logs --tail=100 backend
 ```
 
-See [OpenID Connect variables](/reference/environment#openid-connect) for additional options such as custom discovery URLs, claim names, and secret files.
+See the dedicated [OIDC & SSO setup guide](/guides/excalidraw-oidc-sso) for step-by-step Authentik, Keycloak, Pocket ID, Authelia, and Entra ID recipes, and the [OpenID Connect variables reference](/reference/environment#openid-connect) for all supported options.
 
 ## API keys
 
