@@ -57,6 +57,14 @@ interface BackupConfig {
   retentionDays: number;
 }
 
+interface KimiConfig {
+  apiKey: string | null;
+  baseUrl: string;
+  model: string;
+  reasoningEffort: "low" | "high" | "max";
+  timeoutMs: number;
+}
+
 interface Config {
   port: number;
   listenHost: string;
@@ -100,6 +108,7 @@ interface Config {
   linkShare: LinkShareConfig;
   updateCheck: UpdateCheckConfig;
   mail: MailConfig;
+  kimi: KimiConfig;
 }
 
 export type AuthMode = "local" | "hybrid" | "oidc_enforced" | "disabled";
@@ -318,6 +327,29 @@ const resolveBackupConfig = (): BackupConfig => {
   };
 };
 
+const resolveKimiConfig = (): KimiConfig => {
+  const reasoningEffort = readString("KIMI_REASONING_EFFORT", "high");
+  if (
+    reasoningEffort !== "low" &&
+    reasoningEffort !== "high" &&
+    reasoningEffort !== "max"
+  ) {
+    throw new Error(
+      "Invalid KIMI_REASONING_EFFORT. Expected one of: low, high, max",
+    );
+  }
+  return {
+    apiKey: readOptionalString("KIMI_API_KEY"),
+    baseUrl: readString("KIMI_BASE_URL", "https://api.moonshot.ai/v1").replace(
+      /\/+$/,
+      "",
+    ),
+    model: readString("KIMI_MODEL", "kimi-k3.1-pro"),
+    reasoningEffort,
+    timeoutMs: readNumber("KIMI_TIMEOUT_MS", 180000),
+  };
+};
+
 const resolvedAuthMode = parseAuthMode(readRaw("AUTH_MODE"));
 const resolvedNodeEnv = readString("NODE_ENV", "development");
 validateS3Configuration();
@@ -387,6 +419,7 @@ export const config: Config = {
   linkShare: resolveLinkShareConfig(),
   updateCheck: resolveUpdateCheckConfig(),
   mail: resolveMailConfig(),
+  kimi: resolveKimiConfig(),
 };
 if (config.nodeEnv === "production") {
   validateProductionConfig(config);

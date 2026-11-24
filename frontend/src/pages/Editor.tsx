@@ -69,6 +69,7 @@ const ExcalidrawEditor: React.FC = () => {
   );
   const [gridStep, setGridStep] = usePreference("gridStep", DEFAULT_GRID_STEP);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isAIOpen, setIsAIOpen] = useState(false);
   const historyButtonRef = useRef<HTMLButtonElement>(null);
   const shareButtonRef = useRef<HTMLButtonElement>(null);
   const [historyPreview, setHistoryPreview] =
@@ -380,9 +381,11 @@ const ExcalidrawEditor: React.FC = () => {
         canEdit={canEdit}
         drawingName={drawingName}
         editorContainerRef={editorContainerRef}
+        excalidrawAPIRef={excalidrawAPI}
         initialData={initialData}
         isHeaderVisible={isHeaderVisible}
         isHistoryOpen={isHistoryOpen}
+        isAIOpen={isAIOpen}
         historyPreview={isHistoryOpen ? historyPreview : null}
         historyButtonRef={historyButtonRef}
         shareButtonRef={shareButtonRef}
@@ -417,6 +420,7 @@ const ExcalidrawEditor: React.FC = () => {
         isShareOpen={isShareOpen}
         onCloseShare={() => setIsShareOpen(false)}
         onHistoryOpen={() => setIsHistoryOpen(true)}
+        onToggleAI={() => setIsAIOpen((open) => !open)}
         onToggleAutoHide={handleToggleAutoHide}
         onToggleTheme={toggleTheme}
       />

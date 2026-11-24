@@ -573,9 +573,11 @@ describe("sharing placement and chrome", () => {
         autosaveFailing={false}
         drawingName="Drawing"
         editorContainerRef={ref(null)}
+        excalidrawAPIRef={ref(null)}
         initialData={{ elements: liveElements }}
         isHeaderVisible={false}
         isHistoryOpen
+        isAIOpen={false}
         historyPreview={historicalSnapshot}
         historyButtonRef={ref(null)}
         shareButtonRef={shareAnchor}
@@ -608,6 +610,7 @@ describe("sharing placement and chrome", () => {
         isShareOpen
         onCloseShare={vi.fn()}
         onHistoryOpen={vi.fn()}
+        onToggleAI={vi.fn()}
         onToggleAutoHide={vi.fn()}
         onToggleTheme={vi.fn()}
       />,

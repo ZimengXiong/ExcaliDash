@@ -14,6 +14,11 @@ services:
       - NODE_ENV=production
       - AUTH_MODE=${AUTH_MODE:-local}
       - FILE_UPLOAD_MAX_MB=${FILE_UPLOAD_MAX_MB:-100}
+      - KIMI_API_KEY=${KIMI_API_KEY:-}
+      - KIMI_BASE_URL=${KIMI_BASE_URL:-https://api.moonshot.ai/v1}
+      - KIMI_MODEL=${KIMI_MODEL:-kimi-k3.1-pro}
+      - KIMI_REASONING_EFFORT=${KIMI_REASONING_EFFORT:-high}
+      - KIMI_TIMEOUT_MS=${KIMI_TIMEOUT_MS:-180000}
       # Keep disabled by default; only enable when a trusted proxy sanitizes forwarded headers.
       - TRUST_PROXY=false
       # Optional for single-instance deployments:

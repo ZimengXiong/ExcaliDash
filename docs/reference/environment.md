@@ -68,6 +68,18 @@ Enable OIDC by setting `AUTH_MODE` to `hybrid` or `oidc_enforced` alongside your
 
 See [Configure OpenID Connect](/guide/authentication#configure-openid-connect) for a complete Compose override.
 
+## Board AI
+
+Set `KIMI_API_KEY` in the root `.env` used by Docker Compose. The key is passed only to the backend. Each board has one shared, persistent AI conversation.
+
+| Variable                | Default                      | Purpose                                      |
+| ----------------------- | ---------------------------- | -------------------------------------------- |
+| `KIMI_API_KEY`          | unset                        | Moonshot API key; required to enable AI chat |
+| `KIMI_BASE_URL`         | `https://api.moonshot.ai/v1` | OpenAI-compatible Moonshot API base URL      |
+| `KIMI_MODEL`            | `kimi-k3.1-pro`              | Kimi model for board conversations and edits |
+| `KIMI_REASONING_EFFORT` | `high`                       | Reasoning effort: `low`, `high`, or `max`    |
+| `KIMI_TIMEOUT_MS`       | `180000`                     | Maximum wait for a Kimi response             |
+
 ## Images and backups
 
 | Variable                | Default             | Purpose                                                           |

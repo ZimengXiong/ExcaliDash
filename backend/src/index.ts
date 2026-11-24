@@ -28,6 +28,7 @@ import { errorHandler, asyncHandler } from "./middleware/errorHandler";
 import { createAuthRouter } from "./auth";
 import { logAuditEvent } from "./utils/audit";
 import { registerDashboardRoutes } from "./routes/dashboard";
+import { registerAiRoutes } from "./routes/ai";
 import { registerImportExportRoutes } from "./routes/importExport";
 import { registerSystemRoutes } from "./routes/system";
 import { registerFileRoutes } from "./routes/files";
@@ -616,6 +617,12 @@ if (enableOnboardingGate) {
   });
 }
 registerSystemRoutes(app, { asyncHandler, getBackendVersion });
+registerAiRoutes(app, {
+  prisma,
+  requireAuth,
+  asyncHandler,
+  kimi: config.kimi,
+});
 registerDashboardRoutes(app, {
   prisma,
   requireAuth,

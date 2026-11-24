@@ -1,6 +1,7 @@
 import React from "react";
 import type { DrawingSnapshotFull } from "../../api";
 import { HistoryPreviewCanvas } from "./HistoryPreviewCanvas";
+import { AISidebar } from "./AISidebar";
 import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
 import {
   ArrowLeft,
@@ -11,6 +12,7 @@ import {
   History,
   Loader2,
   Share2,
+  Sparkles,
 } from "lucide-react";
 import clsx from "clsx";
 import { Toaster } from "sonner";
@@ -31,9 +33,11 @@ type EditorViewProps = {
   canEdit: boolean;
   drawingName: string;
   editorContainerRef: React.RefObject<HTMLDivElement>;
+  excalidrawAPIRef: React.MutableRefObject<any>;
   initialData: any;
   isHeaderVisible: boolean;
   isHistoryOpen: boolean;
+  isAIOpen: boolean;
   historyPreview: DrawingSnapshotFull | null;
   historyButtonRef: React.RefObject<HTMLButtonElement>;
   shareButtonRef: React.RefObject<HTMLButtonElement>;
@@ -72,6 +76,7 @@ type EditorViewProps = {
   isShareOpen: boolean;
   onCloseShare: () => void;
   onHistoryOpen: () => void;
+  onToggleAI: () => void;
   onToggleAutoHide: () => void;
   onToggleTheme: () => void;
 };
@@ -136,9 +141,11 @@ export const EditorView: React.FC<EditorViewProps> = ({
   canEdit,
   drawingName,
   editorContainerRef,
+  excalidrawAPIRef,
   initialData,
   isHeaderVisible,
   isHistoryOpen,
+  isAIOpen,
   historyPreview,
   historyButtonRef,
   shareButtonRef,
@@ -173,6 +180,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
   isShareOpen,
   onCloseShare,
   onHistoryOpen,
+  onToggleAI,
   onToggleAutoHide,
   onToggleTheme,
 }) => (
@@ -356,6 +364,24 @@ export const EditorView: React.FC<EditorViewProps> = ({
           onChange={onCanvasChange}
           onPointerUpdate={onPointerUpdate}
           onLibraryChange={onLibraryChange}
+          renderTopRightUI={() => (
+            <button
+              type="button"
+              onClick={onToggleAI}
+              className={clsx(
+                "flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-semibold shadow-sm transition-colors",
+                isAIOpen
+                  ? "border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-200 dark:hover:bg-neutral-700",
+              )}
+              aria-label="Toggle AI assistant"
+              aria-pressed={isAIOpen}
+              title="AI Assistant"
+            >
+              <Sparkles size={17} />
+              AI
+            </button>
+          )}
           excalidrawAPI={onSetExcalidrawAPI}
           UIOptions={UIOptions}
           validateEmbeddable={validateEmbeddableUrl}
@@ -385,6 +411,13 @@ export const EditorView: React.FC<EditorViewProps> = ({
           </span>
         </div>
       )}
+      <AISidebar
+        isOpen={isAIOpen}
+        onClose={onToggleAI}
+        drawingId={id}
+        canEdit={canEdit}
+        excalidrawAPI={excalidrawAPIRef}
+      />
       {historyPreview ? (
         <HistoryPreviewCanvas
           snapshot={historyPreview}

@@ -10,14 +10,14 @@ datasource db {
 }
 
 model User {
-  id                  String              @id @default(uuid())
-  username            String?             @unique
-  email               String              @unique
+  id                  String               @id @default(uuid())
+  username            String?              @unique
+  email               String               @unique
   passwordHash        String
   name                String
-  role                String              @default("USER")
-  mustResetPassword   Boolean             @default(false)
-  isActive            Boolean             @default(true)
+  role                String               @default("USER")
+  mustResetPassword   Boolean              @default(false)
+  isActive            Boolean              @default(true)
   preferences         String?
   authIdentities      AuthIdentity[]
   drawings            Drawing[]
@@ -29,32 +29,32 @@ model User {
   apiKeys             ApiKey[]
   auditLogs           AuditLog[]
   chatGptConnection   ChatGptConnection?
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 }
 
 model SystemConfig {
-  id                         String   @id @default("default")
-  authEnabled                Boolean  @default(false)
-  authOnboardingCompleted    Boolean  @default(false)
-  registrationEnabled        Boolean  @default(false)
-  oidcJitProvisioningEnabled Boolean?
-  authLoginRateLimitEnabled  Boolean  @default(true)
-  authLoginRateLimitWindowMs Int      @default(900000)
-  authLoginRateLimitMax      Int      @default(20)
-  bootstrapSetupCodeHash     String?
-  bootstrapSetupCodeIssuedAt DateTime?
-  bootstrapSetupCodeExpiresAt DateTime?
-  bootstrapSetupCodeFailedAttempts Int @default(0)
+  id                               String    @id @default("default")
+  authEnabled                      Boolean   @default(false)
+  authOnboardingCompleted          Boolean   @default(false)
+  registrationEnabled              Boolean   @default(false)
+  oidcJitProvisioningEnabled       Boolean?
+  authLoginRateLimitEnabled        Boolean   @default(true)
+  authLoginRateLimitWindowMs       Int       @default(900000)
+  authLoginRateLimitMax            Int       @default(20)
+  bootstrapSetupCodeHash           String?
+  bootstrapSetupCodeIssuedAt       DateTime?
+  bootstrapSetupCodeExpiresAt      DateTime?
+  bootstrapSetupCodeFailedAttempts Int       @default(0)
   // Legacy AI data is retained for non-destructive upgrades; dev has no AI routes.
-  aiProvider                 String?
-  aiBaseUrl                  String?
-  aiModel                    String?
-  aiApiKeyEncrypted          String?
+  aiProvider                       String?
+  aiBaseUrl                        String?
+  aiModel                          String?
+  aiApiKeyEncrypted                String?
   // Admin kill-switch for the per-user ChatGPT subscription provider. Null means enabled.
-  aiChatgptEnabled           Boolean?
-  createdAt                  DateTime @default(now())
-  updatedAt                  DateTime @updatedAt
+  aiChatgptEnabled                 Boolean?
+  createdAt                        DateTime  @default(now())
+  updatedAt                        DateTime  @updatedAt
 }
 
 model ChatGptConnection {
@@ -94,27 +94,50 @@ model Collection {
 }
 
 model Drawing {
-  id           String      @id @default(uuid())
-  name         String
-  elements     String
-  appState     String
-  files        String      @default("{}")
-  preview      String?
-  version      Int         @default(1)
-  userId       String
-  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  collectionId String?
-  collection   Collection? @relation(fields: [collectionId], references: [id])
-  permissions  DrawingPermission[]
-  linkShares   DrawingLinkShare[]
-  snapshots    DrawingSnapshot[]
-  agentKeys    ApiKey[]
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  id             String              @id @default(uuid())
+  name           String
+  elements       String
+  appState       String
+  files          String              @default("{}")
+  preview        String?
+  version        Int                 @default(1)
+  userId         String
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  collectionId   String?
+  collection     Collection?         @relation(fields: [collectionId], references: [id])
+  permissions    DrawingPermission[]
+  linkShares     DrawingLinkShare[]
+  snapshots      DrawingSnapshot[]
+  agentKeys      ApiKey[]
+  aiConversation AiConversation?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
 
   @@index([userId, updatedAt])
   @@index([userId, collectionId, updatedAt])
   @@index([collectionId, updatedAt])
+}
+
+model AiConversation {
+  id        String      @id @default(uuid())
+  drawingId String      @unique
+  drawing   Drawing     @relation(fields: [drawingId], references: [id], onDelete: Cascade)
+  messages  AiMessage[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+}
+
+model AiMessage {
+  id             String         @id @default(uuid())
+  conversationId String
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String
+  content        String
+  operations     String?
+  reasoning      String?
+  createdAt      DateTime       @default(now())
+
+  @@index([conversationId, createdAt])
 }
 
 model DrawingSnapshot {
@@ -122,8 +145,8 @@ model DrawingSnapshot {
   drawingId String
   drawing   Drawing  @relation(fields: [drawingId], references: [id], onDelete: Cascade)
   version   Int
-  elements  String   // JSON string (state before update)
-  appState  String   // JSON string
+  elements  String // JSON string (state before update)
+  appState  String // JSON string
   files     String   @default("{}")
   createdAt DateTime @default(now())
 
@@ -274,12 +297,12 @@ model AuthIdentity {
 /// idempotent — no version/merge concerns for blobs.
 model DrawingFile {
   drawingId String
-  fileId    String   // Excalidraw fileId (same id used in Drawing.files)
+  fileId    String // Excalidraw fileId (same id used in Drawing.files)
   mimeType  String
   sizeBytes Int      @default(0)
-  storage   String   // "db" | "s3"
-  s3Key     String?  // set when storage = "s3"; full object key
-  data      Bytes?   // set when storage = "db"; raw image bytes
+  storage   String // "db" | "s3"
+  s3Key     String? // set when storage = "s3"; full object key
+  data      Bytes? // set when storage = "db"; raw image bytes
   createdAt DateTime @default(now())
 
   @@id([drawingId, fileId])
