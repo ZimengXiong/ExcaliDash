@@ -10,7 +10,7 @@ FROM node:24.22.1-alpine AS runtime
 # Repo files can be checked out as 0600; make everything the non-root user reads
 # explicitly world-readable, matching backend/Dockerfile.
 ARG APP_BUILD_LABEL=local
-LABEL org.opencontainers.image.source="https://github.com/brenovit/ExcaliDash" \
+LABEL org.opencontainers.image.source="https://github.com/ZimengXiong/ExcaliDash" \
       org.opencontainers.image.licenses="MIT AND LGPL-3.0-only" \
       org.opencontainers.image.description="MCP server for ExcaliDash, based on LatikDesu/excalidash-mcp" \
       org.opencontainers.image.version="${APP_BUILD_LABEL}"

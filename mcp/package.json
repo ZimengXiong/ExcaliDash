@@ -9,7 +9,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/brenovit/ExcaliDash.git",
+    "url": "git+https://github.com/ZimengXiong/ExcaliDash.git",
     "directory": "mcp"
   },
   "license": "MIT AND LGPL-3.0-only",

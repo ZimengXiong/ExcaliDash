@@ -19,7 +19,7 @@ Use the public **frontend URL** of your ExcaliDash instance. The API client appe
 
 ### Container image
 
-For a client that launches Docker, use the image published by this repository's GHCR workflow:
+For a client that launches Docker, build the image from the repository root with `docker build -f mcp/Dockerfile -t excalidash-mcp .` and use it:
 
 ```json
 {
@@ -34,7 +34,7 @@ For a client that launches Docker, use the image published by this repository's 
         "EXCALIDASH_URL",
         "--env",
         "EXCALIDASH_API_KEY",
-        "ghcr.io/brenovit/excalidash-mcp"
+        "excalidash-mcp"
       ],
       "env": {
         "EXCALIDASH_URL": "https://draw.example.com",

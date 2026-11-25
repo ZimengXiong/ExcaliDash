@@ -55,9 +55,9 @@ the collection scopes. To disconnect an agent, revoke its key under
 ## Run it locally over stdio
 
 Clients that only support stdio can run the server as a child process
-instead. Build the image with `docker build -f mcp/Dockerfile -t excalidash-mcp .`
-or use the published `ghcr.io/brenovit/excalidash-mcp`, and pass the
-frontend URL and an API key:
+instead. Build the image from the repository root with
+`docker build -f mcp/Dockerfile -t excalidash-mcp .` and pass the frontend
+URL and an API key:
 
 ```json
 {
@@ -72,7 +72,7 @@ frontend URL and an API key:
         "EXCALIDASH_URL",
         "--env",
         "EXCALIDASH_API_KEY",
-        "ghcr.io/brenovit/excalidash-mcp"
+        "excalidash-mcp"
       ],
       "env": {
         "EXCALIDASH_URL": "https://your-host",
