@@ -85,29 +85,27 @@ https://draw.example.com/api/auth/oidc/callback
 
 ### Authentik
 
-1. Create an **OAuth2/OpenID Provider** in Authentik and bind it to an **Application**.
-2. Set **Client type** to **Confidential** and **Redirect URIs** to `https://draw.example.com/api/auth/oidc/callback`.
-3. Copy Authentik's **OpenID Configuration Issuer** into `OIDC_ISSUER_URL` (for example `https://auth.example.com/application/o/excalidash/`; keep the trailing slash if Authentik shows one).
+1. Create an OAuth2/OpenID Provider in Authentik and bind it to an Application.
+2. Set Client type to Confidential and Redirect URIs to `https://draw.example.com/api/auth/oidc/callback`.
+3. Copy Authentik's OpenID Configuration Issuer into `OIDC_ISSUER_URL` (for example `https://auth.example.com/application/o/excalidash/`; keep the trailing slash if Authentik shows one).
 4. Add `groups` to `OIDC_SCOPES` (`"openid profile email groups"`) when using `OIDC_ADMIN_GROUPS`.
 
 ### Keycloak
 
-1. Create an **OpenID Connect** client in your realm with **Client authentication** enabled.
-2. Add `https://draw.example.com/api/auth/oidc/callback` under **Valid redirect URIs**.
+1. Create an OpenID Connect client in your realm with Client authentication enabled.
+2. Add `https://draw.example.com/api/auth/oidc/callback` under Valid redirect URIs.
 3. Set `OIDC_ISSUER_URL` to `https://keycloak.example.com/realms/YOUR_REALM`.
-4. For admin mapping, add a **Group Membership** protocol mapper emitting `groups` in the ID token, and set `OIDC_GROUPS_CLAIM=groups` and `OIDC_ADMIN_GROUPS=excalidash-admins`.
+4. For admin mapping, add a Group Membership protocol mapper emitting `groups` in the ID token, and set `OIDC_GROUPS_CLAIM=groups` and `OIDC_ADMIN_GROUPS=excalidash-admins`.
 
 ### Pocket ID
 
-1. Create an **OIDC Client** in Pocket ID with callback URL `https://draw.example.com/api/auth/oidc/callback`.
+1. Create an OIDC Client in Pocket ID with callback URL `https://draw.example.com/api/auth/oidc/callback`.
 2. Set `OIDC_ISSUER_URL` to `https://id.example.com` and `OIDC_PROVIDER_NAME` to `Pocket ID`.
 3. Set `OIDC_SCOPES` to `"openid profile email groups"` if mapping `OIDC_ADMIN_GROUPS`.
 
 ### Authelia
 
-1. Add a confidential client under `identity_providers.oidc.clients` in Authelia's `configuration.yml`:
-   - `redirect_uris: ['https://draw.example.com/api/auth/oidc/callback']`
-   - `scopes: ['openid', 'profile', 'email', 'groups']`
+1. Add a confidential client under `identity_providers.oidc.clients` in Authelia's `configuration.yml` with `redirect_uris: ['https://draw.example.com/api/auth/oidc/callback']` and `scopes: ['openid', 'profile', 'email', 'groups']`.
 2. Set `OIDC_ISSUER_URL` to your Authelia root URL (such as `https://auth.example.com`).
 3. Set `OIDC_PROVIDER_NAME: Authelia` and restart ExcaliDash.
 
@@ -115,9 +113,11 @@ https://draw.example.com/api/auth/oidc/callback
 
 Any standard OpenID Connect provider uses the same variables:
 
-- **Microsoft Entra ID:** `OIDC_ISSUER_URL=https://login.microsoftonline.com/<TENANT_ID>/v2.0`, Web redirect URI `https://draw.example.com/api/auth/oidc/callback`.
-- **Okta:** `OIDC_ISSUER_URL=https://<your-domain>.okta.com/oauth2/default`, Web App using Authorization Code flow.
-- **Google Workspace:** `OIDC_ISSUER_URL=https://accounts.google.com`, OAuth 2.0 Web Application client ID.
+| Provider           | `OIDC_ISSUER_URL`                                    | Client setup                                             |
+| ------------------ | ---------------------------------------------------- | -------------------------------------------------------- |
+| Microsoft Entra ID | `https://login.microsoftonline.com/<TENANT_ID>/v2.0` | Web redirect URI `https://<host>/api/auth/oidc/callback` |
+| Okta               | `https://<your-domain>.okta.com/oauth2/default`      | Web App using Authorization Code flow                    |
+| Google Workspace   | `https://accounts.google.com`                        | OAuth 2.0 Web Application client ID                      |
 
 ## Split-horizon DNS and internal Docker networks
 

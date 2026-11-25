@@ -5,15 +5,13 @@ description: Run self-hosted Excalidraw with persistent PostgreSQL 16 storage an
 
 # Self-hosted Excalidraw with PostgreSQL and S3 storage
 
-To run self-hosted Excalidraw on PostgreSQL instead of SQLite, set `DATABASE_PROVIDER=postgresql` and a `postgresql://` connection string in `DATABASE_URL` on `excalidash-backend`; Prisma PostgreSQL migrations run automatically on startup. To store pasted images outside the database, set `S3_BUCKET` (along with `S3_ENDPOINT`, `S3_PUBLIC_URL`, and `S3_FORCE_PATH_STYLE` for non-AWS endpoints) for AWS S3, Cloudflare R2, MinIO, Backblaze B2, or Wasabi.
+To run self-hosted Excalidraw on PostgreSQL instead of SQLite, set `DATABASE_PROVIDER=postgresql` and a `postgresql://` connection string in `DATABASE_URL` on `excalidash-backend`; PostgreSQL migrations run automatically on startup. To store pasted images outside the database, set `S3_BUCKET` (along with `S3_ENDPOINT`, `S3_PUBLIC_URL`, and `S3_FORCE_PATH_STYLE` for non-AWS endpoints) for AWS S3, Cloudflare R2, MinIO, Backblaze B2, or Wasabi.
 
-ExcaliDash ships with both SQLite and PostgreSQL Prisma clients prebuilt inside the backend image, so switching databases requires no custom image build.
+ExcaliDash ships with both SQLite and PostgreSQL clients prebuilt inside the backend image, so switching databases requires no custom image build.
 
 ## When to move off SQLite
 
-- **Stay on SQLite** for a homelab or small team on one host that prefers single-file automated backups (`BACKUP_SCHEDULE`).
-- **Move to PostgreSQL** if you already operate a Postgres cluster, rely on `pg_dump` or managed point-in-time recovery, or see heavy concurrent multi-user writes.
-- **Enable S3 / R2 / MinIO** when users paste large images or screenshots and you want binary assets kept in object storage instead of `DrawingFile` database rows.
+Stay on SQLite for a homelab or small team on one host that prefers single-file automated backups (`BACKUP_SCHEDULE`). Move to PostgreSQL if you already operate a Postgres cluster, rely on `pg_dump` or managed point-in-time recovery, or see heavy concurrent multi-user writes. Enable S3, R2, or MinIO when users paste large images or screenshots and you want binary assets kept in object storage instead of database rows.
 
 ## PostgreSQL Docker Compose stack
 
@@ -82,11 +80,11 @@ volumes:
   backend-uploads:
 ```
 
-On startup, `docker-entrypoint.sh` selects the prebuilt PostgreSQL Prisma client and runs `prisma migrate deploy`. Set explicit `JWT_SECRET` and `CSRF_SECRET` values in `.env` (`openssl rand -hex 32`) whenever running PostgreSQL.
+On startup, the backend selects the prebuilt PostgreSQL client and applies schema migrations automatically. Set explicit `JWT_SECRET` and `CSRF_SECRET` values in `.env` (`openssl rand -hex 32`) whenever running PostgreSQL.
 
 ## S3-compatible image storage (AWS S3, Cloudflare R2, MinIO)
 
-Setting `S3_BUCKET` directs pasted image uploads into your bucket instead of `DrawingFile.data` in the database. Add the block matching your provider under `backend.environment`:
+Setting `S3_BUCKET` directs pasted image uploads into your bucket instead of the database. Add the block matching your provider under `backend.environment`:
 
 ::: code-group
 
@@ -144,12 +142,12 @@ Restore with:
 docker exec -i excalidash-postgres pg_restore -U excalidash -d excalidash --clean --if-exists < excalidash-YYYY-MM-DD.dump
 ```
 
-Back up your S3 bucket alongside PostgreSQL so `DrawingFile` rows match objects in the bucket, and keep `JWT_SECRET`, `CSRF_SECRET`, and `API_KEY_HASH_PEPPER` stored outside the cluster.
+Back up your S3 bucket alongside PostgreSQL so database records stay in sync with stored objects, and keep `JWT_SECRET`, `CSRF_SECRET`, and `API_KEY_HASH_PEPPER` stored outside the cluster.
 
 ### Migrating from SQLite to PostgreSQL
 
-1. In your SQLite instance, export each user's workspace from **Settings → Export backup** (downloads a `.excalidash` archive containing drawings, collections, version snapshots, and uploaded images).
+1. In your SQLite instance, export each user's workspace from Settings → Export backup (downloads a `.excalidash` archive containing drawings, collections, version snapshots, and uploaded images).
 2. Start the PostgreSQL (and optional S3) ExcaliDash stack and create the accounts.
-3. Import each `.excalidash` archive under **Settings → Advanced → Import backup**.
+3. Import each `.excalidash` archive under Settings → Advanced → Import backup.
 
 See [Storage, version history & backups](/guide/storage-backups) and [Environment variables reference](/reference/environment#images-and-backups) for all storage flags.

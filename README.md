@@ -6,7 +6,7 @@ The official `excalidraw/excalidraw` Docker image is a static frontend: scenes l
 
 [![ExcaliDash self-hosted Excalidraw workspace](docs/public/images/workspace.png)](https://excalidash.xyz)
 
-Documentation and deployment guides live at **[excalidash.xyz](https://excalidash.xyz)**.
+Documentation and deployment guides live at [excalidash.xyz](https://excalidash.xyz).
 
 ## Quick start
 
@@ -39,18 +39,18 @@ Open <http://localhost:6767> and create your administrator account.
 
 ## Guides & documentation
 
-- **[How to self-host Excalidraw](https://excalidash.xyz/guides/self-host-excalidraw)**: compare the official image, `excalidraw-room`, and ExcaliDash, then deploy with Docker Compose
-- **[How ExcaliDash works](https://excalidash.xyz/guides/how-excalidash-works)**: architecture of the Excalidraw backend, SQLite/PostgreSQL persistence, image interning, Socket.IO sync, and OIDC auth
-- **[Self-hosted Excalidraw projects compared](https://excalidash.xyz/guides/self-hosted-excalidraw-projects)**: ExcaliDash vs Excaliself, excalidraw-full, alswl/excalidraw-collaboration, excalidraw-persist, and AstraDraw
-- **[Self-host Excalidraw collaboration](https://excalidash.xyz/guides/excalidraw-collaboration-server)**: `excalidraw-room` in Docker, why `VITE_APP_WS_SERVER_URL` needs a rebuild, and the no-rebuild alternative
-- **[Excalidraw Docker not saving drawings](https://excalidash.xyz/guides/excalidraw-docker-not-saving)**: why the official container loses scenes and how to add persistent storage
-- **[Self-hosted Excalidraw+ alternative](https://excalidash.xyz/guides/excalidraw-plus-alternative)**: feature comparison with Excalidraw+ and migrating `.excalidraw` files
-- **[Reverse proxy, HTTPS & WebSockets](https://excalidash.xyz/guides/excalidraw-reverse-proxy)**: Caddy, Nginx, Nginx Proxy Manager, Traefik, and Cloudflare Tunnel
-- **[Excalidraw OIDC & SSO setup](https://excalidash.xyz/guides/excalidraw-oidc-sso)**: Authentik, Keycloak, Pocket ID, Authelia, and Entra ID
-- **[PostgreSQL & S3 storage](https://excalidash.xyz/guides/excalidraw-postgresql-s3)**: PostgreSQL 16, AWS S3, Cloudflare R2, and MinIO
-- **[Docker Compose production guide](https://excalidash.xyz/deploy/docker)**: pinned tags, scheduled SQLite backups, and upgrades
-- **[Coolify, Portainer & Dokploy](https://excalidash.xyz/deploy/coolify-portainer)**: standalone stacks for Docker panels
-- **[Kubernetes, Proxmox & Unraid](https://excalidash.xyz/deploy/kubernetes-proxmox-unraid)**: community Helm charts, Proxmox LXC, and Unraid
-- **[Environment variables reference](https://excalidash.xyz/reference/environment)**: complete backend and frontend settings
+- [How to self-host Excalidraw](https://excalidash.xyz/guides/self-host-excalidraw): compare the official image, `excalidraw-room`, and ExcaliDash, then deploy with Docker Compose
+- [How ExcaliDash works](https://excalidash.xyz/guides/how-excalidash-works): architecture of the Excalidraw backend, SQLite/PostgreSQL persistence, image storage, Socket.IO sync, and OIDC auth
+- [Self-hosted Excalidraw projects compared](https://excalidash.xyz/guides/self-hosted-excalidraw-projects): ExcaliDash vs Excaliself, excalidraw-full, alswl/excalidraw-collaboration, excalidraw-persist, and AstraDraw
+- [Self-host Excalidraw collaboration](https://excalidash.xyz/guides/excalidraw-collaboration-server): `excalidraw-room` in Docker, why `VITE_APP_WS_SERVER_URL` needs a rebuild, and the no-rebuild alternative
+- [Excalidraw Docker not saving drawings](https://excalidash.xyz/guides/excalidraw-docker-not-saving): why the official container loses scenes and how to add persistent storage
+- [Self-hosted Excalidraw+ alternative](https://excalidash.xyz/guides/excalidraw-plus-alternative): feature comparison with Excalidraw+ and migrating `.excalidraw` files
+- [Reverse proxy, HTTPS & WebSockets](https://excalidash.xyz/guides/excalidraw-reverse-proxy): Caddy, Nginx, Nginx Proxy Manager, Traefik, and Cloudflare Tunnel
+- [Excalidraw OIDC & SSO setup](https://excalidash.xyz/guides/excalidraw-oidc-sso): Authentik, Keycloak, Pocket ID, Authelia, and Entra ID
+- [PostgreSQL & S3 storage](https://excalidash.xyz/guides/excalidraw-postgresql-s3): PostgreSQL 16, AWS S3, Cloudflare R2, and MinIO
+- [Docker Compose production guide](https://excalidash.xyz/deploy/docker): pinned tags, scheduled SQLite backups, and upgrades
+- [Coolify, Portainer & Dokploy](https://excalidash.xyz/deploy/coolify-portainer): standalone stacks for Docker panels
+- [Kubernetes, Proxmox & Unraid](https://excalidash.xyz/deploy/kubernetes-proxmox-unraid): community Helm charts, Proxmox LXC, and Unraid
+- [Environment variables reference](https://excalidash.xyz/reference/environment): complete backend and frontend settings
 
 ExcaliDash is an independent open-source project built around Excalidraw and is not affiliated with Excalidraw. Licensed under the GNU Lesser General Public License v3.0.

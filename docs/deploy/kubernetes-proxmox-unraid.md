@@ -7,15 +7,15 @@ description: Deploy self-hosted Excalidraw with ExcaliDash on Kubernetes via com
 
 ExcaliDash officially publishes Docker images (`linux/amd64` and `linux/arm64`) rather than Helm charts or LXC templates, and community options cover all three platforms: two Helm charts on ArtifactHub (`unxwares/excalidash` and `alekc/excalidash`) for Kubernetes, a Proxmox VE LXC script from `community-scripts`, and Unraid's Docker Compose Manager plugin. On every platform, keep the backend at one replica (`replicas: 1`).
 
-| Platform        | Method                                    | Maintained by        | Notes                                               |
+| Platform        | Method                                    | Maintainer           | Notes                                               |
 | --------------- | ----------------------------------------- | -------------------- | --------------------------------------------------- |
-| Kubernetes      | `unxwares/excalidash` Helm chart          | UnxWares (community) | Chart appVersion `0.6.7` in November 2026           |
+| Kubernetes      | `unxwares/excalidash` Helm chart          | UnxWares (community) | Chart appVersion `0.6.7`; override image tags       |
 | Kubernetes      | `alekc/excalidash` Helm chart             | alekc (community)    | Chart appVersion `0.6.0`; override image tag values |
 | Proxmox VE      | community-scripts LXC                     | community-scripts    | Builds from source on Debian 13; `amd64` only       |
-| Unraid          | Docker Compose via Compose Manager plugin | You                  | No Community Apps template for ExcaliDash yet       |
+| Unraid          | Docker Compose via Compose Manager plugin | Self-managed         | No Community Apps template yet                      |
 | Any Docker host | [Docker Compose](/deploy/docker)          | ExcaliDash           | Reference deployment                                |
 
-Community charts and scripts are not maintained by ExcaliDash. Inspect their manifests before deploying and pin image tags to the version you want (current: `0.7.0`).
+Pin image tags in your values or Compose file to the release you want (current: `0.7.0`).
 
 ## Why ExcaliDash requires a single backend replica
 
@@ -92,12 +92,12 @@ If you prefer prebuilt Docker images, create a Debian or Ubuntu LXC/VM, install 
 
 ## Excalidraw on Unraid
 
-ExcaliDash does not have an Unraid Community Apps template yet. Run it through the **Docker Compose Manager** plugin:
+ExcaliDash does not have an Unraid Community Apps template yet. Run it through the Docker Compose Manager plugin:
 
-1. Install **Docker Compose Manager** from Community Apps.
-2. Open **Docker → Compose → Add New Stack** and name it `excalidash`.
+1. Install Docker Compose Manager from Community Apps.
+2. Open Docker → Compose → Add New Stack and name it `excalidash`.
 3. Paste the standalone `docker-compose.yml` from [How to self-host Excalidraw](/guides/self-host-excalidraw#step-1-create-docker-compose-yml) and adjust the host port (default `6767`) if needed.
-4. Put `JWT_SECRET` and `CSRF_SECRET` in the stack's `.env`, then click **Compose Up**.
+4. Put `JWT_SECRET` and `CSRF_SECRET` in the stack's `.env`, then click Compose Up.
 
 If you bind-mount `/mnt/user/appdata` instead of using a Docker named volume, set UID `1001` ownership first:
 

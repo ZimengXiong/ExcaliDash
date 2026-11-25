@@ -21,9 +21,11 @@ services:
       TRUST_PROXY: "1"
 ```
 
-- **`FRONTEND_URL`** must match the exact browser origin (scheme + hostname + non-default port, no trailing slash). Comma-separate multiple origins if needed.
-- **`TRUST_PROXY`** must match the number of trusted proxy hops in front of ExcaliDash (`"1"` for Caddy, Nginx, or Traefik; `"2"` for Cloudflare Proxy → Nginx → ExcaliDash). Make sure your edge proxy overwrites client-supplied `X-Forwarded-*` headers.
-- **`ENFORCE_HTTPS_REDIRECT`** defaults to `true` whenever `FRONTEND_URL` uses `https://`. Set it to `"false"` only if you need plain HTTP access for an internal health check or LAN-only address.
+| Variable                 | Value                                                                                                                                   |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `FRONTEND_URL`           | Exact browser origin (scheme + hostname + non-default port, no trailing slash). Comma-separate multiple origins if needed.              |
+| `TRUST_PROXY`            | Number of trusted proxy hops (`"1"` for Caddy, Nginx, or Traefik; `"2"` for Cloudflare Proxy → Nginx → ExcaliDash).                     |
+| `ENFORCE_HTTPS_REDIRECT` | Defaults to `true` when `FRONTEND_URL` uses `https://`. Set to `"false"` only if you need plain HTTP for internal checks or LAN access. |
 
 Apply the override:
 
@@ -75,11 +77,11 @@ server {
 
 ## Nginx Proxy Manager (NPM)
 
-1. Open **Proxy Hosts → Add Proxy Host**.
-2. Set **Domain Names** to `draw.example.com`, **Scheme** to `http`, **Forward Hostname / IP** to your Docker host (or `excalidash-frontend` on a shared network), and **Forward Port** to `6767` (or `8080` on a shared network).
-3. Turn **WebSockets Support** **ON**.
-4. Under **SSL**, select your Let's Encrypt certificate and enable **Force SSL** and **HTTP/2 Support**.
-5. Under **Advanced**, add:
+1. Open Proxy Hosts → Add Proxy Host.
+2. Set Domain Names to `draw.example.com`, Scheme to `http`, Forward Hostname / IP to your Docker host (or `excalidash-frontend` on a shared network), and Forward Port to `6767` (or `8080` on a shared network).
+3. Turn WebSockets Support ON.
+4. Under SSL, select your Let's Encrypt certificate and enable Force SSL and HTTP/2 Support.
+5. Under Advanced, add:
 
 ```nginx
 client_max_body_size 50M;
@@ -113,14 +115,14 @@ Traefik passes WebSocket upgrades through automatically on HTTP routers.
 
 ## Cloudflare Tunnel (`cloudflared`)
 
-1. Add a **Public Hostname** (`draw.example.com`) pointing to `http://127.0.0.1:6767` (or `http://excalidash-frontend:8080` on a shared Docker network).
-2. Confirm **WebSockets** is enabled under **Network** in Cloudflare (enabled by default).
+1. Add a Public Hostname (`draw.example.com`) pointing to `http://127.0.0.1:6767` (or `http://excalidash-frontend:8080` on a shared Docker network).
+2. Confirm WebSockets is enabled under Network in Cloudflare (enabled by default).
 3. Set `FRONTEND_URL: https://draw.example.com` and `TRUST_PROXY: "1"` on `backend` (use `"2"` if `cloudflared` forwards to another reverse proxy before ExcaliDash).
 
 ## Verify your reverse proxy
 
-1. **Login & cookies:** open `https://draw.example.com` and sign in. If you bounce back to `/login`, verify `TRUST_PROXY` and `FRONTEND_URL`.
-2. **WebSockets:** open a drawing and inspect DevTools → **Network → WS**. `/socket.io/?EIO=4&transport=websocket` should return `101 Switching Protocols`.
-3. **Upload limit:** paste a large screenshot into a canvas to confirm the proxy does not return `413 Request Entity Too Large`.
+1. Open `https://draw.example.com` and sign in. If you bounce back to `/login`, verify `TRUST_PROXY` and `FRONTEND_URL`.
+2. Open a drawing and inspect DevTools → Network → WS. `/socket.io/?EIO=4&transport=websocket` should return `101 Switching Protocols`.
+3. Paste a large screenshot into a canvas to confirm the proxy does not return `413 Request Entity Too Large`.
 
 Next steps: [Excalidraw OIDC & SSO setup](/guides/excalidraw-oidc-sso) or [Collaboration and sharing](/guide/collaboration).

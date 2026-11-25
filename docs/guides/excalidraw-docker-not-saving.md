@@ -27,7 +27,7 @@ Attaching a bind mount or Docker volume to `excalidraw/excalidraw` cannot fix th
 
 ## Fix 1: Export `.excalidraw` files manually
 
-If you only need a single-user scratchpad, press `Ctrl+S` / `Cmd+S` (or **Menu → Save to…**) to download a `.excalidraw` file and reopen it later with **Open**. It is manual, per file, and keeps you on the official image.
+If you only need a single-user scratchpad, press `Ctrl+S` / `Cmd+S` (or Menu → Save to…) to download a `.excalidraw` file and reopen it later with Open. It is manual, per file, and keeps you on the official image.
 
 ## Fix 2: Add an Excalidraw backend with persistent storage (ExcaliDash)
 
@@ -36,8 +36,8 @@ ExcaliDash wraps the Excalidraw editor with a Node.js backend that writes every 
 | Data                         | Default storage                                                    | Optional backend                                       |
 | ---------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------ |
 | Drawings, collections, users | SQLite at `/app/prisma/dev.db` in the `backend-data` volume        | PostgreSQL via `DATABASE_PROVIDER=postgresql`          |
-| Uploaded images              | Database blobs (`DrawingFile` table)                               | AWS S3, Cloudflare R2, MinIO, B2, Wasabi (`S3_BUCKET`) |
-| Version history              | Brotli-compressed snapshots (`SNAPSHOT_RETENTION_DAYS`, default 2) | —                                                      |
+| Uploaded images              | Database blobs                                                     | AWS S3, Cloudflare R2, MinIO, B2, Wasabi (`S3_BUCKET`) |
+| Version history              | Brotli-compressed snapshots (`SNAPSHOT_RETENTION_DAYS`, default 2) | None                                                   |
 | Scheduled backups            | `BACKUP_DIR` when `BACKUP_SCHEDULE` is set (SQLite)                | `pg_dump` for PostgreSQL                               |
 
 Start ExcaliDash with Docker Compose:
@@ -57,7 +57,7 @@ For a standalone Compose file with pinned tags, see [How to self-host Excalidraw
 - Keep the `backend-data` named volume intact. `docker compose down` preserves named volumes; `docker compose down --volumes` deletes every drawing and user account.
 - If you replace the named volume with a host bind mount, set ownership to UID `1001` (`chown -R 1001:1001 <dir>`) so the non-root backend process can write.
 - Enable `BACKUP_SCHEDULE` for automated SQLite `VACUUM INTO` backups and copy them off-host. See [Persist and back up data](/deploy/docker#persist-and-back-up-data).
-- Export a full `.excalidash` archive under **Settings → Export backup** before host migrations.
+- Export a full `.excalidash` archive under Settings → Export backup before host migrations.
 
 ## Related guides
 

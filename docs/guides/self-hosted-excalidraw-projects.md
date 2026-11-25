@@ -5,13 +5,11 @@ description: "Compare self-hosted Excalidraw projects on GitHub: ExcaliDash vs E
 
 # Self-hosted Excalidraw projects on GitHub: ExcaliDash vs Excaliself, excalidraw-full, and alswl (2026)
 
-For persistent drawings, user accounts, and live collaboration in Docker without rebuilding the Excalidraw frontend, the two main open-source options on GitHub are **ExcaliDash** (SQLite or PostgreSQL, OIDC SSO, version history) and **Excaliself** (PostgreSQL, team workspace, MCP server, Excalidraw+ importer). Pick **excalidraw-persist** for a minimal single-user SQLite setup, **alswl/excalidraw-collaboration** for the stock Excalidraw UI with anonymous rooms, or the **official image** if you only need a browser-local scratchpad.
-
-All details below were checked against each project's repository and docs in November 2026. Check recent commits and release notes before deploying.
+For persistent drawings, user accounts, and live collaboration in Docker without rebuilding the Excalidraw frontend, the two main open-source options on GitHub are ExcaliDash (SQLite or PostgreSQL, OIDC SSO, version history) and Excaliself (PostgreSQL, team workspace, MCP server, Excalidraw+ importer). Pick `excalidraw-persist` for a minimal single-user SQLite setup, `alswl/excalidraw-collaboration` for the stock Excalidraw UI with anonymous rooms, or the official image if you only need a browser-local scratchpad.
 
 ## Self-hosted Excalidraw projects compared
 
-| Project                                                                                                                         | Storage                                                                      | Accounts & SSO                                   | Live collaboration                             | Frontend rebuild             | License       | Activity (Nov 2026)                   |
+| Project                                                                                                                         | Storage                                                                      | Accounts & SSO                                   | Live collaboration                             | Frontend rebuild             | License       | Activity                              |
 | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------ | ---------------------------------------------- | ---------------------------- | ------------- | ------------------------------------- |
 | [Official image](https://github.com/excalidraw/excalidraw) + [`excalidraw-room`](https://github.com/excalidraw/excalidraw-room) | Browser `localStorage`                                                       | None                                             | Yes, via `excalidraw-room` (E2E encrypted)     | Yes, to set the WS URL       | MIT           | App active; room last commit Dec 2023 |
 | [Excalidraw+](https://plus.excalidraw.com/)                                                                                     | Hosted cloud                                                                 | Hosted accounts                                  | Yes                                            | Not self-hostable            | Proprietary   | Active                                |
@@ -19,7 +17,7 @@ All details below were checked against each project's repository and docs in Nov
 | [Excaliself](https://github.com/maciekzygmunt/excaliself)                                                                       | PostgreSQL                                                                   | Invite-only accounts, Google, Entra ID, OIDC     | Built in                                       | No                           | MIT           | Active, v0.14.0                       |
 | [alswl/excalidraw-collaboration](https://github.com/alswl/excalidraw-collaboration)                                             | Keyv storage backend (Redis, MongoDB, PostgreSQL, MySQL); in-memory if unset | None                                             | Yes, `excalidraw-room-go`                      | No (runtime-config fork)     | MIT           | Active, Aug 2026 release              |
 | [excalidraw-full](https://github.com/BetterAndBetterII/excalidraw-full)                                                         | Memory, SQLite, filesystem, or S3                                            | GitHub OAuth, or password via Dex OIDC           | Built into Go backend                          | No (prebuilt patched image)  | None declared | Last commit Aug 2025                  |
-| [excalidraw-persist](https://github.com/ozencb/excalidraw-persist)                                                              | SQLite                                                                       | None                                             | No (on TODO list)                              | No                           | MIT (README)  | Last commit Apr 2026                  |
+| [excalidraw-persist](https://github.com/ozencb/excalidraw-persist)                                                              | SQLite                                                                       | None                                             | No                                             | No                           | MIT (README)  | Last commit Apr 2026                  |
 | [Someone0nEarth/excalidraw-self-hosted](https://github.com/Someone0nEarth/excalidraw-self-hosted)                               | MongoDB via alswl storage backend                                            | None                                             | Yes, official `excalidraw-room`                | No (uses `alswl/excalidraw`) | MIT           | Last commit Sep 2025                  |
 | [AstraDraw](https://github.com/AstraDraw/astradraw)                                                                             | PostgreSQL + MinIO/S3                                                        | Local accounts, OIDC, workspace roles            | Own Socket.IO room service                     | Custom fork                  | MIT           | Alpha; last commit Dec 2025           |
 
@@ -37,7 +35,7 @@ Excalidraw's hosted commercial product with cloud workspaces and collaboration. 
 
 A self-hosted workspace around the Excalidraw editor with collections, search, SVG previews, per-drawing and per-collection View/Edit sharing, expiring share links, automatic version history, scoped API keys, scheduled SQLite backups, S3 image storage, and `.excalidash` workspace archives. Publishes multi-arch Docker images (`linux/amd64`, `linux/arm64`).
 
-Trade-offs: beta; single backend instance (`replicas: 1`); no MCP server or Excalidraw+ API importer yet; drawings are stored readable on your server rather than end-to-end encrypted.
+Tradeoffs: single backend instance (`replicas: 1`); no MCP server or Excalidraw+ API importer yet; drawings are stored readable on your server rather than end-to-end encrypted.
 
 ### Excaliself
 
@@ -61,16 +59,18 @@ A Traefik Compose stack wiring `alswl/excalidraw`, upstream `excalidraw-room`, a
 
 ### AstraDraw
 
-An Excalidraw fork adding workspaces, roles, comments with mentions, notifications, recorded walkthroughs, and presentation mode. Its README describes it as an alpha hobby project maintained by one developer.
+An Excalidraw fork adding workspaces, roles, comments with mentions, notifications, recorded walkthroughs, and presentation mode. Its README describes it as an alpha project maintained by one developer.
 
 ## Which self-hosted Excalidraw project should you pick?
 
-- **Team workspace with OIDC SSO, version history, SQLite or PostgreSQL, and no rebuild:** ExcaliDash.
-- **AI agents proposing drawing edits over MCP, Unraid Community Apps template, or direct Excalidraw+ import:** Excaliself.
-- **Stock Excalidraw UI with anonymous E2E-encrypted rooms on your own servers:** official image + `excalidraw-room` (requires rebuild), or alswl/excalidraw-collaboration (no rebuild).
-- **Single user, saved boards, minimal moving parts:** excalidraw-persist.
-- **Zero infrastructure and official support:** Excalidraw+.
-- **Browser-local scratchpad with manual `.excalidraw` downloads:** official `excalidraw/excalidraw` image.
+| Need                                                                                      | Best fit                                                                |
+| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Team workspace with OIDC SSO, version history, SQLite or PostgreSQL, and no rebuild       | ExcaliDash                                                              |
+| AI agents proposing drawing edits over MCP, Unraid CA template, or Excalidraw+ API import | Excaliself                                                              |
+| Stock Excalidraw UI with anonymous E2E-encrypted rooms on your own servers                | Official image + `excalidraw-room`, or `alswl/excalidraw-collaboration` |
+| Single user, saved boards, minimal moving parts                                           | `excalidraw-persist`                                                    |
+| Zero infrastructure and official support                                                  | Excalidraw+                                                             |
+| Browser-local scratchpad with manual `.excalidraw` downloads                              | Official `excalidraw/excalidraw` image                                  |
 
 To start ExcaliDash locally:
 

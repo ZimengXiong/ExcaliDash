@@ -7,7 +7,7 @@ description: Self-hosted Excalidraw+ alternative with saved drawings, collection
 
 Excalidraw+ is a hosted SaaS subscription and cannot be self-hosted today; self-hosting remains on its roadmap backlog with no release date. ExcaliDash is an open-source (LGPL-3.0) Excalidraw+ alternative you run with Docker Compose, adding persistent drawings, collections, built-in real-time collaboration, version history, and OIDC SSO on your own server.
 
-Teams that like the open-source Excalidraw canvas usually end up choosing between paying per seat for **Excalidraw+** or wiring together custom persistence and room servers. ExcaliDash puts the Excalidraw editor inside a self-hosted workspace backed by SQLite or PostgreSQL and a same-origin Socket.IO server.
+Teams that like the open-source Excalidraw canvas usually end up choosing between paying per seat for Excalidraw+ or wiring together custom persistence and room servers. ExcaliDash puts the Excalidraw editor inside a self-hosted workspace backed by SQLite or PostgreSQL and a same-origin Socket.IO server.
 
 ExcaliDash is an independent project and is not affiliated with Excalidraw.
 
@@ -37,13 +37,13 @@ Every drawing renders light and dark SVG previews on a searchable dashboard. Gro
 
 ### Self-hosted real-time collaboration and follow mode
 
-Share a drawing or an entire collection with teammates at **View** or **Edit** level, or issue a link with an optional expiration date for outside reviewers. Active participants appear in the editor header with live named cursors, and clicking any avatar follows their viewport during reviews.
+Share a drawing or an entire collection with teammates at View or Edit level, or issue a link with an optional expiration date for outside reviewers. Active participants appear in the editor header with live named cursors, and clicking any avatar follows their viewport during reviews.
 
 <ThemeScreenshot light="/images/collaboration-light.png" dark="/images/collaboration-dark.png" alt="Real-time Excalidraw collaboration with live cursors and presence avatars in ExcaliDash" />
 
 ### Automatic version history and portable exports
 
-ExcaliDash stores compressed snapshots automatically as you edit (configured via `SNAPSHOT_RETENTION_DAYS` and `SNAPSHOT_MIN_INTERVAL_SECONDS`). Open **Version history** in the editor header to preview any earlier state on the canvas and restore it in two clicks.
+ExcaliDash stores compressed snapshots automatically as you edit (configured via `SNAPSHOT_RETENTION_DAYS` and `SNAPSHOT_MIN_INTERVAL_SECONDS`). Open Version history in the editor header to preview any earlier state on the canvas and restore it in two clicks.
 
 Export any drawing as a standard `.excalidraw` file at any time, or download a `.excalidash` workspace archive with all drawings, collections, snapshots, and images.
 
@@ -55,21 +55,19 @@ Run local accounts, or connect your identity provider with `AUTH_MODE=hybrid` or
 
 ## Can you self-host Excalidraw+?
 
-No. Excalidraw+ is only available as Excalidraw's hosted cloud service. Self-hosting sits under **Backlog** on the [Excalidraw+ roadmap](https://plus.excalidraw.com/roadmap), and the [Excalidraw+ self-hosting docs](https://plus.excalidraw.com/docs/self-hosting/excalidraw-plus-self-hosting) describe it as a future Enterprise-license option with a waitlist and no release date. Organizations that need diagrams on their own infrastructure today run the open-source editor paired with a self-hosted backend such as ExcaliDash.
+No. Excalidraw+ is only available as Excalidraw's hosted cloud service. Self-hosting sits under Backlog on the [Excalidraw+ roadmap](https://plus.excalidraw.com/roadmap), and the [Excalidraw+ self-hosting docs](https://plus.excalidraw.com/docs/self-hosting/excalidraw-plus-self-hosting) describe it as a future Enterprise-license option with a waitlist and no release date. Organizations that need diagrams on their own infrastructure today run the open-source editor paired with a self-hosted backend such as ExcaliDash.
 
 ## How to migrate from Excalidraw or Excalidraw+
 
-1. **Export existing scenes:** download your drawings as `.excalidraw` files from `excalidraw.com` or Excalidraw+.
-2. **Deploy ExcaliDash:** bring up the Docker Compose stack on your server or homelab.
-3. **Import your files:** upload `.excalidraw` files from the dashboard (or drop them directly onto a canvas with **Append dropped drawings** enabled in Settings) and sort them into collections.
+1. Download your existing drawings as `.excalidraw` files from `excalidraw.com` or Excalidraw+.
+2. Bring up the ExcaliDash Docker Compose stack on your server or homelab.
+3. Upload `.excalidraw` files from the dashboard (or drop them onto a canvas with Append dropped drawings enabled in Settings) and sort them into collections.
 
-ExcaliDash does not have a direct Excalidraw+ API importer yet; migration goes through `.excalidraw` files. If you need direct API import from Excalidraw+, see [Excaliself in our projects comparison](/guides/self-hosted-excalidraw-projects#excaliself).
+ExcaliDash migrates via `.excalidraw` files rather than a direct Excalidraw+ API importer. If you need direct API import from Excalidraw+, see [Excaliself in our projects comparison](/guides/self-hosted-excalidraw-projects#excaliself).
 
 ## When another tool fits better
 
-- **Official Excalidraw+:** you want zero infrastructure to operate, first-party features as they land, and paid support from the Excalidraw team.
-- **Nextcloud Whiteboard:** your team already runs Nextcloud and wants whiteboards stored inside Nextcloud Files rather than deploying a separate app.
-- **AFFiNE or Penpot:** you want a Notion-style docs-and-databases suite or a Figma-class vector UI tool instead of Excalidraw's hand-drawn diagramming workflow.
+Choose official Excalidraw+ if you want zero infrastructure to operate and paid support from the Excalidraw team. Choose Nextcloud Whiteboard if your team already runs Nextcloud and wants whiteboards stored inside Nextcloud Files. Choose AFFiNE or Penpot if you want a Notion-style docs-and-databases workspace or a Figma-class vector UI tool instead of Excalidraw's diagramming workflow.
 
 ## Other open-source Excalidraw+ alternatives on GitHub
 

@@ -19,15 +19,15 @@ The room ID and encryption key live in the URL fragment (`#room=<id>,<key>`), so
 
 ## Why is `VITE_APP_WS_SERVER_URL` ignored in Docker?
 
-Excalidraw uses Vite, which replaces every `import.meta.env.VITE_*` reference with a literal string during `vite build`. Upstream `.env.production` sets `VITE_APP_WS_SERVER_URL=https://oss-collab.excalidraw.com`, and `excalidraw-app/collab/Collab.tsx` hands that constant to the Socket.IO client. The official `Dockerfile` runs the build once and serves the static output from nginx.
+Excalidraw uses Vite, which replaces every `VITE_*` environment variable with a literal string during the frontend build. Upstream's production build compiles `https://oss-collab.excalidraw.com` directly into the JavaScript bundle and serves the static output from nginx.
 
-Because nginx only serves precompiled JavaScript files, passing `-e VITE_APP_WS_SERVER_URL=https://collab.example.com` to `docker run` changes nothing. The same applies to `VITE_APP_BACKEND_V2_GET_URL`, `VITE_APP_BACKEND_V2_POST_URL` (shareable links), and `VITE_APP_FIREBASE_CONFIG`.
+Because nginx only serves precompiled static files, passing `-e VITE_APP_WS_SERVER_URL=https://collab.example.com` to `docker run` changes nothing. The same applies to `VITE_APP_BACKEND_V2_GET_URL`, `VITE_APP_BACKEND_V2_POST_URL` (shareable links), and `VITE_APP_FIREBASE_CONFIG`.
 
-Upstream tracks this in the self-hosting umbrella issue [#1772](https://github.com/excalidraw/excalidraw/issues/1772) and the missing collaboration-server docs issue [#3660](https://github.com/excalidraw/excalidraw/issues/3660). A pull request adding deployment-time environment injection, [#10843](https://github.com/excalidraw/excalidraw/pull/10843), remained open as of November 2026.
+Upstream tracks this in the self-hosting umbrella issue [#1772](https://github.com/excalidraw/excalidraw/issues/1772), the collaboration-server docs issue [#3660](https://github.com/excalidraw/excalidraw/issues/3660), and the runtime environment injection pull request [#10843](https://github.com/excalidraw/excalidraw/pull/10843).
 
 ## Running `excalidraw-room` in Docker: four approaches
 
-| Approach          | How it works                                                                                            | Trade-off                                                            |
+| Approach          | How it works                                                                                            | Tradeoff                                                             |
 | ----------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | Rebuild the image | Clone `excalidraw/excalidraw`, update `VITE_APP_WS_SERVER_URL` in `.env.production`, run `docker build` | You maintain a custom image and rebuild on every upstream update     |
 | Patch the bundle  | Container entrypoint runs `sed` over compiled JS to replace the upstream collab hostname                | Breaks silently when upstream renames or restructures built assets   |
@@ -89,11 +89,11 @@ docker compose -f docker-compose.prod.yml up -d
 
 Behind a reverse proxy, forward WebSocket upgrades on `/socket.io/`, set `FRONTEND_URL` to your public `https://` origin, and set `TRUST_PROXY` to your proxy hop count. See [Reverse proxy, HTTPS & WebSockets](/guides/excalidraw-reverse-proxy) and [Collaboration and sharing](/guide/collaboration).
 
-Trade-offs to keep in mind: ExcaliDash does not end-to-end encrypt scenes (the server reads them to generate previews, search, and version history), and the backend runs as a single process (`replicas: 1`). See [how ExcaliDash works](/guides/how-excalidash-works) for details on the Socket.IO sync protocol.
+Tradeoffs to keep in mind: ExcaliDash does not end-to-end encrypt scenes (the server reads them to generate previews, search, and version history), and the backend runs as a single process (`replicas: 1`). See [how ExcaliDash works](/guides/how-excalidash-works) for details on the Socket.IO sync protocol.
 
 ## Verify WebSocket upgrades
 
-Open a drawing, then check browser DevTools → **Network → WS**. The `/socket.io/?EIO=4&transport=websocket` request should return `101 Switching Protocols`. A `400` status or repeated HTTP polling requests means your reverse proxy is stripping `Upgrade` or `Connection` headers.
+Open a drawing, then check browser DevTools → Network → WS. The `/socket.io/?EIO=4&transport=websocket` request should return `101 Switching Protocols`. A `400` status or repeated HTTP polling requests means your reverse proxy is stripping `Upgrade` or `Connection` headers.
 
 ## Related guides
 
