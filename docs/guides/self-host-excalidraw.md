@@ -1,17 +1,19 @@
 ---
-title: How to Self-Host Excalidraw
-description: Compare the official Excalidraw Docker image, excalidraw-room, and ExcaliDash. Deploy self-hosted Excalidraw with saved drawings and live collab.
+title: "How to Self-Host Excalidraw (2026): Docker Compose, Saving & Collaboration"
+description: Self-host Excalidraw with persistent storage and live collaboration using Docker Compose. Compare the official image, excalidraw-room, and ExcaliDash.
 ---
 
-# How to self-host Excalidraw with collaboration and saved drawings
+# How to self-host Excalidraw (2026): Docker Compose, saving, and collaboration
 
-If you run `docker run -p 5000:80 excalidraw/excalidraw:latest`, you quickly hit three limits:
+To self-host Excalidraw with saved drawings and real-time collaboration, deploy ExcaliDash with Docker Compose: a frontend container, a Node.js backend, and a persistent SQLite volume. Drawings write to your database instead of browser `localStorage`, and multiplayer sync stays on your own `/socket.io/` server without running `excalidraw-room` or rebuilding the frontend.
 
-1. **Drawings are not saved on the server.** The official container is a static frontend; scenes persist only inside a single browser's `localStorage`. Clearing site data or switching devices loses your work unless you manually download `.excalidraw` files.
-2. **Live collaboration still hits Excalidraw's public servers.** The upstream Vite bundle bakes `oss-collab.excalidraw.com` into the frontend build, so self-hosting the frontend container alone does not keep real-time rooms on your infrastructure.
-3. **No workspace layer.** There is no dashboard, folder structure, search across drawings, version history, or user authentication.
+Running `docker run -p 5000:80 excalidraw/excalidraw:latest` gives you a working canvas, then runs into three walls:
 
-This guide compares the three ways to self-host Excalidraw and walks through deploying a complete, persistent, collaborative Excalidraw stack with Docker Compose using **ExcaliDash**.
+1. **No server-side persistence.** The official image is static files served by nginx. Scenes live only in one browser's `localStorage`, so clearing site data or switching machines wipes the canvas unless you manually download `.excalidraw` files.
+2. **Collaboration hits public servers.** Upstream Vite builds compile `oss-collab.excalidraw.com` into the JavaScript bundle. Self-hosting the frontend container alone still sends live room traffic off your network.
+3. **No workspace layer.** There is no drawing list, folder hierarchy, search, version history, or user authentication.
+
+This guide compares the three self-hosting options and walks through a production Docker Compose deployment with ExcaliDash. For other GitHub projects (Excaliself, excalidraw-full, alswl/excalidraw-collaboration, excalidraw-persist), see [self-hosted Excalidraw projects compared](/guides/self-hosted-excalidraw-projects). For running upstream `excalidraw-room`, see [self-host Excalidraw collaboration](/guides/excalidraw-collaboration-server).
 
 ## Comparing the 3 ways to self-host Excalidraw
 
@@ -21,22 +23,22 @@ This guide compares the three ways to self-host Excalidraw and walks through dep
 | `excalidraw` + `excalidraw-room`       | No (ephemeral rooms, manual file export)     | Yes (requires custom frontend build with overridden WS URLs) | No                                  | High               |
 | **ExcaliDash** (Docker Compose)        | **Yes** (SQLite or PostgreSQL + optional S3) | **Yes** (built-in Socket.IO backend + follow mode)           | **Yes** (local accounts + OIDC SSO) | **Low**            |
 
-- **Pick the official `excalidraw/excalidraw` container** if you only want a private, tracker-free scratchpad and always save `.excalidraw` files manually to disk.
-- **Pick `excalidraw` + `excalidraw-room`** if you strictly want anonymous, ephemeral whiteboard rooms with no accounts or database and are willing to maintain a custom frontend build.
-- **Pick ExcaliDash** if you want a persistent Excalidraw dashboard where drawings save to your own database, organize into collections, sync across devices, and support live multi-user collaboration on your own backend.
+- **Official `excalidraw/excalidraw` container:** best for a local scratchpad where you save `.excalidraw` files to disk manually.
+- **`excalidraw` + `excalidraw-room`:** best if you want anonymous, end-to-end encrypted rooms with no accounts or database and are fine rebuilding the frontend on each upstream release.
+- **ExcaliDash:** best when you need persistent storage across devices, collections, team accounts or OIDC SSO, version history, and self-hosted live collaboration in one Compose stack.
 
-## Architecture of a self-hosted ExcaliDash stack
+## How the ExcaliDash Docker stack fits together
 
-ExcaliDash runs as two containers on a private Docker bridge network:
+ExcaliDash runs two containers on a private Docker bridge network:
 
-- **`frontend`** (`zimengxiong/excalidash-frontend`) — serves the web UI and embedded Excalidraw editor on container port `8080` (and `80`), and proxies REST API calls (`/api/*`) and Socket.IO WebSockets (`/socket.io/*`) to `backend:8000`.
-- **`backend`** (`zimengxiong/excalidash-backend`) — Node.js API, Prisma ORM (SQLite by default, or PostgreSQL), Socket.IO collaboration engine, snapshot scheduler, and OIDC client.
+- **`frontend`** (`zimengxiong/excalidash-frontend`) serves the React dashboard and embedded Excalidraw editor on container ports `8080` and `80`, and proxies `/api/*` and `/socket.io/*` internally to `backend:8000`.
+- **`backend`** (`zimengxiong/excalidash-backend`) runs the Express API, Prisma ORM (SQLite by default or PostgreSQL), Socket.IO collaboration server, snapshot history, scheduled backups, and OIDC client.
 
-Because the frontend proxies `/api/` and `/socket.io/` internally, your reverse proxy only needs to point at one port (`6767` on the host, or `8080` on a shared Docker network).
+Because the frontend proxies API and WebSocket traffic internally, your reverse proxy only points at one port (`6767` on the host, or `8080` on a shared Docker network). See [how ExcaliDash works](/guides/how-excalidash-works) for the full backend architecture.
 
 ## Step 1: Create `docker-compose.yml`
 
-Save this standalone `docker-compose.yml` on your server, VPS, or homelab (no Git clone required):
+Save this standalone `docker-compose.yml` on your server, VPS, or homelab (no Git clone needed):
 
 ```yaml
 services:
@@ -90,11 +92,11 @@ volumes:
   backend-data:
 ```
 
-For local-only testing over HTTP without a reverse proxy, remove `FRONTEND_URL` and change `TRUST_PROXY` to `"false"`.
+For local-only testing over HTTP without a reverse proxy, drop `FRONTEND_URL` and set `TRUST_PROXY` to `"false"`.
 
 ## Step 2: Generate signing secrets and start the stack
 
-Generate persistent `JWT_SECRET` and `CSRF_SECRET` values in a `.env` file next to `docker-compose.yml` so sessions survive container rebuilds and server migrations:
+Put persistent `JWT_SECRET` and `CSRF_SECRET` values in a `.env` file next to `docker-compose.yml` so active sessions survive container rebuilds and host migrations:
 
 ```bash
 cat <<EOF > .env
@@ -106,11 +108,11 @@ docker compose up -d
 docker compose ps
 ```
 
-Open `http://localhost:6767` (or your configured HTTPS domain) and follow [first-run setup](/guide/first-run#create-the-administrator) to create your administrator account.
+Open `http://localhost:6767` (or your HTTPS domain) and finish [first-run setup](/guide/first-run#create-the-administrator) to create the administrator account.
 
-## Step 3: Put HTTPS and WebSockets in front of ExcaliDash
+## Step 3: Add HTTPS and WebSockets with a reverse proxy
 
-Real-time collaboration requires WebSocket upgrades on `/socket.io/`. A minimal Caddyfile looks like this:
+Live collaboration requires WebSocket upgrades on `/socket.io/`. With Caddy, three lines handle TLS and WebSockets:
 
 ```txt
 draw.example.com {
@@ -118,37 +120,79 @@ draw.example.com {
 }
 ```
 
-For complete Nginx, Nginx Proxy Manager, Traefik v3, and Cloudflare Tunnel configs—plus multi-hop `TRUST_PROXY` settings—see the [reverse proxy and HTTPS guide](/guides/excalidraw-reverse-proxy).
+For Nginx, Nginx Proxy Manager, Traefik v3, Cloudflare Tunnel, and multi-hop `TRUST_PROXY` setups, see the [reverse proxy and HTTPS guide](/guides/excalidraw-reverse-proxy).
 
-## Step 4: Verify persistence and real-time collaboration
+## Step 4: Verify persistence and live collaboration
 
-1. **Persistence check:** Create a drawing, draw a few shapes, close the tab, and reopen it from a second browser or incognito window after signing in.
-2. **Collaboration check:** Create a second user under **Admin → New User**, open the drawing's **Share** dialog, grant **Edit** access, and open the same drawing in two windows. You should see live named cursors, header presence avatars, and instant element sync. Click a collaborator's avatar to test viewport follow mode.
-3. **Import existing files:** Drag any `.excalidraw` file onto the dashboard or use the import dialog to bring in existing diagrams from `excalidraw.com`.
+1. **Persistence:** create a drawing, add a few shapes, close the tab, then sign in from another browser or an incognito window and reopen it.
+2. **Collaboration:** add a second account under **Admin → New User**, open the drawing's **Share** dialog, grant **Edit** access, and open the drawing in both sessions. Named cursors, header avatars, and shape updates sync immediately. Click a collaborator's avatar to follow their viewport.
+3. **Import existing diagrams:** drag `.excalidraw` files onto the dashboard or use the import dialog to bring in scenes from `excalidraw.com`.
 
-## Step 5: Configure backups, SSO, or PostgreSQL
+## Step 5: Backups, OIDC SSO, PostgreSQL, or PaaS panels
 
-- **Scheduled SQLite backups:** Mount a `backup-data:/app/backups` volume owned by UID `1001` and set `BACKUP_SCHEDULE="0 0 4 * * *"`. See [Persist and back up data](/deploy/docker#persist-and-back-up-data).
-- **Team SSO:** Switch `AUTH_MODE` to `hybrid` or `oidc_enforced` to sign in through Authentik, Keycloak, Pocket ID, or Authelia. See the [OIDC & SSO guide](/guides/excalidraw-oidc-sso).
-- **PostgreSQL & S3 storage:** Replace SQLite with PostgreSQL 16 and offload uploaded images to MinIO, Cloudflare R2, or AWS S3. See the [PostgreSQL & S3 guide](/guides/excalidraw-postgresql-s3).
-- **Panel deployments:** Running Coolify, Portainer, or Dokploy? Use the [panel deployment templates](/deploy/coolify-portainer).
+- **Scheduled SQLite backups:** mount `backup-data:/app/backups` (owned by UID `1001`) and set `BACKUP_SCHEDULE="0 0 4 * * *"`. See [Persist and back up data](/deploy/docker#persist-and-back-up-data).
+- **OIDC / SSO:** set `AUTH_MODE` to `hybrid` or `oidc_enforced` for Authentik, Keycloak, Pocket ID, Authelia, or Entra ID. See [Excalidraw OIDC & SSO setup](/guides/excalidraw-oidc-sso).
+- **PostgreSQL & S3 storage:** move from SQLite to PostgreSQL 16 and offload images to MinIO, Cloudflare R2, or AWS S3. See [PostgreSQL & S3 storage](/guides/excalidraw-postgresql-s3).
+- **Panel and cluster deployments:** see [Coolify, Portainer & Dokploy](/deploy/coolify-portainer) or [Kubernetes, Proxmox & Unraid](/deploy/kubernetes-proxmox-unraid).
+
+## Where does self-hosted Excalidraw save drawings?
+
+- **Official `excalidraw/excalidraw` image:** in the browser's `localStorage` and IndexedDB for that origin and browser profile. Nothing is sent to the server, so clearing site data, switching devices, or changing the URL loses the canvas. See [why self-hosted Excalidraw doesn't save drawings](/guides/excalidraw-docker-not-saving).
+- **ExcaliDash:** in the backend database. By default that is SQLite at `/app/prisma/dev.db` inside the `backend-data` volume, with pasted images stored in the database (`DrawingFile` table) or offloaded to an S3-compatible bucket when `S3_BUCKET` is set. Switch to PostgreSQL with `DATABASE_PROVIDER=postgresql`.
+
+## Backups
+
+- **SQLite:** set `BACKUP_SCHEDULE` (5- or 6-field cron), `BACKUP_DIR`, and `BACKUP_RETENTION_DAYS`, and mount a `backup-data` volume owned by UID `1001`. ExcaliDash runs SQLite `VACUUM INTO` through Prisma so backups are consistent without pausing writes. See [Persist and back up data](/deploy/docker#persist-and-back-up-data).
+- **PostgreSQL:** use `pg_dump` or managed database snapshots; the built-in scheduler only covers SQLite. See [PostgreSQL & S3 backups](/guides/excalidraw-postgresql-s3#backups-and-migration).
+- **Account archives:** **Settings → Export backup** downloads a `.excalidash` archive containing drawings, collections, version history, and uploaded images.
+- **Secrets:** keep `JWT_SECRET`, `CSRF_SECRET`, and `API_KEY_HASH_PEPPER` backed up outside the container volume.
+
+## Upgrading and pinning Docker image tags
+
+Docker Hub publishes multi-arch images (`linux/amd64` and `linux/arm64`) as `latest` and pinned version tags such as `0.7.0`. Pin both services to the same tag in production:
+
+```yaml
+services:
+  backend:
+    image: zimengxiong/excalidash-backend:0.7.0
+  frontend:
+    image: zimengxiong/excalidash-frontend:0.7.0
+```
+
+To upgrade, take a backup, bump both tags together, and run:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Database migrations run automatically on backend startup. If you use the repository's `docker-compose.prod.yml`, set `EXCALIDASH_TAG` in `.env` instead of editing image lines.
+
+## Does self-hosted Excalidraw require HTTPS?
+
+For single-user testing on `localhost`, no. Over a LAN or the internet, yes:
+
+- Upstream Excalidraw's end-to-end encrypted rooms rely on the Web Crypto API (`crypto.subtle`), which browsers only expose on `https://` origins and `localhost`. Plain `http://` on a LAN IP breaks official collaboration.
+- ExcaliDash marks session cookies `Secure` when `FRONTEND_URL` starts with `https://` and relies on `TRUST_PROXY` to detect forwarded HTTPS. Mismatched settings cause sign-in redirect loops behind a proxy.
+
+Terminate TLS at Caddy, Nginx, Traefik, or Cloudflare Tunnel and forward WebSocket upgrades on `/socket.io/`. See [Reverse proxy, HTTPS & WebSockets](/guides/excalidraw-reverse-proxy).
 
 ## Common self-hosting pitfalls
 
-- **Collaboration loads the canvas but edits don't sync:** Your reverse proxy is missing `Upgrade` / `Connection: upgrade` headers for `/socket.io/`, or `FRONTEND_URL` does not match the exact browser origin (including `https://`).
-- **Sign-in loops behind HTTPS:** `TRUST_PROXY` is still `"false"` (or wrong hop count), so the backend does not recognize the request as HTTPS when setting `Secure` session cookies.
-- **Bind-mount permission errors:** The backend container runs as non-root UID `1001`. Prefer Docker named volumes, or run `chown -R 1001:1001` on host bind-mount directories.
+- **Canvas loads, edits do not sync:** the reverse proxy is not forwarding `Upgrade` and `Connection: upgrade` on `/socket.io/`, or `FRONTEND_URL` does not match the exact browser origin (including `https://`).
+- **Sign-in bounces back to `/login` behind HTTPS:** `TRUST_PROXY` is still `"false"` or set to the wrong hop count, so Express does not treat the request as HTTPS when setting cookies.
+- **Permission errors on bind mounts:** the backend runs as non-root UID `1001`. Use Docker named volumes, or run `chown -R 1001:1001` on host bind-mount paths.
 
 ## Frequently asked questions
 
 ### Does the official Excalidraw Docker image save drawings?
 
-No. `excalidraw/excalidraw` has no backend or database; drawings stay only in your browser's `localStorage` until you manually export a `.excalidraw` file. ExcaliDash stores drawings in SQLite or PostgreSQL on your server.
+No. `excalidraw/excalidraw` ships no backend or database; drawings remain in your browser's `localStorage` until you manually export a `.excalidraw` file. ExcaliDash persists drawings in SQLite or PostgreSQL on your server.
 
-### Do I need to run `excalidraw-room` alongside ExcaliDash?
+### Do I need `excalidraw-room` alongside ExcaliDash?
 
-No. ExcaliDash includes its own Socket.IO collaboration server inside `excalidash-backend`. You do not need `excalidraw-room`, Firebase, or any external signaling service.
+No. `excalidash-backend` includes its own Socket.IO collaboration server on `/socket.io/`. You do not need `excalidraw-room`, Firebase, or any third-party signaling service.
 
-### Can ExcaliDash run completely offline or on an air-gapped LAN?
+### Can ExcaliDash run offline or on an air-gapped LAN?
 
-Yes. ExcaliDash bundles its frontend assets and fonts inside the container images. Set `AUTH_MODE=local` (or `disabled` on an isolated single-user network) and run without external internet access once images are pulled.
+Yes. Frontend assets, fonts, and both Prisma database clients (SQLite and PostgreSQL) are bundled into the Docker images. Set `AUTH_MODE=local` (or `disabled` on an isolated single-user network) and run with no internet access once images are pulled.

@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig } from "vitepress";
 import { docsReviewPlugin } from "./review/plugin.mjs";
@@ -59,11 +60,70 @@ function toCleanPath(relativePath: string): string {
   return relativePath.replace(/(^|\/)index\.md$/, "").replace(/\.md$/, "");
 }
 
+const DOCS_DIR = resolve(__dirname, "..");
+const gitDateCache = new Map<string, string | undefined>();
+
+function gitDate(file: string, first: boolean): string | undefined {
+  const key = `${first ? "a" : "m"}:${file}`;
+  if (gitDateCache.has(key)) return gitDateCache.get(key);
+  let date: string | undefined;
+  try {
+    const args = first
+      ? ["log", "--follow", "--diff-filter=A", "--format=%cI", "--", file]
+      : ["log", "-1", "--format=%cI", "--", file];
+    const lines = execFileSync("git", args, { cwd: DOCS_DIR, encoding: "utf8" })
+      .trim()
+      .split("\n")
+      .filter(Boolean);
+    const value = first ? lines[lines.length - 1] : lines[0];
+    date = value ? new Date(value).toISOString() : undefined;
+  } catch {
+    date = undefined;
+  }
+  gitDateCache.set(key, date);
+  return date;
+}
+
+function fileModified(file: string): string {
+  return (
+    gitDate(file, false) ??
+    (existsSync(file) ? statSync(file).mtime : new Date()).toISOString()
+  );
+}
+
+function filePublished(file: string): string {
+  return gitDate(file, true) ?? fileModified(file);
+}
+
 function sitemapLastmod(url: string): string {
-  const base = url === "" || url.endsWith("/") ? `${url}index` : url;
-  const file = resolve(__dirname, "..", `${base}.md`);
-  const date = existsSync(file) ? statSync(file).mtime : new Date();
-  return date.toISOString();
+  const clean = url.replace(/^\//, "");
+  const base = clean === "" || clean.endsWith("/") ? `${clean}index` : clean;
+  const direct = resolve(DOCS_DIR, `${base}.md`);
+  const file = existsSync(direct)
+    ? direct
+    : resolve(DOCS_DIR, base, "index.md");
+  return fileModified(file);
+}
+
+function stripForLlms(source: string): string {
+  return source
+    .replace(/^---\n[\s\S]*?\n---\n/, "")
+    .replace(/<script setup>[\s\S]*?<\/script>\n*/g, "")
+    .replace(/^<[A-Z][A-Za-z]*\b[^>]*\/>\n*/gm, "")
+    .replace(/\{\{\s*\$frontmatter\.excalidashVersion\s*\}\}/g, VERSION)
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function readFrontmatter(source: string): Record<string, string> {
+  const match = source.match(/^---\n([\s\S]*?)\n---\n/);
+  const fields: Record<string, string> = {};
+  if (!match) return fields;
+  for (const line of match[1].split("\n")) {
+    const field = line.match(/^(title|description):\s*(.+)$/);
+    if (field) fields[field[1]] = field[2].replace(/^["']|["']$/g, "");
+  }
+  return fields;
 }
 
 function toCanonicalUrl(relativePath: string): string {
@@ -81,7 +141,7 @@ export default defineConfig({
     transformItems(items) {
       return items.map((item) => ({
         ...item,
-        lastmod: item.lastmod ?? sitemapLastmod(item.url),
+        lastmod: sitemapLastmod(item.url),
         url:
           item.url === "" || item.url === "/"
             ? ""
@@ -150,13 +210,21 @@ export default defineConfig({
             name: "ExcaliDash",
             softwareVersion: VERSION,
             applicationCategory: "DeveloperApplication",
+            applicationSubCategory: "Whiteboard, Diagramming",
             operatingSystem: "Linux, macOS, Windows, Docker",
+            softwareRequirements: "Docker Compose v2",
+            installUrl: `${SITE_URL}/deploy/docker`,
+            isBasedOn: "https://github.com/excalidraw/excalidraw",
             url: `${SITE_URL}/`,
             screenshot: SCREENSHOT,
             author: AUTHOR,
             creator: AUTHOR,
             codeRepository: "https://github.com/ZimengXiong/ExcaliDash",
-            sameAs: ["https://github.com/ZimengXiong/ExcaliDash"],
+            sameAs: [
+              "https://github.com/ZimengXiong/ExcaliDash",
+              "https://hub.docker.com/r/zimengxiong/excalidash-frontend",
+              "https://integrations.goauthentik.io/dashboards/excalidash/",
+            ],
             license: "https://www.gnu.org/licenses/lgpl-3.0.html",
             isAccessibleForFree: true,
             description: pageData.description,
@@ -236,6 +304,7 @@ export default defineConfig({
       ]);
 
       if (isArticle) {
+        const sourceFile = resolve(DOCS_DIR, pageData.relativePath);
         const articleSchema: Record<string, unknown> = {
           "@context": "https://schema.org",
           "@type": "TechArticle",
@@ -246,11 +315,9 @@ export default defineConfig({
             "@type": "WebPage",
             "@id": url,
           },
-          author: {
-            "@type": "Organization",
-            name: "ExcaliDash",
-            url: `${SITE_URL}/`,
-          },
+          author: AUTHOR,
+          datePublished: filePublished(sourceFile),
+          dateModified: fileModified(sourceFile),
           publisher: {
             "@type": "Organization",
             name: "ExcaliDash",
@@ -261,11 +328,6 @@ export default defineConfig({
             },
           },
         };
-        if (pageData.lastUpdated) {
-          articleSchema.dateModified = new Date(
-            pageData.lastUpdated,
-          ).toISOString();
-        }
         head.push([
           "script",
           { type: "application/ld+json" },
@@ -274,6 +336,39 @@ export default defineConfig({
       }
     }
     return head;
+  },
+  transformPageData(pageData) {
+    pageData.frontmatter.excalidashVersion = VERSION;
+  },
+  buildEnd(siteConfig) {
+    const pages = [...siteConfig.pages]
+      .filter((page) => page !== "404.md")
+      .sort((a, b) => {
+        if (a === "index.md") return -1;
+        if (b === "index.md") return 1;
+        return a.localeCompare(b);
+      });
+    const sections = pages.map((page) => {
+      const source = readFileSync(resolve(siteConfig.srcDir, page), "utf8");
+      const { title, description } = readFrontmatter(source);
+      const body = stripForLlms(source);
+      const meta = [`URL: ${toCanonicalUrl(page)}`];
+      if (description) meta.push(`Description: ${description}`);
+      const heading = /^# /m.test(body)
+        ? ""
+        : `# ${title ?? toCleanPath(page)}\n\n`;
+      return `${heading}${meta.join("\n")}\n\n${body}`;
+    });
+    const intro = readFileSync(
+      resolve(siteConfig.srcDir, "public/llms.txt"),
+      "utf8",
+    )
+      .split("\n## ")[0]
+      .trim();
+    writeFileSync(
+      resolve(siteConfig.outDir, "llms-full.txt"),
+      `${intro}\n\n${sections.join("\n\n---\n\n")}\n`,
+    );
   },
   cleanUrls: true,
   lastUpdated: true,
@@ -307,8 +402,24 @@ export default defineConfig({
             link: "/guides/self-host-excalidraw",
           },
           {
+            text: "How ExcaliDash works",
+            link: "/guides/how-excalidash-works",
+          },
+          {
             text: "Excalidraw+ alternative",
             link: "/guides/excalidraw-plus-alternative",
+          },
+          {
+            text: "Self-hosted Excalidraw projects compared",
+            link: "/guides/self-hosted-excalidraw-projects",
+          },
+          {
+            text: "Collaboration server (excalidraw-room)",
+            link: "/guides/excalidraw-collaboration-server",
+          },
+          {
+            text: "Drawings not saving",
+            link: "/guides/excalidraw-docker-not-saving",
           },
           {
             text: "OIDC & SSO setup",
@@ -331,6 +442,10 @@ export default defineConfig({
           {
             text: "Coolify, Portainer & Dokploy",
             link: "/deploy/coolify-portainer",
+          },
+          {
+            text: "Kubernetes, Proxmox & Unraid",
+            link: "/deploy/kubernetes-proxmox-unraid",
           },
         ],
       },

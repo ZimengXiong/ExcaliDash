@@ -1,7 +1,7 @@
 ---
-title: ExcaliDash — Self-Hosted Excalidraw Workspace
+title: "ExcaliDash: Self-Hosted Excalidraw with Saving & Collaboration"
 titleTemplate: false
-description: Self-host Excalidraw with saved drawings, collections, real-time collaboration, version history, and OIDC SSO. Deploy with Docker Compose.
+description: Self-host Excalidraw with saved drawings, real-time collaboration, collections, version history, and OIDC SSO. Deploy ExcaliDash with Docker Compose.
 layout: home
 pageClass: canvas-home
 markdownStyles: true
@@ -9,8 +9,8 @@ footer: true
 
 canvasHero:
   name: "ExcaliDash"
-  headline: Self-hosted Excalidraw workspace with real-time collaboration
-  tagline: Persistent server-side drawings, collections, live multiplayer cursors, version history, and OIDC SSO—deployed in one Docker Compose stack.
+  headline: "Self-hosted Excalidraw with saved drawings and real-time collaboration"
+  tagline: Persistent SQLite or PostgreSQL storage, collections, built-in Socket.IO collaboration, version history, and OIDC SSO in one Docker Compose stack.
   actions:
     - theme: brand
       text: Deploy with Docker
@@ -20,23 +20,23 @@ canvasHero:
       link: /guides/self-host-excalidraw
 
 canvasFeatures:
-  - title: Organize
-    details: Save drawings to your database, group them into collections, search, and access them from any device.
+  - title: Persistent drawings
+    details: Store drawings in SQLite or PostgreSQL, organize them in collections, search by title, and open them from any device.
     link: /guide/first-run
-  - title: Collaborate
-    details: Edit together with live named cursors, presence avatars, follow mode, and scoped share links.
+  - title: Built-in collaboration
+    details: Edit together on your own server with live named cursors, presence avatars, follow mode, and expiring share links.
     link: /guide/collaboration
   - title: Version history
-    details: Preview automatic drawing snapshots on the canvas and restore earlier revisions in two clicks.
+    details: Inspect automatic Brotli-compressed drawing snapshots on the canvas and restore earlier revisions in two clicks.
     link: /guide/storage-backups
   - title: OIDC & local auth
-    details: Sign in with local accounts or OpenID Connect (Authentik, Keycloak, Pocket ID, Authelia), plus API keys.
+    details: Sign in with local accounts or native OpenID Connect (Authentik, Keycloak, Pocket ID, Authelia), plus scoped API keys.
     link: /guides/excalidraw-oidc-sso
-  - title: Portable backups
-    details: Import or export standard .excalidraw files anytime, or export full .excalidash workspace archives.
+  - title: Portable exports
+    details: Import and export standard .excalidraw files anytime, or download full .excalidash workspace archives.
     link: /guide/storage-backups
   - title: SQLite, Postgres & S3
-    details: Zero-config SQLite out of the box, or scale up to PostgreSQL and S3-compatible object storage.
+    details: Run zero-config SQLite out of the box, or switch to PostgreSQL and S3-compatible object storage with env vars.
     link: /guides/excalidraw-postgresql-s3
 
 canvasImages:
@@ -50,22 +50,28 @@ canvasImages:
     alt: Four collaborators editing an Excalidraw deployment diagram together with live cursors and presence avatars
 ---
 
-## Why ExcaliDash instead of the official `excalidraw/excalidraw` container
+## Excalidraw vs ExcaliDash: what the official Docker image is missing
 
-The official `excalidraw/excalidraw` Docker image is a static frontend: scenes are stored only in browser `localStorage`, there are no folders or accounts, and live collaboration routes through Excalidraw's public servers unless you build and maintain a separate `excalidraw-room` backend.
+**ExcaliDash {{ $frontmatter.excalidashVersion }}** · LGPL-3.0 · `linux/amd64` and `linux/arm64` · SQLite, PostgreSQL, and S3-compatible storage
 
-ExcaliDash wraps the Excalidraw editor in a complete self-hosted workspace backed by SQLite or PostgreSQL and a built-in Socket.IO collaboration server. It is an independent open-source (GNU LGPL v3.0) project and is not affiliated with Excalidraw.
+The official `excalidraw/excalidraw` Docker image is a static frontend. Scenes stay inside a single browser's `localStorage`, there are no accounts or folders, and live collaboration routes through Excalidraw's public server unless you rebuild the frontend and run a separate `excalidraw-room` container.
 
-| Capability                      | Official `excalidraw/excalidraw`          | ExcaliDash                                                  |
-| ------------------------------- | ----------------------------------------- | ----------------------------------------------------------- |
-| Persistent server-side drawings | Browser `localStorage` only               | SQLite or PostgreSQL + optional S3                          |
-| Real-time collaboration         | Public server or custom `excalidraw-room` | Built-in Socket.IO backend + follow mode                    |
-| Dashboard, collections & search | No                                        | Yes                                                         |
-| User accounts & OIDC SSO        | No                                        | Local accounts + Authentik, Keycloak, Pocket ID, Authelia   |
-| Sharing & permissions           | Anonymous room links                      | Account view/edit access + expiring share links             |
-| Version history & backups       | Manual `.excalidraw` save                 | Automatic snapshots + `.excalidash` & `.excalidraw` exports |
+ExcaliDash packages the Excalidraw editor with a Node.js backend, SQLite or PostgreSQL persistence, and a built-in Socket.IO collaboration server on `/socket.io/`. It is an independent open-source project (GNU LGPL v3.0) and is not affiliated with Excalidraw.
 
-## Start in two minutes with Docker Compose
+| Capability                      | Official `excalidraw/excalidraw`          | Excalidraw+       | ExcaliDash                                                  |
+| ------------------------------- | ----------------------------------------- | ----------------- | ----------------------------------------------------------- |
+| Hosting                         | Self-hosted static frontend               | Hosted SaaS only  | Self-hosted Docker Compose                                  |
+| Persistent server-side drawings | Browser `localStorage` only               | Cloud workspace   | SQLite or PostgreSQL + optional S3                          |
+| Real-time collaboration         | Public server or custom `excalidraw-room` | Yes               | Built-in Socket.IO backend + follow mode                    |
+| Dashboard, collections & search | No                                        | Yes               | Yes                                                         |
+| User accounts & OIDC SSO        | No                                        | Hosted accounts   | Local accounts + Authentik, Keycloak, Pocket ID, Authelia   |
+| Sharing & permissions           | Anonymous room links                      | Workspace sharing | Account view/edit access + expiring share links             |
+| Version history & backups       | Manual `.excalidraw` save                 | Yes               | Automatic snapshots + `.excalidash` & `.excalidraw` exports |
+| License & cost                  | MIT, free                                 | Paid subscription | LGPL-3.0, free                                              |
+
+Evaluating other GitHub projects like Excaliself, excalidraw-full, or alswl/excalidraw-collaboration? Read [self-hosted Excalidraw projects compared](/guides/self-hosted-excalidraw-projects). To see how the backend handles storage, sync, and auth, read [how ExcaliDash works](/guides/how-excalidash-works).
+
+## Deploy self-hosted Excalidraw with Docker Compose
 
 Run the production stack with persistent SQLite storage on port `6767`:
 
@@ -102,12 +108,17 @@ Run `docker compose up -d`, open `http://localhost:6767`, and create your admini
 
 ## Guides for self-hosting Excalidraw
 
-- [How to self-host Excalidraw with collaboration and saved drawings](/guides/self-host-excalidraw) — compare the official container, `excalidraw-room`, and ExcaliDash, then deploy a full stack.
-- [Self-hosted Excalidraw+ alternative](/guides/excalidraw-plus-alternative) — feature-by-feature comparison with Excalidraw+ and migration from `.excalidraw` files.
-- [Excalidraw with OIDC / SSO](/guides/excalidraw-oidc-sso) — native OpenID Connect setup for Authentik, Keycloak, Pocket ID, and Authelia with group-to-admin mapping.
-- [Reverse proxy, HTTPS, and WebSockets](/guides/excalidraw-reverse-proxy) — copy-paste configs for Caddy, Nginx, Nginx Proxy Manager, Traefik, and Cloudflare Tunnel.
-- [PostgreSQL and S3 / MinIO / R2 storage](/guides/excalidraw-postgresql-s3) — run ExcaliDash with PostgreSQL and external object storage.
-- [Deploy on Coolify, Portainer, and Dokploy](/deploy/coolify-portainer) — ready-to-paste templates for self-hosted PaaS panels.
+- [How to self-host Excalidraw with saving and collaboration](/guides/self-host-excalidraw): compare the official image, `excalidraw-room`, and ExcaliDash, then deploy with Docker Compose.
+- [How ExcaliDash works](/guides/how-excalidash-works): architecture of the Excalidraw backend, SQLite/PostgreSQL persistence, image interning, Socket.IO sync, and OIDC auth.
+- [Self-hosted Excalidraw projects compared](/guides/self-hosted-excalidraw-projects): ExcaliDash vs Excaliself, excalidraw-full, alswl/excalidraw-collaboration, excalidraw-persist, and AstraDraw.
+- [Self-host Excalidraw collaboration](/guides/excalidraw-collaboration-server): `excalidraw-room` in Docker, why `VITE_APP_WS_SERVER_URL` needs a rebuild, and how to avoid it.
+- [Excalidraw Docker not saving drawings](/guides/excalidraw-docker-not-saving): why browser `localStorage` loses scenes and how to add server-side persistent storage.
+- [Self-hosted Excalidraw+ alternative](/guides/excalidraw-plus-alternative): compare ExcaliDash with Excalidraw+ and migrate existing `.excalidraw` files.
+- [Excalidraw OIDC & SSO setup](/guides/excalidraw-oidc-sso): native OpenID Connect with Authentik, Keycloak, Pocket ID, Authelia, and Entra ID.
+- [Reverse proxy, HTTPS & WebSockets](/guides/excalidraw-reverse-proxy): Caddy, Nginx, Nginx Proxy Manager, Traefik, and Cloudflare Tunnel configs.
+- [PostgreSQL & S3 / MinIO / R2 storage](/guides/excalidraw-postgresql-s3): run ExcaliDash on PostgreSQL 16 with external S3 object storage.
+- [Deploy on Coolify, Portainer & Dokploy](/deploy/coolify-portainer): standalone templates for self-hosted Docker panels.
+- [Deploy on Kubernetes, Proxmox & Unraid](/deploy/kubernetes-proxmox-unraid): community Helm charts, Proxmox VE LXC script, and Unraid Docker Compose setup.
 
 ## Common questions
 

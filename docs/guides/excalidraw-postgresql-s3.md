@@ -1,21 +1,23 @@
 ---
-title: Excalidraw with PostgreSQL & S3
-description: Run self-hosted Excalidraw on PostgreSQL 16 and store drawing images in AWS S3, Cloudflare R2, or MinIO with ExcaliDash Docker Compose.
+title: "Self-Hosted Excalidraw with PostgreSQL & S3 Storage (R2, MinIO, AWS)"
+description: Run self-hosted Excalidraw with persistent PostgreSQL 16 storage and offload drawing images to AWS S3, Cloudflare R2, or MinIO in ExcaliDash Docker Compose.
 ---
 
 # Self-hosted Excalidraw with PostgreSQL and S3 storage
 
-ExcaliDash defaults to SQLite and local Docker volume storage so you can start with zero external dependencies. For larger teams, managed database backups, or multi-gigabyte image libraries, switch to **PostgreSQL** and **S3-compatible object storage** (AWS S3, Cloudflare R2, or MinIO).
+To run self-hosted Excalidraw on PostgreSQL instead of SQLite, set `DATABASE_PROVIDER=postgresql` and a `postgresql://` connection string in `DATABASE_URL` on `excalidash-backend`; Prisma PostgreSQL migrations run automatically on startup. To store pasted images outside the database, set `S3_BUCKET` (along with `S3_ENDPOINT`, `S3_PUBLIC_URL`, and `S3_FORCE_PATH_STYLE` for non-AWS endpoints) for AWS S3, Cloudflare R2, MinIO, Backblaze B2, or Wasabi.
 
-## When to move from SQLite to PostgreSQL and S3
+ExcaliDash ships with both SQLite and PostgreSQL Prisma clients prebuilt inside the backend image, so switching databases requires no custom image build.
 
-- **Stay on SQLite** if you run a personal homelab or small team on a single host and prefer single-file backups (`BACKUP_SCHEDULE`).
-- **Switch to PostgreSQL** when you already operate a Postgres server, want point-in-time recovery (`pg_dump` / managed snapshots), or expect high concurrent multi-user writes.
-- **Add S3 / R2 / MinIO** when teams paste large screenshots or assets into diagrams and you want uploaded images stored outside the container volume.
+## When to move off SQLite
+
+- **Stay on SQLite** for a homelab or small team on one host that prefers single-file automated backups (`BACKUP_SCHEDULE`).
+- **Move to PostgreSQL** if you already operate a Postgres cluster, rely on `pg_dump` or managed point-in-time recovery, or see heavy concurrent multi-user writes.
+- **Enable S3 / R2 / MinIO** when users paste large images or screenshots and you want binary assets kept in object storage instead of `DrawingFile` database rows.
 
 ## PostgreSQL Docker Compose stack
 
-Set `DATABASE_PROVIDER=postgresql` and supply a standard Postgres connection string in `DATABASE_URL`:
+Set `DATABASE_PROVIDER=postgresql` and supply `DATABASE_URL`:
 
 ```yaml
 services:
@@ -80,11 +82,11 @@ volumes:
   backend-uploads:
 ```
 
-On startup, the backend entrypoint applies Prisma PostgreSQL migrations automatically. Always set explicit `JWT_SECRET` and `CSRF_SECRET` values in `.env` (generate with `openssl rand -hex 32`) when running PostgreSQL.
+On startup, `docker-entrypoint.sh` selects the prebuilt PostgreSQL Prisma client and runs `prisma migrate deploy`. Set explicit `JWT_SECRET` and `CSRF_SECRET` values in `.env` (`openssl rand -hex 32`) whenever running PostgreSQL.
 
 ## S3-compatible image storage (AWS S3, Cloudflare R2, MinIO)
 
-Setting `S3_BUCKET` switches uploaded drawing images from local disk to your S3-compatible bucket. Add the matching block to the `backend` environment:
+Setting `S3_BUCKET` directs pasted image uploads into your bucket instead of `DrawingFile.data` in the database. Add the block matching your provider under `backend.environment`:
 
 ::: code-group
 
@@ -123,14 +125,14 @@ environment:
 :::
 
 - `S3_PUBLIC_URL` is required for non-AWS endpoints (R2, MinIO, Backblaze B2, Wasabi).
-- `S3_FORCE_PATH_STYLE: "true"` is required for MinIO and any endpoint that does not support virtual-hosted-style bucket subdomains.
-- Omit `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` if running on AWS with an IAM instance role or IRSA.
+- `S3_FORCE_PATH_STYLE: "true"` is required for MinIO and other endpoints without virtual-hosted-style bucket subdomains.
+- Omit `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` on AWS when using an IAM instance role or IRSA.
 
 ## Backups and migration
 
 ### Backing up PostgreSQL
 
-Use `pg_dump` on a cron schedule (note that ExcaliDash's built-in `BACKUP_SCHEDULE` targets SQLite only):
+Schedule `pg_dump` via cron or your database provider (ExcaliDash's built-in `BACKUP_SCHEDULE` targets SQLite only):
 
 ```bash
 docker exec excalidash-postgres pg_dump -U excalidash -Fc excalidash > excalidash-$(date +%F).dump
@@ -142,12 +144,12 @@ Restore with:
 docker exec -i excalidash-postgres pg_restore -U excalidash -d excalidash --clean --if-exists < excalidash-YYYY-MM-DD.dump
 ```
 
-Always back up your S3 bucket alongside the database so image records stay consistent on restore, and keep `JWT_SECRET`, `CSRF_SECRET`, and `API_KEY_HASH_PEPPER` in your password manager or secrets store.
+Back up your S3 bucket alongside PostgreSQL so `DrawingFile` rows match objects in the bucket, and keep `JWT_SECRET`, `CSRF_SECRET`, and `API_KEY_HASH_PEPPER` stored outside the cluster.
 
-### Migrating drawings from SQLite to PostgreSQL
+### Migrating from SQLite to PostgreSQL
 
-1. In your existing SQLite instance, export each workspace via **Settings → Export backup** (`.excalidash` archive containing drawings, collections, snapshots, and uploaded images).
-2. Start the new PostgreSQL (and optional S3) ExcaliDash stack and create your accounts.
+1. In your SQLite instance, export each user's workspace from **Settings → Export backup** (downloads a `.excalidash` archive containing drawings, collections, version snapshots, and uploaded images).
+2. Start the PostgreSQL (and optional S3) ExcaliDash stack and create the accounts.
 3. Import each `.excalidash` archive under **Settings → Advanced → Import backup**.
 
-See [Storage, version history & backups](/guide/storage-backups) and [Environment variables reference](/reference/environment#images-and-backups) for all options.
+See [Storage, version history & backups](/guide/storage-backups) and [Environment variables reference](/reference/environment#images-and-backups) for all storage flags.

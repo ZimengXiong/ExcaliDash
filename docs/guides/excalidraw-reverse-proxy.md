@@ -1,17 +1,17 @@
 ---
-title: Excalidraw Reverse Proxy & HTTPS
-description: Configure HTTPS and WebSocket upgrades for self-hosted Excalidraw behind Caddy, Nginx, Nginx Proxy Manager, Traefik, or Cloudflare Tunnel.
+title: "Excalidraw Reverse Proxy, HTTPS & WebSockets: Caddy, Nginx, Traefik & Cloudflare"
+description: Configure HTTPS and WebSocket upgrades on /socket.io/ for self-hosted Excalidraw behind Caddy, Nginx, Nginx Proxy Manager, Traefik v3, or Cloudflare Tunnel.
 ---
 
-# Reverse proxy, HTTPS, and WebSockets
+# Excalidraw reverse proxy, HTTPS, and WebSockets
 
-ExcaliDash's `frontend` container runs nginx on both container ports `8080` and `80` (mapped to host port `6767` in `docker-compose.prod.yml`) and proxies `/api/*` and `/socket.io/*` internally to `backend:8000`.
+Point your reverse proxy at one target: the ExcaliDash `frontend` container (host port `6767`, or container port `8080` on a shared Docker network). Forward WebSocket upgrades on `/socket.io/`, allow at least `50M` request bodies, and set `FRONTEND_URL=https://<your-host>` and `TRUST_PROXY` to your proxy hop count on the `backend` service. Caddy and Traefik handle WebSocket upgrades automatically; Nginx requires explicit `Upgrade` and `Connection` headers.
 
-Your reverse proxy only needs to route traffic to **one target**—the `frontend` container—while forwarding WebSocket upgrades for `/socket.io/` and preserving forwarding headers.
+Inside the Compose stack, `excalidash-frontend` runs nginx on container ports `8080` and `80` and proxies `/api/*` and `/socket.io/*` to `backend:8000`. External proxies never need to route to the backend container directly.
 
 ## Required backend environment variables
 
-Before configuring your proxy, set `FRONTEND_URL` and `TRUST_PROXY` on the `backend` container in `compose.override.yml`:
+Set `FRONTEND_URL` and `TRUST_PROXY` on `backend` in `compose.override.yml`:
 
 ```yaml
 services:
@@ -21,11 +21,11 @@ services:
       TRUST_PROXY: "1"
 ```
 
-- **`FRONTEND_URL`** must match the exact origin you open in the browser (scheme + hostname + non-default port, with no trailing slash). You can supply a comma-separated list if serving multiple origins.
-- **`TRUST_PROXY`** must equal the number of trusted proxies between the internet and ExcaliDash (for example `"1"` behind Caddy/Nginx/Traefik, or `"2"` behind Cloudflare Proxy → Nginx → ExcaliDash). Ensure your proxy overwrites client-supplied `X-Forwarded-*` headers.
-- **`ENFORCE_HTTPS_REDIRECT`** defaults to `true` when `FRONTEND_URL` uses `https://`. Set it to `"false"` only if you terminate TLS externally and need plain HTTP access on an internal health check or LAN host.
+- **`FRONTEND_URL`** must match the exact browser origin (scheme + hostname + non-default port, no trailing slash). Comma-separate multiple origins if needed.
+- **`TRUST_PROXY`** must match the number of trusted proxy hops in front of ExcaliDash (`"1"` for Caddy, Nginx, or Traefik; `"2"` for Cloudflare Proxy → Nginx → ExcaliDash). Make sure your edge proxy overwrites client-supplied `X-Forwarded-*` headers.
+- **`ENFORCE_HTTPS_REDIRECT`** defaults to `true` whenever `FRONTEND_URL` uses `https://`. Set it to `"false"` only if you need plain HTTP access for an internal health check or LAN-only address.
 
-Apply changes:
+Apply the override:
 
 ```bash
 docker compose -f docker-compose.prod.yml -f compose.override.yml up -d
@@ -33,7 +33,7 @@ docker compose -f docker-compose.prod.yml -f compose.override.yml up -d
 
 ## Caddy
 
-Caddy handles TLS certificates and WebSocket upgrades automatically:
+Caddy handles TLS certificates and WebSocket upgrades with no extra directives:
 
 ```txt
 draw.example.com {
@@ -41,11 +41,11 @@ draw.example.com {
 }
 ```
 
-If Caddy shares a Docker network with ExcaliDash, target `excalidash-frontend:8080` directly instead of `127.0.0.1:6767`.
+If Caddy shares a Docker network with ExcaliDash, proxy directly to `excalidash-frontend:8080`.
 
 ## Nginx
 
-Include `Upgrade`, `Connection`, and a `client_max_body_size` that matches ExcaliDash's `50M` frontend body limit (or higher if you increase upload limits):
+Set `Upgrade`, `Connection`, a `client_max_body_size` matching ExcaliDash's `50M` frontend limit (or higher if you raise upload caps), and a long `proxy_read_timeout`:
 
 ```nginx
 server {
@@ -71,15 +71,15 @@ server {
 }
 ```
 
-`proxy_read_timeout 3600s` prevents nginx from closing idle Socket.IO connections during long whiteboarding sessions.
+`proxy_read_timeout 3600s` stops nginx from terminating idle Socket.IO connections during long sessions.
 
 ## Nginx Proxy Manager (NPM)
 
 1. Open **Proxy Hosts → Add Proxy Host**.
 2. Set **Domain Names** to `draw.example.com`, **Scheme** to `http`, **Forward Hostname / IP** to your Docker host (or `excalidash-frontend` on a shared network), and **Forward Port** to `6767` (or `8080` on a shared network).
-3. Turn **WebSockets Support** **ON** (required for live collaboration).
-4. Under the **SSL** tab, select your Let's Encrypt certificate and enable **Force SSL** and **HTTP/2 Support**.
-5. Under the **Advanced** tab, add:
+3. Turn **WebSockets Support** **ON**.
+4. Under **SSL**, select your Let's Encrypt certificate and enable **Force SSL** and **HTTP/2 Support**.
+5. Under **Advanced**, add:
 
 ```nginx
 client_max_body_size 50M;
@@ -88,7 +88,7 @@ proxy_read_timeout 3600s;
 
 ## Traefik v3 (Docker labels)
 
-Attach the `frontend` service to your Traefik proxy network and add these labels in `compose.override.yml`:
+Attach `frontend` to your Traefik network in `compose.override.yml`:
 
 ```yaml
 services:
@@ -109,20 +109,18 @@ networks:
     external: true
 ```
 
-Traefik forwards WebSocket upgrades automatically on HTTP routers.
+Traefik passes WebSocket upgrades through automatically on HTTP routers.
 
 ## Cloudflare Tunnel (`cloudflared`)
 
-When exposing ExcaliDash through Cloudflare Zero Trust Tunnels:
+1. Add a **Public Hostname** (`draw.example.com`) pointing to `http://127.0.0.1:6767` (or `http://excalidash-frontend:8080` on a shared Docker network).
+2. Confirm **WebSockets** is enabled under **Network** in Cloudflare (enabled by default).
+3. Set `FRONTEND_URL: https://draw.example.com` and `TRUST_PROXY: "1"` on `backend` (use `"2"` if `cloudflared` forwards to another reverse proxy before ExcaliDash).
 
-1. Add a **Public Hostname** (`draw.example.com`) pointing to `http://127.0.0.1:6767` (or `http://excalidash-frontend:8080` if `cloudflared` runs on the same Docker network).
-2. In your Cloudflare dashboard under **Network**, verify **WebSockets** is enabled (on by default).
-3. Set `FRONTEND_URL: https://draw.example.com` and `TRUST_PROXY: "1"` on `backend` (use `"2"` if `cloudflared` forwards to another local reverse proxy before ExcaliDash).
+## Verify your reverse proxy
 
-## Verify your proxy setup
+1. **Login & cookies:** open `https://draw.example.com` and sign in. If you bounce back to `/login`, verify `TRUST_PROXY` and `FRONTEND_URL`.
+2. **WebSockets:** open a drawing and inspect DevTools → **Network → WS**. `/socket.io/?EIO=4&transport=websocket` should return `101 Switching Protocols`.
+3. **Upload limit:** paste a large screenshot into a canvas to confirm the proxy does not return `413 Request Entity Too Large`.
 
-1. **API & TLS check:** Open `https://draw.example.com` and sign in. If you immediately bounce back to the login page, check `TRUST_PROXY` and `FRONTEND_URL`.
-2. **WebSocket check:** Open a drawing, open browser DevTools → **Network → WS**, and confirm the `/socket.io/?EIO=4&transport=websocket` request returns **`101 Switching Protocols`**.
-3. **Upload limit check:** Paste a large image into a drawing to confirm your proxy does not return `413 Request Entity Too Large`.
-
-Continue with [OIDC & SSO setup](/guides/excalidraw-oidc-sso) or [Real-time collaboration & sharing](/guide/collaboration).
+Next steps: [Excalidraw OIDC & SSO setup](/guides/excalidraw-oidc-sso) or [Collaboration and sharing](/guide/collaboration).
