@@ -58,6 +58,9 @@ const connectSchema = z.object({
   label: z.string().optional(),
   style: styleSchema.optional(),
   arrowType: z.enum(["arrow", "line"]).optional(),
+  // "straight" runs border to border; "elbow" is an orthogonal Excalidraw elbow
+  // arrow bound to the facing sides of both shapes.
+  routing: z.enum(["straight", "elbow"]).optional(),
 });
 
 const setTextSchema = z.object({

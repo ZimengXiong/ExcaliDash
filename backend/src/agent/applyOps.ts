@@ -4,10 +4,19 @@ import { applyLayout } from "./applyLayout";
 import type { LayoutResult } from "./layout";
 import type { Op, OpError } from "./opSchemas";
 import {
+  type Shape,
+  arrowLabelAnchor,
+  connectRoute,
+  laneOffset,
+  selfLoopRoute,
+} from "./connectGeometry";
+import { EDGE_LABEL_FONT_SIZE } from "./layoutText";
+import {
   ExcalidrawElement,
   addBoundElement,
   applyStylePatch,
   centerOf,
+  centreLabelOn,
   createArrowElement,
   createShapeElement,
   createTextElement,
@@ -106,13 +115,44 @@ const applyAddShape = (scene: Scene, op: Extract<Op, { op: "add_shape" }>) => {
 
   if (op.label !== undefined) {
     const text = sanitizeElementText(op.label);
-    const label = createTextElement(op.x + w / 2, op.y + h / 2, text, el.id);
+    const label = createTextElement(0, 0, text, el.id);
+    centreLabelOn(label, op.x + w / 2, op.y + h / 2);
     addBoundElement(el, { id: label.id, type: "text" });
     scene.add(label);
     createdIds.push(label.id);
   }
   return { createdIds };
 };
+
+/** Arrows already joining these two shapes, in either direction. */
+const arrowsBetween = (scene: Scene, a: string, b: string): number => {
+  let count = 0;
+  for (const el of scene.elements) {
+    if (el.isDeleted || (el.type !== "arrow" && el.type !== "line")) continue;
+    const s = el.startBinding?.elementId;
+    const e = el.endBinding?.elementId;
+    if ((s === a && e === b) || (s === b && e === a)) count += 1;
+    else if (
+      a === b &&
+      (el.customData as { selfLoopOf?: unknown } | undefined)?.selfLoopOf === a
+    )
+      count += 1;
+  }
+  return count;
+};
+
+const shapeOf = (el: ExcalidrawElement): Shape => ({
+  type: String(el.type),
+  x: Number(el.x ?? 0),
+  y: Number(el.y ?? 0),
+  width: Number(el.width ?? 0),
+  height: Number(el.height ?? 0),
+});
+
+const round = (p: { x: number; y: number }) => ({
+  x: Math.round(p.x),
+  y: Math.round(p.y),
+});
 
 const applyConnect = (scene: Scene, op: Extract<Op, { op: "connect" }>) => {
   const from = scene.getLive(op.fromId);
@@ -123,19 +163,51 @@ const applyConnect = (scene: Scene, op: Extract<Op, { op: "connect" }>) => {
   if (!to) {
     return { error: notFound(op.toId) };
   }
-  const a = centerOf(from);
-  const b = centerOf(to);
-  const arrow = createArrowElement(
-    a.cx,
-    a.cy,
-    [
-      [0, 0],
-      [b.cx - a.cx, b.cy - a.cy],
-    ],
-    op.arrowType ?? "arrow",
-  );
-  arrow.startBinding = { elementId: from.id, focus: 0, gap: 4 };
-  arrow.endBinding = { elementId: to.id, focus: 0, gap: 4 };
+  const arrowType = op.arrowType ?? "arrow";
+  const nth = arrowsBetween(scene, from.id, to.id);
+
+  let arrow: ExcalidrawElement;
+  if (from.id === to.id) {
+    // Binding both ends to one shape makes Excalidraw collapse the arrow onto a
+    // single point, so a self-connection keeps its own arc and stays unbound.
+    const points = selfLoopRoute(shapeOf(from), nth).map(round);
+    const head = points[0];
+    arrow = createArrowElement(
+      head.x,
+      head.y,
+      points.map((p) => [p.x - head.x, p.y - head.y] as [number, number]),
+      arrowType,
+    );
+    arrow.customData = { selfLoopOf: from.id };
+  } else {
+    const route = connectRoute(
+      shapeOf(from),
+      shapeOf(to),
+      op.routing ?? "straight",
+      laneOffset(nth),
+    );
+    const points = route.points.map(round);
+    const head = points[0];
+    arrow = createArrowElement(
+      head.x,
+      head.y,
+      points.map((p) => [p.x - head.x, p.y - head.y] as [number, number]),
+      arrowType,
+    );
+    // Clearance is baked into the points, so the binding gap stays minimal: a
+    // larger gap makes Excalidraw re-project the tip and kink it.
+    arrow.startBinding = { elementId: from.id, focus: 0, gap: 1 };
+    arrow.endBinding = { elementId: to.id, focus: 0, gap: 1 };
+    if (route.elbowed) {
+      arrow.elbowed = true;
+      arrow.roundness = null;
+      arrow.fixedSegments = null;
+      arrow.startIsSpecial = null;
+      arrow.endIsSpecial = null;
+      arrow.startBinding.fixedPoint = route.start.fixedPoint ?? null;
+      arrow.endBinding.fixedPoint = route.end.fixedPoint ?? null;
+    }
+  }
   if (op.style) {
     const err = applyStylePatch(arrow, op.style);
     if (err) return { error: err };
@@ -144,17 +216,27 @@ const applyConnect = (scene: Scene, op: Extract<Op, { op: "connect" }>) => {
 
   addBoundElement(from, { id: arrow.id, type: "arrow" });
   scene.markChanged(from);
-  addBoundElement(to, { id: arrow.id, type: "arrow" });
-  scene.markChanged(to);
+  if (to.id !== from.id) {
+    addBoundElement(to, { id: arrow.id, type: "arrow" });
+    scene.markChanged(to);
+  }
 
   const createdIds = [arrow.id];
   if (op.label !== undefined) {
     const label = createTextElement(
-      a.cx,
-      a.cy,
+      0,
+      0,
       sanitizeElementText(op.label),
       arrow.id,
+      EDGE_LABEL_FONT_SIZE,
     );
+    const anchor = arrowLabelAnchor(
+      (arrow.points as [number, number][]).map(([x, y]) => ({
+        x: arrow.x + x,
+        y: arrow.y + y,
+      })),
+    );
+    centreLabelOn(label, anchor.x, anchor.y);
     addBoundElement(arrow, { id: label.id, type: "text" });
     scene.add(label);
     createdIds.push(label.id);
@@ -183,7 +265,8 @@ const applySetText = (scene: Scene, op: Extract<Op, { op: "set_text" }>) => {
   }
 
   const c = centerOf(el);
-  const created = createTextElement(c.cx, c.cy, text, el.id);
+  const created = createTextElement(0, 0, text, el.id);
+  centreLabelOn(created, c.cx, c.cy);
   addBoundElement(el, { id: created.id, type: "text" });
   scene.markChanged(el);
   scene.add(created);

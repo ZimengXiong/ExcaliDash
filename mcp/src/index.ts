@@ -30,9 +30,18 @@ const op = z.discriminatedUnion("op", [
     op: z.literal("connect"),
     fromId: id,
     toId: id,
-    label: z.string().optional(),
+    label: z
+      .string()
+      .optional()
+      .describe("Text bound to the arrow, drawn at its midpoint"),
     style: style.optional(),
     arrowType: z.enum(["arrow", "line"]).optional(),
+    routing: z
+      .enum(["straight", "elbow"])
+      .optional()
+      .describe(
+        "straight (default): border to border. elbow: orthogonal Excalidraw elbow arrow between the facing sides",
+      ),
   }),
   z.object({ op: z.literal("set_text"), id, text: z.string() }),
   z.object({ op: z.literal("set_style"), id, style }),
@@ -256,7 +265,10 @@ export const createServer = (
     "apply_drawing_ops",
     {
       description:
-        "Atomically apply up to 50 semantic operations. Uses drawingId when provided, otherwise the selected drawing. Read the summary first.",
+        "Atomically apply up to 50 semantic operations. Uses drawingId when provided, otherwise the selected drawing. Read the summary first. " +
+        "For a new diagram prefer one `layout` op (nodes + edges): the server places the shapes and routes the arrows. " +
+        "Use `connect` (fromId/toId of existing shapes, or refs from an earlier call) to join shapes yourself: arrows are bound to both shapes, start and end on their borders, and carry `label` as bound text; pass routing: \"elbow\" for orthogonal arrows. " +
+        "Never draw connectors with add_shape or import_elements, and never add a separate text element as an arrow label.",
       inputSchema: z.object({
         drawingId: id.optional(),
         ops: z

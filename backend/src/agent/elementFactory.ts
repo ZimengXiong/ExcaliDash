@@ -153,6 +153,20 @@ export const centerOf = (
 });
 
 /**
+ * Place an already-measured text element so its centre lands on (cx, cy).
+ * Text x/y is the top-left corner, so passing the centre straight to
+ * createTextElement leaves the label hanging off to the bottom right.
+ */
+export const centreLabelOn = (
+  el: ExcalidrawElement,
+  cx: number,
+  cy: number,
+): void => {
+  el.x = Math.round(cx - (el.width ?? 0) / 2);
+  el.y = Math.round(cy - (el.height ?? 0) / 2);
+};
+
+/**
  * Apply a whitelisted style patch in place. Returns an OpError (without
  * opIndex) for the first unknown key so the caller can attach the index.
  */

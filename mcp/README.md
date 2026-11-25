@@ -86,6 +86,8 @@ The server exposes 17 tools. Drawing selection belongs to one MCP session; anoth
 
 `apply_drawing_ops` supports `add_shape`, `connect`, `set_text`, `set_style`, `move`, `delete`, `import_elements`, `layout`, and `revert_to_snapshot`. A `layout` operation accepts graph nodes and edges; supported directions are `TB`, `BT`, `LR`, and `RL`. A graph can have up to 200 nodes and 400 edges, with a batch limit of 300 nodes and 600 edges.
 
+`connect` takes the IDs (or refs) of two existing shapes. The arrow is bound to both shapes, so it follows them when they move; it starts and ends on their borders rather than their centres, and an optional `label` is bound to the arrow at its midpoint. Pass `routing: "elbow"` for an orthogonal elbow arrow between the facing sides; the default is `"straight"`. Repeated connections between the same two shapes are drawn side by side.
+
 When adding shapes, you can give them short `ref` names. The response maps these names to element IDs. Use the names in a **second** `apply_drawing_ops` call to connect or edit those elements. ExcaliDash assigns IDs when it creates the shapes, so a request that creates a `ref` and refers to it later in the _same_ batch is rejected before writing. Each call is atomic on its own; the two calls are not one transaction. Aliases are scoped to the current drawing and MCP session and disappear on restart.
 
 `revert_to_snapshot` restores elements from a version you already know. It is not a history browser or a full restoration of files and app state. Reverted elements may remain in the stored scene with `isDeleted: true`.
