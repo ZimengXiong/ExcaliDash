@@ -121,10 +121,9 @@ For Nginx, Nginx Proxy Manager, Traefik v3, Cloudflare Tunnel, and multi-hop `TR
 
 ## Step 5: Backups, OIDC SSO, PostgreSQL, or PaaS panels
 
-- Mount `backup-data:/app/backups` (owned by UID `1001`) and set `BACKUP_SCHEDULE="0 0 4 * * *"` for scheduled SQLite backups. See [Persist and back up data](/deploy/docker#persist-and-back-up-data).
-- Set `AUTH_MODE` to `hybrid` or `oidc_enforced` for Authentik, Keycloak, Pocket ID, Authelia, or Entra ID. See [Excalidraw OIDC & SSO setup](/guides/excalidraw-oidc-sso).
-- Move from SQLite to PostgreSQL 16 and offload images to MinIO, Cloudflare R2, or AWS S3. See [PostgreSQL & S3 storage](/guides/excalidraw-postgresql-s3).
-- For panel and cluster deployments, see [Coolify, Portainer & Dokploy](/deploy/coolify-portainer) or [Kubernetes, Proxmox & Unraid](/deploy/kubernetes-proxmox-unraid).
+To add scheduled SQLite backups, mount `backup-data:/app/backups` (owned by UID `1001`) and set `BACKUP_SCHEDULE="0 0 4 * * *"` as covered in [Persist and back up data](/deploy/docker#persist-and-back-up-data). To enable SSO with Authentik, Keycloak, Pocket ID, Authelia, or Entra ID, set `AUTH_MODE` to `hybrid` or `oidc_enforced` following [Excalidraw OIDC & SSO setup](/guides/excalidraw-oidc-sso).
+
+If you want PostgreSQL 16 and S3-compatible image storage (MinIO, Cloudflare R2, AWS S3), see [PostgreSQL & S3 storage](/guides/excalidraw-postgresql-s3). For panel and cluster setups, see [Coolify, Portainer & Dokploy](/deploy/coolify-portainer) or [Kubernetes, Proxmox & Unraid](/deploy/kubernetes-proxmox-unraid).
 
 ## Where does self-hosted Excalidraw save drawings?
 

@@ -21,9 +21,7 @@ Pin image tags in your values or Compose file to the release you want (current: 
 
 ExcaliDash holds Socket.IO room membership and presence state in backend process memory, and the default SQLite database is a single file on one volume. Running multiple backend replicas splits collaborators into separate processes so edits stop syncing across pods, and SQLite does not support concurrent writers from separate pods.
 
-- Keep backend `replicas: 1`, and use `strategy.type: Recreate` when mounting a `ReadWriteOnce` PVC.
-- The frontend nginx Deployment can scale horizontally, though a single pod handles most teams.
-- Store `JWT_SECRET` and `CSRF_SECRET` in a Kubernetes `Secret` so sessions survive pod restarts.
+Keep backend `replicas: 1`, use `strategy.type: Recreate` when mounting a `ReadWriteOnce` PVC, and store `JWT_SECRET` and `CSRF_SECRET` in a Kubernetes `Secret` so sessions survive pod restarts. The frontend nginx Deployment can scale horizontally if needed, though one pod handles most teams.
 
 ## Excalidraw on Kubernetes with Helm
 

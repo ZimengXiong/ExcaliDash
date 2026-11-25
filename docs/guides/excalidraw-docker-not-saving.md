@@ -54,10 +54,9 @@ For a standalone Compose file with pinned tags, see [How to self-host Excalidraw
 
 ## Keeping ExcaliDash data persistent
 
-- Keep the `backend-data` named volume intact. `docker compose down` preserves named volumes; `docker compose down --volumes` deletes every drawing and user account.
-- If you replace the named volume with a host bind mount, set ownership to UID `1001` (`chown -R 1001:1001 <dir>`) so the non-root backend process can write.
-- Enable `BACKUP_SCHEDULE` for automated SQLite `VACUUM INTO` backups and copy them off-host. See [Persist and back up data](/deploy/docker#persist-and-back-up-data).
-- Export a full `.excalidash` archive under Settings → Export backup before host migrations.
+Keep the `backend-data` named volume intact: `docker compose down` preserves named volumes, while `docker compose down --volumes` deletes every drawing and user account. If you replace the named volume with a host bind mount, set ownership to UID `1001` (`chown -R 1001:1001 <dir>`) so the non-root backend process can write.
+
+For ongoing safety, enable `BACKUP_SCHEDULE` for automated SQLite `VACUUM INTO` backups (see [Persist and back up data](/deploy/docker#persist-and-back-up-data)) and export a full `.excalidash` archive under Settings → Export backup before host migrations.
 
 ## Related guides
 

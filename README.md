@@ -6,8 +6,6 @@ The official `excalidraw/excalidraw` Docker image is a static frontend: scenes l
 
 [![ExcaliDash self-hosted Excalidraw workspace](docs/public/images/workspace.png)](https://excalidash.xyz)
 
-Documentation and deployment guides live at [excalidash.xyz](https://excalidash.xyz).
-
 ## Quick start
 
 ```sh
@@ -18,13 +16,7 @@ docker compose -f docker-compose.prod.yml up -d
 
 Open <http://localhost:6767> and create your administrator account.
 
-## Requirements
-
-- Docker Engine or Docker Desktop with Docker Compose v2
-- Images: `zimengxiong/excalidash-frontend` and `zimengxiong/excalidash-backend` on Docker Hub for `linux/amd64` and `linux/arm64`, tagged `latest` and by release (current: `0.7.0`, matching [`VERSION`](VERSION))
-- Ports: host `6767` maps to frontend container port `8080`; the backend listens on `8000` inside the Compose network and stays unexposed
-- Storage: SQLite in the `backend-data` volume by default, or PostgreSQL; pasted images stored in the database by default or offloaded to any S3-compatible bucket
-- Scaling: run a single backend instance (`replicas: 1`), since live collaboration room state lives in one Node.js process
+All you need is Docker with Docker Compose v2. Multi-arch images for `linux/amd64` and `linux/arm64` are published on Docker Hub as `zimengxiong/excalidash-frontend` and `zimengxiong/excalidash-backend`, tagged `latest` and by release (current: `0.7.0`, matching [`VERSION`](VERSION)). Host port `6767` maps to the frontend container on `8080`, while the backend stays internal on port `8000`. Drawings save to SQLite in the `backend-data` volume by default (or PostgreSQL), pasted images stay in the database or offload to any S3-compatible bucket, and live collaboration room state lives in one Node.js process so the backend runs as a single replica (`replicas: 1`).
 
 ## Excalidraw vs ExcaliDash
 
@@ -37,20 +29,12 @@ Open <http://localhost:6767> and create your administrator account.
 | Version history         | No                               | No                                 | Yes               | Automatic snapshots with restore    |
 | License and cost        | MIT, free                        | MIT, free                          | Paid subscription | LGPL-3.0, free                      |
 
-## Guides & documentation
+## Documentation
 
-- [How to self-host Excalidraw](https://excalidash.xyz/guides/self-host-excalidraw): compare the official image, `excalidraw-room`, and ExcaliDash, then deploy with Docker Compose
-- [How ExcaliDash works](https://excalidash.xyz/guides/how-excalidash-works): architecture of the Excalidraw backend, SQLite/PostgreSQL persistence, image storage, Socket.IO sync, and OIDC auth
-- [Self-hosted Excalidraw projects compared](https://excalidash.xyz/guides/self-hosted-excalidraw-projects): ExcaliDash vs Excaliself, excalidraw-full, alswl/excalidraw-collaboration, excalidraw-persist, and AstraDraw
-- [Self-host Excalidraw collaboration](https://excalidash.xyz/guides/excalidraw-collaboration-server): `excalidraw-room` in Docker, why `VITE_APP_WS_SERVER_URL` needs a rebuild, and the no-rebuild alternative
-- [Excalidraw Docker not saving drawings](https://excalidash.xyz/guides/excalidraw-docker-not-saving): why the official container loses scenes and how to add persistent storage
-- [Self-hosted Excalidraw+ alternative](https://excalidash.xyz/guides/excalidraw-plus-alternative): feature comparison with Excalidraw+ and migrating `.excalidraw` files
-- [Reverse proxy, HTTPS & WebSockets](https://excalidash.xyz/guides/excalidraw-reverse-proxy): Caddy, Nginx, Nginx Proxy Manager, Traefik, and Cloudflare Tunnel
-- [Excalidraw OIDC & SSO setup](https://excalidash.xyz/guides/excalidraw-oidc-sso): Authentik, Keycloak, Pocket ID, Authelia, and Entra ID
-- [PostgreSQL & S3 storage](https://excalidash.xyz/guides/excalidraw-postgresql-s3): PostgreSQL 16, AWS S3, Cloudflare R2, and MinIO
-- [Docker Compose production guide](https://excalidash.xyz/deploy/docker): pinned tags, scheduled SQLite backups, and upgrades
-- [Coolify, Portainer & Dokploy](https://excalidash.xyz/deploy/coolify-portainer): standalone stacks for Docker panels
-- [Kubernetes, Proxmox & Unraid](https://excalidash.xyz/deploy/kubernetes-proxmox-unraid): community Helm charts, Proxmox LXC, and Unraid
-- [Environment variables reference](https://excalidash.xyz/reference/environment): complete backend and frontend settings
+Full documentation lives at [excalidash.xyz](https://excalidash.xyz). Start with the [self-hosting guide](https://excalidash.xyz/guides/self-host-excalidraw) or [production Docker Compose setup](https://excalidash.xyz/deploy/docker) if you want pinned tags, scheduled SQLite backups, and upgrades, or jump straight to [Coolify, Portainer, and Dokploy](https://excalidash.xyz/deploy/coolify-portainer) or [Kubernetes, Proxmox, and Unraid](https://excalidash.xyz/deploy/kubernetes-proxmox-unraid).
+
+For production infrastructure, see the guides for [reverse proxies, HTTPS, and WebSockets](https://excalidash.xyz/guides/excalidraw-reverse-proxy) (Caddy, Nginx, Nginx Proxy Manager, Traefik, Cloudflare Tunnel), [native OIDC SSO](https://excalidash.xyz/guides/excalidraw-oidc-sso) (Authentik, Keycloak, Pocket ID, Authelia, Entra ID), [PostgreSQL and S3/R2/MinIO storage](https://excalidash.xyz/guides/excalidraw-postgresql-s3), and the [environment variables reference](https://excalidash.xyz/reference/environment).
+
+If you are still evaluating options or debugging the official image, read [how ExcaliDash works](https://excalidash.xyz/guides/how-excalidash-works), [why the official Excalidraw Docker image does not save drawings](https://excalidash.xyz/guides/excalidraw-docker-not-saving), [running `excalidraw-room` without rebuilding the frontend](https://excalidash.xyz/guides/excalidraw-collaboration-server), [ExcaliDash as a self-hosted Excalidraw+ alternative](https://excalidash.xyz/guides/excalidraw-plus-alternative), or [self-hosted Excalidraw projects compared](https://excalidash.xyz/guides/self-hosted-excalidraw-projects).
 
 ExcaliDash is an independent open-source project built around Excalidraw and is not affiliated with Excalidraw. Licensed under the GNU Lesser General Public License v3.0.
