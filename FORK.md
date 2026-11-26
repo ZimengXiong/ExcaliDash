@@ -14,6 +14,10 @@ Fork of [ZimengXiong/ExcaliDash](https://github.com/ZimengXiong/ExcaliDash) that
 
 The backend is untouched: animation settings live in each element's `customData`, which the stock backend already stores.
 
+## Published images
+
+`.github/workflows/publish-frontend.yml` pushes `ghcr.io/<owner>/excalidash-frontend:<tag>` (linux/amd64) when a tag like `v0.6.6-animate.1` is pushed, or when run by hand with an explicit tag. Only the frontend is built here; the backend is the upstream image.
+
 ## Build
 
 ```bash
