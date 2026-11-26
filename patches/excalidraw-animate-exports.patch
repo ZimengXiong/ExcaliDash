@@ -1,0 +1,28 @@
+diff --git a/packages/element/src/index.ts b/packages/element/src/index.ts
+index c451840..4ea3186 100644
+--- a/packages/element/src/index.ts
++++ b/packages/element/src/index.ts
+@@ -106,3 +106,8 @@ export * from "./zindex";
+ export * from "./arrows/helpers";
+ export * from "./arrowheads";
+ export * from "./convertToShape";
++
++// [excalidash-improvements] the package build resolves "@excalidraw/element/*"
++// to this index, so the fork's label modules must be exported from it
++export * from "./curvedLabel";
++export * from "./labelOffset";
+diff --git a/packages/excalidraw/index.tsx b/packages/excalidraw/index.tsx
+index 217c4e7..596b9c6 100644
+--- a/packages/excalidraw/index.tsx
++++ b/packages/excalidraw/index.tsx
+@@ -556,3 +556,10 @@ export function useExcalidrawStateValue(
+ export { _useOnAppStateChange as useOnExcalidrawStateChange };
+ 
+ export { applyDarkModeFilter, getStrokeWidthByKey };
++
++// [excalidash-improvements] expose the animation UI to library consumers
++export {
++  AnimationSidebar,
++  AnimationSidebarTrigger,
++} from "./animation/AnimationSidebar";
++export { remapAnimationReferences } from "./animation/dot";

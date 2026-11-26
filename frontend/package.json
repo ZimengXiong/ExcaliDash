@@ -14,7 +14,12 @@
     "test:unit": "vitest run"
   },
   "dependencies": {
-    "@excalidraw/excalidraw": "^0.18.1",
+    "@excalidraw/common": "file:vendor/excalidraw-animate/excalidraw-common-0.18.0.tgz",
+    "@excalidraw/element": "file:vendor/excalidraw-animate/excalidraw-element-0.18.0.tgz",
+    "@excalidraw/excalidraw": "file:vendor/excalidraw-animate/excalidraw-excalidraw-0.18.0.tgz",
+    "@excalidraw/fractional-indexing": "file:vendor/excalidraw-animate/excalidraw-fractional-indexing-3.3.0.tgz",
+    "@excalidraw/laser-pointer": "file:vendor/excalidraw-animate/excalidraw-laser-pointer-1.3.1.tgz",
+    "@excalidraw/math": "file:vendor/excalidraw-animate/excalidraw-math-0.18.0.tgz",
     "@types/lodash": "^4.17.20",
     "axios": "^1.20.0",
     "clsx": "^2.1.1",

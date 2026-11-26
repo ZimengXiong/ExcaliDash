@@ -40,6 +40,9 @@ vi.mock("@excalidraw/excalidraw", () => {
       },
     }),
     exportToSvg: vi.fn(async () => ({ outerHTML: "<svg />" })),
+    AnimationSidebar: () => null,
+    AnimationSidebarTrigger: () => null,
+    remapAnimationReferences: vi.fn(),
   };
 });
 vi.mock("../src/api", () => ({

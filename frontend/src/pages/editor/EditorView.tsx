@@ -1,7 +1,13 @@
 import React from "react";
 import type { DrawingSnapshotFull } from "../../api";
 import { HistoryPreviewCanvas } from "./HistoryPreviewCanvas";
-import { Excalidraw, MainMenu } from "@excalidraw/excalidraw";
+import {
+  AnimationSidebar,
+  AnimationSidebarTrigger,
+  Excalidraw,
+  MainMenu,
+  remapAnimationReferences,
+} from "@excalidraw/excalidraw";
 import {
   ArrowLeft,
   ChevronDown,
@@ -322,11 +328,18 @@ export const EditorView: React.FC<EditorViewProps> = ({
           onChange={onCanvasChange}
           onPointerUpdate={onPointerUpdate}
           onLibraryChange={onLibraryChange}
-          excalidrawAPI={onSetExcalidrawAPI}
+          onExcalidrawAPI={onSetExcalidrawAPI}
           UIOptions={UIOptions}
           validateEmbeddable={validateEmbeddableUrl}
           viewModeEnabled={!canEdit || isHistoryOpen}
+          renderTopRightUI={(isMobile) =>
+            isMobile || !canEdit || isHistoryOpen ? null : (
+              <AnimationSidebarTrigger />
+            )
+          }
+          onDuplicate={remapAnimationReferences}
         >
+          <AnimationSidebar />
           <MainMenu>
             <MainMenu.Item onSelect={onToggleTheme} shortcut="Shift+Alt+D">
               {theme === "dark" ? "Light mode" : "Dark mode"}

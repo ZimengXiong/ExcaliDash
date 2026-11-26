@@ -34,4 +34,6 @@ backend/prisma/.migration-lock
 local
 oidc
 scripts
+!scripts/build-excalidraw-animate.sh
+frontend/vendor
 docker-compose*.yml
