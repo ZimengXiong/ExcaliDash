@@ -70,6 +70,11 @@ jobs:
           npm --prefix backend ci
           npm --prefix frontend ci
 
+      - name: Build sanitizer WebAssembly
+        run: |
+          rustup target add wasm32-unknown-unknown
+          npm --prefix backend run build:wasm
+
       - name: Generate Prisma client
         run: |
           cd backend
@@ -146,6 +151,12 @@ jobs:
           npm --prefix frontend ci
           npm --prefix e2e ci
           cd backend && npx prisma generate
+
+      - name: Build sanitizer WebAssembly
+        if: needs.changes.outputs.application == 'true'
+        run: |
+          rustup target add wasm32-unknown-unknown
+          npm --prefix backend run build:wasm
 
       - name: Install Chromium
         if: needs.changes.outputs.application == 'true'

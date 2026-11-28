@@ -2,13 +2,13 @@
  * Security utilities for XSS prevention, data sanitization, and CSRF protection
  */
 import { z } from "zod";
-import DOMPurify from "dompurify";
-import { JSDOM } from "jsdom";
 import crypto from "crypto";
 import { config } from "./config";
 import { MIME_TO_EXT } from "./fileProcessing";
-const window = new JSDOM("").window;
-const purify = DOMPurify(window);
+import {
+  sanitizeSvgMarkup,
+  sanitizeTextMarkup,
+} from "./security/wasmSanitizer";
 /**
  * Thrown when a drawing's files cannot be sanitized safely (e.g. an image
  * dataURL is malformed/unsupported → 400, or exceeds the size cap → 413).
@@ -104,7 +104,7 @@ export const sanitizeSvg = (svgContent: string): string => {
       );
     });
   // Previews embed every image as a base64 data URL, often tens of MB. Parsing
-  // those through jsdom dominates CPU and memory, so swap each safe data URL
+  // those dominates CPU and memory, so swap each safe data URL
   // for a short managed-ref placeholder, sanitize the small remaining markup,
   // then restore. Unsafe data URLs are left in place for the normal rejection.
   const placeholderPrefix = `/api/files/inline-${crypto.randomBytes(8).toString("hex")}/`;
@@ -118,106 +118,7 @@ export const sanitizeSvg = (svgContent: string): string => {
       return `${prefix}${quote}${placeholderPrefix}${inlineDataUrls.length - 1}${quote}`;
     },
   );
-  const sanitized = purify
-    .sanitize(withPlaceholders, {
-      ALLOWED_TAGS: [
-        "svg",
-        "defs",
-        "pattern",
-        "g",
-        "image",
-        "symbol",
-        "use",
-        "clipPath",
-        "mask",
-        "rect",
-        "circle",
-        "ellipse",
-        "line",
-        "polyline",
-        "polygon",
-        "path",
-        "text",
-        "tspan",
-      ],
-      ALLOWED_ATTR: [
-        "xmlns",
-        "xmlns:xlink",
-        "version",
-        "id",
-        "viewBox",
-        "preserveAspectRatio",
-        "x",
-        "y",
-        "width",
-        "height",
-        "cx",
-        "cy",
-        "r",
-        "rx",
-        "ry",
-        "x1",
-        "y1",
-        "x2",
-        "y2",
-        "points",
-        "d",
-        "fill",
-        "fill-opacity",
-        "fill-rule",
-        "stroke",
-        "stroke-width",
-        "stroke-opacity",
-        "stroke-linecap",
-        "stroke-linejoin",
-        "stroke-miterlimit",
-        "stroke-dasharray",
-        "stroke-dashoffset",
-        "opacity",
-        "transform",
-        "clip-path",
-        "mask",
-        "clipPathUnits",
-        "maskUnits",
-        "maskContentUnits",
-        "vector-effect",
-        "patternUnits",
-        "patternContentUnits",
-        "font-size",
-        "font-family",
-        "font-weight",
-        "letter-spacing",
-        "text-anchor",
-        "dominant-baseline",
-        "href",
-        "xlink:href",
-      ],
-      FORBID_TAGS: [
-        "script",
-        "foreignObject",
-        "iframe",
-        "object",
-        "embed",
-        "style",
-        "link",
-        "marker",
-        "filter",
-      ],
-      FORBID_ATTR: [
-        "onload",
-        "onclick",
-        "onerror",
-        "onmouseover",
-        "onfocus",
-        "onblur",
-        "src",
-        "action",
-        "style",
-        "class",
-      ],
-      KEEP_CONTENT: true,
-    })
-    .trim();
+  const sanitized = sanitizeSvgMarkup(withPlaceholders);
   // Crop/frame masks only refer to local SVG geometry, never external URLs.
   const localReferences = sanitized.replace(
     /\s(?:clip-path|mask)="([^"]*)"/gi,
@@ -238,47 +139,7 @@ export const sanitizeText = (
   if (typeof input !== "string") return "";
   const cleaned = input.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
   const truncated = cleaned.slice(0, maxLength);
-  return purify
-    .sanitize(truncated, {
-      ALLOWED_TAGS: ["b", "i", "u", "em", "strong", "br", "span"],
-      ALLOWED_ATTR: [],
-      FORBID_TAGS: [
-        "script",
-        "iframe",
-        "object",
-        "embed",
-        "link",
-        "style",
-        "form",
-        "input",
-        "button",
-        "select",
-        "textarea",
-        "svg",
-        "foreignObject",
-      ],
-      FORBID_ATTR: [
-        "onload",
-        "onclick",
-        "onerror",
-        "onmouseover",
-        "onfocus",
-        "onblur",
-        "onchange",
-        "onsubmit",
-        "onreset",
-        "onkeydown",
-        "onkeyup",
-        "onkeypress",
-        "href",
-        "src",
-        "action",
-        "formaction",
-        "style",
-      ],
-      KEEP_CONTENT: true,
-    })
-    .trim();
+  return sanitizeTextMarkup(truncated);
 };
 /**
  * Maximum characters kept for an element's `text` / `originalText`. Excalidraw
@@ -290,7 +151,7 @@ export const MAX_ELEMENT_TEXT_LENGTH = 200_000;
  * Sanitize a canvas element's plain-text content. Unlike {@link sanitizeText}
  * (for names/metadata that may land in an HTML context), element text is drawn
  * to the Excalidraw canvas verbatim and is never inserted as HTML, so it must
- * NOT be run through DOMPurify: that strips literal `<value>`-style words as if
+ * NOT be run through the HTML sanitizer: that strips literal `<value>`-style words as if
  * they were unknown tags and entity-encodes `<`, `&` (turning `3 < 4 & ok` into
  * `3 &lt; 4 &amp; ok`), corrupting imported drawings. We only strip control
  * characters and cap the length (generously, at

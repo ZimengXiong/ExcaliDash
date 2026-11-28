@@ -19,3 +19,5 @@ src/generated
 coverage
 *.test.ts
 *.spec.ts
+sanitizer/target
+wasm
