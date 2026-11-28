@@ -143,3 +143,7 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# WebAssembly sanitizer build output
+backend/sanitizer/target
+backend/wasm

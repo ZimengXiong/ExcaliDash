@@ -16,6 +16,7 @@ Run the backend and frontend dev servers in separate terminals from a local clon
 - Node.js `24.22.1+` (`nvm use` picks up `.nvmrc`)
 - npm `10`
 - Git
+- Rust with the WebAssembly target (`rustup target add wasm32-unknown-unknown`) for the backend sanitizer
 
 ## Install dependencies
 
@@ -24,7 +25,10 @@ From the repository root:
 ```bash
 npm run install:all
 npm install
+npm --prefix backend run build:wasm
 ```
+
+Run `npm --prefix backend run build:wasm` again after changing `backend/sanitizer`.
 
 ## Configure environment files
 

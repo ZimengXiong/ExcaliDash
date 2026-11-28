@@ -1,0 +1,15 @@
+[package]
+name = "excalidash-sanitizer"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+ammonia = "=4.2.5"
+
+[profile.release]
+opt-level = "s"
+lto = true
